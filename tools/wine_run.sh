@@ -9,7 +9,8 @@
 # - hard timeout, and the prefix's wineserver and children are killed + the prefix removed afterwards.
 set -uo pipefail
 EXE="$1"; FILTER="${2:-}"
-WINE="${WINE:-$(command -v wine || echo $HOME/work/wine/proton-ge-custom/build/dist/files/bin/wine)}"
+WINE="${WINE:-$(command -v wine || true)}"
+[ -x "$WINE" ] || { echo "wine not found: set WINE=/path/to/wine" >&2; exit 1; }
 BASE="${TP_BASE_PREFIX:-$HOME/.cache/test_pattern/prefix}"
 TMO="${TP_TIMEOUT:-600}"
 [ -d "$BASE/drive_c" ] || "$(dirname "$0")/make_base_prefix.sh" >&2

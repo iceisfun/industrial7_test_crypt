@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Create (once) the base Wine prefix used by wine_run.sh. Headless: no X connection is made.
 set -euo pipefail
-WINE="${WINE:-$(command -v wine || echo $HOME/work/wine/proton-ge-custom/build/dist/files/bin/wine)}"
+WINE="${WINE:-$(command -v wine || true)}"
+[ -x "$WINE" ] || { echo "wine not found: set WINE=/path/to/wine" >&2; exit 1; }
 BASE="${TP_BASE_PREFIX:-$HOME/.cache/test_pattern/prefix}"
 if [ -d "$BASE/drive_c" ]; then echo "base prefix exists: $BASE"; exit 0; fi
 mkdir -p "$(dirname "$BASE")"

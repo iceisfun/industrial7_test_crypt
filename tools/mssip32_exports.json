@@ -2,64 +2,46 @@
 {
 "name": "CryptSIPGetInfo",
 "ordinal": 1,
-"rva": 9774,
-"forwarder": "Wintrust.CryptSIPGetInfo",
-"ref": null
+"forwarder": "Wintrust.CryptSIPGetInfo"
 },
 {
 "name": "CryptSIPGetRegWorkingFlags",
 "ordinal": 2,
-"rva": 9826,
-"forwarder": "Wintrust.CryptSIPGetRegWorkingFlags",
-"ref": null
+"forwarder": "Wintrust.CryptSIPGetRegWorkingFlags"
 },
 {
 "name": "CryptSIPCreateIndirectData",
 "ordinal": 3,
-"rva": 9889,
-"forwarder": "Wintrust.CryptSIPCreateIndirectData",
-"ref": null
+"forwarder": "Wintrust.CryptSIPCreateIndirectData"
 },
 {
 "name": "CryptSIPGetSignedDataMsg",
 "ordinal": 4,
-"rva": 9950,
-"forwarder": "Wintrust.CryptSIPGetSignedDataMsg",
-"ref": null
+"forwarder": "Wintrust.CryptSIPGetSignedDataMsg"
 },
 {
 "name": "CryptSIPPutSignedDataMsg",
 "ordinal": 5,
-"rva": 10009,
-"forwarder": "Wintrust.CryptSIPPutSignedDataMsg",
-"ref": null
+"forwarder": "Wintrust.CryptSIPPutSignedDataMsg"
 },
 {
 "name": "CryptSIPRemoveSignedDataMsg",
 "ordinal": 6,
-"rva": 10071,
-"forwarder": "Wintrust.CryptSIPRemoveSignedDataMsg",
-"ref": null
+"forwarder": "Wintrust.CryptSIPRemoveSignedDataMsg"
 },
 {
 "name": "CryptSIPVerifyIndirectData",
 "ordinal": 7,
-"rva": 10135,
-"forwarder": "Wintrust.CryptSIPVerifyIndirectData",
-"ref": null
+"forwarder": "Wintrust.CryptSIPVerifyIndirectData"
 },
 {
 "name": "DllRegisterServer",
 "ordinal": 8,
-"rva": 10189,
-"forwarder": "Wintrust.mssip32DllRegisterServer",
-"ref": null
+"forwarder": "Wintrust.mssip32DllRegisterServer"
 },
 {
 "name": "DllUnregisterServer",
 "ordinal": 9,
-"rva": 10243,
-"forwarder": "Wintrust.mssip32DllUnregisterServer",
-"ref": null
+"forwarder": "Wintrust.mssip32DllUnregisterServer"
 }
 ]

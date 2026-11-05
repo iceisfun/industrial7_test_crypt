@@ -2,78 +2,56 @@
 {
 "name": "SystemFunction001",
 "ordinal": 1,
-"rva": 14464,
-"forwarder": null,
-"ref": "cryptbase.dll!0x3880"
+"forwarder": null
 },
 {
 "name": "SystemFunction002",
 "ordinal": 2,
-"rva": 4160,
-"forwarder": null,
-"ref": "cryptbase.dll!0x1040"
+"forwarder": null
 },
 {
 "name": "SystemFunction003",
 "ordinal": 3,
-"rva": 9504,
-"forwarder": null,
-"ref": "cryptbase.dll!0x2520"
+"forwarder": null
 },
 {
 "name": "SystemFunction004",
 "ordinal": 4,
-"rva": 13536,
-"forwarder": null,
-"ref": "cryptbase.dll!0x34e0"
+"forwarder": null
 },
 {
 "name": "SystemFunction005",
 "ordinal": 5,
-"rva": 13920,
-"forwarder": null,
-"ref": "cryptbase.dll!0x3660"
+"forwarder": null
 },
 {
 "name": "SystemFunction028",
 "ordinal": 6,
-"rva": 11776,
-"forwarder": null,
-"ref": "cryptbase.dll!0x2e00"
+"forwarder": null
 },
 {
 "name": "SystemFunction029",
 "ordinal": 7,
-"rva": 9360,
-"forwarder": null,
-"ref": "cryptbase.dll!0x2490"
+"forwarder": null
 },
 {
 "name": "SystemFunction034",
 "ordinal": 8,
-"rva": 11872,
-"forwarder": null,
-"ref": "cryptbase.dll!0x2e60"
+"forwarder": null
 },
 {
 "name": "SystemFunction036",
 "ordinal": 9,
-"rva": 4112,
-"forwarder": null,
-"ref": "cryptbase.dll!0x1010"
+"forwarder": null
 },
 {
 "name": "SystemFunction040",
 "ordinal": 10,
-"rva": 9152,
-"forwarder": null,
-"ref": "cryptbase.dll!0x23c0"
+"forwarder": null
 },
 {
 "name": "SystemFunction041",
 "ordinal": 11,
-"rva": 9024,
-"forwarder": null,
-"ref": "cryptbase.dll!0x2340"
+"forwarder": null
 }
 ]

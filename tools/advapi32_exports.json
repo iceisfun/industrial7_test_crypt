@@ -2,6028 +2,4306 @@
 {
 "name": null,
 "ordinal": 1000,
-"rva": 238112,
-"forwarder": null,
-"ref": "advapi32.dll!0x3a220"
+"forwarder": null
 },
 {
 "name": "I_ScGetCurrentGroupStateW",
 "ordinal": 1001,
-"rva": 193296,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f310"
+"forwarder": null
 },
 {
 "name": "A_SHAFinal",
 "ordinal": 1002,
-"rva": 614022,
-"forwarder": "NTDLL.A_SHAFinal",
-"ref": null
+"forwarder": "NTDLL.A_SHAFinal"
 },
 {
 "name": "A_SHAInit",
 "ordinal": 1003,
-"rva": 614049,
-"forwarder": "NTDLL.A_SHAInit",
-"ref": null
+"forwarder": "NTDLL.A_SHAInit"
 },
 {
 "name": "A_SHAUpdate",
 "ordinal": 1004,
-"rva": 614077,
-"forwarder": "NTDLL.A_SHAUpdate",
-"ref": null
+"forwarder": "NTDLL.A_SHAUpdate"
 },
 {
 "name": "AbortSystemShutdownA",
 "ordinal": 1005,
-"rva": 280240,
-"forwarder": null,
-"ref": "advapi32.dll!0x446b0"
+"forwarder": null
 },
 {
 "name": "AbortSystemShutdownW",
 "ordinal": 1006,
-"rva": 280400,
-"forwarder": null,
-"ref": "advapi32.dll!0x44750"
+"forwarder": null
 },
 {
 "name": "AccessCheck",
 "ordinal": 1007,
-"rva": 17184,
-"forwarder": null,
-"ref": "advapi32.dll!0x4320"
+"forwarder": null
 },
 {
 "name": "AccessCheckAndAuditAlarmA",
 "ordinal": 1008,
-"rva": 294992,
-"forwarder": null,
-"ref": "advapi32.dll!0x48050"
+"forwarder": null
 },
 {
 "name": "AccessCheckAndAuditAlarmW",
 "ordinal": 1009,
-"rva": 195040,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f9e0"
+"forwarder": null
 },
 {
 "name": "AccessCheckByType",
 "ordinal": 1010,
-"rva": 195840,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fd00"
+"forwarder": null
 },
 {
 "name": "AccessCheckByTypeAndAuditAlarmA",
 "ordinal": 1011,
-"rva": 295424,
-"forwarder": null,
-"ref": "advapi32.dll!0x48200"
+"forwarder": null
 },
 {
 "name": "AccessCheckByTypeAndAuditAlarmW",
 "ordinal": 1012,
-"rva": 195168,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fa60"
+"forwarder": null
 },
 {
 "name": "AccessCheckByTypeResultList",
 "ordinal": 1013,
-"rva": 195712,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fc80"
+"forwarder": null
 },
 {
 "name": "AccessCheckByTypeResultListAndAuditAlarmA",
 "ordinal": 1014,
-"rva": 295904,
-"forwarder": null,
-"ref": "advapi32.dll!0x483e0"
+"forwarder": null
 },
 {
 "name": "AccessCheckByTypeResultListAndAuditAlarmByHandleA",
 "ordinal": 1015,
-"rva": 296384,
-"forwarder": null,
-"ref": "advapi32.dll!0x485c0"
+"forwarder": null
 },
 {
 "name": "AccessCheckByTypeResultListAndAuditAlarmByHandleW",
 "ordinal": 1016,
-"rva": 195344,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fb10"
+"forwarder": null
 },
 {
 "name": "AccessCheckByTypeResultListAndAuditAlarmW",
 "ordinal": 1017,
-"rva": 195536,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fbd0"
+"forwarder": null
 },
 {
 "name": "AddAccessAllowedAce",
 "ordinal": 1018,
-"rva": 94144,
-"forwarder": null,
-"ref": "advapi32.dll!0x16fc0"
+"forwarder": null
 },
 {
 "name": "AddAccessAllowedAceEx",
 "ordinal": 1019,
-"rva": 96208,
-"forwarder": null,
-"ref": "advapi32.dll!0x177d0"
+"forwarder": null
 },
 {
 "name": "AddAccessAllowedObjectAce",
 "ordinal": 1020,
-"rva": 195968,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fd80"
+"forwarder": null
 },
 {
 "name": "AddAccessDeniedAce",
 "ordinal": 1021,
-"rva": 196032,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fdc0"
+"forwarder": null
 },
 {
 "name": "AddAccessDeniedAceEx",
 "ordinal": 1022,
-"rva": 196000,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fda0"
+"forwarder": null
 },
 {
 "name": "AddAccessDeniedObjectAce",
 "ordinal": 1023,
-"rva": 196064,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fde0"
+"forwarder": null
 },
 {
 "name": "AddAce",
 "ordinal": 1024,
-"rva": 110192,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ae70"
+"forwarder": null
 },
 {
 "name": "AddAuditAccessAce",
 "ordinal": 1025,
-"rva": 196128,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fe20"
+"forwarder": null
 },
 {
 "name": "AddAuditAccessAceEx",
 "ordinal": 1026,
-"rva": 196096,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fe00"
+"forwarder": null
 },
 {
 "name": "AddAuditAccessObjectAce",
 "ordinal": 1027,
-"rva": 196160,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fe40"
+"forwarder": null
 },
 {
 "name": "AddConditionalAce",
 "ordinal": 1028,
-"rva": 306784,
-"forwarder": null,
-"ref": "advapi32.dll!0x4ae60"
+"forwarder": null
 },
 {
 "name": "AddMandatoryAce",
 "ordinal": 1029,
-"rva": 614731,
-"forwarder": "KERNELBASE.AddMandatoryAce",
-"ref": null
+"forwarder": "KERNELBASE.AddMandatoryAce"
 },
 {
 "name": "AddUsersToEncryptedFile",
 "ordinal": 1030,
-"rva": 191328,
-"forwarder": null,
-"ref": "advapi32.dll!0x2eb60"
+"forwarder": null
 },
 {
 "name": "AddUsersToEncryptedFileEx",
 "ordinal": 1031,
-"rva": 191456,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ebe0"
+"forwarder": null
 },
 {
 "name": "AdjustTokenGroups",
 "ordinal": 1032,
-"rva": 196192,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fe60"
+"forwarder": null
 },
 {
 "name": "AdjustTokenPrivileges",
 "ordinal": 1033,
-"rva": 96384,
-"forwarder": null,
-"ref": "advapi32.dll!0x17880"
+"forwarder": null
 },
 {
 "name": "AllocateAndInitializeSid",
 "ordinal": 1034,
-"rva": 90224,
-"forwarder": null,
-"ref": "advapi32.dll!0x16070"
+"forwarder": null
 },
 {
 "name": "AllocateLocallyUniqueId",
 "ordinal": 1035,
-"rva": 196224,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fe80"
+"forwarder": null
 },
 {
 "name": "AreAllAccessesGranted",
 "ordinal": 1036,
-"rva": 196256,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fea0"
+"forwarder": null
 },
 {
 "name": "AreAnyAccessesGranted",
 "ordinal": 1037,
-"rva": 196288,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fec0"
+"forwarder": null
 },
 {
 "name": "AuditComputeEffectivePolicyBySid",
 "ordinal": 1038,
-"rva": 196320,
-"forwarder": null,
-"ref": "advapi32.dll!0x2fee0"
+"forwarder": null
 },
 {
 "name": "AuditComputeEffectivePolicyByToken",
 "ordinal": 1039,
-"rva": 206624,
-"forwarder": null,
-"ref": "advapi32.dll!0x32720"
+"forwarder": null
 },
 {
 "name": "AuditEnumerateCategories",
 "ordinal": 1040,
-"rva": 196352,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ff00"
+"forwarder": null
 },
 {
 "name": "AuditEnumeratePerUserPolicy",
 "ordinal": 1041,
-"rva": 196384,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ff20"
+"forwarder": null
 },
 {
 "name": "AuditEnumerateSubCategories",
 "ordinal": 1042,
-"rva": 196416,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ff40"
+"forwarder": null
 },
 {
 "name": "AuditFree",
 "ordinal": 1043,
-"rva": 119504,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d2d0"
+"forwarder": null
 },
 {
 "name": "AuditLookupCategoryGuidFromCategoryId",
 "ordinal": 1044,
-"rva": 206976,
-"forwarder": null,
-"ref": "advapi32.dll!0x32880"
+"forwarder": null
 },
 {
 "name": "AuditLookupCategoryIdFromCategoryGuid",
 "ordinal": 1045,
-"rva": 207040,
-"forwarder": null,
-"ref": "advapi32.dll!0x328c0"
+"forwarder": null
 },
 {
 "name": "AuditLookupCategoryNameA",
 "ordinal": 1046,
-"rva": 207152,
-"forwarder": null,
-"ref": "advapi32.dll!0x32930"
+"forwarder": null
 },
 {
 "name": "AuditLookupCategoryNameW",
 "ordinal": 1047,
-"rva": 196448,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ff60"
+"forwarder": null
 },
 {
 "name": "AuditLookupSubCategoryNameA",
 "ordinal": 1048,
-"rva": 207328,
-"forwarder": null,
-"ref": "advapi32.dll!0x329e0"
+"forwarder": null
 },
 {
 "name": "AuditLookupSubCategoryNameW",
 "ordinal": 1049,
-"rva": 196480,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ff80"
+"forwarder": null
 },
 {
 "name": "AuditQueryGlobalSaclA",
 "ordinal": 1050,
-"rva": 207504,
-"forwarder": null,
-"ref": "advapi32.dll!0x32a90"
+"forwarder": null
 },
 {
 "name": "AuditQueryGlobalSaclW",
 "ordinal": 1051,
-"rva": 196512,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ffa0"
+"forwarder": null
 },
 {
 "name": "AuditQueryPerUserPolicy",
 "ordinal": 1052,
-"rva": 119744,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d3c0"
+"forwarder": null
 },
 {
 "name": "AuditQuerySecurity",
 "ordinal": 1053,
-"rva": 196544,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ffc0"
+"forwarder": null
 },
 {
 "name": "AuditQuerySystemPolicy",
 "ordinal": 1054,
-"rva": 119472,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d2b0"
+"forwarder": null
 },
 {
 "name": "AuditSetGlobalSaclA",
 "ordinal": 1055,
-"rva": 207696,
-"forwarder": null,
-"ref": "advapi32.dll!0x32b50"
+"forwarder": null
 },
 {
 "name": "AuditSetGlobalSaclW",
 "ordinal": 1056,
-"rva": 196576,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ffe0"
+"forwarder": null
 },
 {
 "name": "AuditSetPerUserPolicy",
 "ordinal": 1057,
-"rva": 196608,
-"forwarder": null,
-"ref": "advapi32.dll!0x30000"
+"forwarder": null
 },
 {
 "name": "AuditSetSecurity",
 "ordinal": 1058,
-"rva": 196640,
-"forwarder": null,
-"ref": "advapi32.dll!0x30020"
+"forwarder": null
 },
 {
 "name": "AuditSetSystemPolicy",
 "ordinal": 1059,
-"rva": 196672,
-"forwarder": null,
-"ref": "advapi32.dll!0x30040"
+"forwarder": null
 },
 {
 "name": "BackupEventLogA",
 "ordinal": 1060,
-"rva": 336544,
-"forwarder": null,
-"ref": "advapi32.dll!0x522a0"
+"forwarder": null
 },
 {
 "name": "BackupEventLogW",
 "ordinal": 1061,
-"rva": 336704,
-"forwarder": null,
-"ref": "advapi32.dll!0x52340"
+"forwarder": null
 },
 {
 "name": "BaseRegCloseKey",
 "ordinal": 1062,
-"rva": 281808,
-"forwarder": null,
-"ref": "advapi32.dll!0x44cd0"
+"forwarder": null
 },
 {
 "name": "BaseRegCreateKey",
 "ordinal": 1063,
-"rva": 281856,
-"forwarder": null,
-"ref": "advapi32.dll!0x44d00"
+"forwarder": null
 },
 {
 "name": "BaseRegDeleteKeyEx",
 "ordinal": 1064,
-"rva": 281968,
-"forwarder": null,
-"ref": "advapi32.dll!0x44d70"
+"forwarder": null
 },
 {
 "name": "BaseRegDeleteValue",
 "ordinal": 1065,
-"rva": 282032,
-"forwarder": null,
-"ref": "advapi32.dll!0x44db0"
+"forwarder": null
 },
 {
 "name": "BaseRegFlushKey",
 "ordinal": 1066,
-"rva": 282096,
-"forwarder": null,
-"ref": "advapi32.dll!0x44df0"
+"forwarder": null
 },
 {
 "name": "BaseRegGetVersion",
 "ordinal": 1067,
-"rva": 282144,
-"forwarder": null,
-"ref": "advapi32.dll!0x44e20"
+"forwarder": null
 },
 {
 "name": "BaseRegLoadKey",
 "ordinal": 1068,
-"rva": 282208,
-"forwarder": null,
-"ref": "advapi32.dll!0x44e60"
+"forwarder": null
 },
 {
 "name": "BaseRegOpenKey",
 "ordinal": 1069,
-"rva": 282272,
-"forwarder": null,
-"ref": "advapi32.dll!0x44ea0"
+"forwarder": null
 },
 {
 "name": "BaseRegRestoreKey",
 "ordinal": 1070,
-"rva": 282352,
-"forwarder": null,
-"ref": "advapi32.dll!0x44ef0"
+"forwarder": null
 },
 {
 "name": "BaseRegSaveKeyEx",
 "ordinal": 1071,
-"rva": 282416,
-"forwarder": null,
-"ref": "advapi32.dll!0x44f30"
+"forwarder": null
 },
 {
 "name": "BaseRegSetKeySecurity",
 "ordinal": 1072,
-"rva": 282480,
-"forwarder": null,
-"ref": "advapi32.dll!0x44f70"
+"forwarder": null
 },
 {
 "name": "BaseRegSetValue",
 "ordinal": 1073,
-"rva": 282544,
-"forwarder": null,
-"ref": "advapi32.dll!0x44fb0"
+"forwarder": null
 },
 {
 "name": "BaseRegUnLoadKey",
 "ordinal": 1074,
-"rva": 282624,
-"forwarder": null,
-"ref": "advapi32.dll!0x45000"
+"forwarder": null
 },
 {
 "name": "BuildExplicitAccessWithNameA",
 "ordinal": 1075,
-"rva": 119776,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d3e0"
+"forwarder": null
 },
 {
 "name": "BuildExplicitAccessWithNameW",
 "ordinal": 1076,
-"rva": 119776,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d3e0"
+"forwarder": null
 },
 {
 "name": "BuildImpersonateExplicitAccessWithNameA",
 "ordinal": 1077,
-"rva": 258720,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f2a0"
+"forwarder": null
 },
 {
 "name": "BuildImpersonateExplicitAccessWithNameW",
 "ordinal": 1078,
-"rva": 258720,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f2a0"
+"forwarder": null
 },
 {
 "name": "BuildImpersonateTrusteeA",
 "ordinal": 1079,
-"rva": 262496,
-"forwarder": null,
-"ref": "advapi32.dll!0x40160"
+"forwarder": null
 },
 {
 "name": "BuildImpersonateTrusteeW",
 "ordinal": 1080,
-"rva": 262496,
-"forwarder": null,
-"ref": "advapi32.dll!0x40160"
+"forwarder": null
 },
 {
 "name": "BuildSecurityDescriptorA",
 "ordinal": 1081,
-"rva": 258768,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f2d0"
+"forwarder": null
 },
 {
 "name": "BuildSecurityDescriptorW",
 "ordinal": 1082,
-"rva": 117056,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c940"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithNameA",
 "ordinal": 1083,
-"rva": 262528,
-"forwarder": null,
-"ref": "advapi32.dll!0x40180"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithNameW",
 "ordinal": 1084,
-"rva": 262528,
-"forwarder": null,
-"ref": "advapi32.dll!0x40180"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithObjectsAndNameA",
 "ordinal": 1085,
-"rva": 262560,
-"forwarder": null,
-"ref": "advapi32.dll!0x401a0"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithObjectsAndNameW",
 "ordinal": 1086,
-"rva": 262560,
-"forwarder": null,
-"ref": "advapi32.dll!0x401a0"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithObjectsAndSidA",
 "ordinal": 1087,
-"rva": 262656,
-"forwarder": null,
-"ref": "advapi32.dll!0x40200"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithObjectsAndSidW",
 "ordinal": 1088,
-"rva": 262656,
-"forwarder": null,
-"ref": "advapi32.dll!0x40200"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithSidA",
 "ordinal": 1089,
-"rva": 96928,
-"forwarder": null,
-"ref": "advapi32.dll!0x17aa0"
+"forwarder": null
 },
 {
 "name": "BuildTrusteeWithSidW",
 "ordinal": 1090,
-"rva": 96928,
-"forwarder": null,
-"ref": "advapi32.dll!0x17aa0"
+"forwarder": null
 },
 {
 "name": "CancelOverlappedAccess",
 "ordinal": 1091,
-"rva": 264464,
-"forwarder": null,
-"ref": "advapi32.dll!0x40910"
+"forwarder": null
 },
 {
 "name": "ChangeServiceConfig2A",
 "ordinal": 1092,
-"rva": 196704,
-"forwarder": null,
-"ref": "advapi32.dll!0x30060"
+"forwarder": null
 },
 {
 "name": "ChangeServiceConfig2W",
 "ordinal": 1093,
-"rva": 196736,
-"forwarder": null,
-"ref": "advapi32.dll!0x30080"
+"forwarder": null
 },
 {
 "name": "ChangeServiceConfigA",
 "ordinal": 1094,
-"rva": 196768,
-"forwarder": null,
-"ref": "advapi32.dll!0x300a0"
+"forwarder": null
 },
 {
 "name": "ChangeServiceConfigW",
 "ordinal": 1095,
-"rva": 119344,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d230"
+"forwarder": null
 },
 {
 "name": "CheckForHiberboot",
 "ordinal": 1096,
-"rva": 114416,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bef0"
+"forwarder": null
 },
 {
 "name": "CheckTokenMembership",
 "ordinal": 1097,
-"rva": 95360,
-"forwarder": null,
-"ref": "advapi32.dll!0x17480"
+"forwarder": null
 },
 {
 "name": "ClearEventLogA",
 "ordinal": 1098,
-"rva": 337360,
-"forwarder": null,
-"ref": "advapi32.dll!0x525d0"
+"forwarder": null
 },
 {
 "name": "ClearEventLogW",
 "ordinal": 1099,
-"rva": 337520,
-"forwarder": null,
-"ref": "advapi32.dll!0x52670"
+"forwarder": null
 },
 {
 "name": "CloseCodeAuthzLevel",
 "ordinal": 1100,
-"rva": 89856,
-"forwarder": null,
-"ref": "advapi32.dll!0x15f00"
+"forwarder": null
 },
 {
 "name": "CloseEncryptedFileRaw",
 "ordinal": 1101,
-"rva": 191616,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ec80"
+"forwarder": null
 },
 {
 "name": "CloseEventLog",
 "ordinal": 1102,
-"rva": 115744,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c420"
+"forwarder": null
 },
 {
 "name": "CloseServiceHandle",
 "ordinal": 1103,
-"rva": 96416,
-"forwarder": null,
-"ref": "advapi32.dll!0x178a0"
+"forwarder": null
 },
 {
 "name": "CloseThreadWaitChainSession",
 "ordinal": 1104,
-"rva": 407280,
-"forwarder": null,
-"ref": "advapi32.dll!0x636f0"
+"forwarder": null
 },
 {
 "name": "CloseTrace",
 "ordinal": 1105,
-"rva": 97328,
-"forwarder": null,
-"ref": "advapi32.dll!0x17c30"
+"forwarder": null
 },
 {
 "name": "CommandLineFromMsiDescriptor",
 "ordinal": 1106,
-"rva": 14624,
-"forwarder": null,
-"ref": "advapi32.dll!0x3920"
+"forwarder": null
 },
 {
 "name": "ComputeAccessTokenFromCodeAuthzLevel",
 "ordinal": 1107,
-"rva": 80512,
-"forwarder": null,
-"ref": "advapi32.dll!0x13a80"
+"forwarder": null
 },
 {
 "name": "ControlService",
 "ordinal": 1108,
-"rva": 196960,
-"forwarder": null,
-"ref": "advapi32.dll!0x30160"
+"forwarder": null
 },
 {
 "name": "ControlServiceExA",
 "ordinal": 1109,
-"rva": 196896,
-"forwarder": null,
-"ref": "advapi32.dll!0x30120"
+"forwarder": null
 },
 {
 "name": "ControlServiceExW",
 "ordinal": 1110,
-"rva": 196928,
-"forwarder": null,
-"ref": "advapi32.dll!0x30140"
+"forwarder": null
 },
 {
 "name": "ControlTraceA",
 "ordinal": 1111,
-"rva": 122032,
-"forwarder": null,
-"ref": "advapi32.dll!0x1dcb0"
+"forwarder": null
 },
 {
 "name": "ControlTraceW",
 "ordinal": 1112,
-"rva": 17264,
-"forwarder": null,
-"ref": "advapi32.dll!0x4370"
+"forwarder": null
 },
 {
 "name": "ConvertAccessToSecurityDescriptorA",
 "ordinal": 1113,
-"rva": 264576,
-"forwarder": null,
-"ref": "advapi32.dll!0x40980"
+"forwarder": null
 },
 {
 "name": "ConvertAccessToSecurityDescriptorW",
 "ordinal": 1114,
-"rva": 264960,
-"forwarder": null,
-"ref": "advapi32.dll!0x40b00"
+"forwarder": null
 },
 {
 "name": "ConvertSDToStringSDDomainW",
 "ordinal": 1115,
-"rva": 308752,
-"forwarder": null,
-"ref": "advapi32.dll!0x4b610"
+"forwarder": null
 },
 {
 "name": "ConvertSDToStringSDRootDomainA",
 "ordinal": 1116,
-"rva": 308896,
-"forwarder": null,
-"ref": "advapi32.dll!0x4b6a0"
+"forwarder": null
 },
 {
 "name": "ConvertSDToStringSDRootDomainW",
 "ordinal": 1117,
-"rva": 309280,
-"forwarder": null,
-"ref": "advapi32.dll!0x4b820"
+"forwarder": null
 },
 {
 "name": "ConvertSecurityDescriptorToAccessA",
 "ordinal": 1118,
-"rva": 265104,
-"forwarder": null,
-"ref": "advapi32.dll!0x40b90"
+"forwarder": null
 },
 {
 "name": "ConvertSecurityDescriptorToAccessNamedA",
 "ordinal": 1119,
-"rva": 265104,
-"forwarder": null,
-"ref": "advapi32.dll!0x40b90"
+"forwarder": null
 },
 {
 "name": "ConvertSecurityDescriptorToAccessNamedW",
 "ordinal": 1120,
-"rva": 265168,
-"forwarder": null,
-"ref": "advapi32.dll!0x40bd0"
+"forwarder": null
 },
 {
 "name": "ConvertSecurityDescriptorToAccessW",
 "ordinal": 1121,
-"rva": 265168,
-"forwarder": null,
-"ref": "advapi32.dll!0x40bd0"
+"forwarder": null
 },
 {
 "name": "ConvertSecurityDescriptorToStringSecurityDescriptorA",
 "ordinal": 1122,
-"rva": 309408,
-"forwarder": null,
-"ref": "advapi32.dll!0x4b8a0"
+"forwarder": null
 },
 {
 "name": "ConvertSecurityDescriptorToStringSecurityDescriptorW",
 "ordinal": 1123,
-"rva": 309776,
-"forwarder": null,
-"ref": "advapi32.dll!0x4ba10"
+"forwarder": null
 },
 {
 "name": "ConvertSidToStringSidA",
 "ordinal": 1124,
-"rva": 113984,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bd40"
+"forwarder": null
 },
 {
 "name": "ConvertSidToStringSidW",
 "ordinal": 1125,
-"rva": 88272,
-"forwarder": null,
-"ref": "advapi32.dll!0x158d0"
+"forwarder": null
 },
 {
 "name": "ConvertStringSDToSDDomainA",
 "ordinal": 1126,
-"rva": 309984,
-"forwarder": null,
-"ref": "advapi32.dll!0x4bae0"
+"forwarder": null
 },
 {
 "name": "ConvertStringSDToSDDomainW",
 "ordinal": 1127,
-"rva": 112368,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b6f0"
+"forwarder": null
 },
 {
 "name": "ConvertStringSDToSDRootDomainA",
 "ordinal": 1128,
-"rva": 310304,
-"forwarder": null,
-"ref": "advapi32.dll!0x4bc20"
+"forwarder": null
 },
 {
 "name": "ConvertStringSDToSDRootDomainW",
 "ordinal": 1129,
-"rva": 310512,
-"forwarder": null,
-"ref": "advapi32.dll!0x4bcf0"
+"forwarder": null
 },
 {
 "name": "ConvertStringSecurityDescriptorToSecurityDescriptorA",
 "ordinal": 1130,
-"rva": 310624,
-"forwarder": null,
-"ref": "advapi32.dll!0x4bd60"
+"forwarder": null
 },
 {
 "name": "ConvertStringSecurityDescriptorToSecurityDescriptorW",
 "ordinal": 1131,
-"rva": 73168,
-"forwarder": null,
-"ref": "advapi32.dll!0x11dd0"
+"forwarder": null
 },
 {
 "name": "ConvertStringSidToSidA",
 "ordinal": 1132,
-"rva": 310816,
-"forwarder": null,
-"ref": "advapi32.dll!0x4be20"
+"forwarder": null
 },
 {
 "name": "ConvertStringSidToSidW",
 "ordinal": 1133,
-"rva": 72992,
-"forwarder": null,
-"ref": "advapi32.dll!0x11d20"
+"forwarder": null
 },
 {
 "name": "ConvertToAutoInheritPrivateObjectSecurity",
 "ordinal": 1134,
-"rva": 196992,
-"forwarder": null,
-"ref": "advapi32.dll!0x30180"
+"forwarder": null
 },
 {
 "name": "CopySid",
 "ordinal": 1135,
-"rva": 92848,
-"forwarder": null,
-"ref": "advapi32.dll!0x16ab0"
+"forwarder": null
 },
 {
 "name": "CreateCodeAuthzLevel",
 "ordinal": 1136,
-"rva": 231376,
-"forwarder": null,
-"ref": "advapi32.dll!0x387d0"
+"forwarder": null
 },
 {
 "name": "CreatePrivateObjectSecurity",
 "ordinal": 1137,
-"rva": 104016,
-"forwarder": null,
-"ref": "advapi32.dll!0x19650"
+"forwarder": null
 },
 {
 "name": "CreatePrivateObjectSecurityEx",
 "ordinal": 1138,
-"rva": 197024,
-"forwarder": null,
-"ref": "advapi32.dll!0x301a0"
+"forwarder": null
 },
 {
 "name": "CreatePrivateObjectSecurityWithMultipleInheritance",
 "ordinal": 1139,
-"rva": 197056,
-"forwarder": null,
-"ref": "advapi32.dll!0x301c0"
+"forwarder": null
 },
 {
 "name": "CreateProcessAsUserA",
 "ordinal": 1140,
-"rva": 197088,
-"forwarder": null,
-"ref": "advapi32.dll!0x301e0"
+"forwarder": null
 },
 {
 "name": "CreateProcessAsUserW",
 "ordinal": 1141,
-"rva": 97136,
-"forwarder": null,
-"ref": "advapi32.dll!0x17b70"
+"forwarder": null
 },
 {
 "name": "CreateProcessWithLogonW",
 "ordinal": 1142,
-"rva": 304352,
-"forwarder": null,
-"ref": "advapi32.dll!0x4a4e0"
+"forwarder": null
 },
 {
 "name": "CreateProcessWithTokenW",
 "ordinal": 1143,
-"rva": 17488,
-"forwarder": null,
-"ref": "advapi32.dll!0x4450"
+"forwarder": null
 },
 {
 "name": "CreateRestrictedToken",
 "ordinal": 1144,
-"rva": 17328,
-"forwarder": null,
-"ref": "advapi32.dll!0x43b0"
+"forwarder": null
 },
 {
 "name": "CreateServiceA",
 "ordinal": 1145,
-"rva": 197216,
-"forwarder": null,
-"ref": "advapi32.dll!0x30260"
+"forwarder": null
 },
 {
 "name": "CreateServiceEx",
 "ordinal": 1146,
-"rva": 122448,
-"forwarder": null,
-"ref": "advapi32.dll!0x1de50"
+"forwarder": null
 },
 {
 "name": "CreateServiceW",
 "ordinal": 1147,
-"rva": 197360,
-"forwarder": null,
-"ref": "advapi32.dll!0x302f0"
+"forwarder": null
 },
 {
 "name": "CreateTraceInstanceId",
 "ordinal": 1148,
-"rva": 617725,
-"forwarder": "ntdll.EtwCreateTraceInstanceId",
-"ref": null
+"forwarder": "ntdll.EtwCreateTraceInstanceId"
 },
 {
 "name": "CreateWellKnownSid",
 "ordinal": 1149,
-"rva": 96896,
-"forwarder": null,
-"ref": "advapi32.dll!0x17a80"
+"forwarder": null
 },
 {
 "name": "CredBackupCredentials",
 "ordinal": 1150,
-"rva": 197504,
-"forwarder": null,
-"ref": "advapi32.dll!0x30380"
+"forwarder": null
 },
 {
 "name": "CredDeleteA",
 "ordinal": 1151,
-"rva": 197536,
-"forwarder": null,
-"ref": "advapi32.dll!0x303a0"
+"forwarder": null
 },
 {
 "name": "CredDeleteW",
 "ordinal": 1152,
-"rva": 197568,
-"forwarder": null,
-"ref": "advapi32.dll!0x303c0"
+"forwarder": null
 },
 {
 "name": "CredEncryptAndMarshalBinaryBlob",
 "ordinal": 1153,
-"rva": 197600,
-"forwarder": null,
-"ref": "advapi32.dll!0x303e0"
+"forwarder": null
 },
 {
 "name": "CredEnumerateA",
 "ordinal": 1154,
-"rva": 197632,
-"forwarder": null,
-"ref": "advapi32.dll!0x30400"
+"forwarder": null
 },
 {
 "name": "CredEnumerateW",
 "ordinal": 1155,
-"rva": 197664,
-"forwarder": null,
-"ref": "advapi32.dll!0x30420"
+"forwarder": null
 },
 {
 "name": "CredFindBestCredentialA",
 "ordinal": 1156,
-"rva": 197696,
-"forwarder": null,
-"ref": "advapi32.dll!0x30440"
+"forwarder": null
 },
 {
 "name": "CredFindBestCredentialW",
 "ordinal": 1157,
-"rva": 197728,
-"forwarder": null,
-"ref": "advapi32.dll!0x30460"
+"forwarder": null
 },
 {
 "name": "CredFree",
 "ordinal": 1158,
-"rva": 197760,
-"forwarder": null,
-"ref": "advapi32.dll!0x30480"
+"forwarder": null
 },
 {
 "name": "CredGetSessionTypes",
 "ordinal": 1159,
-"rva": 197792,
-"forwarder": null,
-"ref": "advapi32.dll!0x304a0"
+"forwarder": null
 },
 {
 "name": "CredGetTargetInfoA",
 "ordinal": 1160,
-"rva": 197824,
-"forwarder": null,
-"ref": "advapi32.dll!0x304c0"
+"forwarder": null
 },
 {
 "name": "CredGetTargetInfoW",
 "ordinal": 1161,
-"rva": 197856,
-"forwarder": null,
-"ref": "advapi32.dll!0x304e0"
+"forwarder": null
 },
 {
 "name": "CredIsMarshaledCredentialA",
 "ordinal": 1162,
-"rva": 208640,
-"forwarder": null,
-"ref": "advapi32.dll!0x32f00"
+"forwarder": null
 },
 {
 "name": "CredIsMarshaledCredentialW",
 "ordinal": 1163,
-"rva": 197888,
-"forwarder": null,
-"ref": "advapi32.dll!0x30500"
+"forwarder": null
 },
 {
 "name": "CredIsProtectedA",
 "ordinal": 1164,
-"rva": 197920,
-"forwarder": null,
-"ref": "advapi32.dll!0x30520"
+"forwarder": null
 },
 {
 "name": "CredIsProtectedW",
 "ordinal": 1165,
-"rva": 197952,
-"forwarder": null,
-"ref": "advapi32.dll!0x30540"
+"forwarder": null
 },
 {
 "name": "CredMarshalCredentialA",
 "ordinal": 1166,
-"rva": 197984,
-"forwarder": null,
-"ref": "advapi32.dll!0x30560"
+"forwarder": null
 },
 {
 "name": "CredMarshalCredentialW",
 "ordinal": 1167,
-"rva": 198016,
-"forwarder": null,
-"ref": "advapi32.dll!0x30580"
+"forwarder": null
 },
 {
 "name": "CredProfileLoaded",
 "ordinal": 1168,
-"rva": 198080,
-"forwarder": null,
-"ref": "advapi32.dll!0x305c0"
+"forwarder": null
 },
 {
 "name": "CredProfileLoadedEx",
 "ordinal": 1169,
-"rva": 198048,
-"forwarder": null,
-"ref": "advapi32.dll!0x305a0"
+"forwarder": null
 },
 {
 "name": "CredProfileUnloaded",
 "ordinal": 1170,
-"rva": 198112,
-"forwarder": null,
-"ref": "advapi32.dll!0x305e0"
+"forwarder": null
 },
 {
 "name": "CredProtectA",
 "ordinal": 1171,
-"rva": 198144,
-"forwarder": null,
-"ref": "advapi32.dll!0x30600"
+"forwarder": null
 },
 {
 "name": "CredProtectW",
 "ordinal": 1172,
-"rva": 198176,
-"forwarder": null,
-"ref": "advapi32.dll!0x30620"
+"forwarder": null
 },
 {
 "name": "CredReadA",
 "ordinal": 1173,
-"rva": 198208,
-"forwarder": null,
-"ref": "advapi32.dll!0x30640"
+"forwarder": null
 },
 {
 "name": "CredReadByTokenHandle",
 "ordinal": 1174,
-"rva": 198240,
-"forwarder": null,
-"ref": "advapi32.dll!0x30660"
+"forwarder": null
 },
 {
 "name": "CredReadDomainCredentialsA",
 "ordinal": 1175,
-"rva": 198272,
-"forwarder": null,
-"ref": "advapi32.dll!0x30680"
+"forwarder": null
 },
 {
 "name": "CredReadDomainCredentialsW",
 "ordinal": 1176,
-"rva": 198304,
-"forwarder": null,
-"ref": "advapi32.dll!0x306a0"
+"forwarder": null
 },
 {
 "name": "CredReadW",
 "ordinal": 1177,
-"rva": 198336,
-"forwarder": null,
-"ref": "advapi32.dll!0x306c0"
+"forwarder": null
 },
 {
 "name": "CredRenameA",
 "ordinal": 1178,
-"rva": 208704,
-"forwarder": null,
-"ref": "advapi32.dll!0x32f40"
+"forwarder": null
 },
 {
 "name": "CredRenameW",
 "ordinal": 1179,
-"rva": 208704,
-"forwarder": null,
-"ref": "advapi32.dll!0x32f40"
+"forwarder": null
 },
 {
 "name": "CredRestoreCredentials",
 "ordinal": 1180,
-"rva": 198368,
-"forwarder": null,
-"ref": "advapi32.dll!0x306e0"
+"forwarder": null
 },
 {
 "name": "CredUnmarshalCredentialA",
 "ordinal": 1181,
-"rva": 198400,
-"forwarder": null,
-"ref": "advapi32.dll!0x30700"
+"forwarder": null
 },
 {
 "name": "CredUnmarshalCredentialW",
 "ordinal": 1182,
-"rva": 198432,
-"forwarder": null,
-"ref": "advapi32.dll!0x30720"
+"forwarder": null
 },
 {
 "name": "CredUnprotectA",
 "ordinal": 1183,
-"rva": 198464,
-"forwarder": null,
-"ref": "advapi32.dll!0x30740"
+"forwarder": null
 },
 {
 "name": "CredUnprotectW",
 "ordinal": 1184,
-"rva": 198496,
-"forwarder": null,
-"ref": "advapi32.dll!0x30760"
+"forwarder": null
 },
 {
 "name": "CredWriteA",
 "ordinal": 1185,
-"rva": 198528,
-"forwarder": null,
-"ref": "advapi32.dll!0x30780"
+"forwarder": null
 },
 {
 "name": "CredWriteDomainCredentialsA",
 "ordinal": 1186,
-"rva": 198560,
-"forwarder": null,
-"ref": "advapi32.dll!0x307a0"
+"forwarder": null
 },
 {
 "name": "CredWriteDomainCredentialsW",
 "ordinal": 1187,
-"rva": 198592,
-"forwarder": null,
-"ref": "advapi32.dll!0x307c0"
+"forwarder": null
 },
 {
 "name": "CredWriteW",
 "ordinal": 1188,
-"rva": 198624,
-"forwarder": null,
-"ref": "advapi32.dll!0x307e0"
+"forwarder": null
 },
 {
 "name": "CredpConvertCredential",
 "ordinal": 1189,
-"rva": 198656,
-"forwarder": null,
-"ref": "advapi32.dll!0x30800"
+"forwarder": null
 },
 {
 "name": "CredpConvertOneCredentialSize",
 "ordinal": 1190,
-"rva": 198688,
-"forwarder": null,
-"ref": "advapi32.dll!0x30820"
+"forwarder": null
 },
 {
 "name": "CredpConvertTargetInfo",
 "ordinal": 1191,
-"rva": 198720,
-"forwarder": null,
-"ref": "advapi32.dll!0x30840"
+"forwarder": null
 },
 {
 "name": "CredpDecodeCredential",
 "ordinal": 1192,
-"rva": 198752,
-"forwarder": null,
-"ref": "advapi32.dll!0x30860"
+"forwarder": null
 },
 {
 "name": "CredpEncodeCredential",
 "ordinal": 1193,
-"rva": 198784,
-"forwarder": null,
-"ref": "advapi32.dll!0x30880"
+"forwarder": null
 },
 {
 "name": "CredpEncodeSecret",
 "ordinal": 1194,
-"rva": 198816,
-"forwarder": null,
-"ref": "advapi32.dll!0x308a0"
+"forwarder": null
 },
 {
 "name": "CryptAcquireContextA",
 "ordinal": 1195,
-"rva": 94000,
-"forwarder": null,
-"ref": "advapi32.dll!0x16f30"
+"forwarder": null
 },
 {
 "name": "CryptAcquireContextW",
 "ordinal": 1196,
-"rva": 94320,
-"forwarder": null,
-"ref": "advapi32.dll!0x17070"
+"forwarder": null
 },
 {
 "name": "CryptContextAddRef",
 "ordinal": 1197,
-"rva": 198848,
-"forwarder": null,
-"ref": "advapi32.dll!0x308c0"
+"forwarder": null
 },
 {
 "name": "CryptCreateHash",
 "ordinal": 1198,
-"rva": 92080,
-"forwarder": null,
-"ref": "advapi32.dll!0x167b0"
+"forwarder": null
 },
 {
 "name": "CryptDecrypt",
 "ordinal": 1199,
-"rva": 198880,
-"forwarder": null,
-"ref": "advapi32.dll!0x308e0"
+"forwarder": null
 },
 {
 "name": "CryptDeriveKey",
 "ordinal": 1200,
-"rva": 198912,
-"forwarder": null,
-"ref": "advapi32.dll!0x30900"
+"forwarder": null
 },
 {
 "name": "CryptDestroyHash",
 "ordinal": 1201,
-"rva": 93088,
-"forwarder": null,
-"ref": "advapi32.dll!0x16ba0"
+"forwarder": null
 },
 {
 "name": "CryptDestroyKey",
 "ordinal": 1202,
-"rva": 93664,
-"forwarder": null,
-"ref": "advapi32.dll!0x16de0"
+"forwarder": null
 },
 {
 "name": "CryptDuplicateHash",
 "ordinal": 1203,
-"rva": 198944,
-"forwarder": null,
-"ref": "advapi32.dll!0x30920"
+"forwarder": null
 },
 {
 "name": "CryptDuplicateKey",
 "ordinal": 1204,
-"rva": 198976,
-"forwarder": null,
-"ref": "advapi32.dll!0x30940"
+"forwarder": null
 },
 {
 "name": "CryptEncrypt",
 "ordinal": 1205,
-"rva": 199008,
-"forwarder": null,
-"ref": "advapi32.dll!0x30960"
+"forwarder": null
 },
 {
 "name": "CryptEnumProviderTypesA",
 "ordinal": 1206,
-"rva": 199040,
-"forwarder": null,
-"ref": "advapi32.dll!0x30980"
+"forwarder": null
 },
 {
 "name": "CryptEnumProviderTypesW",
 "ordinal": 1207,
-"rva": 199072,
-"forwarder": null,
-"ref": "advapi32.dll!0x309a0"
+"forwarder": null
 },
 {
 "name": "CryptEnumProvidersA",
 "ordinal": 1208,
-"rva": 199104,
-"forwarder": null,
-"ref": "advapi32.dll!0x309c0"
+"forwarder": null
 },
 {
 "name": "CryptEnumProvidersW",
 "ordinal": 1209,
-"rva": 199136,
-"forwarder": null,
-"ref": "advapi32.dll!0x309e0"
+"forwarder": null
 },
 {
 "name": "CryptExportKey",
 "ordinal": 1210,
-"rva": 91904,
-"forwarder": null,
-"ref": "advapi32.dll!0x16700"
+"forwarder": null
 },
 {
 "name": "CryptGenKey",
 "ordinal": 1211,
-"rva": 199168,
-"forwarder": null,
-"ref": "advapi32.dll!0x30a00"
+"forwarder": null
 },
 {
 "name": "CryptGenRandom",
 "ordinal": 1212,
-"rva": 96512,
-"forwarder": null,
-"ref": "advapi32.dll!0x17900"
+"forwarder": null
 },
 {
 "name": "CryptGetDefaultProviderA",
 "ordinal": 1213,
-"rva": 199200,
-"forwarder": null,
-"ref": "advapi32.dll!0x30a20"
+"forwarder": null
 },
 {
 "name": "CryptGetDefaultProviderW",
 "ordinal": 1214,
-"rva": 95296,
-"forwarder": null,
-"ref": "advapi32.dll!0x17440"
+"forwarder": null
 },
 {
 "name": "CryptGetHashParam",
 "ordinal": 1215,
-"rva": 90592,
-"forwarder": null,
-"ref": "advapi32.dll!0x161e0"
+"forwarder": null
 },
 {
 "name": "CryptGetKeyParam",
 "ordinal": 1216,
-"rva": 199232,
-"forwarder": null,
-"ref": "advapi32.dll!0x30a40"
+"forwarder": null
 },
 {
 "name": "CryptGetProvParam",
 "ordinal": 1217,
-"rva": 199264,
-"forwarder": null,
-"ref": "advapi32.dll!0x30a60"
+"forwarder": null
 },
 {
 "name": "CryptGetUserKey",
 "ordinal": 1218,
-"rva": 199296,
-"forwarder": null,
-"ref": "advapi32.dll!0x30a80"
+"forwarder": null
 },
 {
 "name": "CryptHashData",
 "ordinal": 1219,
-"rva": 93120,
-"forwarder": null,
-"ref": "advapi32.dll!0x16bc0"
+"forwarder": null
 },
 {
 "name": "CryptHashSessionKey",
 "ordinal": 1220,
-"rva": 199328,
-"forwarder": null,
-"ref": "advapi32.dll!0x30aa0"
+"forwarder": null
 },
 {
 "name": "CryptImportKey",
 "ordinal": 1221,
-"rva": 91872,
-"forwarder": null,
-"ref": "advapi32.dll!0x166e0"
+"forwarder": null
 },
 {
 "name": "CryptReleaseContext",
 "ordinal": 1222,
-"rva": 95328,
-"forwarder": null,
-"ref": "advapi32.dll!0x17460"
+"forwarder": null
 },
 {
 "name": "CryptSetHashParam",
 "ordinal": 1223,
-"rva": 97072,
-"forwarder": null,
-"ref": "advapi32.dll!0x17b30"
+"forwarder": null
 },
 {
 "name": "CryptSetKeyParam",
 "ordinal": 1224,
-"rva": 199360,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ac0"
+"forwarder": null
 },
 {
 "name": "CryptSetProvParam",
 "ordinal": 1225,
-"rva": 199392,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ae0"
+"forwarder": null
 },
 {
 "name": "CryptSetProviderA",
 "ordinal": 1226,
-"rva": 199424,
-"forwarder": null,
-"ref": "advapi32.dll!0x30b00"
+"forwarder": null
 },
 {
 "name": "CryptSetProviderExA",
 "ordinal": 1227,
-"rva": 199456,
-"forwarder": null,
-"ref": "advapi32.dll!0x30b20"
+"forwarder": null
 },
 {
 "name": "CryptSetProviderExW",
 "ordinal": 1228,
-"rva": 199488,
-"forwarder": null,
-"ref": "advapi32.dll!0x30b40"
+"forwarder": null
 },
 {
 "name": "CryptSetProviderW",
 "ordinal": 1229,
-"rva": 199520,
-"forwarder": null,
-"ref": "advapi32.dll!0x30b60"
+"forwarder": null
 },
 {
 "name": "CryptSignHashA",
 "ordinal": 1230,
-"rva": 199552,
-"forwarder": null,
-"ref": "advapi32.dll!0x30b80"
+"forwarder": null
 },
 {
 "name": "CryptSignHashW",
 "ordinal": 1231,
-"rva": 199584,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ba0"
+"forwarder": null
 },
 {
 "name": "CryptVerifySignatureA",
 "ordinal": 1232,
-"rva": 199616,
-"forwarder": null,
-"ref": "advapi32.dll!0x30bc0"
+"forwarder": null
 },
 {
 "name": "CryptVerifySignatureW",
 "ordinal": 1233,
-"rva": 96480,
-"forwarder": null,
-"ref": "advapi32.dll!0x178e0"
+"forwarder": null
 },
 {
 "name": "CveEventWrite",
 "ordinal": 1234,
-"rva": 619378,
-"forwarder": "KERNELBASE.CveEventWrite",
-"ref": null
+"forwarder": "KERNELBASE.CveEventWrite"
 },
 {
 "name": "DecryptFileA",
 "ordinal": 1235,
-"rva": 191648,
-"forwarder": null,
-"ref": "advapi32.dll!0x2eca0"
+"forwarder": null
 },
 {
 "name": "DecryptFileW",
 "ordinal": 1236,
-"rva": 191856,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ed70"
+"forwarder": null
 },
 {
 "name": "DeleteAce",
 "ordinal": 1237,
-"rva": 95392,
-"forwarder": null,
-"ref": "advapi32.dll!0x174a0"
+"forwarder": null
 },
 {
 "name": "DeleteService",
 "ordinal": 1238,
-"rva": 199648,
-"forwarder": null,
-"ref": "advapi32.dll!0x30be0"
+"forwarder": null
 },
 {
 "name": "DeregisterEventSource",
 "ordinal": 1239,
-"rva": 100288,
-"forwarder": null,
-"ref": "advapi32.dll!0x187c0"
+"forwarder": null
 },
 {
 "name": "DestroyPrivateObjectSecurity",
 "ordinal": 1240,
-"rva": 199680,
-"forwarder": null,
-"ref": "advapi32.dll!0x30c00"
+"forwarder": null
 },
 {
 "name": "DuplicateEncryptionInfoFile",
 "ordinal": 1241,
-"rva": 192000,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ee00"
+"forwarder": null
 },
 {
 "name": "DuplicateToken",
 "ordinal": 1242,
-"rva": 94112,
-"forwarder": null,
-"ref": "advapi32.dll!0x16fa0"
+"forwarder": null
 },
 {
 "name": "DuplicateTokenEx",
 "ordinal": 1243,
-"rva": 96304,
-"forwarder": null,
-"ref": "advapi32.dll!0x17830"
+"forwarder": null
 },
 {
 "name": "ElfBackupEventLogFileA",
 "ordinal": 1244,
-"rva": 340000,
-"forwarder": null,
-"ref": "advapi32.dll!0x53020"
+"forwarder": null
 },
 {
 "name": "ElfBackupEventLogFileW",
 "ordinal": 1245,
-"rva": 340256,
-"forwarder": null,
-"ref": "advapi32.dll!0x53120"
+"forwarder": null
 },
 {
 "name": "ElfChangeNotify",
 "ordinal": 1246,
-"rva": 340512,
-"forwarder": null,
-"ref": "advapi32.dll!0x53220"
+"forwarder": null
 },
 {
 "name": "ElfClearEventLogFileA",
 "ordinal": 1247,
-"rva": 340784,
-"forwarder": null,
-"ref": "advapi32.dll!0x53330"
+"forwarder": null
 },
 {
 "name": "ElfClearEventLogFileW",
 "ordinal": 1248,
-"rva": 341024,
-"forwarder": null,
-"ref": "advapi32.dll!0x53420"
+"forwarder": null
 },
 {
 "name": "ElfCloseEventLog",
 "ordinal": 1249,
-"rva": 115792,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c450"
+"forwarder": null
 },
 {
 "name": "ElfDeregisterEventSource",
 "ordinal": 1250,
-"rva": 100336,
-"forwarder": null,
-"ref": "advapi32.dll!0x187f0"
+"forwarder": null
 },
 {
 "name": "ElfFlushEventLog",
 "ordinal": 1251,
-"rva": 341248,
-"forwarder": null,
-"ref": "advapi32.dll!0x53500"
+"forwarder": null
 },
 {
 "name": "ElfNumberOfRecords",
 "ordinal": 1252,
-"rva": 341264,
-"forwarder": null,
-"ref": "advapi32.dll!0x53510"
+"forwarder": null
 },
 {
 "name": "ElfOldestRecord",
 "ordinal": 1253,
-"rva": 341504,
-"forwarder": null,
-"ref": "advapi32.dll!0x53600"
+"forwarder": null
 },
 {
 "name": "ElfOpenBackupEventLogA",
 "ordinal": 1254,
-"rva": 341744,
-"forwarder": null,
-"ref": "advapi32.dll!0x536f0"
+"forwarder": null
 },
 {
 "name": "ElfOpenBackupEventLogW",
 "ordinal": 1255,
-"rva": 342112,
-"forwarder": null,
-"ref": "advapi32.dll!0x53860"
+"forwarder": null
 },
 {
 "name": "ElfOpenEventLogA",
 "ordinal": 1256,
-"rva": 342480,
-"forwarder": null,
-"ref": "advapi32.dll!0x539d0"
+"forwarder": null
 },
 {
 "name": "ElfOpenEventLogW",
 "ordinal": 1257,
-"rva": 116000,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c520"
+"forwarder": null
 },
 {
 "name": "ElfReadEventLogA",
 "ordinal": 1258,
-"rva": 343072,
-"forwarder": null,
-"ref": "advapi32.dll!0x53c20"
+"forwarder": null
 },
 {
 "name": "ElfReadEventLogW",
 "ordinal": 1259,
-"rva": 343440,
-"forwarder": null,
-"ref": "advapi32.dll!0x53d90"
+"forwarder": null
 },
 {
 "name": "ElfRegisterEventSourceA",
 "ordinal": 1260,
-"rva": 344400,
-"forwarder": null,
-"ref": "advapi32.dll!0x54150"
+"forwarder": null
 },
 {
 "name": "ElfRegisterEventSourceW",
 "ordinal": 1261,
-"rva": 97808,
-"forwarder": null,
-"ref": "advapi32.dll!0x17e10"
+"forwarder": null
 },
 {
 "name": "ElfReportEventA",
 "ordinal": 1262,
-"rva": 344816,
-"forwarder": null,
-"ref": "advapi32.dll!0x542f0"
+"forwarder": null
 },
 {
 "name": "ElfReportEventAndSourceW",
 "ordinal": 1263,
-"rva": 345936,
-"forwarder": null,
-"ref": "advapi32.dll!0x54750"
+"forwarder": null
 },
 {
 "name": "ElfReportEventW",
 "ordinal": 1264,
-"rva": 99216,
-"forwarder": null,
-"ref": "advapi32.dll!0x18390"
+"forwarder": null
 },
 {
 "name": "EnableTrace",
 "ordinal": 1265,
-"rva": 118640,
-"forwarder": null,
-"ref": "advapi32.dll!0x1cf70"
+"forwarder": null
 },
 {
 "name": "EnableTraceEx",
 "ordinal": 1266,
-"rva": 118720,
-"forwarder": null,
-"ref": "advapi32.dll!0x1cfc0"
+"forwarder": null
 },
 {
 "name": "EnableTraceEx2",
 "ordinal": 1267,
-"rva": 16736,
-"forwarder": null,
-"ref": "advapi32.dll!0x4160"
+"forwarder": null
 },
 {
 "name": "EncryptFileA",
 "ordinal": 1268,
-"rva": 192160,
-"forwarder": null,
-"ref": "advapi32.dll!0x2eea0"
+"forwarder": null
 },
 {
 "name": "EncryptFileW",
 "ordinal": 1269,
-"rva": 192352,
-"forwarder": null,
-"ref": "advapi32.dll!0x2ef60"
+"forwarder": null
 },
 {
 "name": "EncryptedFileKeyInfo",
 "ordinal": 1270,
-"rva": 192480,
-"forwarder": null,
-"ref": "advapi32.dll!0x2efe0"
+"forwarder": null
 },
 {
 "name": "EncryptionDisable",
 "ordinal": 1271,
-"rva": 192608,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f060"
+"forwarder": null
 },
 {
 "name": "EnumDependentServicesA",
 "ordinal": 1272,
-"rva": 291632,
-"forwarder": null,
-"ref": "advapi32.dll!0x47330"
+"forwarder": null
 },
 {
 "name": "EnumDependentServicesW",
 "ordinal": 1273,
-"rva": 199712,
-"forwarder": null,
-"ref": "advapi32.dll!0x30c20"
+"forwarder": null
 },
 {
 "name": "EnumDynamicTimeZoneInformation",
 "ordinal": 1274,
-"rva": 199744,
-"forwarder": null,
-"ref": "advapi32.dll!0x30c40"
+"forwarder": null
 },
 {
 "name": "EnumServiceGroupW",
 "ordinal": 1275,
-"rva": 292064,
-"forwarder": null,
-"ref": "advapi32.dll!0x474e0"
+"forwarder": null
 },
 {
 "name": "EnumServicesStatusA",
 "ordinal": 1276,
-"rva": 292784,
-"forwarder": null,
-"ref": "advapi32.dll!0x477b0"
+"forwarder": null
 },
 {
 "name": "EnumServicesStatusExA",
 "ordinal": 1277,
-"rva": 100784,
-"forwarder": null,
-"ref": "advapi32.dll!0x189b0"
+"forwarder": null
 },
 {
 "name": "EnumServicesStatusExW",
 "ordinal": 1278,
-"rva": 14512,
-"forwarder": null,
-"ref": "advapi32.dll!0x38b0"
+"forwarder": null
 },
 {
 "name": "EnumServicesStatusW",
 "ordinal": 1279,
-"rva": 293376,
-"forwarder": null,
-"ref": "advapi32.dll!0x47a00"
+"forwarder": null
 },
 {
 "name": "EnumerateTraceGuids",
 "ordinal": 1280,
-"rva": 103488,
-"forwarder": null,
-"ref": "advapi32.dll!0x19440"
+"forwarder": null
 },
 {
 "name": "EnumerateTraceGuidsEx",
 "ordinal": 1281,
-"rva": 97296,
-"forwarder": null,
-"ref": "advapi32.dll!0x17c10"
+"forwarder": null
 },
 {
 "name": "EqualDomainSid",
 "ordinal": 1282,
-"rva": 199776,
-"forwarder": null,
-"ref": "advapi32.dll!0x30c60"
+"forwarder": null
 },
 {
 "name": "EqualPrefixSid",
 "ordinal": 1283,
-"rva": 199808,
-"forwarder": null,
-"ref": "advapi32.dll!0x30c80"
+"forwarder": null
 },
 {
 "name": "EqualSid",
 "ordinal": 1284,
-"rva": 97456,
-"forwarder": null,
-"ref": "advapi32.dll!0x17cb0"
+"forwarder": null
 },
 {
 "name": "EventAccessControl",
 "ordinal": 1285,
-"rva": 199840,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ca0"
+"forwarder": null
 },
 {
 "name": "EventAccessQuery",
 "ordinal": 1286,
-"rva": 199872,
-"forwarder": null,
-"ref": "advapi32.dll!0x30cc0"
+"forwarder": null
 },
 {
 "name": "EventAccessRemove",
 "ordinal": 1287,
-"rva": 199904,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ce0"
+"forwarder": null
 },
 {
 "name": "EventActivityIdControl",
 "ordinal": 1288,
-"rva": 620426,
-"forwarder": "ntdll.EtwEventActivityIdControl",
-"ref": null
+"forwarder": "ntdll.EtwEventActivityIdControl"
 },
 {
 "name": "EventEnabled",
 "ordinal": 1289,
-"rva": 620471,
-"forwarder": "ntdll.EtwEventEnabled",
-"ref": null
+"forwarder": "ntdll.EtwEventEnabled"
 },
 {
 "name": "EventProviderEnabled",
 "ordinal": 1290,
-"rva": 620514,
-"forwarder": "ntdll.EtwEventProviderEnabled",
-"ref": null
+"forwarder": "ntdll.EtwEventProviderEnabled"
 },
 {
 "name": "EventRegister",
 "ordinal": 1291,
-"rva": 620558,
-"forwarder": "ntdll.EtwEventRegister",
-"ref": null
+"forwarder": "ntdll.EtwEventRegister"
 },
 {
 "name": "EventSetInformation",
 "ordinal": 1292,
-"rva": 620601,
-"forwarder": "ntdll.EtwEventSetInformation",
-"ref": null
+"forwarder": "ntdll.EtwEventSetInformation"
 },
 {
 "name": "EventUnregister",
 "ordinal": 1293,
-"rva": 620646,
-"forwarder": "ntdll.EtwEventUnregister",
-"ref": null
+"forwarder": "ntdll.EtwEventUnregister"
 },
 {
 "name": "EventWrite",
 "ordinal": 1294,
-"rva": 620682,
-"forwarder": "ntdll.EtwEventWrite",
-"ref": null
+"forwarder": "ntdll.EtwEventWrite"
 },
 {
 "name": "EventWriteEndScenario",
 "ordinal": 1295,
-"rva": 620724,
-"forwarder": "ntdll.EtwEventWriteEndScenario",
-"ref": null
+"forwarder": "ntdll.EtwEventWriteEndScenario"
 },
 {
 "name": "EventWriteEx",
 "ordinal": 1296,
-"rva": 620768,
-"forwarder": "ntdll.EtwEventWriteEx",
-"ref": null
+"forwarder": "ntdll.EtwEventWriteEx"
 },
 {
 "name": "EventWriteStartScenario",
 "ordinal": 1297,
-"rva": 620814,
-"forwarder": "ntdll.EtwEventWriteStartScenario",
-"ref": null
+"forwarder": "ntdll.EtwEventWriteStartScenario"
 },
 {
 "name": "EventWriteString",
 "ordinal": 1298,
-"rva": 620864,
-"forwarder": "ntdll.EtwEventWriteString",
-"ref": null
+"forwarder": "ntdll.EtwEventWriteString"
 },
 {
 "name": "EventWriteTransfer",
 "ordinal": 1299,
-"rva": 620909,
-"forwarder": "ntdll.EtwEventWriteTransfer",
-"ref": null
+"forwarder": "ntdll.EtwEventWriteTransfer"
 },
 {
 "name": "FileEncryptionStatusA",
 "ordinal": 1300,
-"rva": 192688,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f0b0"
+"forwarder": null
 },
 {
 "name": "FileEncryptionStatusW",
 "ordinal": 1301,
-"rva": 192896,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f180"
+"forwarder": null
 },
 {
 "name": "FindFirstFreeAce",
 "ordinal": 1302,
-"rva": 199936,
-"forwarder": null,
-"ref": "advapi32.dll!0x30d00"
+"forwarder": null
 },
 {
 "name": "FlushEfsCache",
 "ordinal": 1303,
-"rva": 192992,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f1e0"
+"forwarder": null
 },
 {
 "name": "FlushTraceA",
 "ordinal": 1304,
-"rva": 279552,
-"forwarder": null,
-"ref": "advapi32.dll!0x44400"
+"forwarder": null
 },
 {
 "name": "FlushTraceW",
 "ordinal": 1305,
-"rva": 279584,
-"forwarder": null,
-"ref": "advapi32.dll!0x44420"
+"forwarder": null
 },
 {
 "name": "FreeEncryptedFileKeyInfo",
 "ordinal": 1306,
-"rva": 193200,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f2b0"
+"forwarder": null
 },
 {
 "name": "FreeEncryptedFileMetadata",
 "ordinal": 1307,
-"rva": 103472,
-"forwarder": null,
-"ref": "advapi32.dll!0x19430"
+"forwarder": null
 },
 {
 "name": "FreeEncryptionCertificateHashList",
 "ordinal": 1308,
-"rva": 193248,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f2e0"
+"forwarder": null
 },
 {
 "name": "FreeInheritedFromArray",
 "ordinal": 1309,
-"rva": 259168,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f460"
+"forwarder": null
 },
 {
 "name": "FreeSid",
 "ordinal": 1310,
-"rva": 94176,
-"forwarder": null,
-"ref": "advapi32.dll!0x16fe0"
+"forwarder": null
 },
 {
 "name": "GetAccessPermissionsForObjectA",
 "ordinal": 1311,
-"rva": 265232,
-"forwarder": null,
-"ref": "advapi32.dll!0x40c10"
+"forwarder": null
 },
 {
 "name": "GetAccessPermissionsForObjectW",
 "ordinal": 1312,
-"rva": 266096,
-"forwarder": null,
-"ref": "advapi32.dll!0x40f70"
+"forwarder": null
 },
 {
 "name": "GetAce",
 "ordinal": 1313,
-"rva": 110224,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ae90"
+"forwarder": null
 },
 {
 "name": "GetAclInformation",
 "ordinal": 1314,
-"rva": 111136,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b220"
+"forwarder": null
 },
 {
 "name": "GetAuditedPermissionsFromAclA",
 "ordinal": 1315,
-"rva": 259248,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f4b0"
+"forwarder": null
 },
 {
 "name": "GetAuditedPermissionsFromAclW",
 "ordinal": 1316,
-"rva": 259376,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f530"
+"forwarder": null
 },
 {
 "name": "GetCurrentHwProfileA",
 "ordinal": 1317,
-"rva": 190672,
-"forwarder": null,
-"ref": "advapi32.dll!0x2e8d0"
+"forwarder": null
 },
 {
 "name": "GetCurrentHwProfileW",
 "ordinal": 1318,
-"rva": 94368,
-"forwarder": null,
-"ref": "advapi32.dll!0x170a0"
+"forwarder": null
 },
 {
 "name": "GetDynamicTimeZoneInformationEffectiveYears",
 "ordinal": 1319,
-"rva": 199968,
-"forwarder": null,
-"ref": "advapi32.dll!0x30d20"
+"forwarder": null
 },
 {
 "name": "GetEffectiveRightsFromAclA",
 "ordinal": 1320,
-"rva": 259536,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f5d0"
+"forwarder": null
 },
 {
 "name": "GetEffectiveRightsFromAclW",
 "ordinal": 1321,
-"rva": 259664,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f650"
+"forwarder": null
 },
 {
 "name": "GetEncryptedFileMetadata",
 "ordinal": 1322,
-"rva": 193296,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f310"
+"forwarder": null
 },
 {
 "name": "GetEventLogInformation",
 "ordinal": 1323,
-"rva": 115472,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c310"
+"forwarder": null
 },
 {
 "name": "GetExplicitEntriesFromAclA",
 "ordinal": 1324,
-"rva": 200000,
-"forwarder": null,
-"ref": "advapi32.dll!0x30d40"
+"forwarder": null
 },
 {
 "name": "GetExplicitEntriesFromAclW",
 "ordinal": 1325,
-"rva": 200000,
-"forwarder": null,
-"ref": "advapi32.dll!0x30d40"
+"forwarder": null
 },
 {
 "name": "GetFileSecurityA",
 "ordinal": 1326,
-"rva": 296880,
-"forwarder": null,
-"ref": "advapi32.dll!0x487b0"
+"forwarder": null
 },
 {
 "name": "GetFileSecurityW",
 "ordinal": 1327,
-"rva": 17296,
-"forwarder": null,
-"ref": "advapi32.dll!0x4390"
+"forwarder": null
 },
 {
 "name": "GetInformationCodeAuthzLevelW",
 "ordinal": 1328,
-"rva": 233120,
-"forwarder": null,
-"ref": "advapi32.dll!0x38ea0"
+"forwarder": null
 },
 {
 "name": "GetInformationCodeAuthzPolicyW",
 "ordinal": 1329,
-"rva": 23008,
-"forwarder": null,
-"ref": "advapi32.dll!0x59e0"
+"forwarder": null
 },
 {
 "name": "GetInheritanceSourceA",
 "ordinal": 1330,
-"rva": 259824,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f6f0"
+"forwarder": null
 },
 {
 "name": "GetInheritanceSourceW",
 "ordinal": 1331,
-"rva": 259840,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f700"
+"forwarder": null
 },
 {
 "name": "GetKernelObjectSecurity",
 "ordinal": 1332,
-"rva": 111200,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b260"
+"forwarder": null
 },
 {
 "name": "GetLengthSid",
 "ordinal": 1333,
-"rva": 91936,
-"forwarder": null,
-"ref": "advapi32.dll!0x16720"
+"forwarder": null
 },
 {
 "name": "GetLocalManagedApplicationData",
 "ordinal": 1334,
-"rva": 224240,
-"forwarder": null,
-"ref": "advapi32.dll!0x36bf0"
+"forwarder": null
 },
 {
 "name": "GetLocalManagedApplications",
 "ordinal": 1335,
-"rva": 224864,
-"forwarder": null,
-"ref": "advapi32.dll!0x36e60"
+"forwarder": null
 },
 {
 "name": "GetManagedApplicationCategories",
 "ordinal": 1336,
-"rva": 225680,
-"forwarder": null,
-"ref": "advapi32.dll!0x37190"
+"forwarder": null
 },
 {
 "name": "GetManagedApplications",
 "ordinal": 1337,
-"rva": 225792,
-"forwarder": null,
-"ref": "advapi32.dll!0x37200"
+"forwarder": null
 },
 {
 "name": "GetMultipleTrusteeA",
 "ordinal": 1338,
-"rva": 262784,
-"forwarder": null,
-"ref": "advapi32.dll!0x40280"
+"forwarder": null
 },
 {
 "name": "GetMultipleTrusteeOperationA",
 "ordinal": 1339,
-"rva": 262816,
-"forwarder": null,
-"ref": "advapi32.dll!0x402a0"
+"forwarder": null
 },
 {
 "name": "GetMultipleTrusteeOperationW",
 "ordinal": 1340,
-"rva": 262816,
-"forwarder": null,
-"ref": "advapi32.dll!0x402a0"
+"forwarder": null
 },
 {
 "name": "GetMultipleTrusteeW",
 "ordinal": 1341,
-"rva": 262784,
-"forwarder": null,
-"ref": "advapi32.dll!0x40280"
+"forwarder": null
 },
 {
 "name": "GetNamedSecurityInfoA",
 "ordinal": 1342,
-"rva": 260032,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f7c0"
+"forwarder": null
 },
 {
 "name": "GetNamedSecurityInfoExA",
 "ordinal": 1343,
-"rva": 266416,
-"forwarder": null,
-"ref": "advapi32.dll!0x410b0"
+"forwarder": null
 },
 {
 "name": "GetNamedSecurityInfoExW",
 "ordinal": 1344,
-"rva": 267104,
-"forwarder": null,
-"ref": "advapi32.dll!0x41360"
+"forwarder": null
 },
 {
 "name": "GetNamedSecurityInfoW",
 "ordinal": 1345,
-"rva": 200032,
-"forwarder": null,
-"ref": "advapi32.dll!0x30d60"
+"forwarder": null
 },
 {
 "name": "GetNumberOfEventLogRecords",
 "ordinal": 1346,
-"rva": 337728,
-"forwarder": null,
-"ref": "advapi32.dll!0x52740"
+"forwarder": null
 },
 {
 "name": "GetOldestEventLogRecord",
 "ordinal": 1347,
-"rva": 337808,
-"forwarder": null,
-"ref": "advapi32.dll!0x52790"
+"forwarder": null
 },
 {
 "name": "GetOverlappedAccessResults",
 "ordinal": 1348,
-"rva": 267920,
-"forwarder": null,
-"ref": "advapi32.dll!0x41690"
+"forwarder": null
 },
 {
 "name": "GetPrivateObjectSecurity",
 "ordinal": 1349,
-"rva": 200112,
-"forwarder": null,
-"ref": "advapi32.dll!0x30db0"
+"forwarder": null
 },
 {
 "name": "GetSecurityDescriptorControl",
 "ordinal": 1350,
-"rva": 113664,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bc00"
+"forwarder": null
 },
 {
 "name": "GetSecurityDescriptorDacl",
 "ordinal": 1351,
-"rva": 96176,
-"forwarder": null,
-"ref": "advapi32.dll!0x177b0"
+"forwarder": null
 },
 {
 "name": "GetSecurityDescriptorGroup",
 "ordinal": 1352,
-"rva": 113952,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bd20"
+"forwarder": null
 },
 {
 "name": "GetSecurityDescriptorLength",
 "ordinal": 1353,
-"rva": 113744,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bc50"
+"forwarder": null
 },
 {
 "name": "GetSecurityDescriptorOwner",
 "ordinal": 1354,
-"rva": 119312,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d210"
+"forwarder": null
 },
 {
 "name": "GetSecurityDescriptorRMControl",
 "ordinal": 1355,
-"rva": 200144,
-"forwarder": null,
-"ref": "advapi32.dll!0x30dd0"
+"forwarder": null
 },
 {
 "name": "GetSecurityDescriptorSacl",
 "ordinal": 1356,
-"rva": 113920,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bd00"
+"forwarder": null
 },
 {
 "name": "GetSecurityInfo",
 "ordinal": 1357,
-"rva": 94208,
-"forwarder": null,
-"ref": "advapi32.dll!0x17000"
+"forwarder": null
 },
 {
 "name": "GetSecurityInfoExA",
 "ordinal": 1358,
-"rva": 268224,
-"forwarder": null,
-"ref": "advapi32.dll!0x417c0"
+"forwarder": null
 },
 {
 "name": "GetSecurityInfoExW",
 "ordinal": 1359,
-"rva": 268848,
-"forwarder": null,
-"ref": "advapi32.dll!0x41a30"
+"forwarder": null
 },
 {
 "name": "GetServiceDisplayNameA",
 "ordinal": 1360,
-"rva": 293456,
-"forwarder": null,
-"ref": "advapi32.dll!0x47a50"
+"forwarder": null
 },
 {
 "name": "GetServiceDisplayNameW",
 "ordinal": 1361,
-"rva": 200176,
-"forwarder": null,
-"ref": "advapi32.dll!0x30df0"
+"forwarder": null
 },
 {
 "name": "GetServiceKeyNameA",
 "ordinal": 1362,
-"rva": 293632,
-"forwarder": null,
-"ref": "advapi32.dll!0x47b00"
+"forwarder": null
 },
 {
 "name": "GetServiceKeyNameW",
 "ordinal": 1363,
-"rva": 200208,
-"forwarder": null,
-"ref": "advapi32.dll!0x30e10"
+"forwarder": null
 },
 {
 "name": "GetSidIdentifierAuthority",
 "ordinal": 1364,
-"rva": 113152,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ba00"
+"forwarder": null
 },
 {
 "name": "GetSidLengthRequired",
 "ordinal": 1365,
-"rva": 110256,
-"forwarder": null,
-"ref": "advapi32.dll!0x1aeb0"
+"forwarder": null
 },
 {
 "name": "GetSidSubAuthority",
 "ordinal": 1366,
-"rva": 93808,
-"forwarder": null,
-"ref": "advapi32.dll!0x16e70"
+"forwarder": null
 },
 {
 "name": "GetSidSubAuthorityCount",
 "ordinal": 1367,
-"rva": 93696,
-"forwarder": null,
-"ref": "advapi32.dll!0x16e00"
+"forwarder": null
 },
 {
 "name": "GetStringConditionFromBinary",
 "ordinal": 1368,
-"rva": 307504,
-"forwarder": null,
-"ref": "advapi32.dll!0x4b130"
+"forwarder": null
 },
 {
 "name": "GetThreadWaitChain",
 "ordinal": 1369,
-"rva": 407424,
-"forwarder": null,
-"ref": "advapi32.dll!0x63780"
+"forwarder": null
 },
 {
 "name": "GetTokenInformation",
 "ordinal": 1370,
-"rva": 90160,
-"forwarder": null,
-"ref": "advapi32.dll!0x16030"
+"forwarder": null
 },
 {
 "name": "GetTraceEnableFlags",
 "ordinal": 1371,
-"rva": 622634,
-"forwarder": "ntdll.EtwGetTraceEnableFlags",
-"ref": null
+"forwarder": "ntdll.EtwGetTraceEnableFlags"
 },
 {
 "name": "GetTraceEnableLevel",
 "ordinal": 1372,
-"rva": 622683,
-"forwarder": "ntdll.EtwGetTraceEnableLevel",
-"ref": null
+"forwarder": "ntdll.EtwGetTraceEnableLevel"
 },
 {
 "name": "GetTraceLoggerHandle",
 "ordinal": 1373,
-"rva": 622733,
-"forwarder": "ntdll.EtwGetTraceLoggerHandle",
-"ref": null
+"forwarder": "ntdll.EtwGetTraceLoggerHandle"
 },
 {
 "name": "GetTrusteeFormA",
 "ordinal": 1374,
-"rva": 262848,
-"forwarder": null,
-"ref": "advapi32.dll!0x402c0"
+"forwarder": null
 },
 {
 "name": "GetTrusteeFormW",
 "ordinal": 1375,
-"rva": 262848,
-"forwarder": null,
-"ref": "advapi32.dll!0x402c0"
+"forwarder": null
 },
 {
 "name": "GetTrusteeNameA",
 "ordinal": 1376,
-"rva": 262880,
-"forwarder": null,
-"ref": "advapi32.dll!0x402e0"
+"forwarder": null
 },
 {
 "name": "GetTrusteeNameW",
 "ordinal": 1377,
-"rva": 262880,
-"forwarder": null,
-"ref": "advapi32.dll!0x402e0"
+"forwarder": null
 },
 {
 "name": "GetTrusteeTypeA",
 "ordinal": 1378,
-"rva": 262896,
-"forwarder": null,
-"ref": "advapi32.dll!0x402f0"
+"forwarder": null
 },
 {
 "name": "GetTrusteeTypeW",
 "ordinal": 1379,
-"rva": 262896,
-"forwarder": null,
-"ref": "advapi32.dll!0x402f0"
+"forwarder": null
 },
 {
 "name": "GetUserNameA",
 "ordinal": 1380,
-"rva": 304480,
-"forwarder": null,
-"ref": "advapi32.dll!0x4a560"
+"forwarder": null
 },
 {
 "name": "GetUserNameW",
 "ordinal": 1381,
-"rva": 91376,
-"forwarder": null,
-"ref": "advapi32.dll!0x164f0"
+"forwarder": null
 },
 {
 "name": "GetWindowsAccountDomainSid",
 "ordinal": 1382,
-"rva": 200240,
-"forwarder": null,
-"ref": "advapi32.dll!0x30e30"
+"forwarder": null
 },
 {
 "name": "I_QueryTagInformation",
 "ordinal": 1383,
-"rva": 622934,
-"forwarder": "api-ms-win-service-private-l1-1-0.I_QueryTagInformation",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-0.I_QueryTagInformation"
 },
 {
 "name": "I_ScIsSecurityProcess",
 "ordinal": 1384,
-"rva": 623012,
-"forwarder": "api-ms-win-service-private-l1-1-0.I_ScIsSecurityProcess",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-0.I_ScIsSecurityProcess"
 },
 {
 "name": "I_ScPnPGetServiceName",
 "ordinal": 1385,
-"rva": 623090,
-"forwarder": "api-ms-win-service-private-l1-1-0.I_ScPnPGetServiceName",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-0.I_ScPnPGetServiceName"
 },
 {
 "name": "I_ScQueryServiceConfig",
 "ordinal": 1386,
-"rva": 623169,
-"forwarder": "api-ms-win-service-private-l1-1-0.I_ScQueryServiceConfig",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-0.I_ScQueryServiceConfig"
 },
 {
 "name": "I_ScRegisterPreshutdownRestart",
 "ordinal": 1387,
-"rva": 623257,
-"forwarder": "api-ms-win-service-private-l1-1-1.I_ScRegisterPreshutdownRestart",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-1.I_ScRegisterPreshutdownRestart"
 },
 {
 "name": "I_ScReparseServiceDatabase",
 "ordinal": 1388,
-"rva": 122464,
-"forwarder": null,
-"ref": "advapi32.dll!0x1de60"
+"forwarder": null
 },
 {
 "name": "I_ScSendPnPMessage",
 "ordinal": 1389,
-"rva": 623368,
-"forwarder": "api-ms-win-service-private-l1-1-0.I_ScSendPnPMessage",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-0.I_ScSendPnPMessage"
 },
 {
 "name": "I_ScSendTSMessage",
 "ordinal": 1390,
-"rva": 623439,
-"forwarder": "api-ms-win-service-private-l1-1-0.I_ScSendTSMessage",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-0.I_ScSendTSMessage"
 },
 {
 "name": "I_ScSetServiceBitsA",
 "ordinal": 1391,
-"rva": 200272,
-"forwarder": null,
-"ref": "advapi32.dll!0x30e50"
+"forwarder": null
 },
 {
 "name": "I_ScSetServiceBitsW",
 "ordinal": 1392,
-"rva": 200304,
-"forwarder": null,
-"ref": "advapi32.dll!0x30e70"
+"forwarder": null
 },
 {
 "name": "I_ScValidatePnPService",
 "ordinal": 1393,
-"rva": 623554,
-"forwarder": "api-ms-win-service-private-l1-1-0.I_ScValidatePnPService",
-"ref": null
+"forwarder": "api-ms-win-service-private-l1-1-0.I_ScValidatePnPService"
 },
 {
 "name": "IdentifyCodeAuthzLevelW",
 "ordinal": 1394,
-"rva": 46944,
-"forwarder": null,
-"ref": "advapi32.dll!0xb760"
+"forwarder": null
 },
 {
 "name": "ImpersonateAnonymousToken",
 "ordinal": 1395,
-"rva": 200336,
-"forwarder": null,
-"ref": "advapi32.dll!0x30e90"
+"forwarder": null
 },
 {
 "name": "ImpersonateLoggedOnUser",
 "ordinal": 1396,
-"rva": 96736,
-"forwarder": null,
-"ref": "advapi32.dll!0x179e0"
+"forwarder": null
 },
 {
 "name": "ImpersonateNamedPipeClient",
 "ordinal": 1397,
-"rva": 200368,
-"forwarder": null,
-"ref": "advapi32.dll!0x30eb0"
+"forwarder": null
 },
 {
 "name": "ImpersonateSelf",
 "ordinal": 1398,
-"rva": 97584,
-"forwarder": null,
-"ref": "advapi32.dll!0x17d30"
+"forwarder": null
 },
 {
 "name": "InitializeAcl",
 "ordinal": 1399,
-"rva": 94288,
-"forwarder": null,
-"ref": "advapi32.dll!0x17050"
+"forwarder": null
 },
 {
 "name": "InitializeSecurityDescriptor",
 "ordinal": 1400,
-"rva": 95264,
-"forwarder": null,
-"ref": "advapi32.dll!0x17420"
+"forwarder": null
 },
 {
 "name": "InitializeSid",
 "ordinal": 1401,
-"rva": 110288,
-"forwarder": null,
-"ref": "advapi32.dll!0x1aed0"
+"forwarder": null
 },
 {
 "name": "InitiateShutdownA",
 "ordinal": 1402,
-"rva": 280528,
-"forwarder": null,
-"ref": "advapi32.dll!0x447d0"
+"forwarder": null
 },
 {
 "name": "InitiateShutdownW",
 "ordinal": 1403,
-"rva": 104112,
-"forwarder": null,
-"ref": "advapi32.dll!0x196b0"
+"forwarder": null
 },
 {
 "name": "InitiateSystemShutdownA",
 "ordinal": 1404,
-"rva": 280848,
-"forwarder": null,
-"ref": "advapi32.dll!0x44910"
+"forwarder": null
 },
 {
 "name": "InitiateSystemShutdownExA",
 "ordinal": 1405,
-"rva": 281184,
-"forwarder": null,
-"ref": "advapi32.dll!0x44a60"
+"forwarder": null
 },
 {
 "name": "InitiateSystemShutdownExW",
 "ordinal": 1406,
-"rva": 290480,
-"forwarder": null,
-"ref": "advapi32.dll!0x46eb0"
+"forwarder": null
 },
 {
 "name": "InitiateSystemShutdownW",
 "ordinal": 1407,
-"rva": 281520,
-"forwarder": null,
-"ref": "advapi32.dll!0x44bb0"
+"forwarder": null
 },
 {
 "name": "InstallApplication",
 "ordinal": 1408,
-"rva": 225808,
-"forwarder": null,
-"ref": "advapi32.dll!0x37210"
+"forwarder": null
 },
 {
 "name": "IsTextUnicode",
 "ordinal": 1409,
-"rva": 90256,
-"forwarder": null,
-"ref": "advapi32.dll!0x16090"
+"forwarder": null
 },
 {
 "name": "IsTokenRestricted",
 "ordinal": 1410,
-"rva": 200400,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ed0"
+"forwarder": null
 },
 {
 "name": "IsTokenUntrusted",
 "ordinal": 1411,
-"rva": 232384,
-"forwarder": null,
-"ref": "advapi32.dll!0x38bc0"
+"forwarder": null
 },
 {
 "name": "IsValidAcl",
 "ordinal": 1412,
-"rva": 200432,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ef0"
+"forwarder": null
 },
 {
 "name": "IsValidRelativeSecurityDescriptor",
 "ordinal": 1413,
-"rva": 624034,
-"forwarder": "KERNELBASE.IsValidRelativeSecurityDescriptor",
-"ref": null
+"forwarder": "KERNELBASE.IsValidRelativeSecurityDescriptor"
 },
 {
 "name": "IsValidSecurityDescriptor",
 "ordinal": 1414,
-"rva": 200464,
-"forwarder": null,
-"ref": "advapi32.dll!0x30f10"
+"forwarder": null
 },
 {
 "name": "IsValidSid",
 "ordinal": 1415,
-"rva": 93152,
-"forwarder": null,
-"ref": "advapi32.dll!0x16be0"
+"forwarder": null
 },
 {
 "name": "IsWellKnownSid",
 "ordinal": 1416,
-"rva": 114320,
-"forwarder": null,
-"ref": "advapi32.dll!0x1be90"
+"forwarder": null
 },
 {
 "name": "LockServiceDatabase",
 "ordinal": 1417,
-"rva": 293808,
-"forwarder": null,
-"ref": "advapi32.dll!0x47bb0"
+"forwarder": null
 },
 {
 "name": "LogonUserA",
 "ordinal": 1418,
-"rva": 305728,
-"forwarder": null,
-"ref": "advapi32.dll!0x4aa40"
+"forwarder": null
 },
 {
 "name": "LogonUserExA",
 "ordinal": 1419,
-"rva": 306224,
-"forwarder": null,
-"ref": "advapi32.dll!0x4ac30"
+"forwarder": null
 },
 {
 "name": "LogonUserExExW",
 "ordinal": 1420,
-"rva": 200496,
-"forwarder": null,
-"ref": "advapi32.dll!0x30f30"
+"forwarder": null
 },
 {
 "name": "LogonUserExW",
 "ordinal": 1421,
-"rva": 306320,
-"forwarder": null,
-"ref": "advapi32.dll!0x4ac90"
+"forwarder": null
 },
 {
 "name": "LogonUserW",
 "ordinal": 1422,
-"rva": 112592,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b7d0"
+"forwarder": null
 },
 {
 "name": "LookupAccountNameA",
 "ordinal": 1423,
-"rva": 297104,
-"forwarder": null,
-"ref": "advapi32.dll!0x48890"
+"forwarder": null
 },
 {
 "name": "LookupAccountNameW",
 "ordinal": 1424,
-"rva": 91424,
-"forwarder": null,
-"ref": "advapi32.dll!0x16520"
+"forwarder": null
 },
 {
 "name": "LookupAccountSidA",
 "ordinal": 1425,
-"rva": 298464,
-"forwarder": null,
-"ref": "advapi32.dll!0x48de0"
+"forwarder": null
 },
 {
 "name": "LookupAccountSidW",
 "ordinal": 1426,
-"rva": 91552,
-"forwarder": null,
-"ref": "advapi32.dll!0x165a0"
+"forwarder": null
 },
 {
 "name": "LookupPrivilegeDisplayNameA",
 "ordinal": 1427,
-"rva": 300256,
-"forwarder": null,
-"ref": "advapi32.dll!0x494e0"
+"forwarder": null
 },
 {
 "name": "LookupPrivilegeDisplayNameW",
 "ordinal": 1428,
-"rva": 300784,
-"forwarder": null,
-"ref": "advapi32.dll!0x496f0"
+"forwarder": null
 },
 {
 "name": "LookupPrivilegeNameA",
 "ordinal": 1429,
-"rva": 301200,
-"forwarder": null,
-"ref": "advapi32.dll!0x49890"
+"forwarder": null
 },
 {
 "name": "LookupPrivilegeNameW",
 "ordinal": 1430,
-"rva": 301632,
-"forwarder": null,
-"ref": "advapi32.dll!0x49a40"
+"forwarder": null
 },
 {
 "name": "LookupPrivilegeValueA",
 "ordinal": 1431,
-"rva": 76224,
-"forwarder": null,
-"ref": "advapi32.dll!0x129c0"
+"forwarder": null
 },
 {
 "name": "LookupPrivilegeValueW",
 "ordinal": 1432,
-"rva": 63856,
-"forwarder": null,
-"ref": "advapi32.dll!0xf970"
+"forwarder": null
 },
 {
 "name": "LookupSecurityDescriptorPartsA",
 "ordinal": 1433,
-"rva": 260208,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f870"
+"forwarder": null
 },
 {
 "name": "LookupSecurityDescriptorPartsW",
 "ordinal": 1434,
-"rva": 260928,
-"forwarder": null,
-"ref": "advapi32.dll!0x3fb40"
+"forwarder": null
 },
 {
 "name": "LsaAddAccountRights",
 "ordinal": 1435,
-"rva": 200624,
-"forwarder": null,
-"ref": "advapi32.dll!0x30fb0"
+"forwarder": null
 },
 {
 "name": "LsaAddPrivilegesToAccount",
 "ordinal": 1436,
-"rva": 208752,
-"forwarder": null,
-"ref": "advapi32.dll!0x32f70"
+"forwarder": null
 },
 {
 "name": "LsaClearAuditLog",
 "ordinal": 1437,
-"rva": 208896,
-"forwarder": null,
-"ref": "advapi32.dll!0x33000"
+"forwarder": null
 },
 {
 "name": "LsaClose",
 "ordinal": 1438,
-"rva": 113696,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bc20"
+"forwarder": null
 },
 {
 "name": "LsaCreateAccount",
 "ordinal": 1439,
-"rva": 209040,
-"forwarder": null,
-"ref": "advapi32.dll!0x33090"
+"forwarder": null
 },
 {
 "name": "LsaCreateSecret",
 "ordinal": 1440,
-"rva": 200640,
-"forwarder": null,
-"ref": "advapi32.dll!0x30fc0"
+"forwarder": null
 },
 {
 "name": "LsaCreateTrustedDomain",
 "ordinal": 1441,
-"rva": 209312,
-"forwarder": null,
-"ref": "advapi32.dll!0x331a0"
+"forwarder": null
 },
 {
 "name": "LsaCreateTrustedDomainEx",
 "ordinal": 1442,
-"rva": 216928,
-"forwarder": null,
-"ref": "advapi32.dll!0x34f60"
+"forwarder": null
 },
 {
 "name": "LsaDelete",
 "ordinal": 1443,
-"rva": 200656,
-"forwarder": null,
-"ref": "advapi32.dll!0x30fd0"
+"forwarder": null
 },
 {
 "name": "LsaDeleteTrustedDomain",
 "ordinal": 1444,
-"rva": 217408,
-"forwarder": null,
-"ref": "advapi32.dll!0x35140"
+"forwarder": null
 },
 {
 "name": "LsaEnumerateAccountRights",
 "ordinal": 1445,
-"rva": 200672,
-"forwarder": null,
-"ref": "advapi32.dll!0x30fe0"
+"forwarder": null
 },
 {
 "name": "LsaEnumerateAccounts",
 "ordinal": 1446,
-"rva": 209584,
-"forwarder": null,
-"ref": "advapi32.dll!0x332b0"
+"forwarder": null
 },
 {
 "name": "LsaEnumerateAccountsWithUserRight",
 "ordinal": 1447,
-"rva": 200688,
-"forwarder": null,
-"ref": "advapi32.dll!0x30ff0"
+"forwarder": null
 },
 {
 "name": "LsaEnumeratePrivileges",
 "ordinal": 1448,
-"rva": 209808,
-"forwarder": null,
-"ref": "advapi32.dll!0x33390"
+"forwarder": null
 },
 {
 "name": "LsaEnumeratePrivilegesOfAccount",
 "ordinal": 1449,
-"rva": 210032,
-"forwarder": null,
-"ref": "advapi32.dll!0x33470"
+"forwarder": null
 },
 {
 "name": "LsaEnumerateTrustedDomains",
 "ordinal": 1450,
-"rva": 210176,
-"forwarder": null,
-"ref": "advapi32.dll!0x33500"
+"forwarder": null
 },
 {
 "name": "LsaEnumerateTrustedDomainsEx",
 "ordinal": 1451,
-"rva": 217552,
-"forwarder": null,
-"ref": "advapi32.dll!0x351d0"
+"forwarder": null
 },
 {
 "name": "LsaFreeMemory",
 "ordinal": 1452,
-"rva": 113232,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ba50"
+"forwarder": null
 },
 {
 "name": "LsaGetAppliedCAPIDs",
 "ordinal": 1453,
-"rva": 210416,
-"forwarder": null,
-"ref": "advapi32.dll!0x335f0"
+"forwarder": null
 },
 {
 "name": "LsaGetQuotasForAccount",
 "ordinal": 1454,
-"rva": 210800,
-"forwarder": null,
-"ref": "advapi32.dll!0x33770"
+"forwarder": null
 },
 {
 "name": "LsaGetRemoteUserName",
 "ordinal": 1455,
-"rva": 210944,
-"forwarder": null,
-"ref": "advapi32.dll!0x33800"
+"forwarder": null
 },
 {
 "name": "LsaGetSystemAccessAccount",
 "ordinal": 1456,
-"rva": 211456,
-"forwarder": null,
-"ref": "advapi32.dll!0x33a00"
+"forwarder": null
 },
 {
 "name": "LsaGetUserName",
 "ordinal": 1457,
-"rva": 72752,
-"forwarder": null,
-"ref": "advapi32.dll!0x11c30"
+"forwarder": null
 },
 {
 "name": "LsaICLookupNames",
 "ordinal": 1458,
-"rva": 200704,
-"forwarder": null,
-"ref": "advapi32.dll!0x31000"
+"forwarder": null
 },
 {
 "name": "LsaICLookupNamesWithCreds",
 "ordinal": 1459,
-"rva": 200800,
-"forwarder": null,
-"ref": "advapi32.dll!0x31060"
+"forwarder": null
 },
 {
 "name": "LsaICLookupSids",
 "ordinal": 1460,
-"rva": 200928,
-"forwarder": null,
-"ref": "advapi32.dll!0x310e0"
+"forwarder": null
 },
 {
 "name": "LsaICLookupSidsWithCreds",
 "ordinal": 1461,
-"rva": 200944,
-"forwarder": null,
-"ref": "advapi32.dll!0x310f0"
+"forwarder": null
 },
 {
 "name": "LsaInvokeTrustScanner",
 "ordinal": 1462,
-"rva": 125168,
-"forwarder": null,
-"ref": "advapi32.dll!0x1e8f0"
+"forwarder": null
 },
 {
 "name": "LsaLookupNames",
 "ordinal": 1463,
-"rva": 211600,
-"forwarder": null,
-"ref": "advapi32.dll!0x33a90"
+"forwarder": null
 },
 {
 "name": "LsaLookupNames2",
 "ordinal": 1464,
-"rva": 201072,
-"forwarder": null,
-"ref": "advapi32.dll!0x31170"
+"forwarder": null
 },
 {
 "name": "LsaLookupPrivilegeDisplayName",
 "ordinal": 1465,
-"rva": 212000,
-"forwarder": null,
-"ref": "advapi32.dll!0x33c20"
+"forwarder": null
 },
 {
 "name": "LsaLookupPrivilegeName",
 "ordinal": 1466,
-"rva": 212784,
-"forwarder": null,
-"ref": "advapi32.dll!0x33f30"
+"forwarder": null
 },
 {
 "name": "LsaLookupPrivilegeValue",
 "ordinal": 1467,
-"rva": 64128,
-"forwarder": null,
-"ref": "advapi32.dll!0xfa80"
+"forwarder": null
 },
 {
 "name": "LsaLookupSids",
 "ordinal": 1468,
-"rva": 113184,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ba20"
+"forwarder": null
 },
 {
 "name": "LsaLookupSids2",
 "ordinal": 1469,
-"rva": 201088,
-"forwarder": null,
-"ref": "advapi32.dll!0x31180"
+"forwarder": null
 },
 {
 "name": "LsaManageSidNameMapping",
 "ordinal": 1470,
-"rva": 217792,
-"forwarder": null,
-"ref": "advapi32.dll!0x352c0"
+"forwarder": null
 },
 {
 "name": "LsaNtStatusToWinError",
 "ordinal": 1471,
-"rva": 90192,
-"forwarder": null,
-"ref": "advapi32.dll!0x16050"
+"forwarder": null
 },
 {
 "name": "LsaOpenAccount",
 "ordinal": 1472,
-"rva": 212976,
-"forwarder": null,
-"ref": "advapi32.dll!0x33ff0"
+"forwarder": null
 },
 {
 "name": "LsaOpenPolicy",
 "ordinal": 1473,
-"rva": 113712,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bc30"
+"forwarder": null
 },
 {
 "name": "LsaOpenPolicySce",
 "ordinal": 1474,
-"rva": 213248,
-"forwarder": null,
-"ref": "advapi32.dll!0x34100"
+"forwarder": null
 },
 {
 "name": "LsaOpenSecret",
 "ordinal": 1475,
-"rva": 201104,
-"forwarder": null,
-"ref": "advapi32.dll!0x31190"
+"forwarder": null
 },
 {
 "name": "LsaOpenTrustedDomain",
 "ordinal": 1476,
-"rva": 213520,
-"forwarder": null,
-"ref": "advapi32.dll!0x34210"
+"forwarder": null
 },
 {
 "name": "LsaOpenTrustedDomainByName",
 "ordinal": 1477,
-"rva": 218144,
-"forwarder": null,
-"ref": "advapi32.dll!0x35420"
+"forwarder": null
 },
 {
 "name": "LsaQueryCAPs",
 "ordinal": 1478,
-"rva": 213792,
-"forwarder": null,
-"ref": "advapi32.dll!0x34320"
+"forwarder": null
 },
 {
 "name": "LsaQueryDomainInformationPolicy",
 "ordinal": 1479,
-"rva": 218416,
-"forwarder": null,
-"ref": "advapi32.dll!0x35530"
+"forwarder": null
 },
 {
 "name": "LsaQueryForestTrustInformation",
 "ordinal": 1480,
-"rva": 218592,
-"forwarder": null,
-"ref": "advapi32.dll!0x355e0"
+"forwarder": null
 },
 {
 "name": "LsaQueryForestTrustInformation2",
 "ordinal": 1481,
-"rva": 125312,
-"forwarder": null,
-"ref": "advapi32.dll!0x1e980"
+"forwarder": null
 },
 {
 "name": "LsaQueryInfoTrustedDomain",
 "ordinal": 1482,
-"rva": 214176,
-"forwarder": null,
-"ref": "advapi32.dll!0x344a0"
+"forwarder": null
 },
 {
 "name": "LsaQueryInformationPolicy",
 "ordinal": 1483,
-"rva": 113728,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bc40"
+"forwarder": null
 },
 {
 "name": "LsaQuerySecret",
 "ordinal": 1484,
-"rva": 201120,
-"forwarder": null,
-"ref": "advapi32.dll!0x311a0"
+"forwarder": null
 },
 {
 "name": "LsaQuerySecurityObject",
 "ordinal": 1485,
-"rva": 214400,
-"forwarder": null,
-"ref": "advapi32.dll!0x34580"
+"forwarder": null
 },
 {
 "name": "LsaQueryTrustedDomainInfo",
 "ordinal": 1486,
-"rva": 218768,
-"forwarder": null,
-"ref": "advapi32.dll!0x35690"
+"forwarder": null
 },
 {
 "name": "LsaQueryTrustedDomainInfoByName",
 "ordinal": 1487,
-"rva": 219024,
-"forwarder": null,
-"ref": "advapi32.dll!0x35790"
+"forwarder": null
 },
 {
 "name": "LsaRemoveAccountRights",
 "ordinal": 1488,
-"rva": 201136,
-"forwarder": null,
-"ref": "advapi32.dll!0x311b0"
+"forwarder": null
 },
 {
 "name": "LsaRemovePrivilegesFromAccount",
 "ordinal": 1489,
-"rva": 214608,
-"forwarder": null,
-"ref": "advapi32.dll!0x34650"
+"forwarder": null
 },
 {
 "name": "LsaRetrievePrivateData",
 "ordinal": 1490,
-"rva": 201152,
-"forwarder": null,
-"ref": "advapi32.dll!0x311c0"
+"forwarder": null
 },
 {
 "name": "LsaSetCAPs",
 "ordinal": 1491,
-"rva": 214768,
-"forwarder": null,
-"ref": "advapi32.dll!0x346f0"
+"forwarder": null
 },
 {
 "name": "LsaSetDomainInformationPolicy",
 "ordinal": 1492,
-"rva": 219200,
-"forwarder": null,
-"ref": "advapi32.dll!0x35840"
+"forwarder": null
 },
 {
 "name": "LsaSetForestTrustInformation",
 "ordinal": 1493,
-"rva": 219360,
-"forwarder": null,
-"ref": "advapi32.dll!0x358e0"
+"forwarder": null
 },
 {
 "name": "LsaSetForestTrustInformation2",
 "ordinal": 1494,
-"rva": 125504,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ea40"
+"forwarder": null
 },
 {
 "name": "LsaSetInformationPolicy",
 "ordinal": 1495,
-"rva": 201168,
-"forwarder": null,
-"ref": "advapi32.dll!0x311d0"
+"forwarder": null
 },
 {
 "name": "LsaSetInformationTrustedDomain",
 "ordinal": 1496,
-"rva": 215104,
-"forwarder": null,
-"ref": "advapi32.dll!0x34840"
+"forwarder": null
 },
 {
 "name": "LsaSetQuotasForAccount",
 "ordinal": 1497,
-"rva": 216080,
-"forwarder": null,
-"ref": "advapi32.dll!0x34c10"
+"forwarder": null
 },
 {
 "name": "LsaSetSecret",
 "ordinal": 1498,
-"rva": 201184,
-"forwarder": null,
-"ref": "advapi32.dll!0x311e0"
+"forwarder": null
 },
 {
 "name": "LsaSetSecurityObject",
 "ordinal": 1499,
-"rva": 216224,
-"forwarder": null,
-"ref": "advapi32.dll!0x34ca0"
+"forwarder": null
 },
 {
 "name": "LsaSetSystemAccessAccount",
 "ordinal": 1500,
-"rva": 216576,
-"forwarder": null,
-"ref": "advapi32.dll!0x34e00"
+"forwarder": null
 },
 {
 "name": "LsaSetTrustedDomainInfoByName",
 "ordinal": 1501,
-"rva": 219552,
-"forwarder": null,
-"ref": "advapi32.dll!0x359a0"
+"forwarder": null
 },
 {
 "name": "LsaSetTrustedDomainInformation",
 "ordinal": 1502,
-"rva": 220560,
-"forwarder": null,
-"ref": "advapi32.dll!0x35d90"
+"forwarder": null
 },
 {
 "name": "LsaStorePrivateData",
 "ordinal": 1503,
-"rva": 201296,
-"forwarder": null,
-"ref": "advapi32.dll!0x31250"
+"forwarder": null
 },
 {
 "name": "MD4Final",
 "ordinal": 1504,
-"rva": 626047,
-"forwarder": "NTDLL.MD4Final",
-"ref": null
+"forwarder": "NTDLL.MD4Final"
 },
 {
 "name": "MD4Init",
 "ordinal": 1505,
-"rva": 626070,
-"forwarder": "NTDLL.MD4Init",
-"ref": null
+"forwarder": "NTDLL.MD4Init"
 },
 {
 "name": "MD4Update",
 "ordinal": 1506,
-"rva": 626094,
-"forwarder": "NTDLL.MD4Update",
-"ref": null
+"forwarder": "NTDLL.MD4Update"
 },
 {
 "name": "MD5Final",
 "ordinal": 1507,
-"rva": 626119,
-"forwarder": "NTDLL.MD5Final",
-"ref": null
+"forwarder": "NTDLL.MD5Final"
 },
 {
 "name": "MD5Init",
 "ordinal": 1508,
-"rva": 626142,
-"forwarder": "NTDLL.MD5Init",
-"ref": null
+"forwarder": "NTDLL.MD5Init"
 },
 {
 "name": "MD5Update",
 "ordinal": 1509,
-"rva": 626166,
-"forwarder": "NTDLL.MD5Update",
-"ref": null
+"forwarder": "NTDLL.MD5Update"
 },
 {
 "name": "MIDL_user_free_Ext",
 "ordinal": 1510,
-"rva": 93600,
-"forwarder": null,
-"ref": "advapi32.dll!0x16da0"
+"forwarder": null
 },
 {
 "name": "MSChapSrvChangePassword",
 "ordinal": 1511,
-"rva": 203184,
-"forwarder": null,
-"ref": "advapi32.dll!0x319b0"
+"forwarder": null
 },
 {
 "name": "MSChapSrvChangePassword2",
 "ordinal": 1512,
-"rva": 203888,
-"forwarder": null,
-"ref": "advapi32.dll!0x31c70"
+"forwarder": null
 },
 {
 "name": "MakeAbsoluteSD",
 "ordinal": 1513,
-"rva": 118928,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d090"
+"forwarder": null
 },
 {
 "name": "MakeAbsoluteSD2",
 "ordinal": 1514,
-"rva": 201312,
-"forwarder": null,
-"ref": "advapi32.dll!0x31260"
+"forwarder": null
 },
 {
 "name": "MakeSelfRelativeSD",
 "ordinal": 1515,
-"rva": 201344,
-"forwarder": null,
-"ref": "advapi32.dll!0x31280"
+"forwarder": null
 },
 {
 "name": "MapGenericMask",
 "ordinal": 1516,
-"rva": 201376,
-"forwarder": null,
-"ref": "advapi32.dll!0x312a0"
+"forwarder": null
 },
 {
 "name": "NotifyBootConfigStatus",
 "ordinal": 1517,
-"rva": 116800,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c840"
+"forwarder": null
 },
 {
 "name": "NotifyChangeEventLog",
 "ordinal": 1518,
-"rva": 337888,
-"forwarder": null,
-"ref": "advapi32.dll!0x527e0"
+"forwarder": null
 },
 {
 "name": "NotifyServiceStatusChange",
 "ordinal": 1519,
-"rva": 122432,
-"forwarder": null,
-"ref": "advapi32.dll!0x1de40"
+"forwarder": null
 },
 {
 "name": "NotifyServiceStatusChangeA",
 "ordinal": 1520,
-"rva": 201408,
-"forwarder": null,
-"ref": "advapi32.dll!0x312c0"
+"forwarder": null
 },
 {
 "name": "NotifyServiceStatusChangeW",
 "ordinal": 1521,
-"rva": 119680,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d380"
+"forwarder": null
 },
 {
 "name": "NpGetUserName",
 "ordinal": 1522,
-"rva": 306416,
-"forwarder": null,
-"ref": "advapi32.dll!0x4acf0"
+"forwarder": null
 },
 {
 "name": "ObjectCloseAuditAlarmA",
 "ordinal": 1523,
-"rva": 302016,
-"forwarder": null,
-"ref": "advapi32.dll!0x49bc0"
+"forwarder": null
 },
 {
 "name": "ObjectCloseAuditAlarmW",
 "ordinal": 1524,
-"rva": 201440,
-"forwarder": null,
-"ref": "advapi32.dll!0x312e0"
+"forwarder": null
 },
 {
 "name": "ObjectDeleteAuditAlarmA",
 "ordinal": 1525,
-"rva": 302192,
-"forwarder": null,
-"ref": "advapi32.dll!0x49c70"
+"forwarder": null
 },
 {
 "name": "ObjectDeleteAuditAlarmW",
 "ordinal": 1526,
-"rva": 201472,
-"forwarder": null,
-"ref": "advapi32.dll!0x31300"
+"forwarder": null
 },
 {
 "name": "ObjectOpenAuditAlarmA",
 "ordinal": 1527,
-"rva": 302368,
-"forwarder": null,
-"ref": "advapi32.dll!0x49d20"
+"forwarder": null
 },
 {
 "name": "ObjectOpenAuditAlarmW",
 "ordinal": 1528,
-"rva": 201504,
-"forwarder": null,
-"ref": "advapi32.dll!0x31320"
+"forwarder": null
 },
 {
 "name": "ObjectPrivilegeAuditAlarmA",
 "ordinal": 1529,
-"rva": 302816,
-"forwarder": null,
-"ref": "advapi32.dll!0x49ee0"
+"forwarder": null
 },
 {
 "name": "ObjectPrivilegeAuditAlarmW",
 "ordinal": 1530,
-"rva": 201632,
-"forwarder": null,
-"ref": "advapi32.dll!0x313a0"
+"forwarder": null
 },
 {
 "name": "OpenBackupEventLogA",
 "ordinal": 1531,
-"rva": 337952,
-"forwarder": null,
-"ref": "advapi32.dll!0x52820"
+"forwarder": null
 },
 {
 "name": "OpenBackupEventLogW",
 "ordinal": 1532,
-"rva": 338240,
-"forwarder": null,
-"ref": "advapi32.dll!0x52940"
+"forwarder": null
 },
 {
 "name": "OpenEncryptedFileRawA",
 "ordinal": 1533,
-"rva": 193616,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f450"
+"forwarder": null
 },
 {
 "name": "OpenEncryptedFileRawW",
 "ordinal": 1534,
-"rva": 193808,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f510"
+"forwarder": null
 },
 {
 "name": "OpenEventLogA",
 "ordinal": 1535,
-"rva": 338464,
-"forwarder": null,
-"ref": "advapi32.dll!0x52a20"
+"forwarder": null
 },
 {
 "name": "OpenEventLogW",
 "ordinal": 1536,
-"rva": 115360,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c2a0"
+"forwarder": null
 },
 {
 "name": "OpenProcessToken",
 "ordinal": 1537,
-"rva": 92448,
-"forwarder": null,
-"ref": "advapi32.dll!0x16920"
+"forwarder": null
 },
 {
 "name": "OpenSCManagerA",
 "ordinal": 1538,
-"rva": 97648,
-"forwarder": null,
-"ref": "advapi32.dll!0x17d70"
+"forwarder": null
 },
 {
 "name": "OpenSCManagerW",
 "ordinal": 1539,
-"rva": 96448,
-"forwarder": null,
-"ref": "advapi32.dll!0x178c0"
+"forwarder": null
 },
 {
 "name": "OpenServiceA",
 "ordinal": 1540,
-"rva": 201664,
-"forwarder": null,
-"ref": "advapi32.dll!0x313c0"
+"forwarder": null
 },
 {
 "name": "OpenServiceW",
 "ordinal": 1541,
-"rva": 96992,
-"forwarder": null,
-"ref": "advapi32.dll!0x17ae0"
+"forwarder": null
 },
 {
 "name": "OpenThreadToken",
 "ordinal": 1542,
-"rva": 92416,
-"forwarder": null,
-"ref": "advapi32.dll!0x16900"
+"forwarder": null
 },
 {
 "name": "OpenThreadWaitChainSession",
 "ordinal": 1543,
-"rva": 407936,
-"forwarder": null,
-"ref": "advapi32.dll!0x63980"
+"forwarder": null
 },
 {
 "name": "OpenTraceA",
 "ordinal": 1544,
-"rva": 280000,
-"forwarder": null,
-"ref": "advapi32.dll!0x445c0"
+"forwarder": null
 },
 {
 "name": "OpenTraceW",
 "ordinal": 1545,
-"rva": 97360,
-"forwarder": null,
-"ref": "advapi32.dll!0x17c50"
+"forwarder": null
 },
 {
 "name": "OperationEnd",
 "ordinal": 1546,
-"rva": 204752,
-"forwarder": null,
-"ref": "advapi32.dll!0x31fd0"
+"forwarder": null
 },
 {
 "name": "OperationStart",
 "ordinal": 1547,
-"rva": 205008,
-"forwarder": null,
-"ref": "advapi32.dll!0x320d0"
+"forwarder": null
 },
 {
 "name": "PerfAddCounters",
 "ordinal": 1548,
-"rva": 4512,
-"forwarder": null,
-"ref": "advapi32.dll!0x11a0"
+"forwarder": null
 },
 {
 "name": "PerfCloseQueryHandle",
 "ordinal": 1549,
-"rva": 5168,
-"forwarder": null,
-"ref": "advapi32.dll!0x1430"
+"forwarder": null
 },
 {
 "name": "PerfCreateInstance",
 "ordinal": 1550,
-"rva": 626979,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfCreateInstance",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfCreateInstance"
 },
 {
 "name": "PerfDecrementULongCounterValue",
 "ordinal": 1551,
-"rva": 627065,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfDecrementULongCounterValue",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfDecrementULongCounterValue"
 },
 {
 "name": "PerfDecrementULongLongCounterValue",
 "ordinal": 1552,
-"rva": 627167,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfDecrementULongLongCounterValue",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfDecrementULongLongCounterValue"
 },
 {
 "name": "PerfDeleteCounters",
 "ordinal": 1553,
-"rva": 282752,
-"forwarder": null,
-"ref": "advapi32.dll!0x45080"
+"forwarder": null
 },
 {
 "name": "PerfDeleteInstance",
 "ordinal": 1554,
-"rva": 627276,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfDeleteInstance",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfDeleteInstance"
 },
 {
 "name": "PerfEnumerateCounterSet",
 "ordinal": 1555,
-"rva": 24320,
-"forwarder": null,
-"ref": "advapi32.dll!0x5f00"
+"forwarder": null
 },
 {
 "name": "PerfEnumerateCounterSetInstances",
 "ordinal": 1556,
-"rva": 13552,
-"forwarder": null,
-"ref": "advapi32.dll!0x34f0"
+"forwarder": null
 },
 {
 "name": "PerfIncrementULongCounterValue",
 "ordinal": 1557,
-"rva": 627419,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfIncrementULongCounterValue",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfIncrementULongCounterValue"
 },
 {
 "name": "PerfIncrementULongLongCounterValue",
 "ordinal": 1558,
-"rva": 627521,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfIncrementULongLongCounterValue",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfIncrementULongLongCounterValue"
 },
 {
 "name": "PerfOpenQueryHandle",
 "ordinal": 1559,
-"rva": 16064,
-"forwarder": null,
-"ref": "advapi32.dll!0x3ec0"
+"forwarder": null
 },
 {
 "name": "PerfQueryCounterData",
 "ordinal": 1560,
-"rva": 7328,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ca0"
+"forwarder": null
 },
 {
 "name": "PerfQueryCounterInfo",
 "ordinal": 1561,
-"rva": 4720,
-"forwarder": null,
-"ref": "advapi32.dll!0x1270"
+"forwarder": null
 },
 {
 "name": "PerfQueryCounterSetRegistrationInfo",
 "ordinal": 1562,
-"rva": 23776,
-"forwarder": null,
-"ref": "advapi32.dll!0x5ce0"
+"forwarder": null
 },
 {
 "name": "PerfQueryInstance",
 "ordinal": 1563,
-"rva": 627708,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfQueryInstance",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfQueryInstance"
 },
 {
 "name": "PerfRegCloseKey",
 "ordinal": 1564,
-"rva": 74096,
-"forwarder": null,
-"ref": "advapi32.dll!0x12170"
+"forwarder": null
 },
 {
 "name": "PerfRegEnumKey",
 "ordinal": 1565,
-"rva": 346960,
-"forwarder": null,
-"ref": "advapi32.dll!0x54b50"
+"forwarder": null
 },
 {
 "name": "PerfRegEnumValue",
 "ordinal": 1566,
-"rva": 347056,
-"forwarder": null,
-"ref": "advapi32.dll!0x54bb0"
+"forwarder": null
 },
 {
 "name": "PerfRegQueryInfoKey",
 "ordinal": 1567,
-"rva": 110320,
-"forwarder": null,
-"ref": "advapi32.dll!0x1aef0"
+"forwarder": null
 },
 {
 "name": "PerfRegQueryValue",
 "ordinal": 1568,
-"rva": 38192,
-"forwarder": null,
-"ref": "advapi32.dll!0x9530"
+"forwarder": null
 },
 {
 "name": "PerfRegSetValue",
 "ordinal": 1569,
-"rva": 347472,
-"forwarder": null,
-"ref": "advapi32.dll!0x54d50"
+"forwarder": null
 },
 {
 "name": "PerfSetCounterRefValue",
 "ordinal": 1570,
-"rva": 627887,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetCounterRefValue",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetCounterRefValue"
 },
 {
 "name": "PerfSetCounterSetInfo",
 "ordinal": 1571,
-"rva": 627968,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetCounterSetInfo",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetCounterSetInfo"
 },
 {
 "name": "PerfSetULongCounterValue",
 "ordinal": 1572,
-"rva": 628051,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetULongCounterValue",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetULongCounterValue"
 },
 {
 "name": "PerfSetULongLongCounterValue",
 "ordinal": 1573,
-"rva": 628141,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetULongLongCounterValue",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfSetULongLongCounterValue"
 },
 {
 "name": "PerfStartProvider",
 "ordinal": 1574,
-"rva": 628224,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfStartProvider",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfStartProvider"
 },
 {
 "name": "PerfStartProviderEx",
 "ordinal": 1575,
-"rva": 628298,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfStartProviderEx",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfStartProviderEx"
 },
 {
 "name": "PerfStopProvider",
 "ordinal": 1576,
-"rva": 628371,
-"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfStopProvider",
-"ref": null
+"forwarder": "api-ms-win-core-perfcounters-l1-2-0.PerfStopProvider"
 },
 {
 "name": "PrivilegeCheck",
 "ordinal": 1577,
-"rva": 201696,
-"forwarder": null,
-"ref": "advapi32.dll!0x313e0"
+"forwarder": null
 },
 {
 "name": "PrivilegedServiceAuditAlarmA",
 "ordinal": 1578,
-"rva": 303024,
-"forwarder": null,
-"ref": "advapi32.dll!0x49fb0"
+"forwarder": null
 },
 {
 "name": "PrivilegedServiceAuditAlarmW",
 "ordinal": 1579,
-"rva": 201728,
-"forwarder": null,
-"ref": "advapi32.dll!0x31400"
+"forwarder": null
 },
 {
 "name": "ProcessIdleTasks",
 "ordinal": 1580,
-"rva": 206304,
-"forwarder": null,
-"ref": "advapi32.dll!0x325e0"
+"forwarder": null
 },
 {
 "name": "ProcessIdleTasksW",
 "ordinal": 1581,
-"rva": 206448,
-"forwarder": null,
-"ref": "advapi32.dll!0x32670"
+"forwarder": null
 },
 {
 "name": "ProcessTrace",
 "ordinal": 1582,
-"rva": 97424,
-"forwarder": null,
-"ref": "advapi32.dll!0x17c90"
+"forwarder": null
 },
 {
 "name": "QueryAllTracesA",
 "ordinal": 1583,
-"rva": 122048,
-"forwarder": null,
-"ref": "advapi32.dll!0x1dcc0"
+"forwarder": null
 },
 {
 "name": "QueryAllTracesW",
 "ordinal": 1584,
-"rva": 17424,
-"forwarder": null,
-"ref": "advapi32.dll!0x4410"
+"forwarder": null
 },
 {
 "name": "QueryLocalUserServiceName",
 "ordinal": 1585,
-"rva": 122480,
-"forwarder": null,
-"ref": "advapi32.dll!0x1de70"
+"forwarder": null
 },
 {
 "name": "QueryRecoveryAgentsOnEncryptedFile",
 "ordinal": 1586,
-"rva": 193920,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f580"
+"forwarder": null
 },
 {
 "name": "QuerySecurityAccessMask",
 "ordinal": 1587,
-"rva": 201760,
-"forwarder": null,
-"ref": "advapi32.dll!0x31420"
+"forwarder": null
 },
 {
 "name": "QueryServiceConfig2A",
 "ordinal": 1588,
-"rva": 201792,
-"forwarder": null,
-"ref": "advapi32.dll!0x31440"
+"forwarder": null
 },
 {
 "name": "QueryServiceConfig2W",
 "ordinal": 1589,
-"rva": 119536,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d2f0"
+"forwarder": null
 },
 {
 "name": "QueryServiceConfigA",
 "ordinal": 1590,
-"rva": 201824,
-"forwarder": null,
-"ref": "advapi32.dll!0x31460"
+"forwarder": null
 },
 {
 "name": "QueryServiceConfigW",
 "ordinal": 1591,
-"rva": 97104,
-"forwarder": null,
-"ref": "advapi32.dll!0x17b50"
+"forwarder": null
 },
 {
 "name": "QueryServiceDynamicInformation",
 "ordinal": 1592,
-"rva": 201856,
-"forwarder": null,
-"ref": "advapi32.dll!0x31480"
+"forwarder": null
 },
 {
 "name": "QueryServiceLockStatusA",
 "ordinal": 1593,
-"rva": 293952,
-"forwarder": null,
-"ref": "advapi32.dll!0x47c40"
+"forwarder": null
 },
 {
 "name": "QueryServiceLockStatusW",
 "ordinal": 1594,
-"rva": 294352,
-"forwarder": null,
-"ref": "advapi32.dll!0x47dd0"
+"forwarder": null
 },
 {
 "name": "QueryServiceObjectSecurity",
 "ordinal": 1595,
-"rva": 201888,
-"forwarder": null,
-"ref": "advapi32.dll!0x314a0"
+"forwarder": null
 },
 {
 "name": "QueryServiceStatus",
 "ordinal": 1596,
-"rva": 119616,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d340"
+"forwarder": null
 },
 {
 "name": "QueryServiceStatusEx",
 "ordinal": 1597,
-"rva": 97264,
-"forwarder": null,
-"ref": "advapi32.dll!0x17bf0"
+"forwarder": null
 },
 {
 "name": "QueryTraceA",
 "ordinal": 1598,
-"rva": 279616,
-"forwarder": null,
-"ref": "advapi32.dll!0x44440"
+"forwarder": null
 },
 {
 "name": "QueryTraceProcessingHandle",
 "ordinal": 1599,
-"rva": 201920,
-"forwarder": null,
-"ref": "advapi32.dll!0x314c0"
+"forwarder": null
 },
 {
 "name": "QueryTraceW",
 "ordinal": 1600,
-"rva": 119568,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d310"
+"forwarder": null
 },
 {
 "name": "QueryUserServiceName",
 "ordinal": 1601,
-"rva": 122496,
-"forwarder": null,
-"ref": "advapi32.dll!0x1de80"
+"forwarder": null
 },
 {
 "name": "QueryUserServiceNameForContext",
 "ordinal": 1602,
-"rva": 122512,
-"forwarder": null,
-"ref": "advapi32.dll!0x1de90"
+"forwarder": null
 },
 {
 "name": "QueryUsersOnEncryptedFile",
 "ordinal": 1603,
-"rva": 194048,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f600"
+"forwarder": null
 },
 {
 "name": "ReadEncryptedFileRaw",
 "ordinal": 1604,
-"rva": 194176,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f680"
+"forwarder": null
 },
 {
 "name": "ReadEventLogA",
 "ordinal": 1605,
-"rva": 338608,
-"forwarder": null,
-"ref": "advapi32.dll!0x52ab0"
+"forwarder": null
 },
 {
 "name": "ReadEventLogW",
 "ordinal": 1606,
-"rva": 338768,
-"forwarder": null,
-"ref": "advapi32.dll!0x52b50"
+"forwarder": null
 },
 {
 "name": "RegCloseKey",
 "ordinal": 1607,
-"rva": 92048,
-"forwarder": null,
-"ref": "advapi32.dll!0x16790"
+"forwarder": null
 },
 {
 "name": "RegConnectRegistryA",
 "ordinal": 1608,
-"rva": 283904,
-"forwarder": null,
-"ref": "advapi32.dll!0x45500"
+"forwarder": null
 },
 {
 "name": "RegConnectRegistryExA",
 "ordinal": 1609,
-"rva": 283936,
-"forwarder": null,
-"ref": "advapi32.dll!0x45520"
+"forwarder": null
 },
 {
 "name": "RegConnectRegistryExW",
 "ordinal": 1610,
-"rva": 112912,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b910"
+"forwarder": null
 },
 {
 "name": "RegConnectRegistryW",
 "ordinal": 1611,
-"rva": 112880,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b8f0"
+"forwarder": null
 },
 {
 "name": "RegCopyTreeA",
 "ordinal": 1612,
-"rva": 284864,
-"forwarder": null,
-"ref": "advapi32.dll!0x458c0"
+"forwarder": null
 },
 {
 "name": "RegCopyTreeW",
 "ordinal": 1613,
-"rva": 201952,
-"forwarder": null,
-"ref": "advapi32.dll!0x314e0"
+"forwarder": null
 },
 {
 "name": "RegCreateKeyA",
 "ordinal": 1614,
-"rva": 284992,
-"forwarder": null,
-"ref": "advapi32.dll!0x45940"
+"forwarder": null
 },
 {
 "name": "RegCreateKeyExA",
 "ordinal": 1615,
-"rva": 96544,
-"forwarder": null,
-"ref": "advapi32.dll!0x17920"
+"forwarder": null
 },
 {
 "name": "RegCreateKeyExW",
 "ordinal": 1616,
-"rva": 93184,
-"forwarder": null,
-"ref": "advapi32.dll!0x16c00"
+"forwarder": null
 },
 {
 "name": "RegCreateKeyTransactedA",
 "ordinal": 1617,
-"rva": 285136,
-"forwarder": null,
-"ref": "advapi32.dll!0x459d0"
+"forwarder": null
 },
 {
 "name": "RegCreateKeyTransactedW",
 "ordinal": 1618,
-"rva": 116896,
-"forwarder": null,
-"ref": "advapi32.dll!0x1c8a0"
+"forwarder": null
 },
 {
 "name": "RegCreateKeyW",
 "ordinal": 1619,
-"rva": 93904,
-"forwarder": null,
-"ref": "advapi32.dll!0x16ed0"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyA",
 "ordinal": 1620,
-"rva": 16528,
-"forwarder": null,
-"ref": "advapi32.dll!0x4090"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyExA",
 "ordinal": 1621,
-"rva": 201984,
-"forwarder": null,
-"ref": "advapi32.dll!0x31500"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyExW",
 "ordinal": 1622,
-"rva": 202016,
-"forwarder": null,
-"ref": "advapi32.dll!0x31520"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyTransactedA",
 "ordinal": 1623,
-"rva": 285632,
-"forwarder": null,
-"ref": "advapi32.dll!0x45bc0"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyTransactedW",
 "ordinal": 1624,
-"rva": 290800,
-"forwarder": null,
-"ref": "advapi32.dll!0x46ff0"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyValueA",
 "ordinal": 1625,
-"rva": 202048,
-"forwarder": null,
-"ref": "advapi32.dll!0x31540"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyValueW",
 "ordinal": 1626,
-"rva": 119824,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d410"
+"forwarder": null
 },
 {
 "name": "RegDeleteKeyW",
 "ordinal": 1627,
-"rva": 93216,
-"forwarder": null,
-"ref": "advapi32.dll!0x16c20"
+"forwarder": null
 },
 {
 "name": "RegDeleteTreeA",
 "ordinal": 1628,
-"rva": 202080,
-"forwarder": null,
-"ref": "advapi32.dll!0x31560"
+"forwarder": null
 },
 {
 "name": "RegDeleteTreeW",
 "ordinal": 1629,
-"rva": 202112,
-"forwarder": null,
-"ref": "advapi32.dll!0x31580"
+"forwarder": null
 },
 {
 "name": "RegDeleteValueA",
 "ordinal": 1630,
-"rva": 17456,
-"forwarder": null,
-"ref": "advapi32.dll!0x4430"
+"forwarder": null
 },
 {
 "name": "RegDeleteValueW",
 "ordinal": 1631,
-"rva": 104080,
-"forwarder": null,
-"ref": "advapi32.dll!0x19690"
+"forwarder": null
 },
 {
 "name": "RegDisablePredefinedCache",
 "ordinal": 1632,
-"rva": 97024,
-"forwarder": null,
-"ref": "advapi32.dll!0x17b00"
+"forwarder": null
 },
 {
 "name": "RegDisablePredefinedCacheEx",
 "ordinal": 1633,
-"rva": 202144,
-"forwarder": null,
-"ref": "advapi32.dll!0x315a0"
+"forwarder": null
 },
 {
 "name": "RegDisableReflectionKey",
 "ordinal": 1634,
-"rva": 103440,
-"forwarder": null,
-"ref": "advapi32.dll!0x19410"
+"forwarder": null
 },
 {
 "name": "RegEnableReflectionKey",
 "ordinal": 1635,
-"rva": 103440,
-"forwarder": null,
-"ref": "advapi32.dll!0x19410"
+"forwarder": null
 },
 {
 "name": "RegEnumKeyA",
 "ordinal": 1636,
-"rva": 113776,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bc70"
+"forwarder": null
 },
 {
 "name": "RegEnumKeyExA",
 "ordinal": 1637,
-"rva": 16624,
-"forwarder": null,
-"ref": "advapi32.dll!0x40f0"
+"forwarder": null
 },
 {
 "name": "RegEnumKeyExW",
 "ordinal": 1638,
-"rva": 88560,
-"forwarder": null,
-"ref": "advapi32.dll!0x159f0"
+"forwarder": null
 },
 {
 "name": "RegEnumKeyW",
 "ordinal": 1639,
-"rva": 91296,
-"forwarder": null,
-"ref": "advapi32.dll!0x164a0"
+"forwarder": null
 },
 {
 "name": "RegEnumValueA",
 "ordinal": 1640,
-"rva": 202176,
-"forwarder": null,
-"ref": "advapi32.dll!0x315c0"
+"forwarder": null
 },
 {
 "name": "RegEnumValueW",
 "ordinal": 1641,
-"rva": 91968,
-"forwarder": null,
-"ref": "advapi32.dll!0x16740"
+"forwarder": null
 },
 {
 "name": "RegFlushKey",
 "ordinal": 1642,
-"rva": 111232,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b280"
+"forwarder": null
 },
 {
 "name": "RegGetKeySecurity",
 "ordinal": 1643,
-"rva": 119280,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d1f0"
+"forwarder": null
 },
 {
 "name": "RegGetValueA",
 "ordinal": 1644,
-"rva": 202256,
-"forwarder": null,
-"ref": "advapi32.dll!0x31610"
+"forwarder": null
 },
 {
 "name": "RegGetValueW",
 "ordinal": 1645,
-"rva": 111168,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b240"
+"forwarder": null
 },
 {
 "name": "RegLoadAppKeyA",
 "ordinal": 1646,
-"rva": 202288,
-"forwarder": null,
-"ref": "advapi32.dll!0x31630"
+"forwarder": null
 },
 {
 "name": "RegLoadAppKeyW",
 "ordinal": 1647,
-"rva": 202320,
-"forwarder": null,
-"ref": "advapi32.dll!0x31650"
+"forwarder": null
 },
 {
 "name": "RegLoadKeyA",
 "ordinal": 1648,
-"rva": 202352,
-"forwarder": null,
-"ref": "advapi32.dll!0x31670"
+"forwarder": null
 },
 {
 "name": "RegLoadKeyW",
 "ordinal": 1649,
-"rva": 202384,
-"forwarder": null,
-"ref": "advapi32.dll!0x31690"
+"forwarder": null
 },
 {
 "name": "RegLoadMUIStringA",
 "ordinal": 1650,
-"rva": 202416,
-"forwarder": null,
-"ref": "advapi32.dll!0x316b0"
+"forwarder": null
 },
 {
 "name": "RegLoadMUIStringW",
 "ordinal": 1651,
-"rva": 202448,
-"forwarder": null,
-"ref": "advapi32.dll!0x316d0"
+"forwarder": null
 },
 {
 "name": "RegNotifyChangeKeyValue",
 "ordinal": 1652,
-"rva": 96864,
-"forwarder": null,
-"ref": "advapi32.dll!0x17a60"
+"forwarder": null
 },
 {
 "name": "RegOpenCurrentUser",
 "ordinal": 1653,
-"rva": 97392,
-"forwarder": null,
-"ref": "advapi32.dll!0x17c70"
+"forwarder": null
 },
 {
 "name": "RegOpenKeyA",
 "ordinal": 1654,
-"rva": 103936,
-"forwarder": null,
-"ref": "advapi32.dll!0x19600"
+"forwarder": null
 },
 {
 "name": "RegOpenKeyExA",
 "ordinal": 1655,
-"rva": 93568,
-"forwarder": null,
-"ref": "advapi32.dll!0x16d80"
+"forwarder": null
 },
 {
 "name": "RegOpenKeyExW",
 "ordinal": 1656,
-"rva": 90080,
-"forwarder": null,
-"ref": "advapi32.dll!0x15fe0"
+"forwarder": null
 },
 {
 "name": "RegOpenKeyTransactedA",
 "ordinal": 1657,
-"rva": 285296,
-"forwarder": null,
-"ref": "advapi32.dll!0x45a70"
+"forwarder": null
 },
 {
 "name": "RegOpenKeyTransactedW",
 "ordinal": 1658,
-"rva": 96240,
-"forwarder": null,
-"ref": "advapi32.dll!0x177f0"
+"forwarder": null
 },
 {
 "name": "RegOpenKeyW",
 "ordinal": 1659,
-"rva": 92912,
-"forwarder": null,
-"ref": "advapi32.dll!0x16af0"
+"forwarder": null
 },
 {
 "name": "RegOpenUserClassesRoot",
 "ordinal": 1660,
-"rva": 202480,
-"forwarder": null,
-"ref": "advapi32.dll!0x316f0"
+"forwarder": null
 },
 {
 "name": "RegOverridePredefKey",
 "ordinal": 1661,
-"rva": 285360,
-"forwarder": null,
-"ref": "advapi32.dll!0x45ab0"
+"forwarder": null
 },
 {
 "name": "RegQueryInfoKeyA",
 "ordinal": 1662,
-"rva": 17056,
-"forwarder": null,
-"ref": "advapi32.dll!0x42a0"
+"forwarder": null
 },
 {
 "name": "RegQueryInfoKeyW",
 "ordinal": 1663,
-"rva": 90624,
-"forwarder": null,
-"ref": "advapi32.dll!0x16200"
+"forwarder": null
 },
 {
 "name": "RegQueryMultipleValuesA",
 "ordinal": 1664,
-"rva": 202512,
-"forwarder": null,
-"ref": "advapi32.dll!0x31710"
+"forwarder": null
 },
 {
 "name": "RegQueryMultipleValuesW",
 "ordinal": 1665,
-"rva": 202544,
-"forwarder": null,
-"ref": "advapi32.dll!0x31730"
+"forwarder": null
 },
 {
 "name": "RegQueryReflectionKey",
 "ordinal": 1666,
-"rva": 204736,
-"forwarder": null,
-"ref": "advapi32.dll!0x31fc0"
+"forwarder": null
 },
 {
 "name": "RegQueryValueA",
 "ordinal": 1667,
-"rva": 286656,
-"forwarder": null,
-"ref": "advapi32.dll!0x45fc0"
+"forwarder": null
 },
 {
 "name": "RegQueryValueExA",
 "ordinal": 1668,
-"rva": 93872,
-"forwarder": null,
-"ref": "advapi32.dll!0x16eb0"
+"forwarder": null
 },
 {
 "name": "RegQueryValueExW",
 "ordinal": 1669,
-"rva": 90048,
-"forwarder": null,
-"ref": "advapi32.dll!0x15fc0"
+"forwarder": null
 },
 {
 "name": "RegQueryValueW",
 "ordinal": 1670,
-"rva": 92480,
-"forwarder": null,
-"ref": "advapi32.dll!0x16940"
+"forwarder": null
 },
 {
 "name": "RegRenameKey",
 "ordinal": 1671,
-"rva": 285472,
-"forwarder": null,
-"ref": "advapi32.dll!0x45b20"
+"forwarder": null
 },
 {
 "name": "RegReplaceKeyA",
 "ordinal": 1672,
-"rva": 287456,
-"forwarder": null,
-"ref": "advapi32.dll!0x462e0"
+"forwarder": null
 },
 {
 "name": "RegReplaceKeyW",
 "ordinal": 1673,
-"rva": 290864,
-"forwarder": null,
-"ref": "advapi32.dll!0x47030"
+"forwarder": null
 },
 {
 "name": "RegRestoreKeyA",
 "ordinal": 1674,
-"rva": 202576,
-"forwarder": null,
-"ref": "advapi32.dll!0x31750"
+"forwarder": null
 },
 {
 "name": "RegRestoreKeyW",
 "ordinal": 1675,
-"rva": 202608,
-"forwarder": null,
-"ref": "advapi32.dll!0x31770"
+"forwarder": null
 },
 {
 "name": "RegSaveKeyA",
 "ordinal": 1676,
-"rva": 288080,
-"forwarder": null,
-"ref": "advapi32.dll!0x46550"
+"forwarder": null
 },
 {
 "name": "RegSaveKeyExA",
 "ordinal": 1677,
-"rva": 202640,
-"forwarder": null,
-"ref": "advapi32.dll!0x31790"
+"forwarder": null
 },
 {
 "name": "RegSaveKeyExW",
 "ordinal": 1678,
-"rva": 202672,
-"forwarder": null,
-"ref": "advapi32.dll!0x317b0"
+"forwarder": null
 },
 {
 "name": "RegSaveKeyW",
 "ordinal": 1679,
-"rva": 288560,
-"forwarder": null,
-"ref": "advapi32.dll!0x46730"
+"forwarder": null
 },
 {
 "name": "RegSetKeySecurity",
 "ordinal": 1680,
-"rva": 113856,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bcc0"
+"forwarder": null
 },
 {
 "name": "RegSetKeyValueA",
 "ordinal": 1681,
-"rva": 202704,
-"forwarder": null,
-"ref": "advapi32.dll!0x317d0"
+"forwarder": null
 },
 {
 "name": "RegSetKeyValueW",
 "ordinal": 1682,
-"rva": 17360,
-"forwarder": null,
-"ref": "advapi32.dll!0x43d0"
+"forwarder": null
 },
 {
 "name": "RegSetValueA",
 "ordinal": 1683,
-"rva": 288976,
-"forwarder": null,
-"ref": "advapi32.dll!0x468d0"
+"forwarder": null
 },
 {
 "name": "RegSetValueExA",
 "ordinal": 1684,
-"rva": 16704,
-"forwarder": null,
-"ref": "advapi32.dll!0x4140"
+"forwarder": null
 },
 {
 "name": "RegSetValueExW",
 "ordinal": 1685,
-"rva": 94080,
-"forwarder": null,
-"ref": "advapi32.dll!0x16f80"
+"forwarder": null
 },
 {
 "name": "RegSetValueW",
 "ordinal": 1686,
-"rva": 289344,
-"forwarder": null,
-"ref": "advapi32.dll!0x46a40"
+"forwarder": null
 },
 {
 "name": "RegUnLoadKeyA",
 "ordinal": 1687,
-"rva": 202736,
-"forwarder": null,
-"ref": "advapi32.dll!0x317f0"
+"forwarder": null
 },
 {
 "name": "RegUnLoadKeyW",
 "ordinal": 1688,
-"rva": 202768,
-"forwarder": null,
-"ref": "advapi32.dll!0x31810"
+"forwarder": null
 },
 {
 "name": "RegisterEventSourceA",
 "ordinal": 1689,
-"rva": 338912,
-"forwarder": null,
-"ref": "advapi32.dll!0x52be0"
+"forwarder": null
 },
 {
 "name": "RegisterEventSourceW",
 "ordinal": 1690,
-"rva": 97680,
-"forwarder": null,
-"ref": "advapi32.dll!0x17d90"
+"forwarder": null
 },
 {
 "name": "RegisterIdleTask",
 "ordinal": 1691,
-"rva": 206464,
-"forwarder": null,
-"ref": "advapi32.dll!0x32680"
+"forwarder": null
 },
 {
 "name": "RegisterServiceCtrlHandlerA",
 "ordinal": 1692,
-"rva": 114384,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bed0"
+"forwarder": null
 },
 {
 "name": "RegisterServiceCtrlHandlerExA",
 "ordinal": 1693,
-"rva": 202800,
-"forwarder": null,
-"ref": "advapi32.dll!0x31830"
+"forwarder": null
 },
 {
 "name": "RegisterServiceCtrlHandlerExW",
 "ordinal": 1694,
-"rva": 111296,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b2c0"
+"forwarder": null
 },
 {
 "name": "RegisterServiceCtrlHandlerW",
 "ordinal": 1695,
-"rva": 97552,
-"forwarder": null,
-"ref": "advapi32.dll!0x17d10"
+"forwarder": null
 },
 {
 "name": "RegisterTraceGuidsA",
 "ordinal": 1696,
-"rva": 630638,
-"forwarder": "ntdll.EtwRegisterTraceGuidsA",
-"ref": null
+"forwarder": "ntdll.EtwRegisterTraceGuidsA"
 },
 {
 "name": "RegisterTraceGuidsW",
 "ordinal": 1697,
-"rva": 630687,
-"forwarder": "ntdll.EtwRegisterTraceGuidsW",
-"ref": null
+"forwarder": "ntdll.EtwRegisterTraceGuidsW"
 },
 {
 "name": "RegisterWaitChainCOMCallback",
 "ordinal": 1698,
-"rva": 408224,
-"forwarder": null,
-"ref": "advapi32.dll!0x63aa0"
+"forwarder": null
 },
 {
 "name": "RemoteRegEnumKeyWrapper",
 "ordinal": 1699,
-"rva": 285696,
-"forwarder": null,
-"ref": "advapi32.dll!0x45c00"
+"forwarder": null
 },
 {
 "name": "RemoteRegEnumValueWrapper",
 "ordinal": 1700,
-"rva": 286064,
-"forwarder": null,
-"ref": "advapi32.dll!0x45d70"
+"forwarder": null
 },
 {
 "name": "RemoteRegQueryInfoKeyWrapper",
 "ordinal": 1701,
-"rva": 286368,
-"forwarder": null,
-"ref": "advapi32.dll!0x45ea0"
+"forwarder": null
 },
 {
 "name": "RemoteRegQueryMultipleValues2Wrapper",
 "ordinal": 1702,
-"rva": 289728,
-"forwarder": null,
-"ref": "advapi32.dll!0x46bc0"
+"forwarder": null
 },
 {
 "name": "RemoteRegQueryMultipleValuesWrapper",
 "ordinal": 1703,
-"rva": 290112,
-"forwarder": null,
-"ref": "advapi32.dll!0x46d40"
+"forwarder": null
 },
 {
 "name": "RemoteRegQueryValueWrapper",
 "ordinal": 1704,
-"rva": 287296,
-"forwarder": null,
-"ref": "advapi32.dll!0x46240"
+"forwarder": null
 },
 {
 "name": "RemoveTraceCallback",
 "ordinal": 1705,
-"rva": 630944,
-"forwarder": "sechost.RemoveTraceCallback",
-"ref": null
+"forwarder": "sechost.RemoveTraceCallback"
 },
 {
 "name": "RemoveUsersFromEncryptedFile",
 "ordinal": 1706,
-"rva": 194208,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f6a0"
+"forwarder": null
 },
 {
 "name": "ReportEventA",
 "ordinal": 1707,
-"rva": 339040,
-"forwarder": null,
-"ref": "advapi32.dll!0x52c60"
+"forwarder": null
 },
 {
 "name": "ReportEventW",
 "ordinal": 1708,
-"rva": 98592,
-"forwarder": null,
-"ref": "advapi32.dll!0x18120"
+"forwarder": null
 },
 {
 "name": "RevertToSelf",
 "ordinal": 1709,
-"rva": 92880,
-"forwarder": null,
-"ref": "advapi32.dll!0x16ad0"
+"forwarder": null
 },
 {
 "name": "SafeBaseRegGetKeySecurity",
 "ordinal": 1710,
-"rva": 282688,
-"forwarder": null,
-"ref": "advapi32.dll!0x45040"
+"forwarder": null
 },
 {
 "name": "SaferCloseLevel",
 "ordinal": 1711,
-"rva": 89856,
-"forwarder": null,
-"ref": "advapi32.dll!0x15f00"
+"forwarder": null
 },
 {
 "name": "SaferComputeTokenFromLevel",
 "ordinal": 1712,
-"rva": 80512,
-"forwarder": null,
-"ref": "advapi32.dll!0x13a80"
+"forwarder": null
 },
 {
 "name": "SaferCreateLevel",
 "ordinal": 1713,
-"rva": 231376,
-"forwarder": null,
-"ref": "advapi32.dll!0x387d0"
+"forwarder": null
 },
 {
 "name": "SaferGetLevelInformation",
 "ordinal": 1714,
-"rva": 233120,
-"forwarder": null,
-"ref": "advapi32.dll!0x38ea0"
+"forwarder": null
 },
 {
 "name": "SaferGetPolicyInformation",
 "ordinal": 1715,
-"rva": 23008,
-"forwarder": null,
-"ref": "advapi32.dll!0x59e0"
+"forwarder": null
 },
 {
 "name": "SaferIdentifyLevel",
 "ordinal": 1716,
-"rva": 46944,
-"forwarder": null,
-"ref": "advapi32.dll!0xb760"
+"forwarder": null
 },
 {
 "name": "SaferRecordEventLogEntry",
 "ordinal": 1717,
-"rva": 240416,
-"forwarder": null,
-"ref": "advapi32.dll!0x3ab20"
+"forwarder": null
 },
 {
 "name": "SaferSetLevelInformation",
 "ordinal": 1718,
-"rva": 242224,
-"forwarder": null,
-"ref": "advapi32.dll!0x3b230"
+"forwarder": null
 },
 {
 "name": "SaferSetPolicyInformation",
 "ordinal": 1719,
-"rva": 236000,
-"forwarder": null,
-"ref": "advapi32.dll!0x399e0"
+"forwarder": null
 },
 {
 "name": "SaferiChangeRegistryScope",
 "ordinal": 1720,
-"rva": 247184,
-"forwarder": null,
-"ref": "advapi32.dll!0x3c590"
+"forwarder": null
 },
 {
 "name": "SaferiCompareTokenLevels",
 "ordinal": 1721,
-"rva": 78784,
-"forwarder": null,
-"ref": "advapi32.dll!0x133c0"
+"forwarder": null
 },
 {
 "name": "SaferiIsDllAllowed",
 "ordinal": 1722,
-"rva": 237728,
-"forwarder": null,
-"ref": "advapi32.dll!0x3a0a0"
+"forwarder": null
 },
 {
 "name": "SaferiIsExecutableFileType",
 "ordinal": 1723,
-"rva": 249168,
-"forwarder": null,
-"ref": "advapi32.dll!0x3cd50"
+"forwarder": null
 },
 {
 "name": "SaferiPopulateDefaultsInRegistry",
 "ordinal": 1724,
-"rva": 247248,
-"forwarder": null,
-"ref": "advapi32.dll!0x3c5d0"
+"forwarder": null
 },
 {
 "name": "SaferiRecordEventLogEntry",
 "ordinal": 1725,
-"rva": 240416,
-"forwarder": null,
-"ref": "advapi32.dll!0x3ab20"
+"forwarder": null
 },
 {
 "name": "SaferiSearchMatchingHashRules",
 "ordinal": 1726,
-"rva": 93408,
-"forwarder": null,
-"ref": "advapi32.dll!0x16ce0"
+"forwarder": null
 },
 {
 "name": "SetAclInformation",
 "ordinal": 1727,
-"rva": 202832,
-"forwarder": null,
-"ref": "advapi32.dll!0x31850"
+"forwarder": null
 },
 {
 "name": "SetEncryptedFileMetadata",
 "ordinal": 1728,
-"rva": 193296,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f310"
+"forwarder": null
 },
 {
 "name": "SetEntriesInAccessListA",
 "ordinal": 1729,
-"rva": 269664,
-"forwarder": null,
-"ref": "advapi32.dll!0x41d60"
+"forwarder": null
 },
 {
 "name": "SetEntriesInAccessListW",
 "ordinal": 1730,
-"rva": 269744,
-"forwarder": null,
-"ref": "advapi32.dll!0x41db0"
+"forwarder": null
 },
 {
 "name": "SetEntriesInAclA",
 "ordinal": 1731,
-"rva": 261584,
-"forwarder": null,
-"ref": "advapi32.dll!0x3fdd0"
+"forwarder": null
 },
 {
 "name": "SetEntriesInAclW",
 "ordinal": 1732,
-"rva": 97616,
-"forwarder": null,
-"ref": "advapi32.dll!0x17d50"
+"forwarder": null
 },
 {
 "name": "SetEntriesInAuditListA",
 "ordinal": 1733,
-"rva": 269824,
-"forwarder": null,
-"ref": "advapi32.dll!0x41e00"
+"forwarder": null
 },
 {
 "name": "SetEntriesInAuditListW",
 "ordinal": 1734,
-"rva": 269888,
-"forwarder": null,
-"ref": "advapi32.dll!0x41e40"
+"forwarder": null
 },
 {
 "name": "SetFileSecurityA",
 "ordinal": 1735,
-"rva": 303280,
-"forwarder": null,
-"ref": "advapi32.dll!0x4a0b0"
+"forwarder": null
 },
 {
 "name": "SetFileSecurityW",
 "ordinal": 1736,
-"rva": 119712,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d3a0"
+"forwarder": null
 },
 {
 "name": "SetInformationCodeAuthzLevelW",
 "ordinal": 1737,
-"rva": 242224,
-"forwarder": null,
-"ref": "advapi32.dll!0x3b230"
+"forwarder": null
 },
 {
 "name": "SetInformationCodeAuthzPolicyW",
 "ordinal": 1738,
-"rva": 236000,
-"forwarder": null,
-"ref": "advapi32.dll!0x399e0"
+"forwarder": null
 },
 {
 "name": "SetKernelObjectSecurity",
 "ordinal": 1739,
-"rva": 97520,
-"forwarder": null,
-"ref": "advapi32.dll!0x17cf0"
+"forwarder": null
 },
 {
 "name": "SetNamedSecurityInfoA",
 "ordinal": 1740,
-"rva": 113264,
-"forwarder": null,
-"ref": "advapi32.dll!0x1ba70"
+"forwarder": null
 },
 {
 "name": "SetNamedSecurityInfoExA",
 "ordinal": 1741,
-"rva": 269952,
-"forwarder": null,
-"ref": "advapi32.dll!0x41e80"
+"forwarder": null
 },
 {
 "name": "SetNamedSecurityInfoExW",
 "ordinal": 1742,
-"rva": 271104,
-"forwarder": null,
-"ref": "advapi32.dll!0x42300"
+"forwarder": null
 },
 {
 "name": "SetNamedSecurityInfoW",
 "ordinal": 1743,
-"rva": 114288,
-"forwarder": null,
-"ref": "advapi32.dll!0x1be70"
+"forwarder": null
 },
 {
 "name": "SetPrivateObjectSecurity",
 "ordinal": 1744,
-"rva": 202896,
-"forwarder": null,
-"ref": "advapi32.dll!0x31890"
+"forwarder": null
 },
 {
 "name": "SetPrivateObjectSecurityEx",
 "ordinal": 1745,
-"rva": 202864,
-"forwarder": null,
-"ref": "advapi32.dll!0x31870"
+"forwarder": null
 },
 {
 "name": "SetSecurityAccessMask",
 "ordinal": 1746,
-"rva": 202928,
-"forwarder": null,
-"ref": "advapi32.dll!0x318b0"
+"forwarder": null
 },
 {
 "name": "SetSecurityDescriptorControl",
 "ordinal": 1747,
-"rva": 113888,
-"forwarder": null,
-"ref": "advapi32.dll!0x1bce0"
+"forwarder": null
 },
 {
 "name": "SetSecurityDescriptorDacl",
 "ordinal": 1748,
-"rva": 95184,
-"forwarder": null,
-"ref": "advapi32.dll!0x173d0"
+"forwarder": null
 },
 {
 "name": "SetSecurityDescriptorGroup",
 "ordinal": 1749,
-"rva": 111264,
-"forwarder": null,
-"ref": "advapi32.dll!0x1b2a0"
+"forwarder": null
 },
 {
 "name": "SetSecurityDescriptorOwner",
 "ordinal": 1750,
-"rva": 96352,
-"forwarder": null,
-"ref": "advapi32.dll!0x17860"
+"forwarder": null
 },
 {
 "name": "SetSecurityDescriptorRMControl",
 "ordinal": 1751,
-"rva": 202960,
-"forwarder": null,
-"ref": "advapi32.dll!0x318d0"
+"forwarder": null
 },
 {
 "name": "SetSecurityDescriptorSacl",
 "ordinal": 1752,
-"rva": 104048,
-"forwarder": null,
-"ref": "advapi32.dll!0x19670"
+"forwarder": null
 },
 {
 "name": "SetSecurityInfo",
 "ordinal": 1753,
-"rva": 93632,
-"forwarder": null,
-"ref": "advapi32.dll!0x16dc0"
+"forwarder": null
 },
 {
 "name": "SetSecurityInfoExA",
 "ordinal": 1754,
-"rva": 271872,
-"forwarder": null,
-"ref": "advapi32.dll!0x42600"
+"forwarder": null
 },
 {
 "name": "SetSecurityInfoExW",
 "ordinal": 1755,
-"rva": 272960,
-"forwarder": null,
-"ref": "advapi32.dll!0x42a40"
+"forwarder": null
 },
 {
 "name": "SetServiceBits",
 "ordinal": 1756,
-"rva": 294784,
-"forwarder": null,
-"ref": "advapi32.dll!0x47f80"
+"forwarder": null
 },
 {
 "name": "SetServiceObjectSecurity",
 "ordinal": 1757,
-"rva": 202992,
-"forwarder": null,
-"ref": "advapi32.dll!0x318f0"
+"forwarder": null
 },
 {
 "name": "SetServiceStatus",
 "ordinal": 1758,
-"rva": 96960,
-"forwarder": null,
-"ref": "advapi32.dll!0x17ac0"
+"forwarder": null
 },
 {
 "name": "SetThreadToken",
 "ordinal": 1759,
-"rva": 93840,
-"forwarder": null,
-"ref": "advapi32.dll!0x16e90"
+"forwarder": null
 },
 {
 "name": "SetTokenInformation",
 "ordinal": 1760,
-"rva": 203024,
-"forwarder": null,
-"ref": "advapi32.dll!0x31910"
+"forwarder": null
 },
 {
 "name": "SetTraceCallback",
 "ordinal": 1761,
-"rva": 632243,
-"forwarder": "sechost.SetTraceCallback",
-"ref": null
+"forwarder": "sechost.SetTraceCallback"
 },
 {
 "name": "SetUserFileEncryptionKey",
 "ordinal": 1762,
-"rva": 194336,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f720"
+"forwarder": null
 },
 {
 "name": "SetUserFileEncryptionKeyEx",
 "ordinal": 1763,
-"rva": 194432,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f780"
+"forwarder": null
 },
 {
 "name": "StartServiceA",
 "ordinal": 1764,
-"rva": 203056,
-"forwarder": null,
-"ref": "advapi32.dll!0x31930"
+"forwarder": null
 },
 {
 "name": "StartServiceCtrlDispatcherA",
 "ordinal": 1765,
-"rva": 114352,
-"forwarder": null,
-"ref": "advapi32.dll!0x1beb0"
+"forwarder": null
 },
 {
 "name": "StartServiceCtrlDispatcherW",
 "ordinal": 1766,
-"rva": 97488,
-"forwarder": null,
-"ref": "advapi32.dll!0x17cd0"
+"forwarder": null
 },
 {
 "name": "StartServiceW",
 "ordinal": 1767,
-"rva": 119584,
-"forwarder": null,
-"ref": "advapi32.dll!0x1d320"
+"forwarder": null
 },
 {
 "name": "StartTraceA",
 "ordinal": 1768,
-"rva": 122064,
-"forwarder": null,
-"ref": "advapi32.dll!0x1dcd0"
+"forwarder": null
 },
 {
 "name": "StartTraceW",
 "ordinal": 1769,
-"rva": 17392,
-"forwarder": null,
-"ref": "advapi32.dll!0x43f0"
+"forwarder": null
 },
 {
 "name": "StopTraceA",
 "ordinal": 1770,
-"rva": 279648,
-"forwarder": null,
-"ref": "advapi32.dll!0x44460"
+"forwarder": null
 },
 {
 "name": "StopTraceW",
 "ordinal": 1771,
-"rva": 203088,
-"forwarder": null,
-"ref": "advapi32.dll!0x31950"
+"forwarder": null
 },
 {
 "name": "SystemFunction001",
 "ordinal": 1772,
-"rva": 632468,
-"forwarder": "CRYPTBASE.SystemFunction001",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction001"
 },
 {
 "name": "SystemFunction002",
 "ordinal": 1773,
-"rva": 632514,
-"forwarder": "CRYPTBASE.SystemFunction002",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction002"
 },
 {
 "name": "SystemFunction003",
 "ordinal": 1774,
-"rva": 632560,
-"forwarder": "CRYPTBASE.SystemFunction003",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction003"
 },
 {
 "name": "SystemFunction004",
 "ordinal": 1775,
-"rva": 632606,
-"forwarder": "CRYPTBASE.SystemFunction004",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction004"
 },
 {
 "name": "SystemFunction005",
 "ordinal": 1776,
-"rva": 632652,
-"forwarder": "CRYPTBASE.SystemFunction005",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction005"
 },
 {
 "name": "SystemFunction006",
 "ordinal": 1777,
-"rva": 632698,
-"forwarder": "CRYPTSP.SystemFunction006",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction006"
 },
 {
 "name": "SystemFunction007",
 "ordinal": 1778,
-"rva": 632742,
-"forwarder": "CRYPTSP.SystemFunction007",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction007"
 },
 {
 "name": "SystemFunction008",
 "ordinal": 1779,
-"rva": 632786,
-"forwarder": "CRYPTSP.SystemFunction008",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction008"
 },
 {
 "name": "SystemFunction009",
 "ordinal": 1780,
-"rva": 632830,
-"forwarder": "CRYPTSP.SystemFunction009",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction009"
 },
 {
 "name": "SystemFunction010",
 "ordinal": 1781,
-"rva": 632874,
-"forwarder": "CRYPTSP.SystemFunction010",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction010"
 },
 {
 "name": "SystemFunction011",
 "ordinal": 1782,
-"rva": 632918,
-"forwarder": "CRYPTSP.SystemFunction011",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction011"
 },
 {
 "name": "SystemFunction012",
 "ordinal": 1783,
-"rva": 632962,
-"forwarder": "CRYPTSP.SystemFunction012",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction012"
 },
 {
 "name": "SystemFunction013",
 "ordinal": 1784,
-"rva": 633006,
-"forwarder": "CRYPTSP.SystemFunction013",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction013"
 },
 {
 "name": "SystemFunction014",
 "ordinal": 1785,
-"rva": 633050,
-"forwarder": "CRYPTSP.SystemFunction014",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction014"
 },
 {
 "name": "SystemFunction015",
 "ordinal": 1786,
-"rva": 633094,
-"forwarder": "CRYPTSP.SystemFunction015",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction015"
 },
 {
 "name": "SystemFunction016",
 "ordinal": 1787,
-"rva": 633138,
-"forwarder": "CRYPTSP.SystemFunction016",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction016"
 },
 {
 "name": "SystemFunction017",
 "ordinal": 1788,
-"rva": 206512,
-"forwarder": null,
-"ref": "advapi32.dll!0x326b0"
+"forwarder": null
 },
 {
 "name": "SystemFunction018",
 "ordinal": 1789,
-"rva": 633200,
-"forwarder": "CRYPTSP.SystemFunction018",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction018"
 },
 {
 "name": "SystemFunction019",
 "ordinal": 1790,
-"rva": 206608,
-"forwarder": null,
-"ref": "advapi32.dll!0x32710"
+"forwarder": null
 },
 {
 "name": "SystemFunction020",
 "ordinal": 1791,
-"rva": 633262,
-"forwarder": "CRYPTSP.SystemFunction020",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction020"
 },
 {
 "name": "SystemFunction021",
 "ordinal": 1792,
-"rva": 633306,
-"forwarder": "CRYPTSP.SystemFunction021",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction021"
 },
 {
 "name": "SystemFunction022",
 "ordinal": 1793,
-"rva": 633350,
-"forwarder": "CRYPTSP.SystemFunction022",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction022"
 },
 {
 "name": "SystemFunction023",
 "ordinal": 1794,
-"rva": 633394,
-"forwarder": "CRYPTSP.SystemFunction023",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction023"
 },
 {
 "name": "SystemFunction024",
 "ordinal": 1795,
-"rva": 633438,
-"forwarder": "CRYPTSP.SystemFunction024",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction024"
 },
 {
 "name": "SystemFunction025",
 "ordinal": 1796,
-"rva": 633482,
-"forwarder": "CRYPTSP.SystemFunction025",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction025"
 },
 {
 "name": "SystemFunction026",
 "ordinal": 1797,
-"rva": 633526,
-"forwarder": "CRYPTSP.SystemFunction026",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction026"
 },
 {
 "name": "SystemFunction027",
 "ordinal": 1798,
-"rva": 633570,
-"forwarder": "CRYPTSP.SystemFunction027",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction027"
 },
 {
 "name": "SystemFunction028",
 "ordinal": 1799,
-"rva": 633614,
-"forwarder": "CRYPTBASE.SystemFunction028",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction028"
 },
 {
 "name": "SystemFunction029",
 "ordinal": 1800,
-"rva": 633660,
-"forwarder": "CRYPTBASE.SystemFunction029",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction029"
 },
 {
 "name": "SystemFunction030",
 "ordinal": 1801,
-"rva": 633706,
-"forwarder": "CRYPTSP.SystemFunction030",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction030"
 },
 {
 "name": "SystemFunction031",
 "ordinal": 1802,
-"rva": 633750,
-"forwarder": "CRYPTSP.SystemFunction031",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction031"
 },
 {
 "name": "SystemFunction032",
 "ordinal": 1803,
-"rva": 633794,
-"forwarder": "CRYPTSP.SystemFunction032",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction032"
 },
 {
 "name": "SystemFunction033",
 "ordinal": 1804,
-"rva": 633838,
-"forwarder": "CRYPTSP.SystemFunction033",
-"ref": null
+"forwarder": "CRYPTSP.SystemFunction033"
 },
 {
 "name": "SystemFunction034",
 "ordinal": 1805,
-"rva": 633882,
-"forwarder": "CRYPTBASE.SystemFunction034",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction034"
 },
 {
 "name": "SystemFunction035",
 "ordinal": 1806,
-"rva": 633928,
-"forwarder": "CRYPTSP.CheckSignatureInFile",
-"ref": null
+"forwarder": "CRYPTSP.CheckSignatureInFile"
 },
 {
 "name": "SystemFunction036",
 "ordinal": 1807,
-"rva": 633975,
-"forwarder": "CRYPTBASE.SystemFunction036",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction036"
 },
 {
 "name": "SystemFunction040",
 "ordinal": 1808,
-"rva": 634021,
-"forwarder": "CRYPTBASE.SystemFunction040",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction040"
 },
 {
 "name": "SystemFunction041",
 "ordinal": 1809,
-"rva": 634067,
-"forwarder": "CRYPTBASE.SystemFunction041",
-"ref": null
+"forwarder": "CRYPTBASE.SystemFunction041"
 },
 {
 "name": "TraceEvent",
 "ordinal": 1810,
-"rva": 634106,
-"forwarder": "ntdll.EtwLogTraceEvent",
-"ref": null
+"forwarder": "ntdll.EtwLogTraceEvent"
 },
 {
 "name": "TraceEventInstance",
 "ordinal": 1811,
-"rva": 634148,
-"forwarder": "ntdll.EtwTraceEventInstance",
-"ref": null
+"forwarder": "ntdll.EtwTraceEventInstance"
 },
 {
 "name": "TraceMessage",
 "ordinal": 1812,
-"rva": 634189,
-"forwarder": "ntdll.EtwTraceMessage",
-"ref": null
+"forwarder": "ntdll.EtwTraceMessage"
 },
 {
 "name": "TraceMessageVa",
 "ordinal": 1813,
-"rva": 634226,
-"forwarder": "ntdll.EtwTraceMessageVa",
-"ref": null
+"forwarder": "ntdll.EtwTraceMessageVa"
 },
 {
 "name": "TraceQueryInformation",
 "ordinal": 1814,
-"rva": 634272,
-"forwarder": "api-ms-win-eventing-controller-l1-1-0.TraceQueryInformation",
-"ref": null
+"forwarder": "api-ms-win-eventing-controller-l1-1-0.TraceQueryInformation"
 },
 {
 "name": "TraceSetInformation",
 "ordinal": 1815,
-"rva": 203120,
-"forwarder": null,
-"ref": "advapi32.dll!0x31970"
+"forwarder": null
 },
 {
 "name": "TreeResetNamedSecurityInfoA",
 "ordinal": 1816,
-"rva": 259824,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f6f0"
+"forwarder": null
 },
 {
 "name": "TreeResetNamedSecurityInfoW",
 "ordinal": 1817,
-"rva": 16768,
-"forwarder": null,
-"ref": "advapi32.dll!0x4180"
+"forwarder": null
 },
 {
 "name": "TreeSetNamedSecurityInfoA",
 "ordinal": 1818,
-"rva": 259824,
-"forwarder": null,
-"ref": "advapi32.dll!0x3f6f0"
+"forwarder": null
 },
 {
 "name": "TreeSetNamedSecurityInfoW",
 "ordinal": 1819,
-"rva": 262224,
-"forwarder": null,
-"ref": "advapi32.dll!0x40050"
+"forwarder": null
 },
 {
 "name": "TrusteeAccessToObjectA",
 "ordinal": 1820,
-"rva": 273744,
-"forwarder": null,
-"ref": "advapi32.dll!0x42d50"
+"forwarder": null
 },
 {
 "name": "TrusteeAccessToObjectW",
 "ordinal": 1821,
-"rva": 274352,
-"forwarder": null,
-"ref": "advapi32.dll!0x42fb0"
+"forwarder": null
 },
 {
 "name": "UninstallApplication",
 "ordinal": 1822,
-"rva": 225824,
-"forwarder": null,
-"ref": "advapi32.dll!0x37220"
+"forwarder": null
 },
 {
 "name": "UnlockServiceDatabase",
 "ordinal": 1823,
-"rva": 294848,
-"forwarder": null,
-"ref": "advapi32.dll!0x47fc0"
+"forwarder": null
 },
 {
 "name": "UnregisterIdleTask",
 "ordinal": 1824,
-"rva": 206480,
-"forwarder": null,
-"ref": "advapi32.dll!0x32690"
+"forwarder": null
 },
 {
 "name": "UnregisterTraceGuids",
 "ordinal": 1825,
-"rva": 634589,
-"forwarder": "ntdll.EtwUnregisterTraceGuids",
-"ref": null
+"forwarder": "ntdll.EtwUnregisterTraceGuids"
 },
 {
 "name": "UpdateTraceA",
 "ordinal": 1826,
-"rva": 279680,
-"forwarder": null,
-"ref": "advapi32.dll!0x44480"
+"forwarder": null
 },
 {
 "name": "UpdateTraceW",
 "ordinal": 1827,
-"rva": 279712,
-"forwarder": null,
-"ref": "advapi32.dll!0x444a0"
+"forwarder": null
 },
 {
 "name": "UsePinForEncryptedFilesA",
 "ordinal": 1828,
-"rva": 194704,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f890"
+"forwarder": null
 },
 {
 "name": "UsePinForEncryptedFilesW",
 "ordinal": 1829,
-"rva": 194848,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f920"
+"forwarder": null
 },
 {
 "name": "WaitServiceState",
 "ordinal": 1830,
-"rva": 203152,
-"forwarder": null,
-"ref": "advapi32.dll!0x31990"
+"forwarder": null
 },
 {
 "name": "WmiCloseBlock",
 "ordinal": 1831,
-"rva": 371536,
-"forwarder": null,
-"ref": "advapi32.dll!0x5ab50"
+"forwarder": null
 },
 {
 "name": "WmiDevInstToInstanceNameA",
 "ordinal": 1832,
-"rva": 371664,
-"forwarder": null,
-"ref": "advapi32.dll!0x5abd0"
+"forwarder": null
 },
 {
 "name": "WmiDevInstToInstanceNameW",
 "ordinal": 1833,
-"rva": 371904,
-"forwarder": null,
-"ref": "advapi32.dll!0x5acc0"
+"forwarder": null
 },
 {
 "name": "WmiEnumerateGuids",
 "ordinal": 1834,
-"rva": 372144,
-"forwarder": null,
-"ref": "advapi32.dll!0x5adb0"
+"forwarder": null
 },
 {
 "name": "WmiExecuteMethodA",
 "ordinal": 1835,
-"rva": 372608,
-"forwarder": null,
-"ref": "advapi32.dll!0x5af80"
+"forwarder": null
 },
 {
 "name": "WmiExecuteMethodW",
 "ordinal": 1836,
-"rva": 372864,
-"forwarder": null,
-"ref": "advapi32.dll!0x5b080"
+"forwarder": null
 },
 {
 "name": "WmiFileHandleToInstanceNameA",
 "ordinal": 1837,
-"rva": 373760,
-"forwarder": null,
-"ref": "advapi32.dll!0x5b400"
+"forwarder": null
 },
 {
 "name": "WmiFileHandleToInstanceNameW",
 "ordinal": 1838,
-"rva": 374384,
-"forwarder": null,
-"ref": "advapi32.dll!0x5b670"
+"forwarder": null
 },
 {
 "name": "WmiFreeBuffer",
 "ordinal": 1839,
-"rva": 374896,
-"forwarder": null,
-"ref": "advapi32.dll!0x5b870"
+"forwarder": null
 },
 {
 "name": "WmiMofEnumerateResourcesA",
 "ordinal": 1840,
-"rva": 381504,
-"forwarder": null,
-"ref": "advapi32.dll!0x5d240"
+"forwarder": null
 },
 {
 "name": "WmiMofEnumerateResourcesW",
 "ordinal": 1841,
-"rva": 382080,
-"forwarder": null,
-"ref": "advapi32.dll!0x5d480"
+"forwarder": null
 },
 {
 "name": "WmiNotificationRegistrationA",
 "ordinal": 1842,
-"rva": 374976,
-"forwarder": null,
-"ref": "advapi32.dll!0x5b8c0"
+"forwarder": null
 },
 {
 "name": "WmiNotificationRegistrationW",
 "ordinal": 1843,
-"rva": 375120,
-"forwarder": null,
-"ref": "advapi32.dll!0x5b950"
+"forwarder": null
 },
 {
 "name": "WmiOpenBlock",
 "ordinal": 1844,
-"rva": 375264,
-"forwarder": null,
-"ref": "advapi32.dll!0x5b9e0"
+"forwarder": null
 },
 {
 "name": "WmiQueryAllDataA",
 "ordinal": 1845,
-"rva": 375520,
-"forwarder": null,
-"ref": "advapi32.dll!0x5bae0"
+"forwarder": null
 },
 {
 "name": "WmiQueryAllDataMultipleA",
 "ordinal": 1846,
-"rva": 375632,
-"forwarder": null,
-"ref": "advapi32.dll!0x5bb50"
+"forwarder": null
 },
 {
 "name": "WmiQueryAllDataMultipleW",
 "ordinal": 1847,
-"rva": 375776,
-"forwarder": null,
-"ref": "advapi32.dll!0x5bbe0"
+"forwarder": null
 },
 {
 "name": "WmiQueryAllDataW",
 "ordinal": 1848,
-"rva": 376336,
-"forwarder": null,
-"ref": "advapi32.dll!0x5be10"
+"forwarder": null
 },
 {
 "name": "WmiQueryGuidInformation",
 "ordinal": 1849,
-"rva": 376960,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c080"
+"forwarder": null
 },
 {
 "name": "WmiQuerySingleInstanceA",
 "ordinal": 1850,
-"rva": 377152,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c140"
+"forwarder": null
 },
 {
 "name": "WmiQuerySingleInstanceMultipleA",
 "ordinal": 1851,
-"rva": 377392,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c230"
+"forwarder": null
 },
 {
 "name": "WmiQuerySingleInstanceMultipleW",
 "ordinal": 1852,
-"rva": 377824,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c3e0"
+"forwarder": null
 },
 {
 "name": "WmiQuerySingleInstanceW",
 "ordinal": 1853,
-"rva": 378432,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c640"
+"forwarder": null
 },
 {
 "name": "WmiReceiveNotificationsA",
 "ordinal": 1854,
-"rva": 379088,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c8d0"
+"forwarder": null
 },
 {
 "name": "WmiReceiveNotificationsW",
 "ordinal": 1855,
-"rva": 379216,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c950"
+"forwarder": null
 },
 {
 "name": "WmiSetSingleInstanceA",
 "ordinal": 1856,
-"rva": 379344,
-"forwarder": null,
-"ref": "advapi32.dll!0x5c9d0"
+"forwarder": null
 },
 {
 "name": "WmiSetSingleInstanceW",
 "ordinal": 1857,
-"rva": 379552,
-"forwarder": null,
-"ref": "advapi32.dll!0x5caa0"
+"forwarder": null
 },
 {
 "name": "WmiSetSingleItemA",
 "ordinal": 1858,
-"rva": 380048,
-"forwarder": null,
-"ref": "advapi32.dll!0x5cc90"
+"forwarder": null
 },
 {
 "name": "WmiSetSingleItemW",
 "ordinal": 1859,
-"rva": 380272,
-"forwarder": null,
-"ref": "advapi32.dll!0x5cd70"
+"forwarder": null
 },
 {
 "name": "WriteEncryptedFileRaw",
 "ordinal": 1860,
-"rva": 195008,
-"forwarder": null,
-"ref": "advapi32.dll!0x2f9c0"
+"forwarder": null
 }
 ]

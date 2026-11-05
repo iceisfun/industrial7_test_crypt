@@ -2,134 +2,96 @@
 {
 "name": "CryptXmlAddObject",
 "ordinal": 1,
-"rva": 10688,
-"forwarder": null,
-"ref": "cryptxml.dll!0x29c0"
+"forwarder": null
 },
 {
 "name": "CryptXmlClose",
 "ordinal": 2,
-"rva": 12624,
-"forwarder": null,
-"ref": "cryptxml.dll!0x3150"
+"forwarder": null
 },
 {
 "name": "CryptXmlCreateReference",
 "ordinal": 3,
-"rva": 13856,
-"forwarder": null,
-"ref": "cryptxml.dll!0x3620"
+"forwarder": null
 },
 {
 "name": "CryptXmlDigestReference",
 "ordinal": 4,
-"rva": 15680,
-"forwarder": null,
-"ref": "cryptxml.dll!0x3d40"
+"forwarder": null
 },
 {
 "name": "CryptXmlEncode",
 "ordinal": 5,
-"rva": 21712,
-"forwarder": null,
-"ref": "cryptxml.dll!0x54d0"
+"forwarder": null
 },
 {
 "name": "CryptXmlEnumAlgorithmInfo",
 "ordinal": 6,
-"rva": 34480,
-"forwarder": null,
-"ref": "cryptxml.dll!0x86b0"
+"forwarder": null
 },
 {
 "name": "CryptXmlFindAlgorithmInfo",
 "ordinal": 7,
-"rva": 34816,
-"forwarder": null,
-"ref": "cryptxml.dll!0x8800"
+"forwarder": null
 },
 {
 "name": "CryptXmlGetAlgorithmInfo",
 "ordinal": 8,
-"rva": 4112,
-"forwarder": null,
-"ref": "cryptxml.dll!0x1010"
+"forwarder": null
 },
 {
 "name": "CryptXmlGetDocContext",
 "ordinal": 9,
-"rva": 12720,
-"forwarder": null,
-"ref": "cryptxml.dll!0x31b0"
+"forwarder": null
 },
 {
 "name": "CryptXmlGetReference",
 "ordinal": 10,
-"rva": 12848,
-"forwarder": null,
-"ref": "cryptxml.dll!0x3230"
+"forwarder": null
 },
 {
 "name": "CryptXmlGetSignature",
 "ordinal": 11,
-"rva": 12976,
-"forwarder": null,
-"ref": "cryptxml.dll!0x32b0"
+"forwarder": null
 },
 {
 "name": "CryptXmlGetStatus",
 "ordinal": 12,
-"rva": 13104,
-"forwarder": null,
-"ref": "cryptxml.dll!0x3330"
+"forwarder": null
 },
 {
 "name": "CryptXmlGetTransforms",
 "ordinal": 13,
-"rva": 41040,
-"forwarder": null,
-"ref": "cryptxml.dll!0xa050"
+"forwarder": null
 },
 {
 "name": "CryptXmlImportPublicKey",
 "ordinal": 14,
-"rva": 35088,
-"forwarder": null,
-"ref": "cryptxml.dll!0x8910"
+"forwarder": null
 },
 {
 "name": "CryptXmlOpenToDecode",
 "ordinal": 15,
-"rva": 42112,
-"forwarder": null,
-"ref": "cryptxml.dll!0xa480"
+"forwarder": null
 },
 {
 "name": "CryptXmlOpenToEncode",
 "ordinal": 16,
-"rva": 42608,
-"forwarder": null,
-"ref": "cryptxml.dll!0xa670"
+"forwarder": null
 },
 {
 "name": "CryptXmlSetHMACSecret",
 "ordinal": 17,
-"rva": 46368,
-"forwarder": null,
-"ref": "cryptxml.dll!0xb520"
+"forwarder": null
 },
 {
 "name": "CryptXmlSign",
 "ordinal": 18,
-"rva": 46608,
-"forwarder": null,
-"ref": "cryptxml.dll!0xb610"
+"forwarder": null
 },
 {
 "name": "CryptXmlVerifySignature",
 "ordinal": 19,
-"rva": 49632,
-"forwarder": null,
-"ref": "cryptxml.dll!0xc1e0"
+"forwarder": null
 }
 ]

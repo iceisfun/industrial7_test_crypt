@@ -43,7 +43,7 @@ Excluded on purpose: schannel.dll, SSPI/Schannel credentials, the `Ssl*` exports
 - No UI outside `ui_crypto_dialogs`.
 - Non-`dx_` areas use ephemeral keys and memory stores; system stores are opened read-only.
 - `dx_*` areas gate on privilege (`t_skip` otherwise), use names containing `cryptt` and the pid, sweep leftovers at start, and restore state at the end. They never touch the ROOT store trust, FIPS policy, TPM, or machine keys.
-- Windows 10 behaviour is the authority; expectations were checked against the decompilation and the vendored docs. Anything version/locale/SKU dependent is a `t_note`.
+- Windows 10 behaviour is the authority; expectations are based on values observed on Windows 10 and on the public documentation. Anything version/locale/SKU dependent is a `t_note`.
 
 ## Running on Windows
 

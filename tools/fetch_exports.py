@@ -2,7 +2,7 @@
 """Fetch named exports of a module from an export-table dump service.
 usage: CORPUS_API=<base url> fetch_exports.py <module> <out.txt> [--json out.json]
 The service address is taken from the CORPUS_API environment variable only; there is no default.
-Writes one exported name per line (sorted, unique). The JSON dump keeps ordinals and forwarder targets
+Writes one exported name per line (sorted, unique). The JSON dump keeps names, ordinals and forwarder targets
 (useful for forwarder/export-table tests)."""
 import json, sys, urllib.request, os
 B = os.environ.get("CORPUS_API")
@@ -20,6 +20,6 @@ while True:
 names = sorted({i["name"] for i in items if i.get("name")})
 open(out, "w").write("\n".join(names) + "\n")
 if "--json" in sys.argv:
-    json.dump(items, open(sys.argv[sys.argv.index("--json") + 1], "w"), indent=0)
+    json.dump([{k: i.get(k) for k in ("name", "ordinal", "forwarder")} for i in items], open(sys.argv[sys.argv.index("--json") + 1], "w"), indent=0)
 fw = sum(1 for i in items if i.get("forwarder"))
 print(f"{mod}: {len(items)} exports, {len(names)} named, {fw} forwarders, {len(items)-len(names)} ordinal-only", file=sys.stderr)

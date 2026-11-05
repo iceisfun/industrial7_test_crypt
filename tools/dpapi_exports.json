@@ -2,50 +2,36 @@
 {
 "name": "CryptProtectDataNoUI",
 "ordinal": 1,
-"rva": 4112,
-"forwarder": null,
-"ref": "dpapi.dll!0x1010"
+"forwarder": null
 },
 {
 "name": "CryptProtectMemory",
 "ordinal": 2,
-"rva": 5888,
-"forwarder": null,
-"ref": "dpapi.dll!0x1700"
+"forwarder": null
 },
 {
 "name": "CryptResetMachineCredentials",
 "ordinal": 3,
-"rva": 9072,
-"forwarder": null,
-"ref": "dpapi.dll!0x2370"
+"forwarder": null
 },
 {
 "name": "CryptUnprotectDataNoUI",
 "ordinal": 4,
-"rva": 4960,
-"forwarder": null,
-"ref": "dpapi.dll!0x1360"
+"forwarder": null
 },
 {
 "name": "CryptUnprotectMemory",
 "ordinal": 5,
-"rva": 5840,
-"forwarder": null,
-"ref": "dpapi.dll!0x16d0"
+"forwarder": null
 },
 {
 "name": "CryptUpdateProtectedState",
 "ordinal": 6,
-"rva": 8480,
-"forwarder": null,
-"ref": "dpapi.dll!0x2120"
+"forwarder": null
 },
 {
 "name": "iCryptIdentifyProtection",
 "ordinal": 7,
-"rva": 5936,
-"forwarder": null,
-"ref": "dpapi.dll!0x1730"
+"forwarder": null
 }
 ]

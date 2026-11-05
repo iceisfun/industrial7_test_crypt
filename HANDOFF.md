@@ -35,12 +35,27 @@ real machine (build number, locale, SKU).
 
 ## Triage
 Classify every failing check:
-1. Wrong expectation: Windows differs from the test. Check the decompilation
-   (http://docker1.dev.moonlightcompanies.com:8765/api/function/<module>/<Name>/decomp) and the docs, fix the test.
+1. Wrong expectation: Windows differs from the test. Confirm with a minimal probe on the machine (see
+   "Establishing a Windows 10 baseline" below) and the public documentation, then fix the test.
 2. Environment/SKU: locale, privilege, filesystem, hardware, policy. Turn the check into t_note or t_skip.
 3. Real divergence: only meaningful once a test is known to be right; record it as a finding.
 Fix, rebuild, rerun only that test, commit with a short message (area prefix, no co-author lines).
-Do not weaken a check just to get green without evidence from the decomp or the machine.
+Do not weaken a check just to get green without evidence from the machine or the documentation.
+
+## Establishing a Windows 10 baseline
+The values the tests assert are meant to be observed, not guessed. To pin or re-check one:
+1. Use a clean, patched Windows 10 x64 VM (record the build number from `winver` / `ver`, the locale and
+   whether the process is elevated). Revert the snapshot between experiments that change state.
+2. Write a minimal probe (a few lines, built with the same mingw toolchain, resolving the function with
+   GetProcAddress as the tests do) that calls the API with the exact arguments in question and prints the
+   return value, GetLastError (or the HRESULT / NTSTATUS), and any output buffer or size parameter.
+3. Run the probe as a standard user and as an elevated administrator, and with valid, NULL, empty and
+   out-of-range arguments, so the ordering of argument checks is visible (which error wins when two are wrong).
+4. Run it twice, and on a second machine or build when the result looks environment dependent. Values that
+   differ between runs, builds, locales or SKUs belong in a `t_note`, not in a CHECK.
+5. Put the observed value in the test with a short comment of the form `observed: <what Windows 10 returned>`,
+   and keep the probe's output in the commit message or the report.
+Never derive an expectation from the emulator's behaviour; it is only a smoke check.
 
 ## Expected skips
 - Standard user: dx_bcrypt_context_config (HKLM CNG config), dx_capi_containers machine keysets,

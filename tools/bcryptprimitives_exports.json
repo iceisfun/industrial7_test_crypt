@@ -2,71 +2,51 @@
 {
 "name": "GetAsymmetricEncryptionInterface",
 "ordinal": 1,
-"rva": 129408,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x1f980"
+"forwarder": null
 },
 {
 "name": "GetCipherInterface",
 "ordinal": 2,
-"rva": 104720,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x19910"
+"forwarder": null
 },
 {
 "name": "GetHashInterface",
 "ordinal": 3,
-"rva": 83040,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x14460"
+"forwarder": null
 },
 {
 "name": "GetKeyDerivationInterface",
 "ordinal": 4,
-"rva": 151840,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x25120"
+"forwarder": null
 },
 {
 "name": "GetRngInterface",
 "ordinal": 5,
-"rva": 133440,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x20940"
+"forwarder": null
 },
 {
 "name": "GetSecretAgreementInterface",
 "ordinal": 6,
-"rva": 126960,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x1eff0"
+"forwarder": null
 },
 {
 "name": "GetSignatureInterface",
 "ordinal": 7,
-"rva": 133776,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x20a90"
+"forwarder": null
 },
 {
 "name": "MSCryptConvertRsaPrivateBlobToFullRsaBlob",
 "ordinal": 8,
-"rva": 276160,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x436c0"
+"forwarder": null
 },
 {
 "name": "ProcessPrng",
 "ordinal": 9,
-"rva": 86032,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x15010"
+"forwarder": null
 },
 {
 "name": "ProcessPrngGuid",
 "ordinal": 10,
-"rva": 275824,
-"forwarder": null,
-"ref": "bcryptprimitives.dll!0x43570"
+"forwarder": null
 }
 ]

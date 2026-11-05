@@ -2,393 +2,281 @@
 {
 "name": "AddChainToStore",
 "ordinal": 1,
-"rva": 192320,
-"forwarder": null,
-"ref": "cryptui.dll!0x2ef40"
+"forwarder": null
 },
 {
 "name": "CertDllLogMismatchPinRules",
 "ordinal": 2,
-"rva": 105616,
-"forwarder": null,
-"ref": "cryptui.dll!0x19c90"
+"forwarder": null
 },
 {
 "name": "CertDllProtectedRootMessageBox",
 "ordinal": 3,
-"rva": 160512,
-"forwarder": null,
-"ref": "cryptui.dll!0x27300"
+"forwarder": null
 },
 {
 "name": "CompareCertificate",
 "ordinal": 4,
-"rva": 26304,
-"forwarder": null,
-"ref": "cryptui.dll!0x66c0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgAddPolicyServer",
 "ordinal": 5,
-"rva": 136800,
-"forwarder": null,
-"ref": "cryptui.dll!0x21660"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgAddPolicyServerWithPriority",
 "ordinal": 6,
-"rva": 136320,
-"forwarder": null,
-"ref": "cryptui.dll!0x21480"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgPropertyPolicy",
 "ordinal": 7,
-"rva": 136912,
-"forwarder": null,
-"ref": "cryptui.dll!0x216d0"
+"forwarder": null
 },
 {
 "name": "DisplayHtmlHelp",
 "ordinal": 8,
-"rva": 193952,
-"forwarder": null,
-"ref": "cryptui.dll!0x2f5a0"
+"forwarder": null
 },
 {
 "name": "FormatDateStringAutoLayout",
 "ordinal": 9,
-"rva": 91456,
-"forwarder": null,
-"ref": "cryptui.dll!0x16540"
+"forwarder": null
 },
 {
 "name": "GetUnknownErrorString",
 "ordinal": 10,
-"rva": 73488,
-"forwarder": null,
-"ref": "cryptui.dll!0x11f10"
+"forwarder": null
 },
 {
 "name": "InvokeHelpLink",
 "ordinal": 11,
-"rva": 194400,
-"forwarder": null,
-"ref": "cryptui.dll!0x2f760"
+"forwarder": null
 },
 {
 "name": "MyFormatEnhancedKeyUsageString",
 "ordinal": 12,
-"rva": 95344,
-"forwarder": null,
-"ref": "cryptui.dll!0x17470"
+"forwarder": null
 },
 {
 "name": "ACUIProviderInvokeUI",
 "ordinal": 13,
-"rva": 217280,
-"forwarder": null,
-"ref": "cryptui.dll!0x350c0"
+"forwarder": null
 },
 {
 "name": "CertSelectionGetSerializedBlob",
 "ordinal": 14,
-"rva": 209808,
-"forwarder": null,
-"ref": "cryptui.dll!0x33390"
+"forwarder": null
 },
 {
 "name": "CommonInit",
 "ordinal": 15,
-"rva": 193808,
-"forwarder": null,
-"ref": "cryptui.dll!0x2f510"
+"forwarder": null
 },
 {
 "name": "CryptDllProtectPrompt",
 "ordinal": 16,
-"rva": 7728,
-"forwarder": null,
-"ref": "cryptui.dll!0x1e30"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgCertMgr",
 "ordinal": 17,
-"rva": 122096,
-"forwarder": null,
-"ref": "cryptui.dll!0x1dcf0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgFreeCAContext",
 "ordinal": 18,
-"rva": 167424,
-"forwarder": null,
-"ref": "cryptui.dll!0x28e00"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgFreePolicyServerContext",
 "ordinal": 19,
-"rva": 167312,
-"forwarder": null,
-"ref": "cryptui.dll!0x28d90"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgSelectCA",
 "ordinal": 20,
-"rva": 164928,
-"forwarder": null,
-"ref": "cryptui.dll!0x28440"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgSelectCertificateA",
 "ordinal": 21,
-"rva": 212416,
-"forwarder": null,
-"ref": "cryptui.dll!0x33dc0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgSelectCertificateFromStore",
 "ordinal": 22,
-"rva": 212672,
-"forwarder": null,
-"ref": "cryptui.dll!0x33ec0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgSelectCertificateW",
 "ordinal": 23,
-"rva": 211456,
-"forwarder": null,
-"ref": "cryptui.dll!0x33a00"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgSelectPolicyServer",
 "ordinal": 24,
-"rva": 164256,
-"forwarder": null,
-"ref": "cryptui.dll!0x281a0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgSelectStoreA",
 "ordinal": 25,
-"rva": 178832,
-"forwarder": null,
-"ref": "cryptui.dll!0x2ba90"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgSelectStoreW",
 "ordinal": 26,
-"rva": 178672,
-"forwarder": null,
-"ref": "cryptui.dll!0x2b9f0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCRLA",
 "ordinal": 27,
-"rva": 200848,
-"forwarder": null,
-"ref": "cryptui.dll!0x31090"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCRLW",
 "ordinal": 28,
-"rva": 200176,
-"forwarder": null,
-"ref": "cryptui.dll!0x30df0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCTLA",
 "ordinal": 29,
-"rva": 199968,
-"forwarder": null,
-"ref": "cryptui.dll!0x30d20"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCTLW",
 "ordinal": 30,
-"rva": 199168,
-"forwarder": null,
-"ref": "cryptui.dll!0x30a00"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCertificateA",
 "ordinal": 31,
-"rva": 198928,
-"forwarder": null,
-"ref": "cryptui.dll!0x30910"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCertificatePropertiesA",
 "ordinal": 32,
-"rva": 157504,
-"forwarder": null,
-"ref": "cryptui.dll!0x26740"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCertificatePropertiesW",
 "ordinal": 33,
-"rva": 156624,
-"forwarder": null,
-"ref": "cryptui.dll!0x263d0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewCertificateW",
 "ordinal": 34,
-"rva": 197344,
-"forwarder": null,
-"ref": "cryptui.dll!0x302e0"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewContext",
 "ordinal": 35,
-"rva": 37168,
-"forwarder": null,
-"ref": "cryptui.dll!0x9130"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewSignerInfoA",
 "ordinal": 36,
-"rva": 201808,
-"forwarder": null,
-"ref": "cryptui.dll!0x31450"
+"forwarder": null
 },
 {
 "name": "CryptUIDlgViewSignerInfoW",
 "ordinal": 37,
-"rva": 201040,
-"forwarder": null,
-"ref": "cryptui.dll!0x31150"
+"forwarder": null
 },
 {
 "name": "CryptUIFreeCertificatePropertiesPagesA",
 "ordinal": 38,
-"rva": 158800,
-"forwarder": null,
-"ref": "cryptui.dll!0x26c50"
+"forwarder": null
 },
 {
 "name": "CryptUIFreeCertificatePropertiesPagesW",
 "ordinal": 39,
-"rva": 158800,
-"forwarder": null,
-"ref": "cryptui.dll!0x26c50"
+"forwarder": null
 },
 {
 "name": "CryptUIFreeViewSignaturesPagesA",
 "ordinal": 40,
-"rva": 158800,
-"forwarder": null,
-"ref": "cryptui.dll!0x26c50"
+"forwarder": null
 },
 {
 "name": "CryptUIFreeViewSignaturesPagesW",
 "ordinal": 41,
-"rva": 158800,
-"forwarder": null,
-"ref": "cryptui.dll!0x26c50"
+"forwarder": null
 },
 {
 "name": "CryptUIGetCertificatePropertiesPagesA",
 "ordinal": 42,
-"rva": 158784,
-"forwarder": null,
-"ref": "cryptui.dll!0x26c40"
+"forwarder": null
 },
 {
 "name": "CryptUIGetCertificatePropertiesPagesW",
 "ordinal": 43,
-"rva": 157920,
-"forwarder": null,
-"ref": "cryptui.dll!0x268e0"
+"forwarder": null
 },
 {
 "name": "CryptUIGetViewSignaturesPagesA",
 "ordinal": 44,
-"rva": 207088,
-"forwarder": null,
-"ref": "cryptui.dll!0x328f0"
+"forwarder": null
 },
 {
 "name": "CryptUIGetViewSignaturesPagesW",
 "ordinal": 45,
-"rva": 206656,
-"forwarder": null,
-"ref": "cryptui.dll!0x32740"
+"forwarder": null
 },
 {
 "name": "CryptUIStartCertMgr",
 "ordinal": 46,
-"rva": 106608,
-"forwarder": null,
-"ref": "cryptui.dll!0x1a070"
+"forwarder": null
 },
 {
 "name": "CryptUIViewExpiringCerts",
 "ordinal": 47,
-"rva": 89232,
-"forwarder": null,
-"ref": "cryptui.dll!0x15c90"
+"forwarder": null
 },
 {
 "name": "CryptUIWizBuildCTL",
 "ordinal": 48,
-"rva": 208320,
-"forwarder": null,
-"ref": "cryptui.dll!0x32dc0"
+"forwarder": null
 },
 {
 "name": "CryptUIWizDigitalSign",
 "ordinal": 49,
-"rva": 208528,
-"forwarder": null,
-"ref": "cryptui.dll!0x32e90"
+"forwarder": null
 },
 {
 "name": "CryptUIWizExport",
 "ordinal": 50,
-"rva": 208720,
-"forwarder": null,
-"ref": "cryptui.dll!0x32f50"
+"forwarder": null
 },
 {
 "name": "CryptUIWizFreeDigitalSignContext",
 "ordinal": 51,
-"rva": 209008,
-"forwarder": null,
-"ref": "cryptui.dll!0x33070"
+"forwarder": null
 },
 {
 "name": "CryptUIWizImport",
 "ordinal": 52,
-"rva": 209232,
-"forwarder": null,
-"ref": "cryptui.dll!0x33150"
+"forwarder": null
 },
 {
 "name": "CryptUIWizImportInternal",
 "ordinal": 53,
-"rva": 209520,
-"forwarder": null,
-"ref": "cryptui.dll!0x33270"
+"forwarder": null
 },
 {
 "name": "DllRegisterServer",
 "ordinal": 54,
-"rva": 194560,
-"forwarder": null,
-"ref": "cryptui.dll!0x2f800"
+"forwarder": null
 },
 {
 "name": "DllUnregisterServer",
 "ordinal": 55,
-"rva": 194560,
-"forwarder": null,
-"ref": "cryptui.dll!0x2f800"
+"forwarder": null
 },
 {
 "name": "IsWizardExtensionAvailable",
 "ordinal": 56,
-"rva": 207376,
-"forwarder": null,
-"ref": "cryptui.dll!0x32a10"
+"forwarder": null
 }
 ]
