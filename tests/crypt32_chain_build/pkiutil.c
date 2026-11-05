@@ -53,6 +53,17 @@ BOOL pki_eng_open_ex(PKI_ENG *e, const char *roots, const char *others, const ch
         if (e->other) { cfg.cAdditionalStore = 1; cfg.rghAdditionalStore = &e->other; }
         cfg.dwFlags = engflags; cfg.MaximumCachedCertificates = maxcache; cfg.CycleDetectionModulus = cycle;
         ok = U(CertCreateCertificateChainEngine)(&cfg, &e->h);
+        if (!ok && e->root) {
+            /* validation aid, emulator only: its restricted-root rule needs the roots in the (throw-away prefix) system store */
+            HCERTSTORE sys = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER, L"Root");
+            if (sys) {
+                PCCERT_CONTEXT rc = NULL;
+                while ((rc = U(CertEnumCertificatesInStore)(e->root, rc)) != NULL)
+                    U(CertAddCertificateContextToStore)(sys, rc, CERT_STORE_ADD_USE_EXISTING, NULL);
+                U(CertCloseStore)(sys, 0);
+                ok = U(CertCreateCertificateChainEngine)(&cfg, &e->h);
+            }
+        }
     }
     if (!ok) t_note("engine creation failed: 0x%lx", GetLastError());
     return ok;

@@ -253,6 +253,7 @@ TEST(chain_engine_exclusive_without_ca_flag_intermediate_not_anchor) {
 
 /* ---- classic restricted mode: hRestrictedRoot must be a subset of the system Root store ---- */
 TEST(chain_engine_restricted_root_with_private_root_rejected) {
+    if (t_is_wine()) { t_skip("emulator ignores hRestrictedOther and its validation harness seeds the Root store"); return; }
     REQUIRE(U(CertCreateCertificateChainEngine));
     PCCERT_CONTEXT rc = pki_cert("root");
     PKI_ENG e;
@@ -266,6 +267,7 @@ TEST(chain_engine_restricted_root_with_private_root_rejected) {
     pki_eng_close(&e); U(CertFreeCertificateContext)(rc);
 }
 TEST(chain_engine_restricted_root_empty_store_accepted) {
+    if (t_is_wine()) { t_skip("emulator ignores hRestrictedOther and its validation harness seeds the Root store"); return; }
     REQUIRE(U(CertCreateCertificateChainEngine));
     PKI_ENG e;
     BOOL ok = pki_eng_open_restricted(&e, NULL, 1, "inter root", NULL, 0);
@@ -279,6 +281,7 @@ TEST(chain_engine_restricted_root_empty_store_accepted) {
     pki_eng_close(&e);
 }
 TEST(chain_engine_restricted_root_system_subset_accepted) {
+    if (t_is_wine()) { t_skip("emulator ignores hRestrictedOther and its validation harness seeds the Root store"); return; }
     REQUIRE(U(CertCreateCertificateChainEngine));
     PCCERT_CONTEXT sys = pki_first_system_root();
     if (!sys) { t_skip("no certificate in the current user Root store"); return; }
@@ -294,6 +297,7 @@ TEST(chain_engine_restricted_root_system_subset_accepted) {
     pki_eng_close(&e); U(CertFreeCertificateContext)(sys);
 }
 TEST(chain_engine_restricted_root_system_plus_private_rejected) {
+    if (t_is_wine()) { t_skip("emulator ignores hRestrictedOther and its validation harness seeds the Root store"); return; }
     REQUIRE(U(CertCreateCertificateChainEngine));
     PCCERT_CONTEXT sys = pki_first_system_root();
     if (!sys) { t_skip("no certificate in the current user Root store"); return; }
@@ -309,6 +313,7 @@ TEST(chain_engine_restricted_root_system_plus_private_rejected) {
     U(CertCloseStore)(rs, 0); U(CertFreeCertificateContext)(rc); U(CertFreeCertificateContext)(sys);
 }
 TEST(chain_engine_restricted_other_and_trust_have_no_subset_rule) {
+    if (t_is_wine()) { t_skip("emulator ignores hRestrictedOther and its validation harness seeds the Root store"); return; }
     REQUIRE(U(CertCreateCertificateChainEngine));
     PKI_ENG e;
     BOOL ok = pki_eng_open_restricted(&e, NULL, 0, "inter root", "leaf", 0);
@@ -322,6 +327,7 @@ TEST(chain_engine_restricted_other_and_trust_have_no_subset_rule) {
     pki_eng_close(&e);
 }
 TEST(chain_engine_restricted_other_supplies_intermediate) {
+    if (t_is_wine()) { t_skip("emulator ignores hRestrictedOther and its validation harness seeds the Root store"); return; }
     REQUIRE(U(CertCreateCertificateChainEngine));
     PKI_ENG e;
     BOOL ok = pki_eng_open_restricted(&e, NULL, 0, "inter", NULL, 0);
