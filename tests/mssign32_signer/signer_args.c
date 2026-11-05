@@ -328,3 +328,22 @@ TEST(mssigner_signerror_never_success) {
         CHECKF((LONG)r < 0, "SignError(%08lx) = %08lx is not a failure HRESULT", in[i], r);
     }
 }
+
+TEST(mssigner_signerror_boundaries) {
+    SignError_pfn fn = UN(SignError); REQUIRE(fn);
+    static const struct { DWORD in, out; } tab[] = {
+        { 0xFFFE, 0x8007FFFE }, { 0xFFFF, 0x8007FFFF }, { 0x10000, 0x8000FFFF }, { 0x10001, 0x8000FFFF },
+        { 0x7FFFFFFF, 0x8000FFFF }, { 0x80000001, 0x80000001 }, { 0xFFFFFFFE, 0xFFFFFFFE },
+    };
+    for (size_t i = 0; i < sizeof tab / sizeof tab[0]; i++) {
+        SET_ERR(tab[i].in);
+        DWORD r = fn();
+        CHECKF(r == tab[i].out, "SignError(%08lx) = %08lx want %08lx", tab[i].in, r, tab[i].out);
+    }
+}
+TEST(mssigner_signerror_repeatable) {
+    SignError_pfn fn = UN(SignError); REQUIRE(fn);
+    SET_ERR(ERROR_ACCESS_DENIED);
+    DWORD a = fn(), b = fn();
+    CHECK(a == 0x80070005 && b == a);
+}
