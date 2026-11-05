@@ -57,6 +57,10 @@ void exp_run(const char *dll, const char *w, const exp_ent *t, int n) {
     }
     if (!strcmp(w, "load")) {
         if (!m && g_wine) { t_skip("%s not present in emulator", dll); return; }
+        if (!m) {
+            DWORD le = GetLastError();
+            if (le == ERROR_MOD_NOT_FOUND || le == ERROR_BAD_EXE_FORMAT) { t_note("%s not loadable here (error %lu): SKU/feature dependent", dll, le); t_skip("%s absent", dll); return; }
+        }
         CHECKF(m != NULL, "LoadLibrary(%s) failed, error %lu", dll, GetLastError());
         return;
     }

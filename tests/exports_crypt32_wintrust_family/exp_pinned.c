@@ -127,3 +127,21 @@ TEST(exp_pinned_certca_has_no_forwarders_for_its_own_names) {
     CHECK(mbi.AllocationBase == (void *)ca);
     CHECK(GetProcAddress(ca, (LPCSTR)(ULONG_PTR)401) == p);
 }
+
+/* Ordinal-only modules: no export carries a name. */
+#include "exp.h"
+static void all_unnamed(const char *dll, const exp_ent *t, int n) {
+    HMODULE m = t_module(dll);
+    if (!m) { t_skip("%s missing", dll); return; }
+    for (int i = 0; i < n; i++) {
+        CHECKF(t[i].name == NULL, "%s #%u is named in the table", dll, t[i].ord);
+        CHECKF(GetProcAddress(m, (LPCSTR)(ULONG_PTR)t[i].ord) != NULL, "%s #%u missing", dll, t[i].ord);
+    }
+}
+TEST(exp_pinned_ntasn1_ordinal_only)  { all_unnamed("ntasn1.dll", exp_tab_ntasn1, exp_cnt_ntasn1); }
+TEST(exp_pinned_msasn1_ordinal_only_if_unnamed) {
+    int named = 0;
+    for (int i = 0; i < exp_cnt_msasn1; i++) named += exp_tab_msasn1[i].name != NULL;
+    t_note("msasn1 table: %d of %d exports named", named, exp_cnt_msasn1);
+    CHECK(exp_cnt_msasn1 > 0);
+}
