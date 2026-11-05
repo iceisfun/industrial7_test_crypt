@@ -100,12 +100,16 @@ static void p_sd_set(int pi) {
         CHECK(GetSecurityDescriptorDacl((PSECURITY_DESCRIPTOR)out, &present, &acl, &def));
         CHECK(present && acl);
         if (present && acl) {
-            EXPECT_EQ(acl->AceCount, 2);
-            void *ace = NULL;
-            if (acl->AceCount >= 1 && GetAce(acl, 0, &ace)) {
+            /* the two explicit ACEs come first; the provider appends inherited ACEs of the parent */
+            int expl = 0;
+            for (DWORD ai = 0; ai < acl->AceCount; ai++) {
+                void *ace = NULL;
+                if (!GetAce(acl, ai, &ace)) continue;
                 ACCESS_ALLOWED_ACE *a = ace;
                 EXPECT_EQ(a->Header.AceType, ACCESS_ALLOWED_ACE_TYPE);
+                if (!(a->Header.AceFlags & INHERITED_ACE)) { expl++; EXPECT_EQ(ai < 2, 1); }
             }
+            EXPECT_EQ(expl, 2);
         }
     }
     LocalFree(psd);

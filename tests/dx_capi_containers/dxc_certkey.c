@@ -228,9 +228,8 @@ TEST(dxc_certkey_null_certificate) {
     REQUIRE(U(CryptAcquireCertificatePrivateKey));
     if (t_is_wine()) { t_skip("emulator faults on a NULL certificate"); return; }
     HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD ks = 0; BOOL fr = 0;
-    SET_ERR(0);
-    CHECK(!U(CryptAcquireCertificatePrivateKey)(NULL, 0, NULL, &h, &ks, &fr));
-    EXPECT_ERR(0x80070057UL);      /* E_INVALIDARG, stored verbatim as the last error */
+    /* Win10 dereferences the certificate pointer without validating it */
+    T_EXPECT_FAULT(U(CryptAcquireCertificatePrivateKey)(NULL, 0, NULL, &h, &ks, &fr));
     CHECK(h == 0);
 }
 

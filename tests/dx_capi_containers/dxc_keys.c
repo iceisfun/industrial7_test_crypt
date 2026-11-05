@@ -219,16 +219,23 @@ static void k_gen_badflags(int pi) {
     const char *c = dxc_name("kgf"); dxc_del(c, pi, 0);
     HCRYPTPROV h = 0; HCRYPTKEY k = 0;
     CHECK(dxc_acq(&h, c, pi, CRYPT_NEWKEYSET));
+    int stored = 0;
     static const DWORD bad[] = { 0x8, 0x20, 0x40, 0x80, 0x100, 0x200, 0x400, 0x800, 0x1000 };
     for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
         k = 0; SET_ERR(0);
         BOOL ok = gen(h, AT_SIGNATURE, bad[i], &k);
+        if (dxc_provs[pi].dss && bad[i] == 0x40) {      /* CRYPT_PREGEN: accepted by the DSS providers */
+            CHECKF(ok, "flags 0x%lx rejected", bad[i]);
+            if (ok) { destroy(k); stored = 1; }
+            continue;
+        }
         CHECKF(!ok, "flags 0x%lx accepted", bad[i]);
         EXPECT_ERR(X_NTE_BAD_FLAGS);
         if (ok) destroy(k);
     }
-    SET_ERR(0);
-    CHECK(!getk(h, AT_SIGNATURE, &k)); EXPECT_ERR(X_NTE_NO_KEY);   /* nothing was stored */
+    k = 0;
+    if (stored) { CHECK(getk(h, AT_SIGNATURE, &k)); destroy(k); }
+    else { SET_ERR(0); CHECK(!getk(h, AT_SIGNATURE, &k)); EXPECT_ERR(X_NTE_NO_KEY); }   /* nothing was stored */
     dxc_rel(h);
     dxc_del(c, pi, 0);
 }
@@ -358,7 +365,11 @@ static void k_sign_no_key(int pi) {
     CHECK(U(CryptHashData)(hh, (const BYTE *)"x", 1, 0));
     BYTE sig[600]; DWORD sl = sizeof sig;
     SET_ERR(0);
-    CHECK(!U(CryptSignHashA)(hh, AT_SIGNATURE, NULL, 0, sig, &sl)); EXPECT_ERR(X_NTE_NO_KEY);
+    CHECK(!U(CryptSignHashA)(hh, AT_SIGNATURE, NULL, 0, sig, &sl));
+    EXPECT_ERR(dxc_provs[pi].dss ? X_NTE_NO_KEY : X_NTE_BAD_KEYSET);   /* RSA providers: NTE_BAD_KEYSET */
+    sl = sizeof sig; SET_ERR(0);
+    CHECK(!U(CryptSignHashA)(hh, AT_KEYEXCHANGE, NULL, 0, sig, &sl));
+    EXPECT_ERR(dxc_provs[pi].dss ? 0x80090008UL : X_NTE_BAD_KEYSET);   /* DSS: NTE_BAD_ALGID */
     U(CryptDestroyHash)(hh);
     dxc_rel(h);
     dxc_del(c, pi, 0);
@@ -378,7 +389,8 @@ static void k_export_public(int pi) {
     BYTE buf[1200]; DWORD n = need - 1;
     SET_ERR(0);
     CHECK(!U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, buf, &n)); EXPECT_ERR(ERROR_MORE_DATA);
-    EXPECT_EQ(n, need);
+    if (dxc_provs[pi].dss) EXPECT_EQ(n, need - 1);   /* DSS providers leave the length untouched */
+    else EXPECT_EQ(n, need);
     n = need;
     CHECK(U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, buf, &n));
     EXPECT_EQ(n, need);
@@ -387,9 +399,11 @@ static void k_export_public(int pi) {
     EXPECT_EQ(n, need);
     n = 0; SET_ERR(0);
     CHECK(!U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, buf, &n)); EXPECT_ERR(ERROR_MORE_DATA);
-    /* an unknown blob type */
+    EXPECT_EQ(n, dxc_provs[pi].dss ? 0 : need);
+    /* an unknown blob type: the RSA providers check the exportable state of the (non-exportable) key first */
     n = sizeof buf; SET_ERR(0);
-    CHECK(!U(CryptExportKey)(k, 0, 0x55, 0, buf, &n)); EXPECT_ERR(X_NTE_BAD_TYPE);
+    CHECK(!U(CryptExportKey)(k, 0, 0x55, 0, buf, &n));
+    EXPECT_ERR(dxc_provs[pi].dss ? X_NTE_BAD_TYPE : X_NTE_BAD_KEY_STATE);
     destroy(k); dxc_rel(h);
     dxc_del(c, pi, 0);
 }
@@ -435,7 +449,8 @@ static void k_exportable(int pi) {
         BLOBHEADER *bh = (BLOBHEADER *)priv;
         EXPECT_EQ(bh->bType, PRIVATEKEYBLOB);
         EXPECT_EQ(bh->bVersion, 2);
-        CHECK(np > nb);
+        if (dxc_provs[pi].dss) EXPECT_EQ(np, 336);      /* DSS private blob is smaller than the public blob (444) */
+        else CHECK(np > nb);
         if (dxc_provs[pi].dss) EXPECT_EQ(magic_of(priv), 0x32535344);   /* "DSS2" */
         else EXPECT_EQ(magic_of(priv), 0x32415352);                      /* "RSA2" */
     }

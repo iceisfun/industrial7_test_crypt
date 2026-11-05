@@ -137,7 +137,8 @@ TEST(dxc_provreg_setprovider_invalid_args) {
     SET_ERR(0); CHECK(!U(CryptSetProviderA)(MS_ENH_RSA_AES_PROV_A, 0)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
     SET_ERR(0); CHECK(!U(CryptSetProviderA)(MS_ENH_RSA_AES_PROV_A, 1000)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
     REQUIRE(U(CryptSetProviderW));
-    SET_ERR(0); CHECK(!U(CryptSetProviderW)(NULL, PROV_RSA_AES)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
+    SET_ERR(0); CHECK(!U(CryptSetProviderW)(NULL, PROV_RSA_AES)); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);   /* observed: 120 for a NULL name */
+    SET_ERR(0); CHECK(!U(CryptSetProviderW)(L"x", 0)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
 }
 
 TEST(dxc_provreg_setprovider_verifies_current_default) {
@@ -321,7 +322,7 @@ TEST(dxc_provreg_enum_providers_w_parity) {
         EXPECT_EQ(oa, ow);
         if (!oa || !ow) break;
         char conv[300]; WideCharToMultiByte(CP_ACP, 0, w, -1, conv, sizeof conv, NULL, NULL);
-        EXPECT_STR(conv, a); EXPECT_EQ(ta, tw); EXPECT_EQ(na, nw);
+        EXPECT_STR(conv, a); EXPECT_EQ(ta, tw); EXPECT_EQ(nw, na * 2);   /* the W form reports bytes, the A form characters-with-NUL */
     }
 }
 

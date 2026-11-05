@@ -249,12 +249,12 @@ static void ks_long_name(int pi) {
     memset(c, 'q', 261); c[261] = 0;
     SET_ERR(0);
     BOOL ok = dxc_acq(&h, c, pi, CRYPT_NEWKEYSET);
-    CHECK(!ok); EXPECT_ERR(0x8009001FUL);
+    CHECK(!ok); EXPECT_ERR(dxc_provs[pi].dss ? X_NTE_BAD_KEYSET : 0x8009001FUL);  
     if (ok) { dxc_rel(h); dxc_del(c, pi, 0); }
     memset(c, 'q', 400); c[400] = 0;
     SET_ERR(0);
     ok = dxc_acq(&h, c, pi, CRYPT_NEWKEYSET);
-    CHECK(!ok); EXPECT_ERR(0x8009001FUL);
+    CHECK(!ok); EXPECT_ERR(dxc_provs[pi].dss ? X_NTE_BAD_KEYSET : 0x8009001FUL);  
     if (ok) { dxc_rel(h); dxc_del(c, pi, 0); }
 }
 DXC_PERPROV(dxc_keyset_name_too_long, ks_long_name)
@@ -468,9 +468,14 @@ static void ks_enum_protocol(int pi) {
         if (cnt > 1000) break;
     }
     EXPECT_EQ(found, 1);
-    /* after exhaustion CRYPT_NEXT keeps failing with NO_MORE_ITEMS */
-    n = sizeof buf; SET_ERR(0);
-    CHECK(!dxc_gpp(v, PP_ENUMCONTAINERS, buf, &n, CRYPT_NEXT)); EXPECT_ERR(ERROR_NO_MORE_ITEMS);
+    /* after exhaustion CRYPT_NEXT succeeds without writing a name: buffer and length stay as passed in
+     * (observed on Win10, repeated calls identical) */
+    for (int rep = 0; rep < 2; rep++) {
+        buf[0] = 0; n = sizeof buf;
+        CHECK(dxc_gpp(v, PP_ENUMCONTAINERS, buf, &n, CRYPT_NEXT));
+        EXPECT_EQ(buf[0], 0);
+        EXPECT_EQ(n, sizeof buf);
+    }
     /* CRYPT_FIRST restarts */
     n = sizeof buf;
     CHECK(dxc_gpp(v, PP_ENUMCONTAINERS, buf, &n, CRYPT_FIRST));
@@ -526,7 +531,12 @@ static void ks_unique(int pi) {
     /* shorter buffer and flags */
     if (n > 1) { DWORD m = n - 1; SET_ERR(0); CHECK(!dxc_gpp(h, PP_UNIQUE_CONTAINER, u, &m, 0)); EXPECT_ERR(ERROR_MORE_DATA); }
     n = sizeof u; SET_ERR(0);
-    CHECK(!dxc_gpp(h, PP_UNIQUE_CONTAINER, u, &n, 1)); EXPECT_ERR(X_NTE_BAD_FLAGS);
+    if (dxc_provs[pi].dss) {
+        /* the DSS providers ignore the flags of this parameter */
+        CHECK(dxc_gpp(h, PP_UNIQUE_CONTAINER, u, &n, 1));
+    } else {
+        CHECK(!dxc_gpp(h, PP_UNIQUE_CONTAINER, u, &n, 1)); EXPECT_ERR(X_NTE_BAD_FLAGS);
+    }
     /* same container opened again gives the same unique name */
     HCRYPTPROV h2 = 0; char u2[300] = {0}; n = sizeof u2;
     CHECK(dxc_acq(&h2, c, pi, 0));
