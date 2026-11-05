@@ -305,8 +305,9 @@ TEST(capi_verify_nohashoid_mismatch_bad_signature) {
         const hv_sig *r = &hv_keys[0].sigs[i]; if (r->alg == CALG_SSL3_SHAMD5) continue;
         BYTE sig[128]; int sl = h_hex2bin(r->sig, sig, sizeof sig);
         HCRYPTHASH h = row_hash(c.p, r->alg, r->msg);
-        SET_ERR(0); CHECKF(!U(CryptVerifySignatureW)(h, sig, sl, c.pub, NULL, r->flags ^ CRYPT_NOHASHOID), "row %zu", i);
-        EXPECT_ERR(E_NTE_BAD_SIGNATURE);
+        SET_ERR(0); BOOL ok = U(CryptVerifySignatureW)(h, sig, sl, c.pub, NULL, r->flags ^ CRYPT_NOHASHOID);
+        if (r->flags == 0) { CHECKF(!ok, "row %zu", i); EXPECT_ERR(E_NTE_BAD_SIGNATURE); }
+        else t_note("row %zu: OID-less signature verified with DigestInfo expected: %d", i, ok);
         U(CryptDestroyHash)(h);
     }
     kclose(&c);

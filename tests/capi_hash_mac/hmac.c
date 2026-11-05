@@ -50,7 +50,7 @@ HMAC_TESTS(4, SHA256) HMAC_TESTS(5, SHA384) HMAC_TESTS(6, SHA512)
 TEST(capi_hmac_rfc_spot_values) {
     REQUIRE(U(CryptCreateHash)); PROLOG; BOOL ok; BYTE out[64]; DWORD ol;
     BYTE k20[20]; memset(k20, 0x0b, 20);
-    HCRYPTHASH h = hmac_begin(p, CALG_MD5, k20, 20, &ok);
+    HCRYPTHASH h = hmac_begin(p, CALG_MD5, k20, 16, &ok);   /* RFC 2202 case 1 uses a 16-byte key for MD5 */
     if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 16, "9294727a3638bb1c13f48ef8158bfc9d"); U(CryptDestroyHash)(h); }
     h = hmac_begin(p, CALG_SHA1, k20, 20, &ok);
     if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 20, "b617318655057264e28bc0b6fb378c8ef146be00"); U(CryptDestroyHash)(h); }
