@@ -221,18 +221,16 @@ void sw_bad_ordinals(const char *dll) {
     DWORD cand[] = { hi, hi + 1, hi + 100, 0xFFFE, 0xFFFF };
     for (unsigned i = 0; i < sizeof cand / sizeof *cand; i++) {
         if (cand[i] < hi || cand[i] > 0xFFFF) continue;
-        SET_ERR(0);
-        FARPROC r = GetProcAddress(h, MAKEINTRESOURCEA(cand[i]));
-        CHECKF(r == NULL, "%s ordinal %lu above the table resolved", dll, cand[i]);
-        EXPECT_ERR(ERROR_PROC_NOT_FOUND);
+        t_label("ordinal %lu", cand[i]);
+        EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(cand[i]));   /* 182 */
     }
     if (lo > 1) {
-        SET_ERR(0);
-        CHECK(GetProcAddress(h, MAKEINTRESOURCEA(lo - 1)) == NULL);
-        EXPECT_ERR(ERROR_PROC_NOT_FOUND);
+        t_label("Base-1");
+        EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(lo - 1));    /* 182 */
     }
-    SET_ERR(0);
-    CHECK(GetProcAddress(h, MAKEINTRESOURCEA(0)) == NULL);   /* below any Base >= 1 */
+    t_label("ordinal 0");
+    EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(0));             /* 87 */
+    t_label(NULL);
 }
 static int has_wide_twin(const XM *m, const char *n, char *twin, size_t cap) {
     size_t l = strlen(n); if (l < 2) return 0;

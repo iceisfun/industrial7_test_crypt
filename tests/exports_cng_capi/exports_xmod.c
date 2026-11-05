@@ -399,9 +399,6 @@ TEST(exports_cng_capi_xmod_ncrypt_getprocaddress_forwarder_resolves_to_other_ima
 TEST(exports_cng_capi_xmod_getprocaddress_null_module_and_ordinal_zero) {
     HMODULE b = t_module("bcrypt.dll");
     if (!b) { t_skip("no bcrypt"); return; }
-    SET_ERR(0);
-    CHECK(GetProcAddress(b, MAKEINTRESOURCEA(0)) == NULL);
-    SET_ERR(0);
-    CHECK(GetProcAddress(NULL, "BCryptHash") == NULL);
-    CHECK(GetLastError() != 0);
+    EXPECT_GPA_FAIL(b, MAKEINTRESOURCEA(0));   /* 87 */
+    EXPECT_GPA_FAIL(NULL, "BCryptHash");       /* 127: NULL module is the exe itself */
 }
