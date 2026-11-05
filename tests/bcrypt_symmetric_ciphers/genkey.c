@@ -45,7 +45,7 @@ TEST(nm) { \
     NTSTATUS s = P_GenKey(H, &h, NULL, 0, (PUCHAR)S16, 16, 0); \
     if (WINE_UNSUP(s) || (t_is_wine() && s != 0)) { t_skip("pseudo handle unsupported"); return; } \
     EXPECT_EQ(s, 0); \
-    if (t_is_wine() && s == 0) { WCHAR m_[64] = {0}; ULONG r_ = 0; if (P_GetProp(h, BCRYPT_CHAINING_MODE, (PUCHAR)m_, sizeof m_, &r_, 0)) { P_Destroy(h); t_skip("wine"); return; } } \
+    if (t_is_wine() && s == 0) { WCHAR m_[64] = {0}; ULONG r_ = 0; if (P_GetProp(h, BCRYPT_CHAINING_MODE, (PUCHAR)m_, sizeof m_, &r_, 0)) { P_Destroy(h); t_skip("emulator"); return; } } \
     if (s == 0) { \
         WCHAR mode[64] = {0}; ULONG r = 0; \
         EXPECT_EQ(P_GetProp(h, BCRYPT_CHAINING_MODE, (PUCHAR)mode, sizeof mode, &r, 0), 0); \
@@ -97,7 +97,7 @@ TEST(bsc_gen_pseudo_handle_setproperty_denied) {
     /* pseudo handles are shared, read-only singletons */
     NTSTATUS s = P_SetProp(BCRYPT_AES_CBC_ALG_HANDLE, BCRYPT_CHAINING_MODE, (PUCHAR)BCRYPT_CHAIN_MODE_GCM,
                            sizeof(BCRYPT_CHAIN_MODE_GCM), 0);
-    if (t_is_wine() && s != NS_ACCESS_DENIED) { t_skip("wine"); return; }
+    if (t_is_wine() && s != NS_ACCESS_DENIED) { t_skip("emulator"); return; }
     EXPECT_EQ(s, NS_ACCESS_DENIED);
 }
 TEST(bsc_gen_pseudo_handle_close_is_noop_or_rejected) {
@@ -112,7 +112,7 @@ TEST(bsc_gen_pseudo_handle_close_is_noop_or_rejected) {
 
 /* ---- parameter validation ordering ----------------------------------------------- */
 TEST(bsc_gen_null_phkey) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     BYTE obj[1024];
@@ -120,7 +120,7 @@ TEST(bsc_gen_null_phkey) {
     bsc_close(a);
 }
 TEST(bsc_gen_null_secret) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     BYTE obj[1024]; BCRYPT_KEY_HANDLE k = SENTINEL;
@@ -131,14 +131,14 @@ TEST(bsc_gen_null_secret) {
     bsc_close(a);
 }
 TEST(bsc_gen_null_phkey_with_internal_object) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     EXPECT_EQ(P_GenKey(a, NULL, NULL, 0, (PUCHAR)S16, 16, 0), NS_INVALID_PARAM);
     bsc_close(a);
 }
 TEST(bsc_gen_keyobject_null_with_nonzero_size) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     BCRYPT_KEY_HANDLE k = SENTINEL;
@@ -147,7 +147,7 @@ TEST(bsc_gen_keyobject_null_with_nonzero_size) {
     bsc_close(a);
 }
 TEST(bsc_gen_keyobject_size_zero_with_buffer) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     BYTE obj[1024]; BCRYPT_KEY_HANDLE k = SENTINEL;
@@ -156,7 +156,7 @@ TEST(bsc_gen_keyobject_size_zero_with_buffer) {
     bsc_close(a);
 }
 TEST(bsc_gen_keyobject_tiny_sizes) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     BYTE obj[1024]; BCRYPT_KEY_HANDLE k = SENTINEL;
@@ -170,7 +170,7 @@ TEST(bsc_gen_keyobject_tiny_sizes) {
     bsc_close(a);
 }
 TEST(bsc_gen_keyobject_exact_objectlength) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     ULONG ol = bsc_objlen(a);
@@ -425,7 +425,7 @@ TEST(bsc_destroy_twice_user_object) {
     k.h = NULL; bsc_free(&k); bsc_close(a);
 }
 TEST(bsc_destroy_wipes_key_object) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_GenKey);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     bkey k; EXPECT_EQ(bsc_gen(a, &k, S64, 16), 0);
@@ -476,7 +476,7 @@ TEST(bsc_dup_null_handle_wins_over_null_out) {
     EXPECT_EQ(P_Dup(NULL, NULL, NULL, 0, 0), NS_INVALID_HANDLE);
 }
 TEST(bsc_dup_object_buffer_too_small) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_Dup);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     bkey k; EXPECT_EQ(bsc_gen(a, &k, S64, 16), 0);
@@ -486,7 +486,7 @@ TEST(bsc_dup_object_buffer_too_small) {
     bsc_free(&k); bsc_close(a);
 }
 TEST(bsc_dup_object_size_zero_with_buffer) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_Dup);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     bkey k; EXPECT_EQ(bsc_gen(a, &k, S64, 16), 0);
@@ -495,7 +495,7 @@ TEST(bsc_dup_object_size_zero_with_buffer) {
     bsc_free(&k); bsc_close(a);
 }
 TEST(bsc_dup_null_buffer_nonzero_size) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_Dup);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", NULL); if (!a) { t_skip("AES"); return; }
     bkey k; EXPECT_EQ(bsc_gen(a, &k, S64, 16), 0);
@@ -519,7 +519,7 @@ TEST(bsc_dup_independent_lifetime) {
     bsc_close(a);
 }
 TEST(bsc_dup_with_user_object) {
-    if (t_is_wine()) { t_skip("wine diverges from the decompiled behaviour here"); return; }
+    if (t_is_wine()) { t_skip("emulator diverges from the decompiled behaviour here"); return; }
     REQUIRE(P_Dup);
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", BCRYPT_CHAIN_MODE_ECB); if (!a) { t_skip("AES"); return; }
     bkey k; EXPECT_EQ(bsc_genhex(a, &k, "2b7e151628aed2a6abf7158809cf4f3c"), 0);
@@ -571,7 +571,7 @@ TEST(bsc_dup_rc4_copies_state) {
     BCRYPT_ALG_HANDLE a = bsc_open(L"RC4", NULL); if (!a) { t_skip("RC4"); return; }
     bkey k; if (bsc_genhex(a, &k, "0102030405060708090a0b0c0d0e0f10") != 0) { bsc_close(a); t_skip("RC4"); return; }
     BYTE z[16] = {0}, o[16]; ULONG g = 0;
-    if (WINE_UNSUP(enc(k.h, z, 16, NULL, 0, o, 16, &g, 0))) { bsc_free(&k); bsc_close(a); t_skip("wine"); return; }
+    if (WINE_UNSUP(enc(k.h, z, 16, NULL, 0, o, 16, &g, 0))) { bsc_free(&k); bsc_close(a); t_skip("emulator"); return; }
     BCRYPT_KEY_HANDLE d = SENTINEL;
     EXPECT_EQ(P_Dup(k.h, &d, NULL, 0, 0), 0);
     if (d != SENTINEL) {

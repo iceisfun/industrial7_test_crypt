@@ -602,7 +602,7 @@ TEST(bsc_cfb128_requires_block_multiple) {
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", CFB); if (!a) { t_skip("AES"); return; }
     ULONG mbl = 16;
     NTSTATUS s = P_SetProp(a, BCRYPT_MESSAGE_BLOCK_LENGTH, (PUCHAR)&mbl, 4, 0);
-    if (WINE_UNSUP(s)) { bsc_close(a); t_skip("wine"); return; }
+    if (WINE_UNSUP(s)) { bsc_close(a); t_skip("emulator"); return; }
     EXPECT_EQ(s, 0);
     bkey k; EXPECT_EQ(bsc_genhex(a, &k, K), 0);
     BYTE in[48] = {0}, out[48], iv[16] = {0}; ULONG got = 0xAAAA;
@@ -682,7 +682,7 @@ TEST(bsc_stream_cipher_any_length) {
     bkey k; if (bsc_genhex(a, &k, K) != 0) { bsc_close(a); t_skip("RC4"); return; }
     BYTE in[40] = {0}, out[40]; ULONG got = 0xAAAA;
     NTSTATUS s = enc(k.h, in, 1, NULL, 0, out, 40, &got, 0);
-    if (WINE_UNSUP(s)) { bsc_free(&k); bsc_close(a); t_skip("wine"); return; }
+    if (WINE_UNSUP(s)) { bsc_free(&k); bsc_close(a); t_skip("emulator"); return; }
     EXPECT_EQ(s, 0); EXPECT_EQ(got, 1);
     s = enc(k.h, in, 39, NULL, 0, out, 38, &got, 0);
     EXPECT_EQ(s, NS_BUFFER_TOO_SMALL); EXPECT_EQ(got, 39);

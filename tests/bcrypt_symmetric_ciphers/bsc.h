@@ -45,10 +45,10 @@
 #define P_Imp     U(BCryptImportKey)
 #define P_Exp     U(BCryptExportKey)
 
-/* Wine's bcrypt lacks some ciphers/modes; skip those there (no-op on Windows). */
+/* the emulator's bcrypt lacks some ciphers/modes; skip those there (no-op on Windows). */
 #define WINE_UNSUP(st) (t_is_wine() && ((NTSTATUS)(st) == (NTSTATUS)0xC00000BB || (NTSTATUS)(st) == (NTSTATUS)0xC0000002 || (NTSTATUS)(st) == (NTSTATUS)0xC0000225))
 
-#define WINE_SKIP(why) do { if (t_is_wine()) { t_skip("wine: " why); return; } } while (0)
+#define WINE_SKIP(why) do { if (t_is_wine()) { t_skip("emulator: " why); return; } } while (0)
 
 static size_t hx(const char *s, BYTE *o) {
     size_t n = 0;
@@ -113,7 +113,7 @@ static int fx_open(fx *f, const wchar_t *alg, const wchar_t *mode, const char *k
 static void fx_close(fx *f) { if (f->k.h) bsc_free(&f->k); bsc_close(f->a); f->a = NULL; }
 /* open a fixture or skip the test (a failed open is only legitimate under an emulator) */
 #define FX_OR_SKIP(f, alg, mode, key) do { REQUIRE(P_GenKey); if (!fx_open(&(f), alg, mode, key)) { \
-    if (t_is_wine()) { t_skip("unsupported under wine"); } else { CHECKF(0, "cannot create %ls key", alg); } return; } } while (0)
+    if (t_is_wine()) { t_skip("unsupported under emulator"); } else { CHECKF(0, "cannot create %ls key", alg); } return; } } while (0)
 
 #define KEY16 "000102030405060708090a0b0c0d0e0f"
 static const wchar_t *const ALGW_AES = L"AES";

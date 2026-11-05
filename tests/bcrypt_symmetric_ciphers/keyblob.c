@@ -330,7 +330,7 @@ TEST(bsc_opaque_roundtrip_encrypts_identically) {
     EXPECT_EQ(s, 0); EXPECT_EQ(got, need);
     BCRYPT_KEY_HANDLE k2 = SENT;
     s = P_Imp(a, NULL, BCRYPT_OPAQUE_KEY_BLOB, &k2, NULL, 0, blob, got, 0);
-    if (t_is_wine() && s != 0) { t_skip("wine opaque import differs"); free(blob); bsc_free(&k); bsc_close(a); return; }
+    if (t_is_wine() && s != 0) { t_skip("emulator opaque import differs"); free(blob); bsc_free(&k); bsc_close(a); return; }
     EXPECT_EQ(s, 0);
     if (s == 0) {
         BYTE pt[16], c[16]; hx("6bc1bee22e409f96e93d7e117393172a", pt);
@@ -380,7 +380,7 @@ TEST(bsc_opaque_import_with_pseudo_handle) {
     EXPECT_EQ(P_Exp(k.h, NULL, BCRYPT_OPAQUE_KEY_BLOB, blob, need, &got, 0), 0);
     BCRYPT_KEY_HANDLE k2 = SENT;
     NTSTATUS s = P_Imp(BCRYPT_AES_CBC_ALG_HANDLE, NULL, BCRYPT_OPAQUE_KEY_BLOB, &k2, NULL, 0, blob, got, 0);
-    if (t_is_wine() && s != 0) t_skip("wine");
+    if (t_is_wine() && s != 0) t_skip("emulator");
     else { EXPECT_EQ(s, 0); if (s == 0) P_Destroy(k2); }
     free(blob); bsc_free(&k); bsc_close(a);
 }
@@ -410,7 +410,7 @@ static void wrap_case(const char *kek, const char *data, const char *wrapped) {
     EXPECT_EQ(bsc_gen(a, &kk, kekb, nk), 0); EXPECT_EQ(bsc_gen(a, &dk, datab, nd), 0);
     ULONG need = 0xAAAA;
     NTSTATUS s = P_Exp(dk.h, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, NULL, 0, &need, 0);
-    if (WINE_UNSUP(s)) { t_skip("AES key wrap unsupported under wine"); bsc_free(&kk); bsc_free(&dk); bsc_close(a); return; }
+    if (WINE_UNSUP(s)) { t_skip("AES key wrap unsupported under emulator"); bsc_free(&kk); bsc_free(&dk); bsc_close(a); return; }
     EXPECT_EQ(s, 0); EXPECT_EQ(need, nw);
     BYTE out[64]; memset(out, 0xEE, sizeof out); ULONG got = 0;
     s = P_Exp(dk.h, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, out, nw, &got, 0);

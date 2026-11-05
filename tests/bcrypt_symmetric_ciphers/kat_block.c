@@ -14,7 +14,7 @@ static void kat_run(const kcfg *c, const struct kat *v) {
     if (!a) { t_skip("algorithm %ls/%ls not available", c->alg, c->mode ? c->mode : L"-"); if (!t_is_wine()) CHECK(a != NULL); return; }
     if (c->mbl) {
         NTSTATUS s = P_SetProp(a, BCRYPT_MESSAGE_BLOCK_LENGTH, (PUCHAR)&c->mbl, 4, 0);
-        if (WINE_UNSUP(s)) { t_skip("MessageBlockLength unsupported under wine"); bsc_close(a); return; }
+        if (WINE_UNSUP(s)) { t_skip("MessageBlockLength unsupported under emulator"); bsc_close(a); return; }
         EXPECT_EQ(s, 0);
     }
     BYTE pt[256], ct[256], iv0[32], iv[32], out[256], back[256];
@@ -24,14 +24,14 @@ static void kat_run(const kcfg *c, const struct kat *v) {
     P_GetProp(a, BCRYPT_BLOCK_LENGTH, (PUCHAR)&bs, 4, &r, 0);
     bkey k;
     NTSTATUS s = bsc_genhex(a, &k, v->key);
-    if (WINE_UNSUP(s)) { t_skip("unsupported under wine"); bsc_close(a); return; }
+    if (WINE_UNSUP(s)) { t_skip("unsupported under emulator"); bsc_close(a); return; }
     EXPECT_EQ(s, 0);
     if (s == 0) {
         ULONG got = 0;
         {   BYTE tp[256], to[256]; ULONG tg = 0; size_t tn = hx(v->pt, tp);
             memcpy(iv, iv0, ivl);
             s = enc(k.h, tp, (ULONG)tn, ivl ? iv : NULL, (ULONG)ivl, to, (ULONG)tn, &tg, 0);
-            if (WINE_UNSUP(s)) { t_skip("unsupported under wine"); bsc_free(&k); bsc_close(a); return; }
+            if (WINE_UNSUP(s)) { t_skip("unsupported under emulator"); bsc_free(&k); bsc_close(a); return; }
             if (c->stream) { bsc_free(&k); bsc_genhex(a, &k, v->key); }  /* fresh RC4 state */
         }
         /* size query */

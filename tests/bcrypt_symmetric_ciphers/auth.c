@@ -33,7 +33,7 @@ static void gcm_row(const struct gcmv *v) {
     ai_init(&a, nonce, nn, na ? aad : NULL, na, 16);
     memset(out, 0xEE, sizeof out);
     NTSTATUS s = aenc(f.k.h, &a, pt, np, NULL, 0, out, np, &got, 0);
-    if (WINE_UNSUP(s)) { t_skip("unsupported under wine"); fx_close(&f); return; }
+    if (WINE_UNSUP(s)) { t_skip("unsupported under emulator"); fx_close(&f); return; }
     if (nn != 12) {                                    /* 12 byte nonces only */
         if (!t_is_wine()) EXPECT_EQ(s, NS_INVALID_PARAM);
         fx_close(&f); return;
@@ -77,7 +77,7 @@ static void ccm_row(const struct ccmv *v) {
     ai_init(&a, nonce, nn, na ? aad : NULL, na, nt);
     memset(out, 0xEE, sizeof out);
     NTSTATUS s = aenc(f.k.h, &a, np ? pt : (BYTE *)"", np, NULL, 0, out, np, &got, 0);
-    if (WINE_UNSUP(s) || (t_is_wine() && s != 0)) { t_skip("CCM unsupported/differs under wine"); fx_close(&f); return; }
+    if (WINE_UNSUP(s) || (t_is_wine() && s != 0)) { t_skip("CCM unsupported/differs under emulator"); fx_close(&f); return; }
     EXPECT_EQ(s, 0); EXPECT_EQ(got, np);
     CHECK(same(out, ct, np)); CHECK(out[np] == 0xEE);
     CHECK(same(a.tag, tag, nt));
@@ -404,7 +404,7 @@ TEST(bsc_ccm_tag_mismatch) {
     ainfo a; ULONG got = 0xAAAA;
     ai_init(&a, nonce, nn, aad, na, nt); memcpy(a.tag, tag, nt);
     NTSTATUS s = adec(f.k.h, &a, ct, nc, NULL, 0, out, nc, &got, 0);
-    if (t_is_wine() && s != 0) { t_skip("wine CCM"); fx_close(&f); return; }
+    if (t_is_wine() && s != 0) { t_skip("emulator CCM"); fx_close(&f); return; }
     EXPECT_EQ(s, 0);
     a.tag[0] ^= 1;
     EXPECT_EQ(adec(f.k.h, &a, ct, nc, NULL, 0, out, nc, &got, 0), NS_AUTH_TAG_MISMATCH);
@@ -451,7 +451,7 @@ TEST(bsc_ccm_message_length_limit_for_nonce_13) {
     int have;
     NTSTATUS s1 = ccm_try(13, 16, 65535, &have);
     if (!have) { t_skip("no CCM"); return; }
-    if (t_is_wine()) { t_skip("wine"); return; }
+    if (t_is_wine()) { t_skip("emulator"); return; }
     EXPECT_EQ(s1, 0);                               /* L = 2 length bytes: max 65535 */
     NTSTATUS s2 = ccm_try(13, 16, 65536, &have);
     EXPECT_EQ(s2, NS_INVALID_PARAM);
@@ -460,7 +460,7 @@ TEST(bsc_ccm_message_length_limit_for_nonce_13) {
 }
 TEST(bsc_ccm_chaining_flags_rejected) {
     fx f; FX_OR_SKIP(f, L"AES", CCM, KEY16);
-    if (t_is_wine()) { t_skip("wine"); fx_close(&f); return; }
+    if (t_is_wine()) { t_skip("emulator"); fx_close(&f); return; }
     BYTE nonce[12] = {1}, pt[16] = {0}, out[16], mac[16] = {0}, iv[16] = {0}; ULONG got = 0;
     ULONG fl[] = { 1, 2, 3 };
     for (int i = 0; i < 3; i++) {
@@ -473,7 +473,7 @@ TEST(bsc_ccm_chaining_flags_rejected) {
 }
 TEST(bsc_ccm_mac_context_alone_rejected) {
     fx f; FX_OR_SKIP(f, L"AES", CCM, KEY16);
-    if (t_is_wine()) { t_skip("wine"); fx_close(&f); return; }
+    if (t_is_wine()) { t_skip("emulator"); fx_close(&f); return; }
     BYTE nonce[12] = {1}, pt[16] = {0}, out[16], mac[16] = {0}; ULONG got = 0;
     ainfo a; ai_init(&a, nonce, 12, NULL, 0, 16); a.i.pbMacContext = mac; a.i.cbMacContext = 16;
     NTSTATUS s = aenc(f.k.h, &a, pt, 16, NULL, 0, out, 16, &got, 0);
@@ -486,7 +486,7 @@ TEST(bsc_ccm_partial_block_data_is_fine) {
     for (ULONG n = 0; n <= 33; n++) {
         ainfo a; ai_init(&a, nonce, 12, NULL, 0, 16);
         NTSTATUS s = aenc(f.k.h, &a, pt, n, NULL, 0, out, n, &got, 0);
-        if (t_is_wine() && s != 0) { t_skip("wine"); break; }
+        if (t_is_wine() && s != 0) { t_skip("emulator"); break; }
         CHECKF(s == 0 && got == n, "n=%lu s=0x%lx", n, s);
     }
     fx_close(&f);
@@ -507,7 +507,7 @@ TEST(bsc_gcm_chained_matches_single_call) {
     BYTE out[64]; ULONG got = 0xAAAA;
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
     NTSTATUS s = P_Enc(g.f.k.h, g.pt, cut1, &c.i, c.iv, 16, out, cut1, &got, 0);
-    if (t_is_wine() && s != 0) { t_skip("wine: no chaining"); fx_close(&g.f); return; }
+    if (t_is_wine() && s != 0) { t_skip("emulator: no chaining"); fx_close(&g.f); return; }
     EXPECT_EQ(s, 0); EXPECT_EQ(got, cut1);
     c.i.pbAuthData = NULL; c.i.cbAuthData = 0;                  /* AAD only in the first call */
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG | BCRYPT_AUTH_MODE_IN_PROGRESS_FLAG;
@@ -526,7 +526,7 @@ TEST(bsc_gcm_chained_decrypt_verifies_at_end) {
     BYTE out[64]; ULONG got = 0xAAAA;
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
     NTSTATUS s = P_Dec(g.f.k.h, g.ct, 48, &c.i, c.iv, 16, out, 48, &got, 0);
-    if (t_is_wine() && s != 0) { t_skip("wine: no chaining"); fx_close(&g.f); return; }
+    if (t_is_wine() && s != 0) { t_skip("emulator: no chaining"); fx_close(&g.f); return; }
     EXPECT_EQ(s, 0);
     c.i.pbAuthData = NULL; c.i.cbAuthData = 0;
     c.i.dwFlags = BCRYPT_AUTH_MODE_IN_PROGRESS_FLAG; memcpy(c.tag, g.tag, 16);
@@ -541,7 +541,7 @@ TEST(bsc_gcm_chained_decrypt_bad_tag) {
     BYTE out[64]; ULONG got = 0xAAAA;
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
     NTSTATUS s = P_Dec(g.f.k.h, g.ct, 48, &c.i, c.iv, 16, out, 48, &got, 0);
-    if (t_is_wine() && s != 0) { t_skip("wine: no chaining"); fx_close(&g.f); return; }
+    if (t_is_wine() && s != 0) { t_skip("emulator: no chaining"); fx_close(&g.f); return; }
     c.i.pbAuthData = NULL; c.i.cbAuthData = 0;
     c.i.dwFlags = BCRYPT_AUTH_MODE_IN_PROGRESS_FLAG; memcpy(c.tag, g.tag, 16); c.tag[3] ^= 0x10;
     s = P_Dec(g.f.k.h, g.ct + 48, g.np - 48, &c.i, c.iv, 16, out + 48, g.np - 48, &got, 0);
@@ -550,7 +550,7 @@ TEST(bsc_gcm_chained_decrypt_bad_tag) {
 }
 TEST(bsc_gcm_chained_requires_block_multiples_until_final) {
     GC(g, 3);
-    if (t_is_wine()) { t_skip("wine"); fx_close(&g.f); return; }
+    if (t_is_wine()) { t_skip("emulator"); fx_close(&g.f); return; }
     chain c; chain_init(&c, g.nonce, g.nn, g.aad, g.na);
     BYTE out[64]; ULONG got = 0xAAAA;
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
@@ -560,7 +560,7 @@ TEST(bsc_gcm_chained_requires_block_multiples_until_final) {
 }
 TEST(bsc_gcm_chained_needs_iv_buffer) {
     GC(g, 3);
-    if (t_is_wine()) { t_skip("wine"); fx_close(&g.f); return; }
+    if (t_is_wine()) { t_skip("emulator"); fx_close(&g.f); return; }
     chain c; chain_init(&c, g.nonce, g.nn, g.aad, g.na);
     BYTE out[64]; ULONG got = 0xAAAA;
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
@@ -579,7 +579,7 @@ TEST(bsc_gcm_chained_state_lives_in_caller_buffers) {
     BYTE out[64]; ULONG got = 0xAAAA;
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
     NTSTATUS s = P_Enc(g.f.k.h, g.pt, 32, &c.i, c.iv, 16, out, 32, &got, 0);
-    if (t_is_wine() && s != 0) { t_skip("wine"); fx_close(&h); fx_close(&g.f); return; }
+    if (t_is_wine() && s != 0) { t_skip("emulator"); fx_close(&h); fx_close(&g.f); return; }
     EXPECT_EQ(s, 0);
     c.i.pbAuthData = NULL; c.i.cbAuthData = 0;
     c.i.dwFlags = BCRYPT_AUTH_MODE_IN_PROGRESS_FLAG;
@@ -594,7 +594,7 @@ TEST(bsc_gcm_chained_info_counters_advance) {
     BYTE out[64]; ULONG got = 0xAAAA;
     c.i.dwFlags = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
     NTSTATUS s = P_Enc(g.f.k.h, g.pt, 32, &c.i, c.iv, 16, out, 32, &got, 0);
-    if (t_is_wine() && s != 0) { t_skip("wine"); fx_close(&g.f); return; }
+    if (t_is_wine() && s != 0) { t_skip("emulator"); fx_close(&g.f); return; }
     EXPECT_EQ(s, 0);
     t_note("after chained call: cbAAD=%lu cbData=%llu", c.i.cbAAD, (unsigned long long)c.i.cbData);
     CHECK(c.i.cbAAD == g.na || c.i.cbAAD == 0);
