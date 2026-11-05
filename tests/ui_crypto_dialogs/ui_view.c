@@ -54,7 +54,9 @@ VIEW_W_FLAGS(disable_addtostore, CRYPTUI_DISABLE_ADDTOSTORE)
 VIEW_W_FLAGS(enable_addtostore, CRYPTUI_ENABLE_ADDTOSTORE)
 VIEW_W_FLAGS(dont_open_stores, CRYPTUI_DONT_OPEN_STORES)
 VIEW_W_FLAGS(only_root_store, CRYPTUI_ONLY_OPEN_ROOT_STORE)
-VIEW_W_FLAGS(warn_untrusted_root, CRYPTUI_WARN_UNTRUSTED_ROOT)
+/* CRYPTUI_WARN_UNTRUSTED_ROOT with no store array faults inside the DLL on Win10 (probed): supply one store. */
+UICASE(vcw_warn_untrusted_root, 0) { HCERTSTORE st = ui_mem_store(1); view_w(r, CRYPTUI_WARN_UNTRUSTED_ROOT, NULL, NULL, 0, 1, &st, NULL, 0); if (st) U(CertCloseStore)(st, 0); }
+TEST(ui_viewcert_w_flags_warn_untrusted_root) { REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r; if (!ui_exec("vcw_warn_untrusted_root", &r)) return; view_result(&r, "ViewCertificateW flags warn_untrusted_root"); }
 VIEW_W_FLAGS(warn_remote_trust, CRYPTUI_WARN_REMOTE_TRUST)
 VIEW_W_FLAGS(disable_export, CRYPTUI_DISABLE_EXPORT)
 VIEW_W_FLAGS(accept_decline, CRYPTUI_ACCEPT_DECLINE_STYLE)

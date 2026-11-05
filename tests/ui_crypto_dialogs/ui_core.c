@@ -41,17 +41,20 @@ int ui_exec(const char *name, UIRES *r) {
     snprintf(res, sizeof res, "%sres_%s.bin", t_tmpdir(), name);
     strcpy(dir, t_tmpdir()); dir[strlen(dir) - 1] = 0;
     DeleteFileA(res);
+    char crash[MAX_PATH + 8]; snprintf(crash, sizeof crash, "%s.crash", res); DeleteFileA(crash);
     snprintf(extra, sizeof extra, "%s \"%s\" \"%s\"", name, res, dir);
-    DWORD code = t_run_child("ui_run", extra, 20000);
+    DWORD code = t_run_child("ui_run", extra, 45000);
     memset(r, 0, sizeof *r);
     HANDLE h = CreateFileA(res, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     DWORD got = 0;
     if (h != INVALID_HANDLE_VALUE) { ReadFile(h, r, sizeof *r, &got, NULL); CloseHandle(h); }
     DeleteFileA(res);
-    if (code == 0xDEAD0001) { CHECKF(0, "ui child %s was killed after 20 s", name); return 0; }
+    if (code == 0xDEAD0001) { CHECKF(0, "ui child %s was killed after 45 s", name); return 0; }
     if (got != sizeof *r || r->magic != UI_MAGIC) {
         if (t_is_wine()) t_note("ui child %s produced no result (exit 0x%lx)", name, code);
-        else CHECKF(0, "ui child %s died (exit 0x%lx)", name, code);
+        else { char cb[512] = ""; DWORD n = 0; HANDLE ch = CreateFileA(crash, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+            if (ch != INVALID_HANDLE_VALUE) { ReadFile(ch, cb, sizeof cb - 1, &n, NULL); cb[n] = 0; CloseHandle(ch); DeleteFileA(crash); }
+            CHECKF(0, "ui child %s died (exit 0x%lx) %s", name, code, cb); }
         return 0;
     }
     return 1;
@@ -68,8 +71,9 @@ void ui_expect_clean(const UIRES *r) {
 
 void ui_expect_dialog(const UIRES *r, const char *what) {
     int strict = !t_is_wine();
-    if (!r->found_any) { if (strict) CHECKF(0, "no window appeared: %s", what); else t_note("%s: no window appeared", what); return; }
-    CHECKF(r->found_ms <= 5000 || !strict, "dialog appeared after %lu ms", r->found_ms);
+    if (!r->found_any) { if (strict) CHECKF(0, "no window appeared: %s (completed=%lu timed_out=%lu ret=%llu err=0x%lx)", what, r->completed, r->timed_out, r->ret, r->err); else t_note("%s: no window appeared", what); return; }
+    /* Time to first window varies widely on Win10 (about 0.1 s to 10 s: chain building without a network route), so it is reported, not asserted. */
+    if (r->found_ms > 2000) t_note("%s: dialog appeared after %lu ms", what, r->found_ms);
     if (!r->saw_dlg) {
         if (strict) CHECKF(0, "no #32770 window, first class %ls", r->first_cls); else t_note("%s: no #32770, first class %ls", what, r->first_cls);
     } else {
@@ -194,7 +198,7 @@ int run_child_case(int ci, const char *resfile) {
     HANDLE th = CreateThread(NULL, 0, worker, &w, 0, NULL);
     if (!th) return 0xC0DE0003;
     memset(seen, 0, sizeof seen);
-    while (!w.done && GetTickCount() - t0 < 12000) {
+    while (!w.done && GetTickCount() - t0 < 30000) {
         list_windows(&cur);
         for (int i = 0; i < cur.n; i++) {
             HWND h = cur.h[i];
@@ -241,9 +245,32 @@ int run_child_case(int ci, const char *resfile) {
     return 0;
 }
 
+static char g_crashfile[MAX_PATH];
+static LONG CALLBACK crash_veh(PEXCEPTION_POINTERS ep) {
+    DWORD c = ep->ExceptionRecord->ExceptionCode;
+    if (c != 0xC0000005 && c != 0xC00000FD && c != 0xC0000409 && c != 0xC000001D && c != 0xC0000094) return EXCEPTION_CONTINUE_SEARCH;
+    static volatile LONG once;
+    if (InterlockedExchange(&once, 1)) return EXCEPTION_CONTINUE_SEARCH;
+    HMODULE m = NULL; char mn[MAX_PATH] = "?";
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)ep->ExceptionRecord->ExceptionAddress, &m);
+    if (m) GetModuleFileNameA(m, mn, sizeof mn);
+    const char *leaf = strrchr(mn, '\\'); leaf = leaf ? leaf + 1 : mn;
+    char buf[512];
+    int n = snprintf(buf, sizeof buf, "code 0x%lx module %s rva 0x%llx thread %s fault-type %llu addr 0x%llx\n", c, leaf,
+        (unsigned long long)((BYTE *)ep->ExceptionRecord->ExceptionAddress - (BYTE *)m),
+        "-",
+        ep->ExceptionRecord->NumberParameters > 0 ? (unsigned long long)ep->ExceptionRecord->ExceptionInformation[0] : 0ULL,
+        ep->ExceptionRecord->NumberParameters > 1 ? (unsigned long long)ep->ExceptionRecord->ExceptionInformation[1] : 0ULL);
+    HANDLE h = CreateFileA(g_crashfile, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h != INVALID_HANDLE_VALUE) { DWORD w; WriteFile(h, buf, n, &w, NULL); CloseHandle(h); }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 /* exe --child ui_run <case> <resultfile> <fixture dir> */
 CHILD(ui_run) {
     if (argc < 4) return 0xC0DE0004;
+    snprintf(g_crashfile, sizeof g_crashfile, "%s.crash", argv[2]);
+    AddVectoredExceptionHandler(1, crash_veh);
     int ci = find_case(argv[1]);
     if (ci < 0) return 0xC0DE0002;
     strncpy(ui_dir, argv[3], sizeof ui_dir - 1);
@@ -301,5 +328,5 @@ TEST(ui_core_stuck_worker_is_terminated_inside_child) {
     UIRES r; DWORD t0 = GetTickCount();
     if (!ui_exec("core_hang_no_window", &r)) return;
     CHECK(r.timed_out == 1); CHECK(r.completed == 0); CHECK(!r.found_any);
-    CHECK(GetTickCount() - t0 < 19000);   /* watcher gave up on its own before the 20 s kill */
+    CHECK(GetTickCount() - t0 < 44000);   /* watcher gave up on its own (30 s) before the 45 s kill */
 }

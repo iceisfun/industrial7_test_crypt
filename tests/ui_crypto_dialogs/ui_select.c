@@ -121,8 +121,9 @@ UICASE(selst_badsize, UIF_NODLG) {
     for (int i = 0; i < 5; i++) { BYTE s[0x200]; memset(s, 0, sizeof s); put32(s, 0, sz[i]); UI_SUB(r, UN(CryptUIDlgSelectStoreW)(s)); }
 }
 UICASE(selst_plain, 0) {
-    BYTE s[0x40]; memset(s, 0, sizeof s);
-    put32(s, 0, 0x40); put64(s, 0x18, kTitleW);
+    BYTE s[0x40]; static BYTE enumdata[0x100]; memset(s, 0, sizeof s);
+    /* the +0x28 pointer (enumeration data) must be non-NULL: with NULL the call faults inside the DLL (probed); a zeroed block is accepted */
+    put32(s, 0, 0x40); put64(s, 0x18, kTitleW); put64(s, 0x28, enumdata);
     UI_CALL(r, UN(CryptUIDlgSelectStoreW)(s));
     if (r->ret) U(CertCloseStore)((HCERTSTORE)(ULONG_PTR)r->ret, 0);
 }
