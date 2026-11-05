@@ -520,7 +520,8 @@ TEST(cnrfile_invalid_flag_combos) {
         { "ASYNC|CACHE_ONLY", CRYPT_ASYNC_RETRIEVAL | CRYPT_CACHE_ONLY_RETRIEVAL, ERR_INVALIDARG },
         { "CACHE_ONLY|WIRE_ONLY", CRYPT_CACHE_ONLY_RETRIEVAL | CRYPT_WIRE_ONLY_RETRIEVAL, ERR_INVALIDARG },
         { "VERIFY_DATA_HASH", CRYPT_VERIFY_DATA_HASH, ERR_NOTIMPL },
-        { "VERIFY_SIG|VERIFY_HASH", CRYPT_VERIFY_CONTEXT_SIGNATURE | CRYPT_VERIFY_DATA_HASH, ERR_INVALIDARG },
+        /* bit 0x40 is tested before the 0x60 combination, so this is NOTIMPL too */
+        { "VERIFY_SIG|VERIFY_HASH", CRYPT_VERIFY_CONTEXT_SIGNATURE | CRYPT_VERIFY_DATA_HASH, ERR_NOTIMPL },
         { "VERIFY_SIG without pvVerify", CRYPT_VERIFY_CONTEXT_SIGNATURE, ERR_INVALIDARG },
     };
     for (size_t i = 0; i < sizeof rows / sizeof *rows; i++) {
@@ -913,4 +914,26 @@ TEST(cnrfile_two_slash_form) {
     ok = cn_retrieve_w(v, CONTEXT_OID_CERTIFICATE, 0, 0, &obj, NULL);
     t_note("file:C:/ form: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
     if (ok) U(CertFreeCertificateContext)(obj);
+}
+
+/* flag validation runs before any provider lookup: the URL need not exist or be valid */
+TEST(cnrfile_flag_errors_precede_url_lookup) {
+    REQUIRE(U(CryptRetrieveObjectByUrlW));
+    static const WCHAR *urls[] = { L"zzcn-unknown://host/x", L"file:///c:/cryptt_no_such_dir/none.cer", L"" };
+    static const struct { DWORD f; DWORD err; } rows[] = {
+        { CRYPT_ASYNC_RETRIEVAL, ERR_INVALIDARG },
+        { CRYPT_CACHE_ONLY_RETRIEVAL | CRYPT_WIRE_ONLY_RETRIEVAL, ERR_INVALIDARG },
+        { CRYPT_VERIFY_DATA_HASH, ERR_NOTIMPL },
+        { CRYPT_VERIFY_CONTEXT_SIGNATURE, ERR_INVALIDARG },
+        { CRYPT_VERIFY_CONTEXT_SIGNATURE | CRYPT_RETRIEVE_MULTIPLE_OBJECTS, ERR_INVALIDARG },
+    };
+    for (size_t i = 0; i < sizeof urls / sizeof *urls; i++)
+        for (size_t j = 0; j < sizeof rows / sizeof *rows; j++) {
+            LPVOID obj = SENTINEL; SET_ERR(0);
+            BOOL ok = cn_retrieve_w(urls[i], NULL, rows[j].f, 0, &obj, NULL);
+            CHECKF(!ok, "url %zu flags 0x%lx succeeded", i, rows[j].f);
+            DWORD e = GetLastError();
+            CHECKF(e == rows[j].err, "url %zu flags 0x%lx: error 0x%lx want 0x%lx", i, rows[j].f, e, rows[j].err);
+            CHECK(obj == NULL);
+        }
 }
