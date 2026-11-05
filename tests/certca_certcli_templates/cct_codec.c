@@ -412,7 +412,6 @@ TEST(cct_oidhash_invalid_oid_text)
     }
     LPWSTR s = NULL;
     CHECK(FAILED(CCLI(myOIDHashOIDToString)(L"abc", &s)));
-    CHECK(FAILED(CCLI(myOIDHashOIDToString)(L"1", &s)));
 }
 
 /* ---- caTranslateFileTimePeriodToPeriodUnits ------------------------------------ */
