@@ -121,4 +121,5 @@ def main():
     for n, c in (('self', c_self), ('ca', c_ca), ('leaf', c_leaf), ('tls', c_tls), ('noext', c_noext), ('akimm', c_akimm)):
         print(carr('fix_cert_' + n, D(c)))
     print(carr('fix_p7_signed', p7))
-main()
+if __name__ == "__main__":
+    main()
