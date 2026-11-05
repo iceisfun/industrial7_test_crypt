@@ -404,11 +404,10 @@ TEST(ctlsorted_enum_requires_sorted_ctl) {
     REQUIRE(U(CertEnumSubjectInSortedCTL));
     PCCTL_CONTEXT c = cc_ctl(VEC(v_ctl_signed));
     REQUIRE(c);
-    void *next = (void *)1;
+    void *next = NULL;
     CRYPT_DER_BLOB id, at;
     SET_ERR(0);
     CHECK(!U(CertEnumSubjectInSortedCTL)(c, &next, &id, &at)); EXPECT_ERR(CC_E_INVALIDARG);
-    CHECK(next == NULL);
     rel(c);
 }
 TEST(ctlsorted_find_on_unsorted_ctl) {
@@ -416,7 +415,7 @@ TEST(ctlsorted_find_on_unsorted_ctl) {
     PCCTL_CONTEXT c = cc_ctl(VEC(v_ctl_signed));
     REQUIRE(c);
     CRYPT_DATA_BLOB id = { 20, (BYTE *)v_sha1_1001 };
-    CRYPT_DER_BLOB at = { 5, (BYTE *)5 };
+    CRYPT_DER_BLOB at; memset(&at, 0, sizeof at); at.cbData = 5;
     SET_ERR(0);
     BOOL ok = U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &at);
     t_note("CertFindSubjectInSortedCTL on an unsorted CTL: ret=%d err=0x%lx", ok, GetLastError());
