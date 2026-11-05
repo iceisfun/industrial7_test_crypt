@@ -344,3 +344,20 @@ TEST(capiab_rsagen_duplicate_key_observe) {
     } else cab_kd(k);
     cab_rel(h);
 }
+
+TEST(capiab_rsagen_sweep_sizes_384_to_768) {
+    CAB_NEED();
+    HCRYPTPROV h = cab_enh(); if (!h) { t_skip("no enh"); return; }
+    for (DWORD bits = 384; bits <= 768; bits += 8) {
+        HCRYPTKEY k = 0;
+        BOOL r = U(CryptGenKey)(h, AT_KEYEXCHANGE, bits << 16, &k);
+        if (!r) { CHECKF(0, "RSA %lu err 0x%lx", bits, GetLastError()); continue; }
+        EXPECT_EQ(cab_keylen(k), bits);
+        BYTE b[256]; DWORD n = sizeof b;
+        CHECK(U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n));
+        EXPECT_EQ(n, 20 + bits / 8);
+        EXPECT_EQ(bit_length_le(b + 20, bits / 8), bits);
+        cab_kd(k);
+    }
+    cab_rel(h);
+}

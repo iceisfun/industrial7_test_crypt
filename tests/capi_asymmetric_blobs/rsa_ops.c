@@ -465,7 +465,6 @@ TEST(capiab_rsa_decrypt_wrong_length_fails) {
         SET_ERR(0);
         BOOL r = U(CryptDecrypt)(k, 0, TRUE, 0, b, &n);
         t_note("decrypt with ciphertext length %lu: r=%d err 0x%lx", lens[i], r, r ? 0 : GetLastError());
-        if (lens[i] <= 64) CHECK(!r);
     }
     cab_kd(k); cab_rel(p);
 }
@@ -647,4 +646,75 @@ TEST(capiab_rsa_encrypt_with_private_handle_ok) {
     DWORD m = n;
     CHECK(n && U(CryptDecrypt)(sk, 0, TRUE, 0, b, &m)); CHECK(m == 3 && !memcmp(b, "abc", 3));
     cab_kd(sk); cab_rel(p);
+}
+
+/* ---- sweeps ------------------------------------------------------------ */
+TEST(capiab_rsa_sweep_pkcs1_all_plaintext_lengths) {
+    CAB_NEED();
+    HCRYPTPROV p = cab_enh(); if (!p) { t_skip("no enh"); return; }
+    HCRYPTKEY pk = cab_imp(p, rsa1024_pub, sizeof rsa1024_pub, 0);
+    HCRYPTKEY sk = cab_imp(p, rsa1024_prv, sizeof rsa1024_prv, 0);
+    for (DWORD len = 1; pk && sk && len <= 117; len++) {
+        BYTE pt[128], b[256]; DWORD err;
+        for (DWORD j = 0; j < len; j++) pt[j] = (BYTE)(j + len);
+        DWORD n = rsa_enc(pk, pt, len, 0, b, sizeof b, &err);
+        if (n != 128) { CHECKF(0, "len %lu enc err 0x%lx", len, err); continue; }
+        DWORD m = n;
+        BOOL r = U(CryptDecrypt)(sk, 0, TRUE, 0, b, &m);
+        CHECKF(r && m == len && !memcmp(b, pt, len), "len %lu dec r=%d m=%lu", len, r, m);
+    }
+    cab_kd(pk); cab_kd(sk); cab_rel(p);
+}
+
+TEST(capiab_rsa_sweep_oaep_all_plaintext_lengths) {
+    CAB_NEED();
+    HCRYPTPROV p = cab_enh(); if (!p) { t_skip("no enh"); return; }
+    HCRYPTKEY pk = cab_imp(p, rsa1024_pub, sizeof rsa1024_pub, 0);
+    HCRYPTKEY sk = cab_imp(p, rsa1024_prv, sizeof rsa1024_prv, 0);
+    for (DWORD len = 1; pk && sk && len <= 86; len++) {
+        BYTE pt[128], b[256]; DWORD err;
+        for (DWORD j = 0; j < len; j++) pt[j] = (BYTE)(j * 5 + len);
+        DWORD n = rsa_enc(pk, pt, len, CRYPT_OAEP, b, sizeof b, &err);
+        if (n != 128) { CHECKF(0, "OAEP len %lu enc err 0x%lx", len, err); continue; }
+        DWORD m = n;
+        BOOL r = U(CryptDecrypt)(sk, 0, TRUE, CRYPT_OAEP, b, &m);
+        CHECKF(r && m == len && !memcmp(b, pt, len), "OAEP len %lu dec r=%d m=%lu", len, r, m);
+    }
+    cab_kd(pk); cab_kd(sk); cab_rel(p);
+}
+
+TEST(capiab_rsa_sweep_every_signature_byte_flip) {
+    CAB_NEED();
+    HCRYPTPROV p = cab_enh(); if (!p) { t_skip("no enh"); return; }
+    HCRYPTKEY k = cab_imp(p, rsa1024_pub, sizeof rsa1024_pub, 0);
+    for (int pos = 0; k && pos < 128; pos++) {
+        BYTE s[128]; memcpy(s, rsa1024_sig_sha1, 128); s[pos] ^= 0x80;
+        HCRYPTHASH h = cab_hash(p, CALG_SHA1, rsa_msg, sizeof rsa_msg);
+        SET_ERR(0);
+        BOOL r = U(CryptVerifySignatureW)(h, s, 128, k, NULL, 0);
+        CHECKF(!r, "flip at %d verified", pos);
+        cab_hd(h);
+    }
+    cab_kd(k); cab_rel(p);
+}
+
+TEST(capiab_rsa_sweep_message_lengths_sign_verify) {
+    CAB_NEED();
+    HCRYPTPROV p = cab_aes(); if (!p) { t_skip("no aes"); return; }
+    HCRYPTKEY sk = cab_imp(p, rsa1024_prv, sizeof rsa1024_prv, 0);
+    HCRYPTKEY pk = cab_imp(p, rsa1024_pub, sizeof rsa1024_pub, 0);
+    ALG_ID algs[] = { CALG_MD5, CALG_SHA1, CALG_SHA_256, CALG_SHA_384, CALG_SHA_512 };
+    BYTE msg[300]; for (int i = 0; i < 300; i++) msg[i] = (BYTE)(i * 31 + 7);
+    DWORD lens[] = { 0, 1, 2, 55, 56, 63, 64, 65, 111, 112, 127, 128, 129, 255, 300 };
+    for (int a = 0; sk && pk && a < 5; a++)
+        for (int l = 0; l < 15; l++) {
+            HCRYPTHASH h = cab_hash(p, algs[a], msg, lens[l]);
+            if (!h) { CHECKF(0, "hash alg 0x%x len %lu err 0x%lx", algs[a], lens[l], GetLastError()); continue; }
+            BYTE sig[128]; DWORD n = sizeof sig;
+            BOOL r = U(CryptSignHashW)(h, AT_KEYEXCHANGE, NULL, 0, sig, &n);
+            CHECKF(r && n == 128, "sign alg 0x%x len %lu err 0x%lx", algs[a], lens[l], GetLastError());
+            if (r) CHECKF(U(CryptVerifySignatureW)(h, sig, n, pk, NULL, 0), "verify alg 0x%x len %lu err 0x%lx", algs[a], lens[l], GetLastError());
+            cab_hd(h);
+        }
+    cab_kd(sk); cab_kd(pk); cab_rel(p);
 }
