@@ -159,7 +159,7 @@ TEST(sf_s2b_hexaddr_rejects_non_address_start) {
     REQ_S2B();
     DEC_FAIL("01 02 03\r\n", CRYPT_STRING_HEXADDR, ERROR_INVALID_DATA);
     DEC_FAIL("zzzz\t01 02\r\n", CRYPT_STRING_HEXADDR, ERROR_INVALID_DATA);
-    DEC_FAIL("", CRYPT_STRING_HEXADDR, ERROR_INVALID_DATA);
+    DEC_FAIL_AW("", CRYPT_STRING_HEXADDR, ERROR_INVALID_DATA, ERROR_INVALID_PARAMETER);
 }
 TEST(sf_s2b_hexaddr_address_must_advance_by_16) {
     REQ_S2B(); BYTE d[48]; int i; for (i = 0; i < 48; i++) d[i] = (BYTE)(i + 1);

@@ -145,7 +145,8 @@ TEST(sf_s2n_whitespace_handling) {
 TEST(sf_s2n_quoted_value_with_separators) {
     REQ_S2N();
     S2N("O=\"Acme, Inc.\", CN=x", CERT_X500_NAME_STR, { 1, "2.5.4.10", PS, "Acme, Inc.", -1 }, { 1, "2.5.4.3", PS, "x", -1 });
-    S2N("O=\"a;b\", CN=x", CERT_X500_NAME_STR, { 1, "2.5.4.10", PS, "a;b", -1 }, { 1, "2.5.4.3", PS, "x", -1 });
+    /* ';' is not a PrintableString character, so the value is encoded as BMPString (probed) */
+    S2N("O=\"a;b\", CN=x", CERT_X500_NAME_STR, { 1, "2.5.4.10", BM, "\0a\0;\0b", 6 }, { 1, "2.5.4.3", PS, "x", -1 });
 }
 TEST(sf_s2n_doubled_quote_inside_quotes) {
     REQ_S2N(); static const BYTE v[] = { 0, 'a', 0, '"', 0, 'b' };
@@ -166,7 +167,8 @@ TEST(sf_s2n_plus_makes_multivalued_rdn) {
     CHECK(fa(X509_ASN_ENCODING, "CN=a + OU=b + O=c", CERT_X500_NAME_STR, NULL, g_out, &n, NULL));
     nb.cbData = n; nb.pbData = g_out;
     k = n2sw(X509_ASN_ENCODING, &nb, CERT_X500_NAME_STR, out, 128);
-    CHECK(!lstrcmpW(out, L"CN=a + OU=b + O=c"));
+    /* the attributes of a multi-valued RDN are stored in DER SET OF order (O before OU) (probed) */
+    CHECK(!lstrcmpW(out, L"CN=a + O=c + OU=b"));
 }
 TEST(sf_s2n_no_plus_flag_plus_is_data) {
     REQ_S2N();
@@ -216,10 +218,13 @@ TEST(sf_s2n_empty_string_is_empty_sequence) {
 }
 TEST(sf_s2n_null_string_is_empty_sequence) {
     REQ_S2N(); BYTE out[8]; DWORD n = sizeof out;
-    CHECK(fa(X509_ASN_ENCODING, NULL, CERT_X500_NAME_STR, NULL, out, &n, NULL));
+    /* A rejects a NULL string (probed: FALSE, *pcbEncoded 0, last error left at 0); W treats it as the empty name */
+    memset(out, 0xAA, sizeof out); SET_ERR(0);
+    CHECK(!fa(X509_ASN_ENCODING, NULL, CERT_X500_NAME_STR, NULL, out, &n, NULL));
+    EXPECT_ERR(0); EXPECT_EQ(n, 0); EXPECT_EQ(out[0], 0xAA);
+    n = 0xabcd; SET_ERR(0); CHECK(!fa(X509_ASN_ENCODING, NULL, CERT_X500_NAME_STR, NULL, NULL, &n, NULL)); EXPECT_ERR(0); EXPECT_EQ(n, 0);
+    n = sizeof out; CHECK(fw(X509_ASN_ENCODING, NULL, CERT_X500_NAME_STR, NULL, out, &n, NULL));
     EXPECT_EQ(n, 2); EXPECT_EQ(out[0], 0x30); EXPECT_EQ(out[1], 0);
-    n = sizeof out; CHECK(fw(X509_ASN_ENCODING, NULL, CERT_X500_NAME_STR, NULL, out, &n, NULL)); EXPECT_EQ(n, 2);
-    n = 0; CHECK(fa(X509_ASN_ENCODING, NULL, CERT_X500_NAME_STR, NULL, NULL, &n, NULL)); EXPECT_EQ(n, 2);
 }
 TEST(sf_s2n_empty_string_ignores_invalid_type) {
     REQ_S2N(); BYTE out[8]; DWORD n = sizeof out;
@@ -258,8 +263,8 @@ TEST(sf_s2n_bogus_encoding_type) {
     SET_ERR(0);
     CHECK(!fw(0, L"CN=1", 0, NULL, NULL, &n, NULL)); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     SET_ERR(0);
-    CHECK(!fa(PKCS_7_ASN_ENCODING, "CN=1", 0, NULL, NULL, &n, NULL));
-    t_note("PKCS_7 only encoding type: err=%lu", GetLastError());
+    /* PKCS_7_ASN_ENCODING alone is accepted and encodes like X509 (probed: 14 bytes) */
+    CHECK(fa(PKCS_7_ASN_ENCODING, "CN=1", 0, NULL, NULL, &n, NULL)); EXPECT_EQ(n, 14);
 }
 TEST(sf_s2n_syntax_errors_report_position) {
     REQ_S2N();

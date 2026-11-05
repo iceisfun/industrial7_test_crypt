@@ -288,7 +288,7 @@ TEST(sf_b2s_hashdata_hex) {
     B2S("abc", 3, CRYPT_STRING_HEXRAW | CRYPT_STRING_HASHDATA | CRYPT_STRING_NOCRLF, "a9993e364706816aba3e25717850c26c9cd0d89d");
     B2S("abc", 3, CRYPT_STRING_HEXRAW | CRYPT_STRING_HASHDATA, "a9993e364706816aba3e25717850c26c9cd0d89d\r\n");
     B2S("abc", 3, CRYPT_STRING_HEX | CRYPT_STRING_HASHDATA | CRYPT_STRING_NOCRLF,
-        "a9 99 3e 36 47 06 81 6a  ba 3e 25 71 78 50 c2 6c  9c d0 d8 9d");
+        "a9 99 3e 36 47 06 81 6a ba 3e 25 71 78 50 c2 6c 9c d0 d8 9d"); /* NOCRLF collapses the double space at column 8 (probed) */
 }
 TEST(sf_b2s_hashdata_binary_is_20_bytes) {
     REQ_B2S();

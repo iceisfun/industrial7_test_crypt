@@ -173,16 +173,21 @@ static void sf_expect_dec(const char *file, int line, const char *s, DWORD cch, 
 }
 #define DEC_OK(s, fl, exp, explen) sf_expect_dec(__FILE__, __LINE__, (s), 0, (fl), (exp), (explen))
 #define DEC_OK_STR(s, fl, expstr) sf_expect_dec(__FILE__, __LINE__, (s), 0, (fl), (expstr), (DWORD)strlen(expstr))
-static void sf_expect_decfail(const char *file, int line, const char *s, DWORD cch, DWORD fl, DWORD err)
+static void sf_expect_decfail2(const char *file, int line, const char *s, DWORD cch, DWORD fl, DWORD errA, DWORD errW)
 {
     int wide;
     for (wide = 0; wide < 2; wide++) {
+        DWORD err = wide ? errW : errA;
         sf_dec d; sf_decode(s, cch, fl, wide, &d);
         t_check(!d.ok, file, line, wide ? "W decode must fail" : "A decode must fail", "fl=%#lx input '%.60s'", fl, s);
-        if (!d.ok) t_check(d.err == err, file, line, "decode error code", "got %lu want %lu fl=%#lx input '%.60s'", d.err, err, fl, s);
+        if (!d.ok) t_check(d.err == err, file, line, "decode error code", "got %lu want %lu fl=%#lx input '%.60s' %s", d.err, err, fl, s, wide ? "W" : "A");
     }
 }
-#define DEC_FAIL(s, fl, err) sf_expect_decfail(__FILE__, __LINE__, (s), 0, (fl), (err))
+static void sf_expect_decfail(const char *file, int line, const char *s, DWORD cch, DWORD fl, DWORD err)
+{ sf_expect_decfail2(file, line, s, cch, fl, err, err); }
+#define DEC_FAIL(s, fl, err) sf_expect_decfail2(__FILE__, __LINE__, (s), 0, (fl), (err), (err))
+/* empty input with cch == 0: the A entry point reports ERROR_INVALID_DATA, the W entry point ERROR_INVALID_PARAMETER (probed) */
+#define DEC_FAIL_AW(s, fl, errA, errW) sf_expect_decfail2(__FILE__, __LINE__, (s), 0, (fl), (errA), (errW))
 
 /* HRESULT-or-Win32 last-error check by value */
 #define EXPECT_LE(v) do { DWORD e_ = GetLastError(); t_check(e_ == (DWORD)(v), __FILE__, __LINE__, #v, "GetLastError got %#lx want %#lx", e_, (DWORD)(v)); } while (0)

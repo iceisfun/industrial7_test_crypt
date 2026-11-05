@@ -76,7 +76,7 @@ TEST(sf_hexaddr_literals) {
     B2S(d, 17, CRYPT_STRING_HEXADDR | CRYPT_STRING_NOCR, "0000\t00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f\n0010\t10\n");
 }
 TEST(sf_hexaddr_address_grows_in_hex) {
-    REQ_B2S(); init_d(); char buf[8192]; DWORD n = sizeof buf; BYTE *big = malloc(5000); int i;
+    REQ_B2S(); init_d(); static char buf[32768]; DWORD n = sizeof buf; BYTE *big = malloc(5000); int i;
     for (i = 0; i < 5000; i++) big[i] = (BYTE)i;
     CHECK(fa(big, 5000, CRYPT_STRING_HEXADDR, buf, &n));
     CHECK(strstr(buf, "\r\n0100\t") != NULL);

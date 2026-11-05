@@ -103,7 +103,9 @@ TEST(sf_s2b_base64_incomplete_padding) {
     REQ_S2B();
     DEC_FAIL("QQ=", CRYPT_STRING_BASE64, ERROR_INVALID_DATA);
     DEC_FAIL("QQ=", CRYPT_STRING_BASE64 | CRYPT_STRING_STRICT, ERROR_INVALID_DATA);
-    DEC_FAIL("QUI==", CRYPT_STRING_BASE64 | CRYPT_STRING_STRICT, ERROR_INVALID_DATA);
+    /* surplus padding is tolerated, also in strict mode (probed) */
+    DEC_OK_STR("QUI==", CRYPT_STRING_BASE64 | CRYPT_STRING_STRICT, "AB");
+    DEC_OK_STR("QUI==", CRYPT_STRING_BASE64, "AB");
     /* a completely unpadded tail is accepted, also in strict mode */
     DEC_OK_STR("QQ", CRYPT_STRING_BASE64 | CRYPT_STRING_STRICT, "A");
     DEC_OK_STR("QUI", CRYPT_STRING_BASE64 | CRYPT_STRING_STRICT, "AB");
@@ -239,7 +241,8 @@ TEST(sf_s2b_short_buffer_matrix) {
         SET_ERR(0);
         r = fa("Zm9vYmE=", 0, CRYPT_STRING_BASE64, out, &n, NULL, NULL);
         if (cap >= 5) { CHECKF(r, "cap %lu", cap); EXPECT_EQ(n, 5); CHECK(!memcmp(out, "fooba", 5)); }
-        else { CHECKF(!r, "cap %lu", cap); EXPECT_ERR(ERROR_MORE_DATA); EXPECT_EQ(n, cap); }
+        /* a padded final quantum reports ERROR_INVALID_DATA (not MORE_DATA) for a buffer smaller than the result (probed) */
+        else { CHECKF(!r, "cap %lu", cap); EXPECT_ERR(ERROR_INVALID_DATA); EXPECT_EQ(n, cap); }
         CHECKF(out[8] == 0xAA, "guard cap %lu", cap);
     }
 }
@@ -353,7 +356,7 @@ TEST(sf_s2b_header_missing_header_fails) {
 }
 TEST(sf_s2b_header_empty_string_fails) {
     REQ_S2B();
-    DEC_FAIL("", CRYPT_STRING_BASE64HEADER, ERROR_INVALID_DATA);
+    DEC_FAIL_AW("", CRYPT_STRING_BASE64HEADER, ERROR_INVALID_DATA, ERROR_INVALID_PARAMETER);
 }
 TEST(sf_s2b_header_label_is_arbitrary) {
     REQ_S2B();
@@ -445,10 +448,12 @@ TEST(sf_s2b_any_request_header_text) {
     DEC_OK_STR("-----BEGIN NEW CERTIFICATE REQUEST-----\r\nZm9v\r\n-----END NEW CERTIFICATE REQUEST-----\r\n", CRYPT_STRING_ANY, "foo");
 }
 TEST(sf_s2b_any_binary_fallback_a) {
-    REQ_S2B(); BYTE out[16]; DWORD n = 16, fg = 0; BYTE in[] = { 0x01, 0x02, 0x03, 0xfe };
-    SET_ERR(0);
+    REQ_S2B(); BYTE out[16]; DWORD n = 0, fg = 0; BYTE in[] = { 0x01, 0x02, 0x03, 0xfe };
+    /* the binary fallback copies *pcbBinary bytes and leaves it unchanged: size it with a query first */
+    CHECK(fa((LPCSTR)in, 4, CRYPT_STRING_ANY, NULL, &n, NULL, &fg)); EXPECT_EQ(n, 4); EXPECT_EQ(fg, CRYPT_STRING_BINARY);
+    memset(out, 0xAA, sizeof out); fg = 0;
     BOOL r = fa((LPCSTR)in, 4, CRYPT_STRING_ANY, out, &n, NULL, &fg);
-    CHECK(r); if (r) { EXPECT_EQ(n, 4); CHECK(!memcmp(out, in, 4)); t_note("ANY on raw bytes reports format %lu", fg); }
+    CHECK(r); if (r) { EXPECT_EQ(n, 4); CHECK(!memcmp(out, in, 4)); EXPECT_EQ(out[4], 0xAA); EXPECT_EQ(fg, CRYPT_STRING_BINARY); }
 }
 TEST(sf_s2b_any_w_failure_maps_error) {
     REQ_S2B(); BYTE out[16]; DWORD n = 16; SET_ERR(0);
@@ -466,9 +471,11 @@ TEST(sf_s2b_base64_any_rejects_garbage) {
     EXPECT_ERR(ERROR_INVALID_DATA);
 }
 TEST(sf_s2b_any_a_falls_back_to_binary_for_garbage) {
-    REQ_S2B(); BYTE out[16]; DWORD n = 16, fg = 0, sk = 9;
+    REQ_S2B(); BYTE out[16]; DWORD n = 0, fg = 0, sk = 9;
+    CHECK(fa("====", 0, CRYPT_STRING_ANY, NULL, &n, &sk, &fg)); EXPECT_EQ(n, 4);
+    memset(out, 0xAA, sizeof out); fg = 0; sk = 9;
     CHECK(fa("====", 0, CRYPT_STRING_ANY, out, &n, &sk, &fg));
-    EXPECT_EQ(n, 4); CHECK(!memcmp(out, "====", 4)); EXPECT_EQ(fg, CRYPT_STRING_BINARY); EXPECT_EQ(sk, 0);
+    EXPECT_EQ(n, 4); CHECK(!memcmp(out, "====", 4)); EXPECT_EQ(out[4], 0xAA); EXPECT_EQ(fg, CRYPT_STRING_BINARY); EXPECT_EQ(sk, 0);
 }
 TEST(sf_s2b_any_flag_reports_base64url) {
     REQ_S2B(); sf_dec d;
@@ -541,24 +548,34 @@ TEST(sf_s2b_percentescape_bad_hex_fails) {
 
 /* ---------------- BINARY ---------------- */
 TEST(sf_s2b_binary_copies_bytes) {
-    REQ_S2B(); BYTE in[] = { 0, 1, 2, 3, 0xff, 0x80, 'x' }, out[16]; DWORD n = 16, fg = 99, sk = 99;
+    REQ_S2B(); BYTE in[] = { 0, 1, 2, 3, 0xff, 0x80, 'x' }, out[16]; DWORD n = 7, fg = 99, sk = 99;
+    memset(out, 0xAA, sizeof out);
     SET_ERR(0);
     CHECK(fa((LPCSTR)in, 7, CRYPT_STRING_BINARY, out, &n, &sk, &fg));
-    EXPECT_EQ(n, 7); CHECK(!memcmp(out, in, 7)); EXPECT_EQ(sk, 0); EXPECT_EQ(fg, CRYPT_STRING_BINARY);
+    EXPECT_EQ(n, 7); CHECK(!memcmp(out, in, 7)); EXPECT_EQ(out[7], 0xAA); EXPECT_EQ(sk, 0); EXPECT_EQ(fg, CRYPT_STRING_BINARY);
 }
 TEST(sf_s2b_binary_size_query) {
     REQ_S2B(); BYTE in[] = { 5, 6, 7 }; DWORD n = 0xdead;
     CHECK(fa((LPCSTR)in, 3, CRYPT_STRING_BINARY, NULL, &n, NULL, NULL)); EXPECT_EQ(n, 3);
 }
 TEST(sf_s2b_binary_short_buffer) {
-    REQ_S2B(); BYTE in[] = { 5, 6, 7 }, out[4]; DWORD n = 2; SET_ERR(0);
-    CHECK(!fa((LPCSTR)in, 3, CRYPT_STRING_BINARY, out, &n, NULL, NULL)); EXPECT_ERR(ERROR_MORE_DATA);
+    /* BINARY never reports ERROR_MORE_DATA: with a buffer it copies *pcbBinary bytes from the input (not cchString) and leaves *pcbBinary as is */
+    REQ_S2B(); BYTE in[16] = { 5, 6, 7, 8, 9, 10 }, out[16]; DWORD n = 2; memset(out, 0xAA, sizeof out);
+    CHECK(fa((LPCSTR)in, 3, CRYPT_STRING_BINARY, out, &n, NULL, NULL)); EXPECT_EQ(n, 2);
+    EXPECT_EQ(out[0], 5); EXPECT_EQ(out[1], 6); EXPECT_EQ(out[2], 0xAA);
+    n = 5; memset(out, 0xAA, sizeof out);
+    CHECK(fa((LPCSTR)in, 3, CRYPT_STRING_BINARY, out, &n, NULL, NULL)); EXPECT_EQ(n, 5);
+    CHECK(!memcmp(out, in, 5)); EXPECT_EQ(out[5], 0xAA);
 }
 TEST(sf_s2b_binary_cch_zero_uses_strlen) {
-    REQ_S2B(); BYTE out[16]; DWORD n = 16;
-    CHECK(fa("hello", 0, CRYPT_STRING_BINARY, out, &n, NULL, NULL)); EXPECT_EQ(n, 5); CHECK(!memcmp(out, "hello", 5));
+    REQ_S2B(); BYTE out[16]; DWORD n = 0;
+    CHECK(fa("hello", 0, CRYPT_STRING_BINARY, NULL, &n, NULL, NULL)); EXPECT_EQ(n, 5);
+    memset(out, 0xAA, sizeof out);
+    CHECK(fa("hello", 0, CRYPT_STRING_BINARY, out, &n, NULL, NULL)); EXPECT_EQ(n, 5); CHECK(!memcmp(out, "hello", 5)); EXPECT_EQ(out[5], 0xAA);
 }
 TEST(sf_s2b_binary_ignores_cch_nul) {
-    REQ_S2B(); BYTE out[16]; DWORD n = 16;
-    CHECK(fa("ab\0cd", 5, CRYPT_STRING_BINARY, out, &n, NULL, NULL)); EXPECT_EQ(n, 5); CHECK(!memcmp(out, "ab\0cd", 5));
+    REQ_S2B(); BYTE out[16]; DWORD n = 0;
+    CHECK(fa("ab\0cd", 5, CRYPT_STRING_BINARY, NULL, &n, NULL, NULL)); EXPECT_EQ(n, 5);
+    memset(out, 0xAA, sizeof out);
+    CHECK(fa("ab\0cd", 5, CRYPT_STRING_BINARY, out, &n, NULL, NULL)); EXPECT_EQ(n, 5); CHECK(!memcmp(out, "ab\0cd", 5)); EXPECT_EQ(out[5], 0xAA);
 }
