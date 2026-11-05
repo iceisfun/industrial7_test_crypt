@@ -7,9 +7,10 @@ const char *const wcfg_sip_funcset[9] = { "CryptSIPDllGetSignedDataMsg", "CryptS
     "CryptSIPDllIsMyFileType", "CryptSIPDllIsMyFileType2", "CryptSIPDllGetCaps", NULL };
 
 /* ------------------------------------------------------------------ GUIDs */
-void wcfg_guid(GUID *g, unsigned slot) {
+void wcfg_guid(GUID *g, unsigned slot) { wcfg_guid_for(g, slot, GetCurrentProcessId()); }
+void wcfg_guid_for(GUID *g, unsigned slot, DWORD pid) {
     memset(g, 0, sizeof *g);
-    g->Data1 = GetCurrentProcessId(); g->Data2 = (USHORT)slot; g->Data3 = 0x0C77;
+    g->Data1 = pid; g->Data2 = (USHORT)slot; g->Data3 = 0x0C77;
     memcpy(g->Data4, "cryptt!!", 8);
 }
 void wcfg_guid_str(const GUID *g, wchar_t *out) {
@@ -266,7 +267,7 @@ EXP BOOL WINAPI cryptt_SipIs2(const WCHAR *path, GUID *g) {
     if (ok) { *g = wcfg_sip_guid_for_is2; return TRUE; }
     return FALSE;
 }
-EXP DWORD WINAPI cryptt_SipCaps(void *capset) { wcfg_sipcall_t *c = &wcfg_sipc[SC_CAPS]; c->n++; c->info = capset; return c->ret; }
+EXP BOOL WINAPI cryptt_SipCaps(SIP_SUBJECTINFO *i, void *capset) { wcfg_sipcall_t *c = &wcfg_sipc[SC_CAPS]; c->n++; c->info = i; c->p1 = capset; return c->ret; }
 
 void wcfg_sip_fill(SIP_ADD_NEWPROVIDER_EX *a, const GUID *g, const wchar_t *dll) {
     memset(a, 0, sizeof *a);

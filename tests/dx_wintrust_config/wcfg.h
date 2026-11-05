@@ -13,6 +13,7 @@
  * Data4 = "cryptt!!".  The fixed tail makes leftovers of dead runs recognisable. */
 #define WCFG_SLOTS 64
 void wcfg_guid(GUID *g, unsigned slot);
+void wcfg_guid_for(GUID *g, unsigned slot, DWORD pid);
 void wcfg_guid_str(const GUID *g, wchar_t *out);      /* "{XXXXXXXX-...}" uppercase, 38 chars + NUL */
 
 /* privilege / state gates: 1 = go ahead, 0 = test was skipped (return from the test) */
@@ -81,7 +82,7 @@ void wcfg_sip_reset(void);
 extern const char *const wcfg_sip_names[8];
 extern const wchar_t *const wcfg_sip_wnames[8];
 extern const wchar_t wcfg_magic[];          /* file magic recognised by the in-exe IsMyFileType */
-extern GUID wcfg_sip_guid_for_is;           /* subject returned by IsMyFileType */
+extern GUID wcfg_sip_guid_for_is, wcfg_sip_guid_for_is2;           /* subject returned by IsMyFileType */
 
 typedef struct SIP_ADD_NEWPROVIDER_EX_ {
     DWORD cbStruct; GUID *pgSubject; WCHAR *pwszDLLFileName; WCHAR *pwszMagicNumber; WCHAR *pwszIsFunctionName;
