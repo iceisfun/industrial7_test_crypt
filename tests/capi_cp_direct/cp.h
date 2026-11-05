@@ -150,6 +150,12 @@ static ULONG_PTR cp_key(const cpf *f, ULONG_PTR p, ALG_ID alg, const void *key, 
     if (!cp_import_plain(f, p, alg, key, len, CRYPT_EXPORTABLE | CRYPT_NO_SALT, &k)) return 0;
     return k;
 }
+/* HMAC key: CRYPT_IPSEC_HMAC_KEY lifts the cipher key-size limits for a plaintext RC2 key. */
+static ULONG_PTR cp_hkey(const cpf *f, ULONG_PTR p, const void *key, DWORD len) {
+    ULONG_PTR k = 0;
+    if (!cp_import_plain(f, p, CALG_RC2, key, len, CRYPT_IPSEC_HMAC_KEY, &k)) return 0;
+    return k;
+}
 static BOOL cp_set_mode(const cpf *f, ULONG_PTR p, ULONG_PTR k, DWORD m) { return f->SetKeyParam(p, k, KP_MODE, (BYTE *)&m, 0); }
 static BOOL cp_set_pad(const cpf *f, ULONG_PTR p, ULONG_PTR k, DWORD m) { return f->SetKeyParam(p, k, KP_PADDING, (BYTE *)&m, 0); }
 static BOOL cp_set_iv(const cpf *f, ULONG_PTR p, ULONG_PTR k, const void *iv) { return f->SetKeyParam(p, k, KP_IV, (const BYTE *)iv, 0); }
