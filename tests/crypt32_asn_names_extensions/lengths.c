@@ -51,13 +51,13 @@ TEST(lengths_name_with_long_value_nested_headers) {
     REQUIRE(U(CryptEncodeObjectEx));
     DWORD n = 300;
     BYTE *s = (BYTE *)LocalAlloc(LPTR, n); memset(s, 'x', n);
-    CERT_RDN_ATTR a = { (LPSTR)"2.5.4.3", CERT_RDN_UTF8_STRING, { n, s } };
+    CERT_RDN_ATTR a = { (LPSTR)"2.5.4.3", CERT_RDN_IA5_STRING, { n, s } };
     CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
     /* value: 0c 82 01 2c <300>; attr: 30 82 01 35 06 03 55 04 03 <value 304>; set: 31 82 01 39; seq: 30 82 01 3d */
     DWORD cb = 0; BYTE *p = a_enc(X509_NAME, &ni, 0, &cb);
     CHECK(p != NULL);
     if (p) {
-        static const BYTE head[] = { 0x30, 0x82, 0x01, 0x3d, 0x31, 0x82, 0x01, 0x39, 0x30, 0x82, 0x01, 0x35, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x82, 0x01, 0x2c };
+        static const BYTE head[] = { 0x30, 0x82, 0x01, 0x3d, 0x31, 0x82, 0x01, 0x39, 0x30, 0x82, 0x01, 0x35, 0x06, 0x03, 0x55, 0x04, 0x03, 0x16, 0x82, 0x01, 0x2c };
         CHECK(cb == sizeof head + n && !memcmp(p, head, sizeof head));
         CERT_NAME_INFO *d = a_dec(__FILE__, __LINE__, X509_NAME, p, cb, 0, NULL);
         CHECK(d && d->rgRDN[0].rgRDNAttr[0].Value.cbData == n);
