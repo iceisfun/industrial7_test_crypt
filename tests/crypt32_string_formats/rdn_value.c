@@ -200,3 +200,11 @@ TEST(sf_rv_long_value) {
     r = rv_w(CERT_RDN_PRINTABLE_STRING, v, 2000, out, 4000); EXPECT_EQ(r, 2001); EXPECT_EQ(out[1999], 'a' + 1999 % 26); EXPECT_EQ(out[2000], 0);
     free(out);
 }
+TEST(sf_rv_null_data_blob_any_type) {
+    REQ_RV(); CERT_RDN_VALUE_BLOB b = { 0, NULL }; WCHAR w[4] = { 0x77 }; char a[4] = { 0x77 };
+    SET_ERR(0xdeadbeef);
+    EXPECT_EQ(fa(0, &b, NULL, 0), 1);
+    EXPECT_EQ(fw(0, &b, w, 4), 1); EXPECT_EQ(w[0], 0);
+    EXPECT_EQ(fa(0, &b, a, 4), 1); EXPECT_EQ(a[0], 0);
+    EXPECT_EQ(GetLastError(), 0xdeadbeef);
+}
