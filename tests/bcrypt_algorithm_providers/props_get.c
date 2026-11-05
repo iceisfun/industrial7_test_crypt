@@ -387,6 +387,12 @@ static void f_hash_oid(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     CHECK((UCHAR *)l->pOIDs >= buf && (UCHAR *)(l->pOIDs + cnt) <= buf + need);
     if ((UCHAR *)l->pOIDs >= buf && (UCHAR *)(l->pOIDs + cnt) <= buf + need) {
         for (ULONG i = 0; i < cnt; i++) {
+            if (!wcscmp(a->id, L"MD5") && i == 2) {
+                /* observed on Win10: MD5 reports count=3 but the third entry is empty */
+                EXPECT_EQ(l->pOIDs[i].cbOID, 0);
+                CHECK(l->pOIDs[i].pbOID == NULL);
+                continue;
+            }
             CHECK(l->pOIDs[i].cbOID >= 2);
             CHECK(l->pOIDs[i].pbOID >= buf && l->pOIDs[i].pbOID + l->pOIDs[i].cbOID <= buf + need);
             if (l->pOIDs[i].pbOID >= buf && l->pOIDs[i].pbOID + l->pOIDs[i].cbOID <= buf + need)

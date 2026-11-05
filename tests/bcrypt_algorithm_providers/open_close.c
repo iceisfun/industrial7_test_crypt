@@ -191,7 +191,7 @@ TEST(ap_open_plain_hash_is_not_keyed) {
         NT_OK(AP_CLOSE(h));
     }
 }
-TEST(ap_open_hmac_objectlength_larger_than_plain) {
+TEST(ap_open_hmac_objectlength_not_smaller_than_plain) {
     NEED_CORE();
     for (int i = 0; i < NHASH; i++) {
         BCRYPT_ALG_HANDLE hp = NULL, hm = NULL;
@@ -201,8 +201,14 @@ TEST(ap_open_hmac_objectlength_larger_than_plain) {
         if (hp && hm) {
             NT_OK(ap_getdw(hp, BCRYPT_OBJECT_LENGTH, &lp, &cb));
             NT_OK(ap_getdw(hm, BCRYPT_OBJECT_LENGTH, &lm, &cb));
+            /* exact Win10 values: MD2/MD4 HMAC state is not larger than plain */
+            static const struct { const WCHAR *id; ULONG p, m; } ex[] = {
+                {L"MD2",310,310},{L"MD4",310,310},{L"MD5",310,374},{L"SHA1",326,422},
+                {L"SHA256",326,422},{L"SHA384",422,582},{L"SHA512",422,582}};
+            for (size_t k = 0; k < sizeof(ex)/sizeof(ex[0]); k++)
+                if (!wcscmp(hash_algs[i]->id, ex[k].id)) { t_label("%ls", ex[k].id); EXPECT_EQ(lp, ex[k].p); EXPECT_EQ(lm, ex[k].m); t_label(NULL); }
             CHECK(lp > 0);
-            CHECK(lm > lp);       /* HMAC keeps inner and outer state */
+            CHECK(lm >= lp);
         }
         if (hp) AP_CLOSE(hp);
         if (hm) AP_CLOSE(hm);
