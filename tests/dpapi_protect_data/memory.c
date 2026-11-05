@@ -221,11 +221,12 @@ TEST(dpapi_sysfn_resolve_in_cryptbase) {
 }
 TEST(dpapi_sysfn_resolve_forwarded) {
     DP_NOT_WINE();
-    FARPROC a = t_proc_in("advapi32.dll", "SystemFunction040"), c = t_proc_in("cryptsp.dll", "SystemFunction040");
-    CHECK(a != NULL); CHECK(c != NULL);
-    FARPROC b = t_proc_in("cryptbase.dll", "SystemFunction040");
-    if (a && b) CHECK(a == b);        /* advapi32 forwards to cryptbase */
-    if (c && b) CHECK(c == b);
+    FARPROC a = t_proc_in("advapi32.dll", "SystemFunction040"), b = t_proc_in("cryptbase.dll", "SystemFunction040");
+    FARPROC a1 = t_proc_in("advapi32.dll", "SystemFunction041"), b1 = t_proc_in("cryptbase.dll", "SystemFunction041");
+    CHECK(a != NULL); CHECK(a1 != NULL);
+    CHECK(a == b);        /* advapi32 forwards to CRYPTBASE */
+    CHECK(a1 == b1);
+    CHECK(a != a1);
 }
 TEST(dpapi_sysfn_bad_flags_status_invalid_parameter) {
     DP_NOT_WINE();
@@ -264,14 +265,28 @@ TEST(dpapi_sysfn_wrapper_equivalence) {
     CHECK(g(b, 32, 2) == 0);
     CHECK(!memcmp(b, o, 32));
 }
-TEST(dpapi_mem_crypt32_forward_target) {
-    DP_NEED_MEM();
-    FARPROC a = t_proc_in("crypt32.dll", "CryptProtectMemory");
-    CHECK(a != NULL);
-    /* the exports of crypt32 are real code (decomp), not forwarders: they live inside crypt32 */
-    HMODULE m = t_module("crypt32.dll"), h = NULL;
-    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &h);
-    if (!t_is_wine()) CHECK(h == m);
+TEST(dpapi_mem_crypt32_forwards_to_dpapi) {
+    DP_NOT_WINE();
+    /* crypt32 exports CryptProtectMemory/CryptUnprotectMemory/CryptUpdateProtectedState as forwarders to DPAPI.dll */
+    static const char *const n[] = { "CryptProtectMemory", "CryptUnprotectMemory", "CryptUpdateProtectedState" };
+    for (int i = 0; i < 3; i++) {
+        FARPROC a = t_proc_in("crypt32.dll", n[i]), b = t_proc_in("dpapi.dll", n[i]);
+        CHECKF(a != NULL && b != NULL, "%s", n[i]);
+        CHECKF(a == b, "%s: crypt32 %p dpapi %p", n[i], a, b);
+    }
+}
+TEST(dpapi_data_crypt32_exports_are_not_forwarders) {
+    DP_NOT_WINE();
+    /* CryptProtectData / CryptUnprotectData are implemented in crypt32 itself */
+    static const char *const n[] = { "CryptProtectData", "CryptUnprotectData" };
+    HMODULE m = t_module("crypt32.dll");
+    for (int i = 0; i < 2; i++) {
+        FARPROC a = t_proc_in("crypt32.dll", n[i]);
+        CHECKF(a != NULL, "%s", n[i]);
+        HMODULE h = NULL;
+        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &h);
+        CHECKF(h == m, "%s lives in %p", n[i], h);
+    }
 }
 
 /* ---- threads ---- */
