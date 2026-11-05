@@ -56,7 +56,7 @@ TEST(pfxp_acquire_ksp_key_properties_ec) {
     if (ACQ(c, CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG, &h, &spec, &cf)) {
         WCHAR g[64]; DWORD cb = 0, bits = 0;
         EXPECT_HR(U(NCryptGetProperty)(h, NCRYPT_ALGORITHM_GROUP_PROPERTY, (PBYTE)g, sizeof g, &cb, 0), 0);
-        CHECK(!lstrcmpW(g, NCRYPT_ECDSA_ALGORITHM_GROUP));
+        EXPECT_WSTR(g, L"ECDH"); /* a PFX EC key lands in the ECDH group, not ECDSA */
         EXPECT_HR(U(NCryptGetProperty)(h, NCRYPT_LENGTH_PROPERTY, (PBYTE)&bits, 4, &cb, 0), 0);
         EXPECT_EQ(bits, 256);
         pk_release(h, spec, cf);
@@ -153,9 +153,7 @@ TEST(pfxp_acquire_silent_and_window_handle_conflict) {
 TEST(pfxp_acquire_null_cert) {
     PK_NEEDS();
     HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD sp = 0; BOOL cf = FALSE;
-    SET_ERR(0);
-    CHECK(!ACQ(NULL, 0, &h, &sp, &cf));
-    EXPECT_HR(GetLastError(), E_INVALIDARG);
+    T_EXPECT_FAULT(ACQ(NULL, 0, &h, &sp, &cf));
 }
 TEST(pfxp_acquire_no_key_property) {
     PK_NEEDS();

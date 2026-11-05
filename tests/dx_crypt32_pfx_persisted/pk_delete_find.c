@@ -23,7 +23,7 @@ DETACH_TEST(rsa_ksp, fx_rsa_pfx, PKCS12_ALWAYS_CNG_KSP)
 DETACH_TEST(ec,      fx_ec_pfx, 0)
 
 /* ---- CNG delete ---------------------------------------------------------------------------------- */
-#define NCDEL_TEST(nm, fx, imp) TEST(pfxp_delete_ncrypt_##nm) { \
+#define NCDEL_TEST(nm, fx, imp, werr) TEST(pfxp_delete_ncrypt_##nm) { \
     PK_SETUP(fx, imp); CRYPT_KEY_PROV_INFO *i = pk_info(c); \
     HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD sp = 0; BOOL cf = FALSE; \
     CHECK(i != NULL); \
@@ -35,12 +35,13 @@ DETACH_TEST(ec,      fx_ec_pfx, 0)
         SET_ERR(0); \
         CHECK(!U(CryptAcquireCertificatePrivateKey)(c, CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG | CRYPT_ACQUIRE_SILENT_FLAG, NULL, &h, &sp, &cf)); \
         t_note("acquire after NCryptDeleteKey: 0x%08lx", GetLastError()); \
-        CHECK(GetLastError() == NTE_BAD_KEYSET || GetLastError() == NTE_NO_KEY); \
+        EXPECT_ERR(werr); \
     } \
     pk_free_info(i); pk_done(c, s); }
-NCDEL_TEST(rsa_ksp, fx_rsa_pfx, PKCS12_ALWAYS_CNG_KSP)
-NCDEL_TEST(ec,      fx_ec_pfx, 0)
-NCDEL_TEST(ec_exportable, fx_ec_pfx, CRYPT_EXPORTABLE)
+NCDEL_TEST(rsa_ksp, fx_rsa_pfx, PKCS12_ALWAYS_CNG_KSP, NTE_BAD_KEYSET)
+NCDEL_TEST(ec,      fx_ec_pfx, 0, NTE_BAD_KEYSET)
+/* observed on Win10 22H2: the exportable EC key reports 0x12a (not NTE_BAD_KEYSET), stable across runs */
+NCDEL_TEST(ec_exportable, fx_ec_pfx, CRYPT_EXPORTABLE, 0x12a)
 
 TEST(pfxp_delete_ncrypt_second_delete_fails) {
     PK_SETUP(fx_rsa_pfx, PKCS12_ALWAYS_CNG_KSP);

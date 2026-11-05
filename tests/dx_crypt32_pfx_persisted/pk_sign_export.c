@@ -9,7 +9,7 @@ static const BYTE *sig_be(void) { return fx_rsa_sig_be; }
     BYTE sig[512]; DWORD len = sizeof sig, spec = 0; \
     DWORD r = pk_sign(c, acq, sig, &len, &spec); \
     EXPECT_HR(r, 0); \
-    if (!r) { EXPECT_EQ(len, 256); CHECK(!memcmp(sig, sig_be(), 256)); EXPECT_HR(pk_verify(c, sig, len), 0); } \
+    if (!r) { EXPECT_EQ(len, 256); if (!pk_sha1) CHECK(!memcmp(sig, sig_be(), 256)); EXPECT_HR(pk_verify(c, sig, len), 0); } \
     pk_done(c, s); }
 RSA_SIGN_TEST(default,        0, 0)
 RSA_SIGN_TEST(default_silent, 0, CRYPT_ACQUIRE_SILENT_FLAG)
@@ -59,7 +59,7 @@ TEST(pfxp_sign_rsa_ksp_signature_size_query) {
 static int key_exportable(PCCERT_CONTEXT c, int *known) {
     HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD spec = 0, v = 0, cb = 0; BOOL cf = FALSE; int r = 0;
     *known = 0;
-    if (!U(CryptAcquireCertificatePrivateKey)(c, CRYPT_ACQUIRE_SILENT_FLAG, NULL, &h, &spec, &cf)) return 0;
+    if (!U(CryptAcquireCertificatePrivateKey)(c, CRYPT_ACQUIRE_SILENT_FLAG | CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG, NULL, &h, &spec, &cf)) return 0;
     if (spec == CERT_NCRYPT_KEY_SPEC) {
         if (!U(NCryptGetProperty)(h, NCRYPT_EXPORT_POLICY_PROPERTY, (PBYTE)&v, 4, &cb, 0)) { *known = 1; r = (v & NCRYPT_ALLOW_EXPORT_FLAG) != 0; }
     } else {
@@ -140,8 +140,9 @@ TEST(pfxp_export_key_exportable_ksp) {
     PK_SETUP(fx_rsa_pfx, PKCS12_ALWAYS_CNG_KSP | CRYPT_EXPORTABLE);
     HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD spec = 0, n = 0; BOOL cf = FALSE;
     if (U(CryptAcquireCertificatePrivateKey)(c, CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG, NULL, &h, &spec, &cf)) {
-        EXPECT_HR(U(NCryptExportKey)(h, 0, BCRYPT_RSAFULLPRIVATE_BLOB, NULL, NULL, 0, &n, 0), 0);
-        t_note("exportable KSP key: plaintext full private blob size %lu", n);
+        { DWORD pol = 0, pc = 0; EXPECT_HR(U(NCryptGetProperty)(h, NCRYPT_EXPORT_POLICY_PROPERTY, (PBYTE)&pol, 4, &pc, 0), 0); EXPECT_EQ(pol, NCRYPT_ALLOW_EXPORT_FLAG); }
+        /* CRYPT_EXPORTABLE grants only the encrypted export; a plaintext blob needs NCRYPT_ALLOW_PLAINTEXT_EXPORT_FLAG */
+        EXPECT_HR(U(NCryptExportKey)(h, 0, BCRYPT_RSAFULLPRIVATE_BLOB, NULL, NULL, 0, &n, 0), 0x80090029);
         n = 0;
         SECURITY_STATUS st = U(NCryptExportKey)(h, 0, BCRYPT_RSAPUBLIC_BLOB, NULL, NULL, 0, &n, 0);
         EXPECT_HR(st, 0);
@@ -182,7 +183,7 @@ static BOOL export_store(HCERTSTORE s, CRYPT_DATA_BLOB *o, LPCWSTR pw, DWORD fl)
         if (s2) { PCCERT_CONTEXT c2 = pk_first(s2); CHECK(c2 != NULL); \
             if (c2) { CHECK(c2->cbCertEncoded == sizeof der && !memcmp(c2->pbCertEncoded, der, sizeof der)); CHECK(has_key_context(c2)); \
                 BYTE sig[512]; DWORD len = sizeof sig, sp; \
-                DWORD r = pk_sign(c2, 0, sig, &len, &sp); EXPECT_HR(r, 0); \
+                DWORD r = pk_sign_keyctx(c2, sig, &len, &sp); EXPECT_HR(r, 0); \
                 if (!r) EXPECT_HR(pk_verify(c2, sig, len), 0); \
                 U(CertFreeCertificateContext)(c2); } \
             U(CertCloseStore)(s2, 0); } \
@@ -266,9 +267,10 @@ TEST(pfxp_pfx_export_report_no_private_key_on_keyless_cert) {
     CHECK(s != NULL); if (!s) return;
     CHECK(U(CertAddEncodedCertificateToStore)(s, X509_ASN_ENCODING, fx_rsa_der, sizeof fx_rsa_der, CERT_STORE_ADD_ALWAYS, NULL));
     CRYPT_DATA_BLOB o = {0, NULL}; SET_ERR(0);
-    CHECK(!U(PFXExportCertStoreEx)(s, &o, L"pw", NULL, EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY));
-    t_note("REPORT_NO_PRIVATE_KEY on keyless cert: err 0x%08lx", GetLastError());
-    CHECK(GetLastError() != 0);
+    /* the size query succeeds for a keyless cert even with REPORT_NO_PRIVATE_KEY; last error is left alone */
+    CHECK(U(PFXExportCertStoreEx)(s, &o, L"pw", NULL, EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY));
+    EXPECT_ERR(0);
+    EXPECT_NE(o.cbData, 0);
     CHECK(U(PFXExportCertStoreEx)(s, &o, L"pw", NULL, EXPORT_PRIVATE_KEYS));
     U(CertCloseStore)(s, 0);
 }
@@ -282,7 +284,7 @@ TEST(pfxp_pfx_export_report_no_private_key_on_keyless_cert) {
         if (s2) { PCCERT_CONTEXT c2 = pk_first(s2); CHECK(c2 != NULL); \
             if (c2) { CRYPT_KEY_PROV_INFO *i = pk_info(c2); CHECK(i != NULL); \
                 if (i) { EXPECT_EQ(pk_open_status(i), 0); pk_free_info(i); } \
-                BYTE sig[512]; DWORD len = sizeof sig, sp; DWORD r = pk_sign(c2, 0, sig, &len, &sp); EXPECT_HR(r, 0); \
+                BYTE sig[512]; DWORD len = sizeof sig, sp; DWORD r = pk_sign(c2, CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG, sig, &len, &sp); EXPECT_HR(r, 0); \
                 if (!r) EXPECT_HR(pk_verify(c2, sig, len), 0); } \
             pk_done(c2, s2); } \
         LocalFree(o.pbData); } else CHECKF(0, "export failed %lx", GetLastError()); \

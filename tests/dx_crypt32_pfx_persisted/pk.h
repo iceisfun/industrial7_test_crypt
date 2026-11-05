@@ -13,7 +13,8 @@
 
 #define PK_PW L"cryptt-pw"
 #define S32(x) ((DWORD)(x))
-#define EXPECT_HR(a, b) t_check(S32(a) == S32(b), __FILE__, __LINE__, #a " == " #b, "got 0x%08lx want 0x%08lx", S32(a), S32(b))
+static inline void pk_expect_hr(DWORD a, DWORD b, const char *f, int l, const char *e) { t_check(a == b, f, l, e, "got 0x%08lx want 0x%08lx", a, b); }
+#define EXPECT_HR(a, b) pk_expect_hr(S32(a), S32(b), __FILE__, __LINE__, #a " == " #b)
 #ifndef PKCS12_IMPORT_SILENT
 #define PKCS12_IMPORT_SILENT 0x40
 #endif
@@ -164,10 +165,9 @@ static inline int pk_is_ksp(const CRYPT_KEY_PROV_INFO *i) { return i && i->dwPro
 
 /* Sign fx_hash (SHA-256) with the key behind the cert. RSA: PKCS#1 v1.5 big-endian signature; EC: raw r||s.
  * Returns 0 on success. */
-static DWORD pk_sign(PCCERT_CONTEXT c, DWORD acqflags, BYTE *sig, DWORD *plen, DWORD *pspec) {
-    HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD spec = 0; BOOL cf = FALSE; DWORD r = 0;
-    if (!U(CryptAcquireCertificatePrivateKey)(c, acqflags, NULL, &h, &spec, &cf)) return GetLastError();
-    if (pspec) *pspec = spec;
+static int pk_sha1; /* set by pk_sign: 1 when the legacy CSP signed a SHA-1 hash (the Enhanced CSP has no SHA-256) */
+static DWORD pk_sign_h(PCCERT_CONTEXT c, HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h, DWORD spec, BYTE *sig, DWORD *plen) {
+    DWORD r = 0;
     if (spec == CERT_NCRYPT_KEY_SPEC) {
         BCRYPT_PKCS1_PADDING_INFO pi; void *pad = NULL; DWORD fl = 0;
         int rsa = !strcmp(c->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId, "1.2.840.113549.1.1.1");
@@ -175,22 +175,40 @@ static DWORD pk_sign(PCCERT_CONTEXT c, DWORD acqflags, BYTE *sig, DWORD *plen, D
         r = (DWORD)U(NCryptSignHash)(h, pad, (PBYTE)fx_hash, 32, sig, *plen, plen, fl);
     } else {
         HCRYPTHASH hh = 0; DWORD i, n;
-        if (!U(CryptCreateHash)(h, CALG_SHA_256, 0, 0, &hh)) r = GetLastError();
+        pk_sha1 = 1;
+        if (!U(CryptCreateHash)(h, CALG_SHA1, 0, 0, &hh)) r = GetLastError();
         else if (!U(CryptSetHashParam)(hh, HP_HASHVAL, (BYTE *)fx_hash, 0)) r = GetLastError();
         else if (!U(CryptSignHashW)(hh, spec, NULL, 0, sig, plen)) r = GetLastError();
         else { n = *plen; for (i = 0; i < n / 2; i++) { BYTE t = sig[i]; sig[i] = sig[n - 1 - i]; sig[n - 1 - i] = t; } }
         if (hh) U(CryptDestroyHash)(hh);
     }
+    return r;
+}
+static DWORD pk_sign(PCCERT_CONTEXT c, DWORD acqflags, BYTE *sig, DWORD *plen, DWORD *pspec) {
+    HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD spec = 0; BOOL cf = FALSE; DWORD r;
+    pk_sha1 = 0;
+    if (!U(CryptAcquireCertificatePrivateKey)(c, acqflags, NULL, &h, &spec, &cf)) return GetLastError();
+    if (pspec) *pspec = spec;
+    r = pk_sign_h(c, h, spec, sig, plen);
     pk_release(h, spec, cf);
     return r;
+}
+/* Sign with the key held by the CERT_KEY_CONTEXT property (a no-persist import has no key provider info). */
+static DWORD pk_sign_keyctx(PCCERT_CONTEXT c, BYTE *sig, DWORD *plen, DWORD *pspec) {
+    CERT_KEY_CONTEXT kc; DWORD cb = sizeof kc;
+    pk_sha1 = 0;
+    kc.cbSize = sizeof kc;
+    if (!U(CertGetCertificateContextProperty)(c, CERT_KEY_CONTEXT_PROP_ID, &kc, &cb)) return GetLastError();
+    if (pspec) *pspec = kc.dwKeySpec;
+    return pk_sign_h(c, kc.hCryptProv, kc.dwKeySpec, sig, plen);
 }
 /* Verify with the public key of the cert via CNG (no key in a store involved). */
 static DWORD pk_verify(PCCERT_CONTEXT c, const BYTE *sig, DWORD len) {
     BCRYPT_KEY_HANDLE hk = 0; BCRYPT_PKCS1_PADDING_INFO pi; void *pad = NULL; DWORD fl = 0; NTSTATUS st;
     int rsa = !strcmp(c->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId, "1.2.840.113549.1.1.1");
     if (!U(CryptImportPublicKeyInfoEx2)(X509_ASN_ENCODING, &c->pCertInfo->SubjectPublicKeyInfo, 0, NULL, &hk)) return GetLastError();
-    if (rsa) { pi.pszAlgId = BCRYPT_SHA256_ALGORITHM; pad = &pi; fl = BCRYPT_PAD_PKCS1; }
-    st = U(BCryptVerifySignature)(hk, pad, (PUCHAR)fx_hash, 32, (PUCHAR)sig, len, fl);
+    if (rsa) { pi.pszAlgId = pk_sha1 ? BCRYPT_SHA1_ALGORITHM : BCRYPT_SHA256_ALGORITHM; pad = &pi; fl = BCRYPT_PAD_PKCS1; }
+    st = U(BCryptVerifySignature)(hk, pad, (PUCHAR)fx_hash, (rsa && pk_sha1) ? 20 : 32, (PUCHAR)sig, len, fl);
     U(BCryptDestroyKey)(hk);
     return (DWORD)st;
 }
