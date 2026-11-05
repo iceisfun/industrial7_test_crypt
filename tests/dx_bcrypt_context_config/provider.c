@@ -133,7 +133,7 @@ TEST(dxctx_prov_query_registration_um) {
         }
         CHECK(r->pUM != NULL);
         if (r->pUM) {
-            CHECK(!lstrcmpiW(r->pUM->pszImage, p.path));
+            { const WCHAR *leaf = wcsrchr(p.path, L'\\'); CHECK(!lstrcmpiW(r->pUM->pszImage, leaf ? leaf + 1 : p.path)); }
             EXPECT_EQ(r->pUM->cInterfaces, 2);
         }
         CHECK(r->pKM == NULL);
