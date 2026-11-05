@@ -5,6 +5,12 @@
 #include <bcrypt.h>
 #include <ctype.h>
 
+/* The emulator aborts the process on calls into its unimplemented CNG configuration exports, so every test of this
+ * area is skipped there; on Windows REQUIRE keeps its usual meaning. */
+#undef REQUIRE
+#define REQUIRE(ptr) do { if (t_is_wine()) { t_skip("CNG configuration exports abort under Wine"); return; } \
+                          if (!(ptr)) { t_skip("missing export: " #ptr); return; } } while (0)
+
 /* NTSTATUS values used by the configuration APIs (spelled out: the tests must not depend on header macros). */
 #define CRS_OK                0x00000000L
 #define CRS_INVALID_PARAMETER ((NTSTATUS)0xC000000DL)
