@@ -69,6 +69,9 @@ char *mh_to_b64(const BYTE *p, DWORD cb, DWORD strflags, DWORD *pcch);
 char *mh_to_asnhex(const BYTE *p, DWORD cb, DWORD *pcch);
 /* fresh memory store: certs in privmask carry their ephemeral key, certs in pubmask do not (bit = 1 << MH_xx). */
 HCERTSTORE mh_make_store(unsigned privmask, unsigned pubmask);
+/* signed CTL (two entries: the SHA-1 thumbprints of the S1 and S2 certificates), built at run time with
+ * CryptMsgEncodeAndSignCTL and signed with the S1 key; malloc'ed once, NULL when it cannot be built. */
+const BYTE *mh_ctl_blob(DWORD *pn);
 #define CERT_IS(ctx, vec) ((ctx) != NULL && (ctx)->cbCertEncoded == sizeof(vec) && !memcmp((ctx)->pbCertEncoded, (vec), sizeof(vec)))
 #define FREE_CERT(c) do { if (c) U(CertFreeCertificateContext)(c); (c) = NULL; } while (0)
 #endif

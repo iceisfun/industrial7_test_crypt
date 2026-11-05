@@ -165,3 +165,38 @@ HCERTSTORE mh_make_store(unsigned privmask, unsigned pubmask) {
     }
     return s;
 }
+
+const BYTE *mh_ctl_blob(DWORD *pn) {
+    static BYTE *blob; static DWORD n; static int tried;
+    if (!tried) {
+        tried = 1;
+        if (!mh_init()) return NULL;
+        BYTE th[2][20]; CTL_ENTRY ent[2]; memset(ent, 0, sizeof ent);
+        for (int i = 0; i < 2; i++) {
+            DWORD l = 20;
+            if (!U(CertGetCertificateContextProperty)(mh_ids[i].pub, CERT_HASH_PROP_ID, th[i], &l)) return NULL;
+            ent[i].SubjectIdentifier.cbData = 20; ent[i].SubjectIdentifier.pbData = th[i];
+        }
+        static char usage[] = "1.3.6.1.5.5.7.3.2"; LPSTR usages[1] = { usage };
+        static BYTE listid[] = "CryptTMHList"; static BYTE seq[1] = { 1 };
+        CTL_INFO ci; memset(&ci, 0, sizeof ci);
+        ci.SubjectUsage.cUsageIdentifier = 1; ci.SubjectUsage.rgpszUsageIdentifier = usages;
+        ci.ListIdentifier.cbData = sizeof listid - 1; ci.ListIdentifier.pbData = listid;
+        ci.SequenceNumber.cbData = 1; ci.SequenceNumber.pbData = seq;
+        SYSTEMTIME st; memset(&st, 0, sizeof st); st.wYear = 2022; st.wMonth = 1; st.wDay = 1;
+        SystemTimeToFileTime(&st, &ci.ThisUpdate);
+        ci.SubjectAlgorithm.pszObjId = (LPSTR)OID_SHA1;
+        ci.cCTLEntry = 2; ci.rgCTLEntry = ent;
+        CMSG_SIGNER_ENCODE_INFO si; memset(&si, 0, sizeof si);
+        si.cbSize = sizeof si; si.pCertInfo = mh_ids[MH_S1].priv->pCertInfo; si.hCryptProv = mh_prov[MH_S1];
+        si.dwKeySpec = AT_KEYEXCHANGE; si.HashAlgorithm.pszObjId = (LPSTR)OID_SHA256;
+        CMSG_SIGNED_ENCODE_INFO sg; memset(&sg, 0, sizeof sg); sg.cbSize = sizeof sg; sg.cSigners = 1; sg.rgSigners = &si;
+        DWORD need = 0;
+        if (!U(CryptMsgEncodeAndSignCTL)(ENC, &ci, &sg, 0, NULL, &need) || !need) return NULL;
+        blob = malloc(need);
+        if (!U(CryptMsgEncodeAndSignCTL)(ENC, &ci, &sg, 0, blob, &need)) { free(blob); blob = NULL; return NULL; }
+        n = need;
+    }
+    if (blob && pn) *pn = n;
+    return blob;
+}
