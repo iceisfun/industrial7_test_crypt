@@ -336,18 +336,34 @@ TEST(pfxexport_cert_only_store_with_private_keys_flag) {
 }
 TEST(pfxexport_report_no_private_key) {
     NEED_EXPORT(); PP_WINE_NO_EXPORT();
+    /* Win10: REPORT_NO_PRIVATE_KEY does not fail the export, neither for a cert without key properties
+       nor for a cert whose key container is missing; the result is the same as without the flag */
     HCERTSTORE s = cert_only_store();
-    CRYPT_DATA_BLOB b = {0, NULL};
+    REQUIRE_NOTNULL(s);
+    CRYPT_DATA_BLOB plain, rep, leg;
     SET_ERR(0);
-    BOOL r = U(PFXExportCertStoreEx)(s, &b, L"x", NULL, EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY);
-    CHECK(!r);
-    DWORD e = GetLastError();
-    CHECKF(e == CRYPT_E_NOT_FOUND || e == E_NTE_NO_KEY, "err 0x%lx", e);
+    CHECKF(pp_export_ex(s, &plain, L"x", NULL, EXPORT_PRIVATE_KEYS), "err 0x%lx", GetLastError());
     SET_ERR(0);
-    r = U(PFXExportCertStore)(s, &b, L"x", EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY);
-    CHECK(!r);
-    e = GetLastError();
-    CHECKF(e == CRYPT_E_NOT_FOUND || e == E_NTE_NO_KEY, "legacy err 0x%lx", e);
+    BOOL r = pp_export_ex(s, &rep, L"x", NULL, EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY);
+    CHECKF(r, "err 0x%lx", GetLastError());
+    if (r) { EXPECT_EQ(rep.cbData, plain.cbData); CHECK(reimport_has_key(&rep, L"x") == 0); LocalFree(rep.pbData); }
+    SET_ERR(0);
+    r = pp_export(s, &leg, L"x", EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY);
+    CHECKF(r, "legacy err 0x%lx", GetLastError());
+    if (r) { EXPECT_EQ(leg.cbData, plain.cbData); LocalFree(leg.pbData); }
+    PCCERT_CONTEXT c = U(CertEnumCertificatesInStore)(s, NULL);
+    if (c) {
+        CRYPT_KEY_PROV_INFO ki; memset(&ki, 0, sizeof ki);
+        ki.pwszContainerName = (LPWSTR)L"I7T_pfx_nokey_container"; ki.pwszProvName = (LPWSTR)MS_ENHANCED_PROV_W;
+        ki.dwProvType = PROV_RSA_FULL; ki.dwKeySpec = AT_KEYEXCHANGE;
+        CHECK(U(CertSetCertificateContextProperty)(c, CERT_KEY_PROV_INFO_PROP_ID, 0, &ki));
+        SET_ERR(0);
+        r = pp_export_ex(s, &rep, L"x", NULL, EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY);
+        CHECKF(r, "missing-container err 0x%lx", GetLastError());
+        if (r) { EXPECT_EQ(rep.cbData, plain.cbData); LocalFree(rep.pbData); }
+        U(CertFreeCertificateContext)(c);
+    }
+    if (plain.pbData) LocalFree(plain.pbData);
     pp_close(s);
 }
 TEST(pfxexport_report_no_private_key_satisfied_by_key_context) {

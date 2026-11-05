@@ -207,7 +207,8 @@ TEST(pfximport_cert_only_pfx_has_no_key_props) {
         CHECK(!pp_has_prop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL));
         EXPECT_ERR(CRYPT_E_NOT_FOUND);
         CHECK(!pp_has_prop(c, CERT_KEY_CONTEXT_PROP_ID, NULL));
-        CHECK(pp_has_friendly(c, L"cryptt friendly"));
+        /* this fixture carries no friendly name; Win10 reports the property absent */
+        { WCHAR fb[128]; SET_ERR(0); CHECK(!pp_friendly(c, fb, 128)); EXPECT_ERR(CRYPT_E_NOT_FOUND); }
         U(CertFreeCertificateContext)(c);
     }
     pp_close(s);

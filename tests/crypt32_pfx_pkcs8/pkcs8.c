@@ -96,7 +96,7 @@ TEST(pkcs8_export_size_query) {
     CHECKF(U(CryptExportPKCS8)(p, AT_KEYEXCHANGE, (LPSTR)rsa_oid, 0, NULL, NULL, &cb), "err 0x%lx", GetLastError());
     CHECK(cb > 500 && cb < 700);
     CHECK(U(CryptExportPKCS8)(p, AT_KEYEXCHANGE, (LPSTR)rsa_oid, 0, NULL, NULL, &cb2));
-    t_note("RSA-1024 PKCS#8 size %lu / %lu", cb, cb2);
+    EXPECT_EQ(cb, cb2); /* the size depends on the random key (leading zero bytes), so it is not pinned */
     U(CryptReleaseContext)(p, 0);
 }
 TEST(pkcs8_export_exact_buffer_decodes_as_private_key_info) {
@@ -183,47 +183,16 @@ TEST(pkcs8_export_nonexportable_key_fails) {
     t_note("non-exportable key: err 0x%lx", GetLastError());
     U(CryptReleaseContext)(p, 0);
 }
-TEST(pkcs8_export_ex_without_callback_matches_export) {
-    NEED_P8(); PP_WINE_P8();
-    HCRYPTPROV p = gen_prov();
-    if (!p) { CHECK(p != 0); return; }
-    CRYPT_PKCS8_EXPORT_PARAMS ep; memset(&ep, 0, sizeof ep);
-    ep.hCryptProv = p; ep.dwKeySpec = AT_KEYEXCHANGE; ep.pszPrivateKeyObjId = (LPSTR)rsa_oid;
-    DWORD a = 0, b = 0;
-    CHECK(U(CryptExportPKCS8Ex)(&ep, 0, NULL, NULL, &a));
-    CHECK(U(CryptExportPKCS8)(p, AT_KEYEXCHANGE, (LPSTR)rsa_oid, 0, NULL, NULL, &b));
-    EXPECT_EQ(a, b);
-    BYTE *buf = (BYTE *)LocalAlloc(LPTR, a);
-    CHECK(U(CryptExportPKCS8Ex)(&ep, 0x8000, NULL, buf, &a));
-    CHECK(buf[0] == 0x30);
-    LocalFree(buf);
-    U(CryptReleaseContext)(p, 0);
-}
-TEST(pkcs8_export_ex_unknown_oid) {
-    NEED_P8(); PP_WINE_P8();
-    HCRYPTPROV p = gen_prov();
-    if (!p) { CHECK(p != 0); return; }
-    CRYPT_PKCS8_EXPORT_PARAMS ep; memset(&ep, 0, sizeof ep);
-    ep.hCryptProv = p; ep.dwKeySpec = AT_KEYEXCHANGE; ep.pszPrivateKeyObjId = (LPSTR)"1.2.3.4.99";
-    DWORD a = 0;
-    SET_ERR(0);
-    BOOL r = U(CryptExportPKCS8Ex)(&ep, 0, NULL, NULL, &a);
-    EXPECT_FAIL(!r, E_UNSUPPORTED_TYPE);
-    U(CryptReleaseContext)(p, 0);
+TEST(pkcs8_export_ex_is_not_exported) {
+    /* CryptExportPKCS8Ex is declared in the SDK header but crypt32 on Win10 22H2 does not export it */
+    HMODULE m = GetModuleHandleW(L"crypt32.dll");
+    REQUIRE_NOTNULL(m);
+    EXPECT_GPA_FAIL(m, "CryptExportPKCS8Ex");
+    CHECK(GetProcAddress(m, "CryptExportPKCS8") != NULL);
 }
 
 /* ---- encrypt callback ----------------------------------------------------------- */
-static struct { int calls; int null_buf_calls; DWORD clear_cb; BYTE first_byte; void *ctx; int fail; } g_enc;
-static BOOL CALLBACK xor_encrypt(CRYPT_ALGORITHM_IDENTIFIER *alg, CRYPT_DATA_BLOB *clear, BYTE *out, DWORD *pcb, LPVOID ctx) {
-    g_enc.calls++; g_enc.ctx = ctx; g_enc.clear_cb = clear->cbData; g_enc.first_byte = clear->pbData[0];
-    if (g_enc.fail) { SetLastError(NTE_BAD_DATA); return FALSE; }
-    alg->pszObjId = (LPSTR)xor_oid; alg->Parameters.cbData = 0; alg->Parameters.pbData = NULL;
-    if (!out) { g_enc.null_buf_calls++; *pcb = clear->cbData; return TRUE; }
-    if (*pcb < clear->cbData) { SetLastError(ERROR_MORE_DATA); *pcb = clear->cbData; return FALSE; }
-    for (DWORD i = 0; i < clear->cbData; i++) out[i] = clear->pbData[i] ^ 0x5a;
-    *pcb = clear->cbData;
-    return TRUE;
-}
+static struct { int calls; int null_buf_calls; void *ctx; } g_enc;
 static BOOL CALLBACK xor_decrypt(CRYPT_ALGORITHM_IDENTIFIER alg, CRYPT_DATA_BLOB enc, BYTE *out, DWORD *pcb, LPVOID ctx) {
     g_enc.calls++; g_enc.ctx = ctx;
     if (!alg.pszObjId || strcmp(alg.pszObjId, xor_oid)) { SetLastError(NTE_BAD_ALGID); return FALSE; }
@@ -233,117 +202,19 @@ static BOOL CALLBACK xor_decrypt(CRYPT_ALGORITHM_IDENTIFIER alg, CRYPT_DATA_BLOB
     *pcb = enc.cbData;
     return TRUE;
 }
-static BYTE *export_enc(HCRYPTPROV p, DWORD *pcb, DWORD flags_final) {
-    CRYPT_PKCS8_EXPORT_PARAMS ep; memset(&ep, 0, sizeof ep);
-    ep.hCryptProv = p; ep.dwKeySpec = AT_KEYEXCHANGE; ep.pszPrivateKeyObjId = (LPSTR)rsa_oid;
-    ep.pEncryptPrivateKeyFunc = xor_encrypt; ep.pVoidEncryptFunc = (LPVOID)(ULONG_PTR)0x1234;
-    DWORD cb = 0;
-    if (!U(CryptExportPKCS8Ex)(&ep, 0, NULL, NULL, &cb)) return NULL;
-    BYTE *b = (BYTE *)LocalAlloc(LPTR, cb);
-    if (!U(CryptExportPKCS8Ex)(&ep, flags_final, NULL, b, &cb)) { LocalFree(b); return NULL; }
-    *pcb = cb; return b;
-}
-TEST(pkcs8_export_ex_callback_size_query_calls_once) {
-    NEED_P8(); PP_WINE_P8();
-    HCRYPTPROV p = gen_prov();
-    if (!p) { CHECK(p != 0); return; }
-    CRYPT_PKCS8_EXPORT_PARAMS ep; memset(&ep, 0, sizeof ep);
-    ep.hCryptProv = p; ep.dwKeySpec = AT_KEYEXCHANGE; ep.pszPrivateKeyObjId = (LPSTR)rsa_oid;
-    ep.pEncryptPrivateKeyFunc = xor_encrypt; ep.pVoidEncryptFunc = (LPVOID)(ULONG_PTR)0x1234;
-    memset(&g_enc, 0, sizeof g_enc);
-    DWORD cb = 0;
-    CHECKF(U(CryptExportPKCS8Ex)(&ep, 0, NULL, NULL, &cb), "err 0x%lx", GetLastError());
-    EXPECT_EQ(g_enc.calls, 1);
-    EXPECT_EQ(g_enc.null_buf_calls, 1);
-    EXPECT_EQ(g_enc.ctx, 0x1234);
-    CHECK(g_enc.first_byte == 0x30);
-    CHECK(cb > g_enc.clear_cb);
-    U(CryptReleaseContext)(p, 0);
-}
-TEST(pkcs8_export_ex_callback_fill_calls_twice_and_encodes_encrypted_info) {
-    NEED_P8(); PP_WINE_P8();
-    HCRYPTPROV p = gen_prov();
-    if (!p) { CHECK(p != 0); return; }
-    memset(&g_enc, 0, sizeof g_enc);
-    DWORD cb = 0;
-    BYTE *b = export_enc(p, &cb, 0x8000);
-    CHECKF(b != NULL, "err 0x%lx", GetLastError());
-    if (b) {
-        EXPECT_EQ(g_enc.calls, 3); /* size query, size query again for the fill pass, real encrypt */
-        DWORD dc = 0; CRYPT_ENCRYPTED_PRIVATE_KEY_INFO *ei = NULL;
-        BOOL r = U(CryptDecodeObjectEx)(X509_ASN_ENCODING, T_PKCS_ENCRYPTED_PRIVATE_KEY_INFO, b, cb, CRYPT_DECODE_ALLOC_FLAG, NULL, &ei, &dc);
-        CHECKF(r, "decode err 0x%lx", GetLastError());
-        if (r) {
-            EXPECT_STR(ei->EncryptionAlgorithm.pszObjId, xor_oid);
-            EXPECT_EQ(ei->EncryptedPrivateKey.cbData, g_enc.clear_cb);
-            /* un-xor and decode as a PrivateKeyInfo */
-            BYTE *clear = (BYTE *)LocalAlloc(LPTR, ei->EncryptedPrivateKey.cbData);
-            for (DWORD i = 0; i < ei->EncryptedPrivateKey.cbData; i++) clear[i] = ei->EncryptedPrivateKey.pbData[i] ^ 0x5a;
-            CRYPT_PRIVATE_KEY_INFO *pk = NULL;
-            r = U(CryptDecodeObjectEx)(X509_ASN_ENCODING, T_PKCS_PRIVATE_KEY_INFO, clear, ei->EncryptedPrivateKey.cbData, CRYPT_DECODE_ALLOC_FLAG, NULL, &pk, &dc);
-            CHECKF(r, "inner decode err 0x%lx", GetLastError());
-            if (r) { EXPECT_STR(pk->Algorithm.pszObjId, szOID_RSA_RSA); LocalFree(pk); }
-            LocalFree(clear);
-            LocalFree(ei);
-        }
-        LocalFree(b);
-    }
-    U(CryptReleaseContext)(p, 0);
-}
-TEST(pkcs8_export_ex_callback_without_8000_flag_observed) {
-    NEED_P8(); PP_WINE_P8();
-    HCRYPTPROV p = gen_prov();
-    if (!p) { CHECK(p != 0); return; }
-    memset(&g_enc, 0, sizeof g_enc);
-    DWORD cb = 0;
-    BYTE *b = export_enc(p, &cb, 0);
-    t_note("fill pass without 0x8000: ret=%d callback calls=%d (documented: 0x8000 for the fill pass)", b != NULL, g_enc.calls);
-    if (b) {
-        DWORD dc = 0; CRYPT_ENCRYPTED_PRIVATE_KEY_INFO *ei = NULL;
-        if (U(CryptDecodeObjectEx)(X509_ASN_ENCODING, T_PKCS_ENCRYPTED_PRIVATE_KEY_INFO, b, cb, CRYPT_DECODE_ALLOC_FLAG, NULL, &ei, &dc)) {
-            t_note("encrypted payload first byte 0x%02x", ei->EncryptedPrivateKey.pbData[0]);
-            LocalFree(ei);
-        }
-        LocalFree(b);
-    }
-    U(CryptReleaseContext)(p, 0);
-}
-TEST(pkcs8_export_ex_callback_failure_fails_export) {
-    NEED_P8(); PP_WINE_P8();
-    HCRYPTPROV p = gen_prov();
-    if (!p) { CHECK(p != 0); return; }
-    CRYPT_PKCS8_EXPORT_PARAMS ep; memset(&ep, 0, sizeof ep);
-    ep.hCryptProv = p; ep.dwKeySpec = AT_KEYEXCHANGE; ep.pszPrivateKeyObjId = (LPSTR)rsa_oid;
-    ep.pEncryptPrivateKeyFunc = xor_encrypt;
-    memset(&g_enc, 0, sizeof g_enc); g_enc.fail = 1;
-    DWORD cb = 0;
-    SET_ERR(0);
-    BOOL r = U(CryptExportPKCS8Ex)(&ep, 0, NULL, NULL, &cb);
-    CHECK(!r);
-    EXPECT_EQ(g_enc.calls, 1);
-    t_note("callback failure: last error 0x%lx", GetLastError());
-    g_enc.fail = 0;
-    U(CryptReleaseContext)(p, 0);
-}
-TEST(pkcs8_export_ex_encrypted_buffer_too_small) {
-    NEED_P8(); PP_WINE_P8();
-    HCRYPTPROV p = gen_prov();
-    if (!p) { CHECK(p != 0); return; }
-    CRYPT_PKCS8_EXPORT_PARAMS ep; memset(&ep, 0, sizeof ep);
-    ep.hCryptProv = p; ep.dwKeySpec = AT_KEYEXCHANGE; ep.pszPrivateKeyObjId = (LPSTR)rsa_oid;
-    ep.pEncryptPrivateKeyFunc = xor_encrypt;
-    memset(&g_enc, 0, sizeof g_enc);
-    DWORD need = 0;
-    CHECK(U(CryptExportPKCS8Ex)(&ep, 0, NULL, NULL, &need));
-    BYTE *buf = (BYTE *)LocalAlloc(LPTR, need);
-    DWORD cb = need - 1;
-    SET_ERR(0);
-    BOOL r = U(CryptExportPKCS8Ex)(&ep, 0x8000, NULL, buf, &cb);
-    CHECK(!r);
-    EXPECT_ERR(ERROR_MORE_DATA);
-    EXPECT_EQ(cb, need);
-    LocalFree(buf);
-    U(CryptReleaseContext)(p, 0);
+/* build an EncryptedPrivateKeyInfo of our own: toy xor "cipher" over a plain PKCS#8 blob */
+static BYTE *export_enc(HCRYPTPROV p, DWORD *pcb) {
+    DWORD cp = 0; BYTE *plain = export_p8(p, &cp);
+    if (!plain) return NULL;
+    for (DWORD i = 0; i < cp; i++) plain[i] ^= 0x5a;
+    CRYPT_ENCRYPTED_PRIVATE_KEY_INFO ei; memset(&ei, 0, sizeof ei);
+    ei.EncryptionAlgorithm.pszObjId = (LPSTR)xor_oid;
+    ei.EncryptedPrivateKey.cbData = cp; ei.EncryptedPrivateKey.pbData = plain;
+    BYTE *out = NULL; DWORD cb = 0;
+    if (!U(CryptEncodeObjectEx)(X509_ASN_ENCODING, T_PKCS_ENCRYPTED_PRIVATE_KEY_INFO, &ei, CRYPT_ENCODE_ALLOC_FLAG, NULL, &out, &cb)) out = NULL;
+    LocalFree(plain);
+    if (out) *pcb = cb;
+    return out;
 }
 
 /* ---- import: plain ------------------------------------------------------------------ */
@@ -681,7 +552,7 @@ TEST(pkcs8_roundtrip_through_encrypt_decrypt_callbacks) {
     if (!a) { CHECK(a != 0); return; }
     memset(&g_enc, 0, sizeof g_enc);
     DWORD cb = 0, ca = 0, cc = 0;
-    BYTE *enc = export_enc(a, &cb, 0x8000);
+    BYTE *enc = export_enc(a, &cb);
     CHECK(enc != NULL);
     BYTE *pa = get_pub(a, AT_KEYEXCHANGE, &ca);
     if (enc) {
