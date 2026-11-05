@@ -17,10 +17,13 @@ extern DWORD kp_enc_type;                 /* encoding type used by the helpers a
 #endif
 #define KP_E_EOD      ((DWORD)0x80093102)
 #define KP_E_CORRUPT  ((DWORD)0x80093103)
-/* truncated input: the ASN.1 layer reports either EOD or CORRUPT depending on where the cut falls */
-#define KP_E_TRUNC    ((DWORD)1)
+/* truncated input: probed on Win10, every cut in the vectors is CRYPT_E_ASN1_EOD */
+#define KP_E_TRUNC    KP_E_EOD
 #define KP_E_LARGE    ((DWORD)0x80093104)
 #define KP_E_BADTAG   ((DWORD)0x8009310B)
+#define KP_E_BADARGS  ((DWORD)0x80093109)
+#define KP_WANT(e) ((e) == KP_E_ZERO ? 0 : (e))
+#define KP_E_ZERO     ((DWORD)0xFFFFFFFE)   /* the call must fail and leave last error 0 */
 #define KP_E_BADENC   ((DWORD)0x80092002)
 #define KP_E_INVALIDARG ((DWORD)0x80070057)
 

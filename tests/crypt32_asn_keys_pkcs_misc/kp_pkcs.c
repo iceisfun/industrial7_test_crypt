@@ -44,7 +44,7 @@ TEST(kpp_attribute_encode_bad_oid) {
     REQ_CRYPT32();
     CRYPT_ATTR_BLOB v = { 3, (BYTE *)v_05 };
     CRYPT_ATTRIBUTE a = { (LPSTR)"not an oid", 1, &v };
-    ENC_FAIL(PKCS_ATTRIBUTE, &a, 0);
+    ENC_FAIL(PKCS_ATTRIBUTE, &a, KP_E_BADARGS);
 }
 TEST(kpp_attribute_decode) {
     REQ_CRYPT32();
@@ -66,7 +66,7 @@ TEST(kpp_attribute_decode_errors) {
     DEC_FAILV(PKCS_ATTRIBUTE, KP_E_BADTAG, 0x31, 0);
     DEC_FAILV(PKCS_ATTRIBUTE, KP_E_BADTAG, 2, 1, 1);
     DEC_FAILV(PKCS_ATTRIBUTE, KP_E_BADTAG, 0x30, 6, 6, 2, 0x2a, 3, 0x30, 0);       /* values must be a SET */
-    DEC_FAILV(PKCS_ATTRIBUTE, 0, 0x30, 4, 6, 2, 0x2a, 3);                          /* no value set */
+    DEC_FAILV(PKCS_ATTRIBUTE, KP_E_EOD, 0x30, 4, 6, 2, 0x2a, 3);                          /* no value set */
     DEC_FAILV(PKCS_ATTRIBUTE, KP_E_TRUNC, 0x30, 9, 6, 2, 0x2a, 3, 0x31, 3, 2);
 }
 TEST(kpp_attribute_many_values_roundtrip) {
@@ -180,13 +180,13 @@ TEST(kpp_pkcs7_signer_encode_bad_issuer_blob) {
     CMSG_SIGNER_INFO s; CRYPT_INTEGER_BLOB ser; BYTE sb; fill_signer(&s, &ser, &sb);
     s.Issuer.cbData = 0; s.Issuer.pbData = NULL;
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, PKCS7_SIGNER_INFO_T, &s, 0, NULL, NULL, &cb);
-    t_note("empty issuer name: ok=%d cb=%lu err=0x%lx", ok, cb, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_INVALIDARG);
 }
 TEST(kpp_pkcs7_signer_bad_hash_oid) {
     REQ_P7();
     CMSG_SIGNER_INFO s; CRYPT_INTEGER_BLOB ser; BYTE sb; fill_signer(&s, &ser, &sb);
     s.HashAlgorithm.pszObjId = (LPSTR)"bogus";
-    ENC_FAIL(PKCS7_SIGNER_INFO_T, &s, 0);
+    ENC_FAIL(PKCS7_SIGNER_INFO_T, &s, ((DWORD)0x80091003));
 }
 TEST(kpp_pkcs7_signer_decode) {
     REQ_P7();
@@ -219,7 +219,7 @@ TEST(kpp_pkcs7_signer_decode_errors) {
     REQ_P7();
     DEC_FAILV(PKCS7_SIGNER_INFO_T, KP_E_BADTAG, 0x31, 0);
     DEC_FAILV(PKCS7_SIGNER_INFO_T, KP_E_BADTAG, 0x30, 3, 4, 1, 1);
-    DEC_FAILV(PKCS7_SIGNER_INFO_T, 0, 0x30, 3, 2, 1, 1);
+    DEC_FAILV(PKCS7_SIGNER_INFO_T, KP_E_CORRUPT, 0x30, 3, 2, 1, 1);
     DEC_FAILV(PKCS7_SIGNER_INFO_T, KP_E_TRUNC, 0x30, 0x34, 2, 1, 1);
 }
 TEST(kpp_pkcs7_signer_roundtrip_with_attrs) {
@@ -242,8 +242,8 @@ TEST(kpp_counter_sign_oid_uses_signer_info_codec) {
     DWORD c1 = 0, c2 = 0;
     BYTE *a = kp_enc_alloc(PKCS7_SIGNER_INFO_T, &s, 0, &c1);
     BYTE *b = kp_enc_alloc(szOID_RSA_counterSign, &s, 0, &c2);
-    if (!b) { t_note("szOID_RSA_counterSign as structure type: err=0x%lx", GetLastError()); kp_free(a); return; }
-    CHECK(a && c1 == c2 && !memcmp(a, b, c1));
+    /* observed: the counterSign OID text is not a registered structure type, so the encode fails with 2 */
+    CHECK(a != NULL); CHECK(b == NULL); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     kp_free(a); kp_free(b);
 }
 
@@ -275,10 +275,10 @@ TEST(kpp_cms_signer_encode_invalid_id_choice) {
     CMSG_CMS_SIGNER_INFO s; fill_cms_signer(&s);
     s.SignerId.dwIdChoice = 0;
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, CMS_SIGNER_INFO_T, &s, 0, NULL, NULL, &cb);
-    t_note("SignerId choice 0: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_INVALIDARG);
     s.SignerId.dwIdChoice = 9;
     ok = U(CryptEncodeObjectEx)(KP_ENC, CMS_SIGNER_INFO_T, &s, 0, NULL, NULL, &cb);
-    t_note("SignerId choice 9: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_INVALIDARG);
 }
 TEST(kpp_cms_signer_decode_key_identifier) {
     REQ_P7();
@@ -308,7 +308,7 @@ TEST(kpp_signer_encode_requires_pkcs7_encoding_bit) {
     CMSG_SIGNER_INFO p; CRYPT_INTEGER_BLOB ser; BYTE sb; fill_signer(&p, &ser, &sb);
     DWORD cb = 0; SET_ERR(0);
     BOOL ok = U(CryptEncodeObjectEx)(X509_ASN_ENCODING, PKCS7_SIGNER_INFO_T, &p, 0, NULL, NULL, &cb);
-    t_note("PKCS7_SIGNER_INFO with X509_ASN_ENCODING only: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_INVALIDARG);
     kp_enc_type = KP_ENC_P7;
     ok = U(CryptEncodeObjectEx)(PKCS_7_ASN_ENCODING, CMS_SIGNER_INFO_T, &s, 0, NULL, NULL, &cb);
     CHECK(ok);
@@ -319,7 +319,7 @@ TEST(kpp_signer_encode_requires_pkcs7_encoding_bit) {
 TEST(kpp_cms_signer_decode_errors) {
     REQ_P7();
     DEC_FAILV(CMS_SIGNER_INFO_T, KP_E_BADTAG, 4, 1, 1);
-    DEC_FAILV(CMS_SIGNER_INFO_T, 0, 0x30, 3, 2, 1, 3);
+    DEC_FAILV(CMS_SIGNER_INFO_T, KP_E_CORRUPT, 0x30, 3, 2, 1, 3);
     DEC_FAILV(CMS_SIGNER_INFO_T, KP_E_TRUNC, 0x30, 0x26, 2, 1, 3, 0x80, 3);
 }
 
@@ -366,7 +366,7 @@ TEST(kpp_cert_request_decode_no_attrs) {
 TEST(kpp_cert_request_decode_errors) {
     REQ_TYPE(X509_CERT_REQUEST_TO_BE_SIGNED);
     DEC_FAILV(X509_CERT_REQUEST_TO_BE_SIGNED, KP_E_BADTAG, 2, 1, 0);
-    DEC_FAILV(X509_CERT_REQUEST_TO_BE_SIGNED, 0, 0x30, 3, 2, 1, 0);
+    DEC_FAILV(X509_CERT_REQUEST_TO_BE_SIGNED, KP_E_CORRUPT, 0x30, 3, 2, 1, 0);
     DEC_FAILV(X509_CERT_REQUEST_TO_BE_SIGNED, KP_E_TRUNC, 0x30, 0x2f, 2, 1, 0, 0x30, 0x0c);
 }
 TEST(kpp_cert_request_roundtrip_version) {
@@ -426,7 +426,7 @@ TEST(kpp_rc2_decode_short_iv) {
     REQ_TYPE(PKCS_RC2_CBC_PARAMETERS);
     DWORD cb = 100; BYTE buf[100];
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, PKCS_RC2_CBC_PARAMETERS, (const BYTE[]){0x30,7,2,1,58,4,2,1,2}, 9, 0, NULL, buf, &cb);
-    t_note("4-byte IV in RC2 parameters: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_BADENC);
 }
 
 /* ---------------------------------------------------------------- PKCS_SMIME_CAPABILITIES */
@@ -456,7 +456,7 @@ TEST(kpp_smime_encode_bad_oid) {
     REQ_CRYPT32();
     CRYPT_SMIME_CAPABILITY cap = { (LPSTR)"zzz", { 0, NULL } };
     CRYPT_SMIME_CAPABILITIES c = { 1, &cap };
-    ENC_FAIL(PKCS_SMIME_CAPABILITIES, &c, 0);
+    ENC_FAIL(PKCS_SMIME_CAPABILITIES, &c, KP_E_BADARGS);
 }
 TEST(kpp_smime_decode) {
     REQ_CRYPT32();
@@ -494,7 +494,7 @@ TEST(kpp_signing_time_oid_encode_matches_choice_of_time) {
     ENC_EQ(szOID_RSA_signingTime, &ft, V(0x17,0x0d,'0','5','0','6','0','6','1','6','1','0','0','0','Z'));
     st.wYear = 2050; SystemTimeToFileTime(&st, &ft);
     { DWORD cb = 0; BYTE *e = kp_enc_alloc(szOID_RSA_signingTime, &ft, 0, &cb);       /* docs: UTC time with a two-digit year */
-      t_note("signingTime for year 2050: %s, %lu bytes, tag 0x%02x", e ? "encodes" : "fails", cb, e ? e[0] : 0); kp_free(e); }
+      CHECK(e == NULL); EXPECT_ERR(KP_E_BADENC); kp_free(e); }
 }
 TEST(kpp_signing_time_oid_decode) {
     REQ_CRYPT32();
@@ -526,7 +526,7 @@ TEST(kpp_time_request_decode) {
 TEST(kpp_time_request_decode_errors) {
     REQ_TYPE(PKCS_TIME_REQUEST);
     DEC_FAILV(PKCS_TIME_REQUEST, KP_E_BADTAG, 2, 1, 1);
-    DEC_FAILV(PKCS_TIME_REQUEST, 0, 0x30, 4, 6, 2, 0x2a, 3);
+    DEC_FAILV(PKCS_TIME_REQUEST, KP_E_EOD, 0x30, 4, 6, 2, 0x2a, 3);
 }
 
 /* ---------------------------------------------------------------- PKCS_CTL / PKCS_SORTED_CTL */
@@ -643,12 +643,12 @@ TEST(kpp_ctl_encode_bad_usage_oid) {
     static const char *bad[] = { "not an oid" };
     SYSTEMTIME st = { 2005, 6, 0, 6, 16, 10, 0, 0 }; FILETIME ft; SystemTimeToFileTime(&st, &ft);
     CTL_INFO c; fill_ctl(&c, &ft); c.SubjectUsage.rgpszUsageIdentifier = (LPSTR *)bad;
-    ENC_FAIL(PKCS_CTL, &c, 0);
+    ENC_FAIL(PKCS_CTL, &c, KP_E_BADARGS);
 }
 TEST(kpp_ctl_decode_errors) {
     REQ_CRYPT32();
     DEC_FAILV(PKCS_CTL, KP_E_BADTAG, 2, 1, 1);
-    DEC_FAILV(PKCS_CTL, 0, 0x30, 0);
+    DEC_FAILV(PKCS_CTL, KP_E_EOD, 0x30, 0);
     DEC_FAILV(PKCS_CTL, KP_E_TRUNC, 0x30, 0x20, 0x30, 4);
 }
 TEST(kpp_sorted_ctl_encode_note) {
@@ -661,10 +661,10 @@ TEST(kpp_sorted_ctl_encode_note) {
     ent[1].SubjectIdentifier.cbData = 3; ent[1].SubjectIdentifier.pbData = id1;
     c.cCTLEntry = 2; c.rgCTLEntry = ent;
     DWORD cb = 0; BYTE *e = kp_enc_alloc(PKCS_SORTED_CTL, &c, 0, &cb);
-    if (!e) { t_note("PKCS_SORTED_CTL encode: err=0x%lx", GetLastError()); return; }
+    CHECKF(e != NULL, "PKCS_SORTED_CTL encode: err=0x%lx", GetLastError()); if (!e) return;
     DWORD cb2; BYTE *p = kp_enc_alloc(PKCS_CTL, &c, 0, &cb2);
     CHECK(p != NULL);
-    t_note("sorted CTL %lu bytes, plain CTL %lu bytes", cb, cb2);
+    EXPECT_EQ(cb, 338); EXPECT_EQ(cb2, 48);
     CHECK(e[0] == 0x30);
     kp_free(e); kp_free(p);
 }
@@ -734,11 +734,11 @@ TEST(kpp_tsreq_extensions_roundtrip) {
 TEST(kpp_tsreq_decode_errors) {
     REQ_TYPE(TIMESTAMP_REQUEST);
     DEC_FAILV(TIMESTAMP_REQUEST, KP_E_BADTAG, 2, 1, 1);
-    DEC_FAILV(TIMESTAMP_REQUEST, 0, 0x30, 3, 2, 1, 1);
+    DEC_FAILV(TIMESTAMP_REQUEST, KP_E_EOD, 0x30, 3, 2, 1, 1);
     DEC_FAILV(TIMESTAMP_REQUEST, KP_E_TRUNC, 0x30, 0x1a, 2, 1, 1);
 }
 TEST(kpp_tsreq_bad_policy_oid) {
     REQ_TYPE(TIMESTAMP_REQUEST);
     CRYPT_TIMESTAMP_REQUEST q; fill_tsreq(&q); q.pszTSAPolicyId = (LPSTR)"zz";
-    ENC_FAIL(TIMESTAMP_REQUEST, &q, 0);
+    ENC_FAIL(TIMESTAMP_REQUEST, &q, KP_E_BADARGS);
 }

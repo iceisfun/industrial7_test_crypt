@@ -39,7 +39,7 @@ static void wv_check_enc_fail(const char *file, int line, const char *fn, const 
     DWORD cb = 64; BYTE buf[256]; SetLastError(0xDEAD);
     BOOL ok = wv_e(fn)(KP_ENC, NULL, info, buf, &cb);
     t_check(!ok, file, line, "wv encode must fail", fn);
-    if (err) t_check(GetLastError() == err, file, line, "wv last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
+    t_check(GetLastError() == KP_WANT(err), file, line, "wv last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
     t_check(cb == 0, file, line, "wv size zeroed on failure", "cb=%lu", (unsigned long)cb);
 }
 #define WV_ENC_FAIL(fn, info, err) wv_check_enc_fail(__FILE__, __LINE__, fn, info, err)
@@ -69,8 +69,7 @@ static void wv_check_dec_fail(const char *file, int line, const char *fn, const 
     DWORD cb = 2048; BYTE buf[2048]; SetLastError(0xDEAD);
     BOOL ok = wv_d(fn)(KP_ENC, NULL, der, (DWORD)n, 0, buf, &cb);
     t_check(!ok, file, line, "wv decode must fail", fn);
-    if (err == KP_E_TRUNC) t_check(GetLastError() == KP_E_EOD || GetLastError() == KP_E_CORRUPT, file, line, "wv decode last error (EOD or CORRUPT)", "got 0x%lx", GetLastError());
-    else if (err) t_check(GetLastError() == err, file, line, "wv decode last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
+    t_check(GetLastError() == KP_WANT(err), file, line, "wv decode last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
 }
 #define WV_DEC_FAILV(fn, err, ...) wv_check_dec_fail(__FILE__, __LINE__, fn, V(__VA_ARGS__), err)
 
@@ -116,7 +115,7 @@ TEST(kpm_spc_link_url_must_be_ia5) {
     l.dwLinkChoice = SPC_URL_LINK_CHOICE; l.pwszUrl = (LPWSTR)L"http://\x00e9";
     DWORD cb = 0; SetLastError(0);
     BOOL ok = wv_e("WVTAsn1SpcLinkEncode")(KP_ENC, NULL, &l, NULL, &cb);
-    t_note("non-ASCII URL: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(0x80092022);
 }
 TEST(kpm_spc_link_decode_url) {
     REQ_WV("WVTAsn1SpcLinkEncode", "WVTAsn1SpcLinkDecode");
@@ -153,9 +152,9 @@ TEST(kpm_spc_link_decode_moniker_bad_class_id_length) {
 }
 TEST(kpm_spc_link_decode_errors) {
     REQ_WV("WVTAsn1SpcLinkEncode", "WVTAsn1SpcLinkDecode");
-    WV_DEC_FAILV("WVTAsn1SpcLinkDecode", 0, 0x30, 0);
+    WV_DEC_FAILV("WVTAsn1SpcLinkDecode", KP_E_CORRUPT, 0x30, 0);
     WV_DEC_FAILV("WVTAsn1SpcLinkDecode", KP_E_TRUNC, 0x80, 5, 'a');
-    WV_DEC_FAILV("WVTAsn1SpcLinkDecode", 0, 0x83, 1, 'a');
+    WV_DEC_FAILV("WVTAsn1SpcLinkDecode", KP_E_CORRUPT, 0x83, 1, 'a');
 }
 TEST(kpm_spc_link_roundtrip_all) {
     REQ_WV("WVTAsn1SpcLinkEncode", "WVTAsn1SpcLinkDecode");
@@ -234,7 +233,7 @@ TEST(kpm_spc_opus_via_crypt32_by_oid) {
     REQ_WV("WVTAsn1SpcSpOpusInfoEncode", "WVTAsn1SpcSpOpusInfoDecode");
     SPC_SP_OPUS_INFO o; memset(&o, 0, sizeof o); o.pwszProgramName = L"Prog";
     DWORD cb = 0; BYTE *e = kp_enc_alloc(SPC_SP_OPUS_INFO_OBJID, &o, 0, &cb);
-    if (!e) { t_note("CryptEncodeObjectEx(SPC_SP_OPUS_INFO_OBJID): err=0x%lx (needs the default OID registrations)", GetLastError()); return; }
+    CHECKF(e != NULL, "err=0x%lx", GetLastError()); if (!e) return;
     CHECK(cb == 14 && !memcmp(e, "\x30\x0c\xa0\x0a\x80\x08\x00P\x00r\x00o\x00g", 14));
     SPC_SP_OPUS_INFO *r = kp_dec_alloc(SPC_SP_OPUS_INFO_OBJID, e, cb, 0, NULL);
     CHECK(r && r->pwszProgramName && !lstrcmpW(r->pwszProgramName, L"Prog"));
@@ -244,7 +243,7 @@ TEST(kpm_spc_opus_via_crypt32_by_number) {
     REQ_WV("WVTAsn1SpcSpOpusInfoEncode", "WVTAsn1SpcSpOpusInfoDecode");
     SPC_SP_OPUS_INFO o; memset(&o, 0, sizeof o);
     DWORD cb = 0; BYTE *e = kp_enc_alloc(SPC_SP_OPUS_INFO_STRUCT, &o, 0, &cb);
-    t_note("SPC_SP_OPUS_INFO_STRUCT (2007) via CryptEncodeObjectEx: %s err=0x%lx", e ? "ok" : "failed", e ? 0 : GetLastError());
+    CHECKF(e != NULL, "err=0x%lx", GetLastError()); if (e) { EXPECT_EQ(cb, 2); EXPECT_EQ(e[0], 0x30); }
     kp_free(e);
 }
 
@@ -319,7 +318,7 @@ TEST(kpm_spc_indirect_data_bad_oid) {
     REQ_WV("WVTAsn1SpcIndirectDataContentEncode", "WVTAsn1SpcIndirectDataContentDecode");
     SPC_INDIRECT_DATA_CONTENT c; memset(&c, 0, sizeof c);
     c.Data.pszObjId = (LPSTR)"oops"; c.DigestAlgorithm.pszObjId = (LPSTR)szOID_OIWSEC_sha1;
-    WV_ENC_FAIL("WVTAsn1SpcIndirectDataContentEncode", &c, 0);
+    WV_ENC_FAIL("WVTAsn1SpcIndirectDataContentEncode", &c, KP_E_BADENC);
 }
 TEST(kpm_spc_indirect_data_decode) {
     REQ_WV("WVTAsn1SpcIndirectDataContentEncode", "WVTAsn1SpcIndirectDataContentDecode");
@@ -348,7 +347,7 @@ TEST(kpm_spc_indirect_data_decode_nocopy_digest_aliases_input) {
 TEST(kpm_spc_indirect_data_decode_errors) {
     REQ_WV("WVTAsn1SpcIndirectDataContentEncode", "WVTAsn1SpcIndirectDataContentDecode");
     WV_DEC_FAILV("WVTAsn1SpcIndirectDataContentDecode", KP_E_BADTAG, 2, 1, 1);
-    WV_DEC_FAILV("WVTAsn1SpcIndirectDataContentDecode", 0, 0x30, 0);
+    WV_DEC_FAILV("WVTAsn1SpcIndirectDataContentDecode", KP_E_EOD, 0x30, 0);
     WV_DEC_FAILV("WVTAsn1SpcIndirectDataContentDecode", KP_E_TRUNC, 0x30, 0x23, 0x30, 0x0e, 6);
 }
 
@@ -375,7 +374,7 @@ TEST(kpm_spc_statement_type_bad_oid) {
     REQ_WV("WVTAsn1SpcStatementTypeEncode", "WVTAsn1SpcStatementTypeDecode");
     LPSTR ids[1] = { (LPSTR)"x.y" };
     SPC_STATEMENT_TYPE s = { 1, ids };
-    WV_ENC_FAIL("WVTAsn1SpcStatementTypeEncode", &s, 0);
+    WV_ENC_FAIL("WVTAsn1SpcStatementTypeEncode", &s, KP_E_BADENC);
 }
 TEST(kpm_spc_statement_type_decode_errors) {
     REQ_WV("WVTAsn1SpcStatementTypeEncode", "WVTAsn1SpcStatementTypeDecode");
@@ -390,7 +389,7 @@ TEST(kpm_spc_financial_criteria) {
     WV_ENC_EQ("WVTAsn1SpcFinancialCriteriaInfoEncode", &c, V(0x30,6, 1,1,0, 1,1,0xff));
     c.fFinancialInfoAvailable = 7; c.fMeetsCriteria = 0x100;      /* any non-zero BOOL: only the low byte is looked at */
     DWORD cb = 0; wv_e("WVTAsn1SpcFinancialCriteriaInfoEncode")(KP_ENC, NULL, &c, NULL, &cb);
-    t_note("non-canonical BOOL values encode to %lu bytes", cb);
+    EXPECT_EQ(cb, 8);
 }
 TEST(kpm_spc_financial_criteria_decode) {
     REQ_WV("WVTAsn1SpcFinancialCriteriaInfoEncode", "WVTAsn1SpcFinancialCriteriaInfoDecode");
@@ -441,7 +440,7 @@ TEST(kpm_qc_statements_by_oid) {
     st[1].pszStatementId = (LPSTR)"1.2.3"; st[1].StatementInfo.cbData = 3; st[1].StatementInfo.pbData = (BYTE *)"\x02\x01\x07";
     CERT_QC_STATEMENTS_EXT_INFO q = { 2, st };
     DWORD cb = 0; BYTE *e = kp_enc_alloc(szOID_QC_STATEMENTS_EXT, &q, 0, &cb);
-    if (!e) { t_note("szOID_QC_STATEMENTS_EXT encode: err=0x%lx", GetLastError()); return; }
+    CHECKF(e != NULL, "QC statements encode: err=0x%lx", GetLastError()); if (!e) return;
     /* SEQUENCE OF SEQUENCE { statementId OID, statementInfo ANY OPTIONAL }: absent info is omitted */
     static const BYTE want[] = {0x30,0x13, 0x30,8,6,6,0x04,0x00,0x8e,0x46,0x01,0x01, 0x30,7,6,2,0x2a,3,2,1,7};
     CHECK(cb == sizeof want && !memcmp(e, want, cb));
@@ -454,7 +453,7 @@ TEST(kpm_qc_statements_empty) {
     REQ_CRYPT32();
     CERT_QC_STATEMENTS_EXT_INFO q = { 0, NULL };
     DWORD cb = 0; BYTE *e = kp_enc_alloc(szOID_QC_STATEMENTS_EXT, &q, 0, &cb);
-    if (!e) { t_note("szOID_QC_STATEMENTS_EXT encode: err=0x%lx", GetLastError()); return; }
+    CHECKF(e != NULL, "QC statements encode: err=0x%lx", GetLastError()); if (!e) return;
     CHECK(cb == 2 && e[0] == 0x30 && e[1] == 0);
     kp_free(e);
 }
@@ -559,7 +558,7 @@ TEST(kpm_encode_para_too_small_means_default_allocator) {
     para.cbSize = 15; para.pfnAlloc = cnt_alloc; para.pfnFree = cnt_free;     /* cbSize must be >= 16 to cover pfnAlloc */
     int v = 5; BYTE *out = NULL; DWORD cb = 0; g_alloc_calls = 0;
     CHECK(U(CryptEncodeObjectEx)(KP_ENC, X509_INTEGER, &v, CRYPT_ENCODE_ALLOC_FLAG, &para, &out, &cb));
-    t_note("encode para cbSize=15: custom allocator calls=%d", g_alloc_calls);
+    EXPECT_EQ(g_alloc_calls, 0);
     if (out && g_alloc_calls == 0) LocalFree(out);
 }
 TEST(kpm_encode_para_exact_cbsize_16_uses_allocator) {
@@ -577,7 +576,7 @@ TEST(kpm_decode_para_too_small_means_default_allocator) {
     para.cbSize = 8; para.pfnAlloc = cnt_alloc; para.pfnFree = cnt_free;
     static const BYTE der[] = {2,1,9}; void *out = NULL; DWORD cb = 0; g_alloc_calls = 0;
     CHECK(U(CryptDecodeObjectEx)(KP_ENC, X509_INTEGER, der, 3, CRYPT_DECODE_ALLOC_FLAG, &para, &out, &cb));
-    t_note("decode para cbSize=8: custom allocator calls=%d", g_alloc_calls);
+    EXPECT_EQ(g_alloc_calls, 0);
     if (out && g_alloc_calls == 0) LocalFree(out);
 }
 TEST(kpm_decode_custom_allocator_used_for_alloc_flag) {
@@ -595,13 +594,13 @@ TEST(kpm_decode_failure_does_not_call_allocator_result) {
     para.cbSize = sizeof para; para.pfnAlloc = cnt_alloc; para.pfnFree = cnt_free;
     static const BYTE der[] = {4,1,9}; void *out = (void *)(ULONG_PTR)1; DWORD cb = 5; g_alloc_calls = 0;
     CHECK(!U(CryptDecodeObjectEx)(KP_ENC, X509_INTEGER, der, 3, CRYPT_DECODE_ALLOC_FLAG, &para, &out, &cb));
-    t_note("decode failure with ALLOC: out=%p cb=%lu allocs=%d", out, (unsigned long)cb, g_alloc_calls);
+    CHECK(out == NULL); EXPECT_EQ(cb, 0); EXPECT_EQ(g_alloc_calls, 0);
 }
 TEST(kpm_encode_alloc_flag_failure_leaves_null_and_zero) {
     REQ_CRYPT32();
     int v = 1; BYTE *out = (BYTE *)(ULONG_PTR)1; DWORD cb = 9;
     CHECK(!U(CryptEncodeObjectEx)(KP_ENC, "9.9.9.9.9", &v, CRYPT_ENCODE_ALLOC_FLAG, NULL, &out, &cb));
-    t_note("unknown oid with ALLOC: out=%p cb=%lu", out, (unsigned long)cb);
+    CHECK(out == NULL); EXPECT_EQ(cb, 0);
 }
 TEST(kpm_unknown_flag_bits_ignored_by_asn1_codecs) {
     REQ_CRYPT32();
@@ -638,8 +637,8 @@ TEST(kpm_decode_object_non_ex_rejects_alloc_flag_semantics) {
     /* CryptDecodeObject (non Ex) forwards dwFlags; with ALLOC the output slot is a pointer */
     static const BYTE der[] = {2,1,7}; void *out = NULL; DWORD cb = 0;
     BOOL ok = U(CryptDecodeObject)(KP_ENC, X509_INTEGER, der, 3, CRYPT_DECODE_ALLOC_FLAG, &out, &cb);
-    t_note("CryptDecodeObject with ALLOC_FLAG: ok=%d out=%p", ok, out);
-    if (ok && out) LocalFree(out);
+    CHECK(ok && out != NULL);        /* observed: the non-Ex API honours CRYPT_DECODE_ALLOC_FLAG */
+    if (ok && out) { EXPECT_EQ(*(int *)out, 7); LocalFree(out); }
 }
 TEST(kpm_hash_prefixed_type_decode_matches_numeric) {
     REQ_CRYPT32();
@@ -657,18 +656,14 @@ TEST(kpm_hash_prefixed_type_garbage_numbers) {
     BYTE buf[16]; DWORD cb = sizeof buf; static const BYTE der[] = {2,1,1};
     SET_ERR(0);
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, "#", der, 3, 0, NULL, buf, &cb);
-    t_note("\"#\" struct type: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     cb = sizeof buf; SET_ERR(0);
     ok = U(CryptDecodeObjectEx)(KP_ENC, "#abc", der, 3, 0, NULL, buf, &cb);
-    t_note("\"#abc\" struct type: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     cb = sizeof buf; SET_ERR(0);
     ok = U(CryptDecodeObjectEx)(KP_ENC, "#99999", der, 3, 0, NULL, buf, &cb);
     CHECK(!ok);
-    t_note("\"#99999\" struct type: err=0x%lx", GetLastError());
-}
-TEST(kpm_encode_null_size_pointer_not_probed) {
-    REQ_CRYPT32();
-    t_note("NULL pcbEncoded is not exercised: it is a caller bug, not DLL logic");
+    EXPECT_ERR(KP_E_INVALIDARG);
 }
 TEST(kpm_encoded_size_query_independent_of_input_size_value) {
     REQ_CRYPT32();
@@ -681,7 +676,7 @@ TEST(kpm_encode_more_data_reports_size_not_partial) {
     int v = 0x12345678; BYTE buf[8]; memset(buf, 0x55, sizeof buf); DWORD cb = 2; SET_ERR(0);
     CHECK(!U(CryptEncodeObjectEx)(KP_ENC, X509_INTEGER, &v, 0, NULL, buf, &cb));
     EXPECT_ERR(ERROR_MORE_DATA); EXPECT_EQ(cb, 6);
-    t_note("buffer after MORE_DATA: %02x %02x %02x", buf[0], buf[1], buf[2]);
+    EXPECT_EQ(buf[0], 0x02); EXPECT_EQ(buf[1], 0x55); EXPECT_EQ(buf[2], 0x55);   /* observed: only the tag byte is written */
 }
 TEST(kpm_encode_zero_buffer_size_with_buffer) {
     REQ_CRYPT32();
@@ -699,5 +694,5 @@ TEST(kpm_decode_trailing_data_note) {
     REQ_CRYPT32();
     static const BYTE der[] = {0x30,0,0xff,0xff}; DWORD cb = 0; SET_ERR(0);
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, X509_SEQUENCE_OF_ANY, der, 4, 0, NULL, NULL, &cb);
-    t_note("SEQUENCE OF ANY with two trailing bytes: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECKF(ok, "err=0x%lx", GetLastError());
 }

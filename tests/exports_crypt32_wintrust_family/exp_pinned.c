@@ -77,9 +77,9 @@ TEST(exp_pinned_crypt32_protect_data_is_local) {
     if (!m) { t_skip("crypt32 missing"); return; }
     FARPROC p = GetProcAddress(m, "CryptProtectData");
     MEMORY_BASIC_INFORMATION mbi;
-    if (!p) { t_note("CryptProtectData absent"); return; }
+    CHECK(p != NULL); if (!p) return;
     CHECK(VirtualQuery((void *)p, &mbi, sizeof mbi) != 0);
-    t_note("CryptProtectData in crypt32 image: %d", mbi.AllocationBase == (void *)m);
+    CHECK(mbi.AllocationBase == (void *)m);
 }
 
 TEST(exp_pinned_keyiso_KeyIsoSetAuditingInterface_forward) {
@@ -122,7 +122,7 @@ TEST(exp_pinned_certca_has_no_forwarders_for_its_own_names) {
     if (!ca) { t_skip("certca missing"); return; }
     FARPROC p = GetProcAddress(ca, "CAFindByName");
     MEMORY_BASIC_INFORMATION mbi;
-    if (!p) { t_note("CAFindByName absent"); return; }
+    CHECK(p != NULL); if (!p) return;
     CHECK(VirtualQuery((void *)p, &mbi, sizeof mbi) != 0);
     CHECK(mbi.AllocationBase == (void *)ca);
     CHECK(GetProcAddress(ca, (LPCSTR)(ULONG_PTR)401) == p);
@@ -139,9 +139,8 @@ static void all_unnamed(const char *dll, const exp_ent *t, int n) {
     }
 }
 TEST(exp_pinned_ntasn1_ordinal_only)  { all_unnamed("ntasn1.dll", exp_tab_ntasn1, exp_cnt_ntasn1); }
-TEST(exp_pinned_msasn1_ordinal_only_if_unnamed) {
+TEST(exp_pinned_msasn1_all_named) {
     int named = 0;
     for (int i = 0; i < exp_cnt_msasn1; i++) named += exp_tab_msasn1[i].name != NULL;
-    t_note("msasn1 table: %d of %d exports named", named, exp_cnt_msasn1);
-    CHECK(exp_cnt_msasn1 > 0);
+    CHECKF(exp_cnt_msasn1 == 152 && named == 152, "msasn1 table: %d of %d exports named", named, exp_cnt_msasn1);
 }

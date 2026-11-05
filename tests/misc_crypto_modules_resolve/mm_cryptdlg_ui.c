@@ -28,6 +28,7 @@ UDECL(BOOL, CryptUIFreeCertificatePropertiesPagesW, (void *));
 UDECL(BOOL, CryptUIFreeViewSignaturesPagesW, (void *));
 UDECL(HRESULT, CertSelectionGetSerializedBlob, (void *, void **, ULONG *));
 
+static int mm_en_ui(void) { return PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_ENGLISH; }
 #define EQ32(got, want) do { unsigned g_ = (unsigned)(got); \
     t_check(g_ == (unsigned)(want), __FILE__, __LINE__, #got " == " #want, "got 0x%08x want 0x%08x", g_, (unsigned)(want)); } while (0)
 
@@ -171,7 +172,7 @@ TEST(mm_dlg_format_pkix_email_buffer_protocol) {
     EXPECT_EQ(cb, need);
     CHECK(lstrlenW(buf) * 2 + 2 == (int)need);   /* NUL-terminated resource string */
     CHECK(buf[0] != 0);
-    t_note("PKIX e-mail protection text: %ls", buf);
+    if (mm_en_ui()) EXPECT_WSTR(buf, L"E-Mail Encryption and Authentication");   /* resource text, pinned on an English UI */
     memset(buf, 0x55, sizeof buf);
     cb = need + 100;
     EXPECT_EQ(f(X509_ASN_ENCODING, 0, 0, NULL, "2.5.29.37", NULL, 0, buf, &cb), 1);
@@ -324,7 +325,7 @@ TEST(mm_dlg_recipient_id_decode_garbage) {
     BYTE out[64]; DWORD cb = sizeof out;
     SET_ERR(0);
     EXPECT_EQ(fd(X509_ASN_ENCODING, NULL, empty, 2, 0, out, &cb), 0);
-    t_note("empty SEQUENCE last error %lu", GetLastError());
+    EXPECT_ERR(ERROR_NOT_ENOUGH_MEMORY);
 }
 
 /* ================= EncodeAttrSequence / DecodeAttrSequence ==================================== */
@@ -437,8 +438,7 @@ TEST(mm_dlg_attr_sequence_decode_garbage) {
     DWORD cb = 0;
     SET_ERR(0);
     EXPECT_EQ(fd(X509_ASN_ENCODING, NULL, bad, sizeof bad, 0, NULL, &cb), 0);
-    CHECK(GetLastError() != 0);
-    t_note("truncated sequence last error 0x%08lx", GetLastError());
+    EXPECT_ERR(0x80093102);
     static const BYTE empty[] = {0x30, 0x00};
     cb = 0;
     EXPECT_EQ(fd(X509_ASN_ENCODING, NULL, empty, sizeof empty, 0, NULL, &cb), 1);
@@ -538,7 +538,11 @@ TEST(mm_ui_unknown_error_string) {
     WCHAR *s = NULL;
     EXPECT_EQ(f(&s, ERROR_FILE_NOT_FOUND), 1);
     CHECK(s != NULL);
-    if (s) { CHECK(s[0] != 0); t_note("error 2 text: %ls", s); LocalFree(s); }
+    if (s) {
+        WCHAR sys[256]; DWORD n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, ERROR_FILE_NOT_FOUND, 0, sys, 256, NULL);
+        CHECKF(n && !wcscmp(s, sys), "error 2 text \"%ls\" vs system text \"%ls\"", s, sys);   /* probed: same text as the system message */
+        LocalFree(s);
+    }
     s = NULL;
     EXPECT_EQ(f(&s, 0xDEADBEEF), 1);        /* unknown codes fall back to a resource string */
     CHECK(s != NULL && s[0] != 0);
@@ -559,7 +563,7 @@ TEST(mm_ui_format_eku_with_usages) {
         CHECK(wcschr(t, L'\n') != NULL);     /* multi-line variant */
         CHECK(wcsstr(t, L", ") == NULL);
         EXPECT_EQ(lstrlenW(s), lstrlenW(t) + 1);   /* ", " is one character longer than "\n" */
-        t_note("EKU text: %ls", s);
+        if (mm_en_ui()) { EXPECT_WSTR(s, L"Server Authentication, Client Authentication"); EXPECT_WSTR(t, L"Server Authentication\nClient Authentication"); }
     }
     LocalFree(s); LocalFree(t);
     freecert(c);
@@ -571,7 +575,7 @@ TEST(mm_ui_format_eku_without_usages) {
     WCHAR *s = NULL;
     EXPECT_EQ(f(&s, c, 0, 0), 1);
     CHECK(s != NULL && s[0] != 0);
-    if (s) { t_note("no EKU text: %ls", s); CHECK(wcschr(s, L'\n') == NULL); LocalFree(s); }
+    if (s) { if (mm_en_ui()) EXPECT_WSTR(s, L"<All>"); CHECK(wcschr(s, L'\n') == NULL); LocalFree(s); }
     /* property-only lookup finds nothing on a bare certificate: returns 0 and leaves the output untouched */
     WCHAR *p = (WCHAR *)7;
     EXPECT_EQ(f(&p, c, 1, 0), 0);
@@ -688,6 +692,7 @@ TEST(mm_ui_serialized_blob_memory_store) {
     if (out && cb) {
         /* the blob is the selection-UI container, not a serialized store: that provider rejects it with
          * CRYPT_E_FILE_ERROR (probed on Win10). Both certificate encodings must be inside it verbatim. */
+        EXPECT_EQ(cb, 820);
         CRYPT_DATA_BLOB blob = { cb, (BYTE *)out };
         SetLastError(0);
         HCERTSTORE rd = U(CertOpenStore)(CERT_STORE_PROV_SERIALIZED, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0, 0, &blob);

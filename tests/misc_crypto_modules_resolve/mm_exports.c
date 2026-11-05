@@ -14,7 +14,7 @@ static int in_image(HMODULE m, FARPROC p) {
 
 static int load_or_skip(const char *dll, HMODULE *out) {
     *out = t_module(dll);
-    if (!*out) { t_skip("%s not present", dll); return 0; }
+    if (!*out) { if (t_is_wine()) { t_skip("%s not present in the emulator", dll); return 0; } CHECKF(0, "%s not present", dll); return 0; }
     return 1;
 }
 
@@ -110,7 +110,7 @@ MODTESTS(cryptui, "cryptui.dll")
 
 /* ---- aliases and forwarders -------------------------------------------------------------- */
 TEST(mm_exports_keyiso_auditing_forwarder) {
-    if (!t_module("keyiso.dll") || !t_module("ncryptprov.dll")) { t_skip("module absent"); return; }
+    if (!t_module("keyiso.dll") || !t_module("ncryptprov.dll")) { if (t_is_wine()) t_skip("module absent"); else CHECKF(0, "keyiso/ncryptprov absent"); return; }
     FARPROC a = t_proc_in("keyiso.dll", "KeyIsoSetAuditingInterface");
     FARPROC b = t_proc_in("ncryptprov.dll", "SetAuditingInterface");
     CHECK(a != NULL); CHECK(b != NULL);
@@ -121,7 +121,7 @@ TEST(mm_exports_keyiso_auditing_forwarder) {
 }
 
 TEST(mm_exports_cryptngc_fido_share_one_stub) {
-    if (!t_module("cryptngc.dll")) { t_skip("cryptngc.dll absent"); return; }
+    if (!t_module("cryptngc.dll")) { if (t_is_wine()) t_skip("cryptngc.dll absent"); else CHECKF(0, "cryptngc.dll absent"); return; }
     FARPROC a = t_proc_in("cryptngc.dll", "FidoCreateCredential");
     FARPROC b = t_proc_in("cryptngc.dll", "FidoGetCredential");
     FARPROC c = t_proc_in("cryptngc.dll", "FidoSignWithCredential");
@@ -140,7 +140,7 @@ TEST(mm_exports_cryptui_free_pages_share_one_body) {
 }
 
 TEST(mm_exports_servicemain_names_are_distinct_code) {
-    if (!t_module("certprop.dll")) { t_skip("certprop.dll absent"); return; }
+    if (!t_module("certprop.dll")) { if (t_is_wine()) t_skip("certprop.dll absent"); else CHECKF(0, "certprop.dll absent"); return; }
     FARPROC a = t_proc_in("certprop.dll", "CertPropServiceMain");
     FARPROC b = t_proc_in("certprop.dll", "ScPolicyServiceMain");
     FARPROC c = t_proc_in("certprop.dll", "SvchostPushServiceGlobals");
@@ -149,7 +149,7 @@ TEST(mm_exports_servicemain_names_are_distinct_code) {
 }
 
 TEST(mm_exports_capisp_resolve_only) {
-    if (!t_module("capisp.dll")) { t_skip("capisp.dll absent"); return; }
+    if (!t_module("capisp.dll")) { if (t_is_wine()) t_skip("capisp.dll absent"); else CHECKF(0, "capisp.dll absent"); return; }
     /* sysprep helpers rewrite machine key state; the corpus never calls them. */
     const char *n[] = {"CAPISysPrep_Generalize", "CryptoSysPrep_Clean", "CryptoSysPrep_Specialize",
                        "CryptoSysPrep_Specialize_Clone", "CryptoSysPrep_Specialize_Offline"};
@@ -157,7 +157,7 @@ TEST(mm_exports_capisp_resolve_only) {
 }
 
 TEST(mm_exports_cryptcatsvc_resolve_only) {
-    if (!t_module("cryptcatsvc.dll")) { t_skip("cryptcatsvc.dll absent"); return; }
+    if (!t_module("cryptcatsvc.dll")) { if (t_is_wine()) t_skip("cryptcatsvc.dll absent"); else CHECKF(0, "cryptcatsvc.dll absent"); return; }
     const char *n[] = {"CatDbOfflineRebuildDatabasesRundll32W", "CatDbOfflineRebuildDatabasesW",
                        "CryptCATAdminCatalogDatabase", "CryptsvcDllCtrl"};
     for (int i = 0; i < 4; i++) CHECKF(t_proc_in("cryptcatsvc.dll", n[i]) != NULL, "%s", n[i]);
@@ -166,10 +166,10 @@ TEST(mm_exports_cryptcatsvc_resolve_only) {
 TEST(mm_exports_u_search_order_finds_small_modules) {
     /* U() finds each name somewhere in the module list */
     if (t_is_wine()) { t_skip("emulator export set differs"); return; }
-    CHECK(t_proc("GetKeyStorageInterface") != NULL || !t_module("ncryptprov.dll"));
-    CHECK(t_proc("NgcGetEventInterface") != NULL || !t_module("cryptngc.dll"));
-    CHECK(t_proc("GetFriendlyNameOfCertW") != NULL || !t_module("cryptdlg.dll"));
-    CHECK(t_proc("MyFormatEnhancedKeyUsageString") != NULL || !t_module("cryptui.dll"));
+    CHECK(t_proc("GetKeyStorageInterface") != NULL);
+    CHECK(t_proc("NgcGetEventInterface") != NULL);
+    CHECK(t_proc("GetFriendlyNameOfCertW") != NULL);
+    CHECK(t_proc("MyFormatEnhancedKeyUsageString") != NULL);
 }
 
 TEST(mm_exports_modules_load_idempotent) {
@@ -177,7 +177,7 @@ TEST(mm_exports_modules_load_idempotent) {
                        "certenc.dll", "ncryptprov.dll", "cryptdlg.dll", "cryptext.dll", "cryptui.dll"};
     for (int i = 0; i < 10; i++) {
         HMODULE a = t_module(d[i]);
-        if (!a) { t_note("%s absent", d[i]); continue; }
+        if (!a) { CHECKF(0, "%s absent", d[i]); continue; }
         HMODULE b = GetModuleHandleA(d[i]);
         CHECKF(a == b, "%s", d[i]);
         char path[MAX_PATH]; DWORD n = GetModuleFileNameA(a, path, sizeof path);
@@ -211,7 +211,7 @@ TEST(mm_cryptext_can_unload_now) {
 }
 TEST(mm_cryptext_shell_verbs_resolve_only) {
     /* the CryptExt verbs open viewers or import dialogs; resolved but never called */
-    if (!t_module("cryptext.dll")) { t_skip("cryptext.dll absent"); return; }
+    if (!t_module("cryptext.dll")) { if (t_is_wine()) t_skip("cryptext.dll absent"); else CHECKF(0, "cryptext.dll absent"); return; }
     for (unsigned i = 0; i < NEXP(exp_cryptext); i++)
         if (!strncmp(exp_cryptext[i].name, "CryptExt", 8))
             CHECKF(t_proc_in("cryptext.dll", exp_cryptext[i].name) != NULL || t_is_wine(), "%s", exp_cryptext[i].name);

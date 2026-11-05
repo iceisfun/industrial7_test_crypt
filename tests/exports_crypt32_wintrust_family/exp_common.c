@@ -57,10 +57,6 @@ void exp_run(const char *dll, const char *w, const exp_ent *t, int n) {
     }
     if (!strcmp(w, "load")) {
         if (!m && g_wine) { t_skip("%s not present in emulator", dll); return; }
-        if (!m) {
-            DWORD le = GetLastError();
-            if (le == ERROR_MOD_NOT_FOUND || le == ERROR_BAD_EXE_FORMAT) { t_note("%s not loadable here (error %lu): SKU/feature dependent", dll, le); t_skip("%s absent", dll); return; }
-        }
         CHECKF(m != NULL, "LoadLibrary(%s) failed, error %lu", dll, GetLastError());
         return;
     }
@@ -166,8 +162,10 @@ void exp_run(const char *dll, const char *w, const exp_ent *t, int n) {
             cnt++;
             FARPROC pw = by_name(m, t[i].name), pa = by_name(m, a);
             if (!pw || !pa) { XCHK(pw && pa, "%s: pair %s/%s: W %p A %p", dll, t[i].name, a, (void *)pw, (void *)pa); continue; }
-            /* W and A may legitimately be one function (shared address); only resolution is asserted */
-            if (pw == pa) t_note("%s: %s and %s share one address", dll, t[i].name, a);
+            /* observed on Win10 22H2: exactly these A/W pairs are one function, every other pair has two entry points */
+            int shared = (!strcmp(dll, "cryptdlg.dll") && !strcmp(a, "CertConfigureTrustA")) ||
+                         (!strcmp(dll, "cryptui.dll") && (!strcmp(a, "CryptUIFreeCertificatePropertiesPagesA") || !strcmp(a, "CryptUIFreeViewSignaturesPagesA")));
+            CHECKF((pw == pa) == shared, "%s: %s/%s %s one address (%p %p)", dll, t[i].name, a, shared ? "should share" : "should not share", (void *)pw, (void *)pa);
         }
         if (!cnt) t_skip("%s has no A/W pairs", dll);
     } else if (!strcmp(w, "dllentry")) {
@@ -176,8 +174,7 @@ void exp_run(const char *dll, const char *w, const exp_ent *t, int n) {
             int listed = tab_has_name(t, n, e[i]);
             FARPROC p = by_name(m, e[i]);
             if (listed) XCHK(p != NULL, "%s should export %s", dll, e[i]);
-            else if (p) t_note("%s exports %s which the reference Windows 10 table lacks", dll, e[i]);
-            else { SET_ERR(0); CHECK(by_name(m, e[i]) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND); }
+            else { SET_ERR(0); CHECKF(by_name(m, e[i]) == NULL, "%s exports %s which the Windows 10 table lacks", dll, e[i]); EXPECT_ERR(ERROR_PROC_NOT_FOUND); }
         }
     } else if (!strcmp(w, "extras")) {
         unsigned mx = 0; int extra = 0;
@@ -187,14 +184,16 @@ void exp_run(const char *dll, const char *w, const exp_ent *t, int n) {
             for (int i = 0; i < n; i++) if (t[i].ord == o) { listed = 1; break; }
             if (!listed && by_ord(m, o)) { extra++; t_note("%s exports unlisted ordinal %u", dll, o); }
         }
-        CHECKF(1, "scan done, %d unlisted", extra);
+        CHECKF(extra == 0, "scan done, %d unlisted", extra);
     } else if (!strcmp(w, "nullname")) {
         SET_ERR(0);
         CHECK(GetProcAddress(m, NULL) == NULL);
-        DWORD e = GetLastError(); t_note("GetProcAddress(%s,NULL) last error %lu", dll, e);
+        EXPECT_ERR(ERROR_INVALID_PARAMETER);
         SET_ERR(0);
         CHECK(GetProcAddress(NULL, NULL) == NULL);
+        EXPECT_ERR(ERROR_INVALID_ORDINAL);          /* probed: a NULL module with a NULL name is reported like a bad ordinal */
         SET_ERR(0);
         CHECK(GetProcAddress(NULL, "CertOpenStore") == NULL);
+        EXPECT_ERR(ERROR_PROC_NOT_FOUND);
     }
 }

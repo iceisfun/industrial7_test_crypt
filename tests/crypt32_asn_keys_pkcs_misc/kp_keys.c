@@ -39,11 +39,11 @@ TEST(kpk_algid_encode_oid_forms) {
 TEST(kpk_algid_encode_bad_oid_fails) {
     REQ_TYPE(X509_ALGORITHM_IDENTIFIER);
     CRYPT_ALGORITHM_IDENTIFIER a = { (LPSTR)"no-such-oid", { 0, NULL } };
-    ENC_FAIL(X509_ALGORITHM_IDENTIFIER, &a, 0);
+    ENC_FAIL(X509_ALGORITHM_IDENTIFIER, &a, KP_E_BADARGS);
     a.pszObjId = (LPSTR)"1";
-    ENC_FAIL(X509_ALGORITHM_IDENTIFIER, &a, 0);
+    ENC_FAIL(X509_ALGORITHM_IDENTIFIER, &a, KP_E_BADARGS);
     a.pszObjId = (LPSTR)"";
-    ENC_FAIL(X509_ALGORITHM_IDENTIFIER, &a, 0);
+    ENC_FAIL(X509_ALGORITHM_IDENTIFIER, &a, KP_E_INVALIDARG);
 }
 TEST(kpk_algid_encode_failure_zeroes_size_and_alloc_pointer) {
     REQ_TYPE(X509_ALGORITHM_IDENTIFIER);
@@ -72,7 +72,7 @@ TEST(kpk_algid_decode_nocopy_params_alias_input) {
     CHECK(U(CryptDecodeObjectEx)(KP_ENC, X509_ALGORITHM_IDENTIFIER, der, sizeof der, CRYPT_DECODE_NOCOPY_FLAG, NULL, buf, &cb));
     CRYPT_ALGORITHM_IDENTIFIER *r = (CRYPT_ALGORITHM_IDENTIFIER *)buf;
     CHECK(r->Parameters.cbData == 3);
-    t_note("NOCOPY: Parameters.pbData aliases input = %d", r->Parameters.pbData == der + 6);
+    CHECK(r->Parameters.pbData == der + 6);
 }
 TEST(kpk_algid_decode_errors) {
     REQ_TYPE(X509_ALGORITHM_IDENTIFIER);
@@ -81,7 +81,7 @@ TEST(kpk_algid_decode_errors) {
     DEC_FAILV(X509_ALGORITHM_IDENTIFIER, KP_E_BADTAG, 0x30, 3, 2, 1, 1);
     DEC_FAILV(X509_ALGORITHM_IDENTIFIER, KP_E_TRUNC, 0x30, 9, 6, 2, 0x2a);
     DEC_FAILV(X509_ALGORITHM_IDENTIFIER, KP_E_TRUNC, 0x30);
-    DEC_FAILV(X509_ALGORITHM_IDENTIFIER, 0, 0x30, 0);
+    DEC_FAILV(X509_ALGORITHM_IDENTIFIER, KP_E_EOD, 0x30, 0);
 }
 TEST(kpk_algid_roundtrip_oids) {
     REQ_TYPE(X509_ALGORITHM_IDENTIFIER);
@@ -130,7 +130,7 @@ TEST(kpk_pubkeyinfo_encode_ecc_no_params_note) {
     CHECK(e != NULL);
     if (e) {
         /* the OID table flags EC keys as taking no NULL parameters: the algorithm sequence is then just the OID */
-        t_note("ECC key info without parameters encodes %lu bytes (OID only would be %lu)", cb, (unsigned long)(sizeof kv_ec_pub_point + 3 + 2 + 2 + 9 + 2));
+        EXPECT_EQ(cb, (unsigned long)(sizeof kv_ec_pub_point + 3 + 2 + 2 + 9 + 2));
         kp_free(e);
     }
 }
@@ -185,14 +185,14 @@ TEST(kpk_pubkeyinfo_decode_errors) {
     DEC_FAILV(X509_PUBLIC_KEY_INFO, KP_E_BADTAG, 2, 1, 1);
     DEC_FAILV(X509_PUBLIC_KEY_INFO, KP_E_BADTAG, 0x30, 0x0a, 0x30,0x06,6,2,0x2a,3,5,0, 4,1,0);   /* key is not a BIT STRING */
     DEC_FAILV(X509_PUBLIC_KEY_INFO, KP_E_TRUNC, 0x30, 0x0a, 0x30,0x06,6,2,0x2a,3,5,0, 3);
-    DEC_FAILV(X509_PUBLIC_KEY_INFO, 0, 0x30, 0);
-    DEC_FAILV(X509_PUBLIC_KEY_INFO, 0, 0x30, 0x08, 0x30,0x06,6,2,0x2a,3,5,0);                   /* no key at all */
+    DEC_FAILV(X509_PUBLIC_KEY_INFO, KP_E_EOD, 0x30, 0);
+    DEC_FAILV(X509_PUBLIC_KEY_INFO, KP_E_EOD, 0x30, 0x08, 0x30,0x06,6,2,0x2a,3,5,0);                   /* no key at all */
 }
 TEST(kpk_pubkeyinfo_encode_bad_oid) {
     REQ_CRYPT32();
     CERT_PUBLIC_KEY_INFO k; memset(&k, 0, sizeof k);
     k.Algorithm.pszObjId = (LPSTR)"bogus";
-    ENC_FAIL(X509_PUBLIC_KEY_INFO, &k, 0);
+    ENC_FAIL(X509_PUBLIC_KEY_INFO, &k, KP_E_BADARGS);
 }
 
 /* ---------------------------------------------------------------- RSA_CSP_PUBLICKEYBLOB */
@@ -267,24 +267,24 @@ TEST(kpk_rsa_csp_pub_magic_and_alg_not_validated_note) {
     BYTE blob[sizeof kv_rsa_csp_pub]; memcpy(blob, kv_rsa_csp_pub, sizeof blob);
     *(DWORD *)(blob + 8) = 0x41424344;
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, RSA_CSP_PUBLICKEYBLOB_T, blob, 0, NULL, NULL, &cb);
-    t_note("bad magic: ok=%d cb=%lu", ok, cb);
+    CHECK(ok); EXPECT_EQ(cb, 140);
     memcpy(blob, kv_rsa_csp_pub, sizeof blob); *(DWORD *)(blob + 4) = CALG_RSA_SIGN;
     cb = 0; ok = U(CryptEncodeObjectEx)(KP_ENC, RSA_CSP_PUBLICKEYBLOB_T, blob, 0, NULL, NULL, &cb);
-    t_note("aiKeyAlg RSA_SIGN: ok=%d cb=%lu", ok, cb);
+    CHECK(ok); EXPECT_EQ(cb, 140);
 }
 TEST(kpk_rsa_csp_pub_decode_errors) {
     REQ_CRYPT32();
     DEC_FAILV(RSA_CSP_PUBLICKEYBLOB_T, KP_E_BADTAG, 2, 1, 1);
     DEC_FAILV(RSA_CSP_PUBLICKEYBLOB_T, KP_E_BADTAG, 0x30, 3, 4, 1, 1);
     DEC_FAILV(RSA_CSP_PUBLICKEYBLOB_T, KP_E_TRUNC, 0x30, 8, 2, 1, 0x0b);
-    DEC_FAILV(RSA_CSP_PUBLICKEYBLOB_T, 0, 0x30, 3, 2, 1, 5);                /* exponent missing */
+    DEC_FAILV(RSA_CSP_PUBLICKEYBLOB_T, KP_E_EOD, 0x30, 3, 2, 1, 5);                /* exponent missing */
 }
 TEST(kpk_rsa_csp_pub_alias_of_pkcs_rsa_public) {
     REQ_CRYPT32();
     /* the same struct type is registered under its OID spelling szOID_RSA_RSA? it is not: record the outcome */
     DWORD cb = 0;
     BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, "1.2.840.113549.1.1.1", kv_rsa_csp_pub, 0, NULL, NULL, &cb);
-    t_note("encode via OID string rsaEncryption: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
 }
 
 /* ---------------------------------------------------------------- CNG_RSA_PUBLIC_KEY_BLOB */
@@ -312,7 +312,7 @@ TEST(kpk_cng_rsa_pub_wrong_magic) {
     BYTE blob[256]; build_cng_pub(blob);
     ((BCRYPT_RSAKEY_BLOB *)blob)->Magic = 0x32415352;       /* 'RSA2' is a private-key magic */
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, CNG_RSA_PUBLIC_KEY_BLOB_T, blob, 0, NULL, NULL, &cb);
-    t_note("CNG public blob with RSA2 magic: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECKF(ok, "err=0x%lx", GetLastError());
 }
 
 /* ---------------------------------------------------------------- PKCS_RSA_PRIVATE_KEY */
@@ -347,12 +347,12 @@ TEST(kpk_rsa_private_decode_errors) {
     REQ_TYPE(PKCS_RSA_PRIVATE_KEY);
     DEC_FAILV(PKCS_RSA_PRIVATE_KEY, KP_E_BADTAG, 2, 1, 1);
     DEC_FAILV(PKCS_RSA_PRIVATE_KEY, KP_E_TRUNC, 0x30, 9, 2, 1, 0);
-    DEC_FAILV(PKCS_RSA_PRIVATE_KEY, 0, 0x30, 3, 2, 1, 0);                   /* only the version */
-    DEC_FAILV(PKCS_RSA_PRIVATE_KEY, 0, 0x30, 0);
+    DEC_FAILV(PKCS_RSA_PRIVATE_KEY, KP_E_EOD, 0x30, 3, 2, 1, 0);                   /* only the version */
+    DEC_FAILV(PKCS_RSA_PRIVATE_KEY, KP_E_EOD, 0x30, 0);
 }
 TEST(kpk_rsa_private_decode_public_der_fails) {
     REQ_TYPE(PKCS_RSA_PRIVATE_KEY);
-    DEC_FAIL(PKCS_RSA_PRIVATE_KEY, kv_rsa_pkcs1_pub, sizeof kv_rsa_pkcs1_pub, 0);
+    DEC_FAIL(PKCS_RSA_PRIVATE_KEY, kv_rsa_pkcs1_pub, sizeof kv_rsa_pkcs1_pub, KP_E_LARGE);
 }
 TEST(kpk_rsa_private_roundtrip_via_decode) {
     REQ_TYPE(PKCS_RSA_PRIVATE_KEY);
@@ -421,7 +421,7 @@ TEST(kpk_pkcs8_encode_bad_oid) {
     REQ_TYPE(PKCS_PRIVATE_KEY_INFO);
     CRYPT_PRIVATE_KEY_INFO p; memset(&p, 0, sizeof p);
     p.Algorithm.pszObjId = (LPSTR)"bogus"; p.PrivateKey.cbData = 1; p.PrivateKey.pbData = (BYTE *)"\x09";
-    ENC_FAIL(PKCS_PRIVATE_KEY_INFO, &p, 0);
+    ENC_FAIL(PKCS_PRIVATE_KEY_INFO, &p, KP_E_BADENC);
 }
 
 /* ---------------------------------------------------------------- PKCS_ENCRYPTED_PRIVATE_KEY_INFO */
@@ -494,7 +494,7 @@ TEST(kpk_dss_parameters_roundtrip_160_bit) {
 TEST(kpk_dss_parameters_decode_errors) {
     REQ_TYPE(X509_DSS_PARAMETERS);
     DEC_FAILV(X509_DSS_PARAMETERS, KP_E_BADTAG, 2, 1, 1);
-    DEC_FAILV(X509_DSS_PARAMETERS, 0, 0x30, 6, 2, 1, 1, 2, 1, 2);        /* g missing */
+    DEC_FAILV(X509_DSS_PARAMETERS, KP_E_EOD, 0x30, 6, 2, 1, 1, 2, 1, 2);        /* g missing */
     DEC_FAILV(X509_DSS_PARAMETERS, KP_E_TRUNC, 0x30, 9, 2, 1, 1, 2, 1, 2);
 }
 
@@ -557,7 +557,7 @@ TEST(kpk_dss_signature_roundtrip_random) {
 TEST(kpk_dss_signature_decode_errors) {
     REQ_TYPE(X509_DSS_SIGNATURE);
     DEC_FAILV(X509_DSS_SIGNATURE, KP_E_BADTAG, 2, 1, 1);
-    DEC_FAILV(X509_DSS_SIGNATURE, 0, 0x30, 3, 2, 1, 1);
+    DEC_FAILV(X509_DSS_SIGNATURE, KP_E_EOD, 0x30, 3, 2, 1, 1);
     DEC_FAILV(X509_DSS_SIGNATURE, KP_E_TRUNC, 0x30, 6, 2, 1, 1, 2, 1);
 }
 TEST(kpk_dss_signature_decode_too_wide_value) {
@@ -566,7 +566,7 @@ TEST(kpk_dss_signature_decode_too_wide_value) {
     BYTE der[2 + 2 + 21 + 3]; int o = 0; der[o++] = 0x30; der[o++] = 2 + 21 + 3; der[o++] = 2; der[o++] = 21; for (int i = 0; i < 21; i++) der[o++] = 0x7f; der[o++] = 2; der[o++] = 1; der[o++] = 1;
     DWORD cb = 4096; BYTE buf[4096];
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, X509_DSS_SIGNATURE, der, o, 0, NULL, buf, &cb);
-    t_note("21-byte r in DSS signature: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_BADENC);
 }
 
 /* ---------------------------------------------------------------- X509_ECC_SIGNATURE / DH params (type 47) */
@@ -603,7 +603,7 @@ TEST(kpk_ecc_signature_leading_zero_values) {
 TEST(kpk_ecc_signature_decode_errors) {
     REQ_TYPE(X509_ECC_SIGNATURE);
     DEC_FAILV(X509_ECC_SIGNATURE, KP_E_BADTAG, 2, 1, 1);
-    DEC_FAILV(X509_ECC_SIGNATURE, 0, 0x30, 3, 2, 1, 1);
+    DEC_FAILV(X509_ECC_SIGNATURE, KP_E_EOD, 0x30, 3, 2, 1, 1);
 }
 
 /* ---------------------------------------------------------------- X509_ECC_PRIVATE_KEY */
@@ -658,13 +658,13 @@ TEST(kpk_ecc_private_bad_curve_oid) {
     BYTE d[] = {1};
     CRYPT_ECC_PRIVATE_KEY_INFO k; memset(&k, 0, sizeof k);
     k.dwVersion = 1; k.PrivateKey.cbData = 1; k.PrivateKey.pbData = d; k.szCurveOid = (LPSTR)"not-an-oid";
-    ENC_FAIL(X509_ECC_PRIVATE_KEY, &k, 0);
+    ENC_FAIL(X509_ECC_PRIVATE_KEY, &k, KP_E_BADENC);
 }
 TEST(kpk_ecc_private_decode_without_optional_parts) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);
     kp_small_keeps_cb = 1;
     CRYPT_ECC_PRIVATE_KEY_INFO *r = DEC_OK(X509_ECC_PRIVATE_KEY, V(0x30,8, 2,1,1, 4,3,1,2,3), 0);
-    if (r) { CHECK(r->dwVersion == 1); BLOB_IS(r->PrivateKey, 1,2,3); CHECK(r->szCurveOid == NULL || r->szCurveOid[0] == 0); CHECK(r->PublicKey.cbData == 0); kp_free(r); }
+    if (r) { CHECK(r->dwVersion == 1); BLOB_IS(r->PrivateKey, 1,2,3); CHECK(r->szCurveOid == NULL); CHECK(r->PublicKey.cbData == 0); kp_free(r); }
 }
 TEST(kpk_ecc_private_decode_errors) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);
@@ -674,5 +674,5 @@ TEST(kpk_ecc_private_decode_errors) {
 }
 TEST(kpk_ecc_private_sec1_rsa_der_mismatch) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);
-    DEC_FAIL(X509_ECC_PRIVATE_KEY, kv_rsa_pkcs1_priv, sizeof kv_rsa_pkcs1_priv, 0);
+    DEC_FAIL(X509_ECC_PRIVATE_KEY, kv_rsa_pkcs1_priv, sizeof kv_rsa_pkcs1_priv, KP_E_BADENC);
 }

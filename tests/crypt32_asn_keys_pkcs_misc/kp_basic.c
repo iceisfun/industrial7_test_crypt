@@ -58,7 +58,7 @@ TEST(kpb_encoding_type_zero_fails) {
     REQ_CRYPT32();
     int v = 1; DWORD cb = 0; SET_ERR(0);
     CHECK(!U(CryptEncodeObjectEx)(0, X509_INTEGER, &v, 0, NULL, NULL, &cb));
-    t_note("encoding type 0: last error 0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
 }
 TEST(kpb_pkcs7_encoding_bit_accepted) {
     REQ_CRYPT32();
@@ -81,7 +81,7 @@ TEST(kpb_decode_null_input_nonzero_length_args) {
     BYTE buf[16]; DWORD cb = sizeof buf;
     SET_ERR(0);
     CHECK(!U(CryptDecodeObjectEx)(KP_ENC, X509_INTEGER, NULL, 0, 0, NULL, buf, &cb));
-    t_note("NULL input, cb 0: last error 0x%lx", GetLastError());
+    EXPECT_ERR(KP_E_EOD);
 }
 
 /* ---------------------------------------------------------------- X509_INTEGER */
@@ -126,32 +126,33 @@ TEST(kpb_integer_decode_errors) {
 TEST(kpb_integer_decode_wide_values_fail) {
     REQ_CRYPT32();
     /* five significant bytes do not fit the int result */
-    DEC_FAILV(X509_INTEGER, 0, 2, 5, 1, 0, 0, 0, 0);
-    DEC_FAILV(X509_INTEGER, 0, 2, 5, 0xff, 0x7f, 0xff, 0xff, 0xff);
+    DEC_FAILV(X509_INTEGER, KP_E_LARGE, 2, 5, 1, 0, 0, 0, 0);
+    DEC_FAILV(X509_INTEGER, KP_E_LARGE, 2, 5, 0xff, 0x7f, 0xff, 0xff, 0xff);
 }
 TEST(kpb_integer_decode_long_form_length) {
     REQ_CRYPT32();
     static const BYTE der[] = {2,0x81,1,9};
     int *r = (int *)kp_dec_alloc(X509_INTEGER, der, sizeof der, 0, NULL);
-    if (r) { EXPECT_EQ(*r, 9); kp_free(r); } else t_note("long form length rejected, err 0x%lx", GetLastError());
+    CHECKF(r != NULL, "long form length rejected, err 0x%lx", GetLastError());
+    if (r) { EXPECT_EQ(*r, 9); kp_free(r); }
 }
 TEST(kpb_integer_decode_trailing_bytes) {
     REQ_CRYPT32();
     static const BYTE der[] = {2,1,9,0xAA}; DWORD cb = 4; int v = 0;
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, X509_INTEGER, der, sizeof der, 0, NULL, &v, &cb);
-    t_note("integer with one trailing byte: ok=%d err=0x%lx v=%d", ok, ok ? 0 : GetLastError(), v);
+    CHECKF(ok, "trailing byte: err=0x%lx", GetLastError()); EXPECT_EQ(v, 9);       /* observed: trailing bytes after the item are ignored */
 }
 TEST(kpb_integer_decode_nonminimal) {
     REQ_CRYPT32();
     static const BYTE der[] = {2,2,0,1}; DWORD cb = 4; int v = 0;
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, X509_INTEGER, der, sizeof der, 0, NULL, &v, &cb);
-    t_note("non-minimal integer 00 01: ok=%d v=%d", ok, v);
+    CHECK(ok); EXPECT_EQ(v, 1);                             /* observed: a redundant leading zero is accepted */
 }
 TEST(kpb_integer_decode_zero_length_content) {
     REQ_CRYPT32();
     static const BYTE der[] = {2,0}; DWORD cb = 4; int v = 9;
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, X509_INTEGER, der, sizeof der, 0, NULL, &v, &cb);
-    t_note("empty integer: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_CORRUPT);
 }
 TEST(kpb_integer_roundtrip_range) {
     REQ_CRYPT32();
@@ -308,7 +309,7 @@ TEST(kpb_multibyte_nocopy_points_into_input) {
     /* integers are byte-reversed, so the data can not alias the input: it must live in the caller's buffer */
     CRYPT_UINT_BLOB *r = (CRYPT_UINT_BLOB *)buf;
     CHECK(r->cbData == 2);
-    t_note("MULTI_BYTE_UINT NOCOPY: pbData in caller buffer = %d", (BYTE *)r->pbData >= buf && (BYTE *)r->pbData < buf + sizeof buf);
+    CHECK((BYTE *)r->pbData >= buf && (BYTE *)r->pbData < buf + sizeof buf);
 }
 
 /* ---------------------------------------------------------------- X509_OCTET_STRING */
@@ -373,7 +374,7 @@ TEST(kpb_octet_decode_constructed_note) {
     REQ_CRYPT32();
     static const BYTE der[] = {0x24,6,4,1,1,4,1,2}; DWORD cb = 0;
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, X509_OCTET_STRING, der, sizeof der, 0, NULL, NULL, &cb);
-    t_note("constructed octet string: ok=%d cb=%lu err=0x%lx", ok, cb, ok ? 0 : GetLastError());
+    CHECK(!ok); EXPECT_ERR(KP_E_CORRUPT); EXPECT_EQ(cb, 0);
 }
 TEST(kpb_octet_encode_empty_input_null_pointer) {
     REQ_CRYPT32();
@@ -425,7 +426,7 @@ TEST(kpb_bits_encode_unused_bits_verbatim_or_masked) {
     REQ_CRYPT32();
     BYTE d[] = {0xff}; CRYPT_BIT_BLOB b = { 1, d, 3 }; DWORD cb; BYTE *e = kp_enc_alloc(X509_BITS, &b, 0, &cb);
     CHECK(e && cb == 4 && e[0] == 3 && e[1] == 2 && e[2] == 3);
-    if (e) { t_note("last content byte for 0xff with 3 unused bits: 0x%02x", e[3]); kp_free(e); }
+    if (e) { EXPECT_EQ(e[3], 0xf8); kp_free(e); }     /* observed: the unused low bits are masked to zero */
 }
 TEST(kpb_bits_decode_clears_unused_bits) {
     REQ_CRYPT32();
@@ -468,7 +469,7 @@ TEST(kpb_bits_without_trailing_zeroes_encode) {
         BYTE d[3]; memcpy(d, g_bitsz[i].d, 3);
         CRYPT_BIT_BLOB b = { g_bitsz[i].cb, d, g_bitsz[i].unused };
         DWORD cb = 0; BYTE *e = kp_enc_alloc(X509_BITS_WITHOUT_TRAILING_ZEROES, &b, 0, &cb);
-        if (!e) { t_note("row %u: encode failed 0x%lx", i, GetLastError()); continue; }
+        if (!e) { CHECKF(0, "row %u: encode failed 0x%lx", i, GetLastError()); continue; }
         CHECKF(cb == g_bitsz[i].n && !memcmp(e, g_bitsz[i].der, cb), "row %u", i);
         kp_free(e);
     }
@@ -476,15 +477,15 @@ TEST(kpb_bits_without_trailing_zeroes_encode) {
 TEST(kpb_bits_without_trailing_zeroes_decode) {
     REQ_CRYPT32();
     CRYPT_BIT_BLOB *r = kp_dec_alloc(X509_BITS_WITHOUT_TRAILING_ZEROES, (const BYTE[]){3,2,7,0x80}, 4, 0, NULL);
+    CHECKF(r != NULL, "decode failed 0x%lx", GetLastError());
     if (r) { CHECK(r->cbData == 1 && r->pbData[0] == 0x80 && r->cUnusedBits == 7); kp_free(r); }
-    else t_note("decode of X509_BITS_WITHOUT_TRAILING_ZEROES failed 0x%lx", GetLastError());
 }
 TEST(kpb_bits_alias_via_hash_string) {
     REQ_CRYPT32();
     BYTE d[] = {0x80}; CRYPT_BIT_BLOB b = { 1, d, 7 };
     DWORD cb = 0; BYTE buf[8];
     cb = sizeof buf; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, "#26", &b, 0, NULL, buf, &cb);
-    t_note("encode with \"#26\": ok=%d", ok);
+    CHECK(ok);
     CRYPT_BIT_BLOB *r = kp_dec_alloc("#26", (const BYTE[]){3,2,7,0x80}, 4, 0, NULL);
     CHECK(r && r->cbData == 1 && r->cUnusedBits == 7);    /* decoder dispatches "#<n>" to the numeric type */
     kp_free(r);
@@ -571,11 +572,11 @@ TEST(kpb_utctime_decode_no_seconds) {
 }
 TEST(kpb_utctime_decode_offsets) {
     REQ_CRYPT32();
-    /* the decoder applies the +-hhmm offset (AdjustFileTime); direction is recorded, not enforced */
+    /* observed: the decoder applies the +-hhmm offset in its own way: +0100 adds an hour, -0130 yields 14:22 */
     FILETIME *f = DEC_OK(PKCS_UTC_TIME, V(0x17,0x11,'0','5','0','6','0','6','1','6','1','0','0','0','+','0','1','0','0'), 0);
-    if (f) { SYSTEMTIME st; FileTimeToSystemTime(f, &st); CHECK(st.wDay == 6 && st.wMinute == 10 && (st.wHour == 15 || st.wHour == 17)); t_note("+0100 -> %02d:%02d UTC", st.wHour, st.wMinute); kp_free(f); }
+    if (f) { SYSTEMTIME st; FileTimeToSystemTime(f, &st); CHECK(st.wDay == 6 && st.wMinute == 10 && st.wHour == 17); kp_free(f); }
     f = DEC_OK(PKCS_UTC_TIME, V(0x17,0x11,'0','5','0','6','0','6','1','6','1','0','0','0','-','0','1','3','0'), 0);
-    if (f) { SYSTEMTIME st; FileTimeToSystemTime(f, &st); CHECK(st.wDay == 6); t_note("-0130 -> %02d:%02d UTC", st.wHour, st.wMinute); kp_free(f); }
+    if (f) { SYSTEMTIME st; FileTimeToSystemTime(f, &st); CHECK(st.wDay == 6 && st.wHour == 14 && st.wMinute == 22); kp_free(f); }
 }
 TEST(kpb_utctime_decode_errors) {
     REQ_CRYPT32();
@@ -623,8 +624,7 @@ TEST(kpb_choice_time_encode_milliseconds) {
     DWORD cb; BYTE *e = kp_enc_alloc(X509_CHOICE_OF_TIME, &ft, 0, &cb);
     CHECK(e != NULL);
     if (e) {
-        if (cb == 17 && !memcmp(e, "\x18\x0f" "21450606161007Z", 17)) t_note("generalized time drops milliseconds");
-        else CHECK(cb > 17 && e[0] == 0x18);
+        CHECK(cb == 17 && !memcmp(e, "\x18\x0f" "21450606161007Z", 17));      /* observed: milliseconds are dropped */
         kp_free(e);
     }
 }
@@ -640,8 +640,8 @@ TEST(kpb_choice_time_decode_generalized_fraction) {
     REQ_CRYPT32();
     static const BYTE der[] = {0x18,0x13,'2','1','4','5','0','6','0','6','1','6','1','0','0','7','.','5','0','0','Z'};
     FILETIME *f = kp_dec_alloc(X509_CHOICE_OF_TIME, der, sizeof der, 0, NULL);
-    if (f) { SYSTEMTIME st; FileTimeToSystemTime(f, &st); t_note("fraction .500 decodes to ms=%d s=%d", st.wMilliseconds, st.wSecond); CHECK(st.wYear == 2145 && st.wSecond == 7); kp_free(f); }
-    else t_note("generalized time with fraction rejected, err 0x%lx", GetLastError());
+    CHECKF(f != NULL, "fraction rejected, err 0x%lx", GetLastError());
+    if (f) { SYSTEMTIME st; FileTimeToSystemTime(f, &st); CHECK(st.wYear == 2145 && st.wSecond == 7); EXPECT_EQ(st.wMilliseconds, 500); kp_free(f); }
 }
 TEST(kpb_choice_time_decode_errors) {
     REQ_CRYPT32();
@@ -686,7 +686,7 @@ static const struct { const char *oid; BYTE der[16]; BYTE n; } g_oids[] = {
     { "1.2.128",              {6,3,0x2a,0x81,0x00}, 5 },
     { "1.2.16384",            {6,4,0x2a,0x81,0x80,0x00}, 6 },
     { "1.3.14.3.2.26",        {6,5,0x2b,0x0e,0x03,0x02,0x1a}, 7 },
-    { "0.9.2342.19200300.100.1.25", {6,9,0x09,0x92,0x26,0x89,0x93,0xf2,0x2c,0x64,0x01}, 11 },
+    { "0.9.2342.19200300.100.1", {6,9,0x09,0x92,0x26,0x89,0x93,0xf2,0x2c,0x64,0x01}, 11 },
 };
 TEST(kpb_objid_encode_table) {
     REQ_CRYPT32();
@@ -694,7 +694,6 @@ TEST(kpb_objid_encode_table) {
     for (unsigned i = 0; i < sizeof g_oids / sizeof g_oids[0]; i++) {
         LPSTR s = (LPSTR)g_oids[i].oid;
         BYTE exp[32]; memcpy(exp, g_oids[i].der, g_oids[i].n);
-        if (i == 13) { /* recompute below, do not trust hand encoding of the 4-byte arcs */ continue; }
         ENC_EQ(X509_OBJECT_IDENTIFIER, &s, exp, g_oids[i].n);
     }
 }
@@ -702,7 +701,6 @@ TEST(kpb_objid_decode_table) {
     REQ_CRYPT32();
     if (t_is_wine()) { t_skip("emulator renders arcs of 2.x incorrectly"); return; }
     for (unsigned i = 0; i < sizeof g_oids / sizeof g_oids[0]; i++) {
-        if (i == 13) continue;
         LPSTR *r = DEC_OK(X509_OBJECT_IDENTIFIER, g_oids[i].der, g_oids[i].n, 0);
         if (r) { CHECKF(*r && !strcmp(*r, g_oids[i].oid), "row %u: %s", i, *r ? *r : "(null)"); kp_free(r); }
     }
@@ -717,6 +715,7 @@ TEST(kpb_objid_encode_invalid_strings_fail) {
         SET_ERR(0);
         BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, X509_OBJECT_IDENTIFIER, &s, 0, NULL, buf, &cb);
         CHECKF(!ok, "\"%s\" must not encode", bad[i]);
+        EXPECT_ERR(bad[i][0] ? KP_E_BADARGS : KP_E_INVALIDARG);
     }
 }
 TEST(kpb_objid_encode_lenient_strings) {
@@ -729,6 +728,7 @@ TEST(kpb_objid_encode_lenient_strings) {
     s = (LPSTR)"1.2.778 ";   ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,3,0x2a,0x86,0x0a));
     s = (LPSTR)"2.5.4.9999x"; ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,4,0x55,4,0xce,0x0f));
     s = (LPSTR)"1.2.0x10";   ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,2,0x2a,0x00));
+    s = (LPSTR)"1.2.3.4294967296"; ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,7,0x2a,3,0x90,0x80,0x80,0x80,0));   /* 2^32 arc: encoded as a 5-byte base-128 number, not rejected */
 }
 TEST(kpb_objid_decode_errors) {
     REQ_CRYPT32();
@@ -739,13 +739,13 @@ TEST(kpb_objid_decode_errors) {
 TEST(kpb_objid_encode_null_string_fails) {
     REQ_CRYPT32();
     LPSTR s = NULL;
-    ENC_FAIL(X509_OBJECT_IDENTIFIER, &s, 0);
+    ENC_FAIL(X509_OBJECT_IDENTIFIER, &s, KP_E_INVALIDARG);
 }
 TEST(kpb_objid_zero_length_content_decode) {
     REQ_CRYPT32();
     static const BYTE der[] = {6, 0}; DWORD cb = 0;
     BOOL ok = U(CryptDecodeObjectEx)(KP_ENC, X509_OBJECT_IDENTIFIER, der, 2, 0, NULL, NULL, &cb);
-    t_note("empty OID content: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECKF(ok, "empty OID content: err=0x%lx", GetLastError());
 }
 
 /* ---------------------------------------------------------------- X509_UNICODE_ANY_STRING / X509_ANY_STRING */
@@ -766,7 +766,7 @@ TEST(kpb_unicode_any_string_numeric) {
     ENC_EQ(X509_UNICODE_ANY_STRING, &v, V(0x12,10,'1','2','3','4','5','6','7','8','9','0'));
     static const WCHAR sp[] = L"12 3"; v.Value.pbData = (BYTE *)sp; v.Value.cbData = 8;
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, X509_UNICODE_ANY_STRING, &v, 0, NULL, NULL, &cb);
-    t_note("NumericString with a space: ok=%d err=0x%lx", ok, ok ? 0 : GetLastError());
+    CHECKF(ok, "NumericString with a space: err=0x%lx", GetLastError());
 }
 TEST(kpb_unicode_any_string_teletex) {
     REQ_CRYPT32();
@@ -803,20 +803,20 @@ TEST(kpb_unicode_any_string_disable_check_flag) {
     static const WCHAR bad[] = L"a@b";
     CERT_NAME_VALUE v = { CERT_RDN_PRINTABLE_STRING | CERT_RDN_DISABLE_CHECK_TYPE_FLAG, { 6, (BYTE *)bad } };
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, X509_UNICODE_ANY_STRING, &v, 0, NULL, NULL, &cb);
-    t_note("DISABLE_CHECK_TYPE flag on X509_UNICODE_ANY_STRING: ok=%d cb=%lu err=0x%lx", ok, cb, ok ? 0 : GetLastError());
+    CHECKF(ok, "err=0x%lx", GetLastError()); EXPECT_EQ(cb, 5);
 }
 TEST(kpb_unicode_any_string_odd_byte_count) {
     REQ_CRYPT32();
     CERT_NAME_VALUE v = { CERT_RDN_UTF8_STRING, { 5, (BYTE *)wabc } };
     DWORD cb = 100; BYTE buf[64];
     BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, X509_UNICODE_ANY_STRING, &v, 0, NULL, buf, &cb);
-    t_note("odd byte count unicode string: ok=%d", ok);
+    CHECK(ok);
 }
 TEST(kpb_unicode_any_string_decode) {
     REQ_CRYPT32();
     CERT_NAME_VALUE *r;
     r = DEC_OK(X509_UNICODE_ANY_STRING, V(0x0c,3,'a','b','c'), 0);
-    if (r) { CHECK(r->Value.cbData == 6 && !memcmp(r->Value.pbData, L"abc", 6)); t_note("UTF8String decodes to dwValueType %lu", r->dwValueType); kp_free(r); }
+    if (r) { CHECK(r->Value.cbData == 6 && !memcmp(r->Value.pbData, L"abc", 6)); EXPECT_EQ(r->dwValueType, 13); kp_free(r); }
     r = DEC_OK(X509_UNICODE_ANY_STRING, V(0x13,3,'a','b','c'), 0);
     if (r) { CHECK(r->dwValueType == CERT_RDN_PRINTABLE_STRING && r->Value.cbData == 6 && !memcmp(r->Value.pbData, L"abc", 6)); kp_free(r); }
     r = DEC_OK(X509_UNICODE_ANY_STRING, V(0x1e,4,0,'a',0x20,0xac), 0);
@@ -832,7 +832,7 @@ TEST(kpb_unicode_any_string_decode) {
 }
 TEST(kpb_unicode_any_string_decode_errors) {
     REQ_CRYPT32();
-    DEC_FAILV(X509_UNICODE_ANY_STRING, 0, 0x0c, 5, 'a');
+    DEC_FAILV(X509_UNICODE_ANY_STRING, KP_E_ZERO, 0x0c, 5, 'a');
 }
 TEST(kpb_any_string_encode_bytes) {
     REQ_CRYPT32();
@@ -912,7 +912,7 @@ TEST(kpb_seq_of_any_encode_items_copied_verbatim_note) {
     /* the items are open types: the encoder does not parse them (recorded, not enforced) */
     CRYPT_DER_BLOB items[1] = { {1, (BYTE *)"\x02"} }; CRYPT_SEQUENCE_OF_ANY s = { 1, items };
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, X509_SEQUENCE_OF_ANY, &s, 0, NULL, NULL, &cb);
-    t_note("one-byte item: ok=%d cb=%lu err=0x%lx", ok, cb, ok ? 0 : GetLastError());
+    CHECKF(ok, "err=0x%lx", GetLastError()); EXPECT_EQ(cb, 3);
 }
 TEST(kpb_seq_of_any_decode) {
     REQ_CRYPT32();
@@ -938,7 +938,7 @@ TEST(kpb_seq_of_any_decode_errors) {
     DEC_FAILV(X509_SEQUENCE_OF_ANY, KP_E_BADTAG, 0x31, 0);
     DEC_FAILV(X509_SEQUENCE_OF_ANY, KP_E_BADTAG, 2, 1, 1);
     DEC_FAILV(X509_SEQUENCE_OF_ANY, KP_E_EOD, 0x30, 5, 2, 1, 1);
-    DEC_FAILV(X509_SEQUENCE_OF_ANY, 0, 0x30, 3, 2, 5, 1);
+    DEC_FAILV(X509_SEQUENCE_OF_ANY, KP_E_EOD, 0x30, 3, 2, 5, 1);
 }
 TEST(kpb_seq_of_any_roundtrip_many) {
     REQ_CRYPT32();
@@ -971,14 +971,14 @@ TEST(kpb_content_info_encode_content_not_parsed_note) {
     REQ_CRYPT32();
     CRYPT_CONTENT_INFO ci = { (LPSTR)szOID_RSA_data, { 1, (BYTE *)"\x01" } };
     DWORD cb = 0; BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, PKCS_CONTENT_INFO, &ci, 0, NULL, NULL, &cb);
-    t_note("one-byte content: ok=%d cb=%lu err=0x%lx", ok, cb, ok ? 0 : GetLastError());
+    CHECKF(ok, "err=0x%lx", GetLastError()); EXPECT_EQ(cb, 16);
 }
 TEST(kpb_content_info_encode_bad_oid) {
     REQ_CRYPT32();
     CRYPT_CONTENT_INFO ci = { (LPSTR)"not.an.oid", { 0, NULL } };
-    ENC_FAIL(PKCS_CONTENT_INFO, &ci, 0);
+    ENC_FAIL(PKCS_CONTENT_INFO, &ci, KP_E_BADARGS);
     ci.pszObjId = NULL;
-    ENC_FAIL(PKCS_CONTENT_INFO, &ci, 0);
+    ENC_FAIL(PKCS_CONTENT_INFO, &ci, KP_E_INVALIDARG);
 }
 TEST(kpb_content_info_decode) {
     REQ_CRYPT32();
@@ -992,7 +992,7 @@ TEST(kpb_content_info_decode_errors) {
     DEC_FAILV(PKCS_CONTENT_INFO, KP_E_BADTAG, 0x31, 0);
     DEC_FAILV(PKCS_CONTENT_INFO, KP_E_BADTAG, 0x30, 3, 2, 1, 1);
     DEC_FAILV(PKCS_CONTENT_INFO, KP_E_EOD, 0x30, 0x0b, 6, 9, 0x2a);
-    DEC_FAILV(PKCS_CONTENT_INFO, 0, 0x30, 0);
+    DEC_FAILV(PKCS_CONTENT_INFO, KP_E_EOD, 0x30, 0);
 }
 TEST(kpb_content_info_decode_nocopy_content_aliases_input) {
     REQ_CRYPT32();
@@ -1000,7 +1000,7 @@ TEST(kpb_content_info_decode_nocopy_content_aliases_input) {
     CHECK(U(CryptDecodeObjectEx)(KP_ENC, PKCS_CONTENT_INFO, der, sizeof der, CRYPT_DECODE_NOCOPY_FLAG, NULL, buf, &cb));
     CRYPT_CONTENT_INFO *r = (CRYPT_CONTENT_INFO *)buf;
     CHECK(r->Content.cbData == 5 && r->Content.pbData == der + 15);
-    t_note("pszObjId with NOCOPY points into input: %d", (const BYTE *)r->pszObjId >= der && (const BYTE *)r->pszObjId < der + sizeof der);
+    CHECK(!((const BYTE *)r->pszObjId >= der && (const BYTE *)r->pszObjId < der + sizeof der));   /* observed: the OID text is built in the caller buffer */
 }
 TEST(kpb_content_info_seq_of_any_encode) {
     REQ_CRYPT32();

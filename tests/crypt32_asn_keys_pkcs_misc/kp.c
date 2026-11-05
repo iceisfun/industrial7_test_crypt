@@ -75,11 +75,11 @@ void kp_check_enc_fail(const char *file, int line, LPCSTR type, const void *info
     SetLastError(0xDEAD);
     ok = pEncEx()(KP_ENC, type, info, 0, NULL, buf, &cb);
     t_check(!ok, file, line, "Ex must fail", NULL);
-    if (err) t_check(GetLastError() == err, file, line, "Ex last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
+    t_check(GetLastError() == KP_WANT(err), file, line, "Ex last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
     SetLastError(0xDEAD); cb = 100;
     ok = pEnc()(KP_ENC, type, info, buf, &cb);
     t_check(!ok, file, line, "plain must fail", NULL);
-    if (err) t_check(GetLastError() == err, file, line, "plain last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
+    t_check(GetLastError() == KP_WANT(err), file, line, "plain last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
 }
 
 void kp_check_dec_fail(const char *file, int line, LPCSTR type, const BYTE *der, size_t n, DWORD err) {
@@ -87,13 +87,11 @@ void kp_check_dec_fail(const char *file, int line, LPCSTR type, const BYTE *der,
     SetLastError(0xDEAD);
     ok = pDecEx()(KP_ENC, type, der, (DWORD)n, 0, NULL, buf, &cb);
     t_check(!ok, file, line, "decode must fail", NULL);
-    if (err == KP_E_TRUNC) t_check(GetLastError() == KP_E_EOD || GetLastError() == KP_E_CORRUPT, file, line, "decode last error (EOD or CORRUPT)", "got 0x%lx", GetLastError());
-    else if (err) t_check(GetLastError() == err, file, line, "decode last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
+    t_check(GetLastError() == KP_WANT(err), file, line, "decode last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
     SetLastError(0xDEAD); cb = 4096;
     ok = pDec()(KP_ENC, type, der, (DWORD)n, 0, buf, &cb);
     t_check(!ok, file, line, "plain decode must fail", NULL);
-    if (err == KP_E_TRUNC) t_check(GetLastError() == KP_E_EOD || GetLastError() == KP_E_CORRUPT, file, line, "plain decode last error (EOD or CORRUPT)", "got 0x%lx", GetLastError());
-    else if (err) t_check(GetLastError() == err, file, line, "plain decode last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
+    t_check(GetLastError() == KP_WANT(err), file, line, "plain decode last error", "got 0x%lx want 0x%lx", GetLastError(), (unsigned long)err);
 }
 
 void *kp_check_dec(const char *file, int line, LPCSTR type, const BYTE *der, size_t n, DWORD flags) {

@@ -32,12 +32,10 @@ static const CLS kClasses[] = {
     DllCanUnloadNow_t cun = (DllCanUnloadNow_t)t_proc_in("certenc.dll", "DllCanUnloadNow"); \
     REQUIRE(gco); REQUIRE(cun)
 
-/* Returns a factory or NULL; a CLASS_E_CLASSNOTAVAILABLE for a listed class means the identifier
- * in this table is wrong, which is reported as a note instead of failing the run. */
+/* Returns a factory or NULL (every listed class is served on Win10, so anything else is a failure). */
 static IClassFactory *get_factory(DllGetClassObject_t gco, int i) {
     void *p = (void *)7;
     HRESULT hr = gco(&kClasses[i].clsid, &kIID_IClassFactory, &p);
-    if (hr == (HRESULT)0x80040111) { t_note("%s: CLASS_E_CLASSNOTAVAILABLE (identifier unverified)", kClasses[i].name); return NULL; }
     EQ32(hr, S_OK);
     CHECK(p != NULL && p != (void *)7);
     return hr == S_OK ? (IClassFactory *)p : NULL;
@@ -112,7 +110,7 @@ TEST(mm_certenc_getclassobject_unsupported_interface) {
     CHECK(p == NULL);
     p = (void *)7;
     HRESULT hr = gco(&kClasses[0].clsid, &kIID_IDispatch, &p);
-    CHECKF(hr == (HRESULT)E_NOINTERFACE || hr == (HRESULT)0x80040111, "hr 0x%08x", (unsigned)hr);
+    EQ32(hr, E_NOINTERFACE); CHECK(p == NULL);
     if (p && p != (void *)7) ((IUnknown *)p)->lpVtbl->Release((IUnknown *)p);
     EQ32(cun(), S_OK);
 }
@@ -241,7 +239,7 @@ TEST(mm_certenc_factories_distinct_per_class) {
 }
 TEST(mm_certenc_registration_entry_points_resolve_only) {
     /* DllRegisterServer/DllUnregisterServer write HKCR/HKLM; never invoked */
-    if (!t_module("certenc.dll")) { t_skip("certenc.dll absent"); return; }
+    if (!t_module("certenc.dll")) { if (t_is_wine()) t_skip("certenc.dll absent"); else CHECKF(0, "certenc.dll absent"); return; }
     CHECK(t_proc_in("certenc.dll", "DllRegisterServer") != NULL);
     CHECK(t_proc_in("certenc.dll", "DllUnregisterServer") != NULL);
 }
@@ -268,14 +266,14 @@ TEST(mm_ksp_get_key_storage_interface_returns_table) {
     EQ32(f(kMsKsp, (void **)&t, 0), S_OK);
     CHECK(t != NULL && t != (KSFT *)7);
     if (!t || t == (KSFT *)7) return;
-    t_note("table version %u.%u", t->Version.major, t->Version.minor);
+    CHECKF(t->Version.major == 3 && t->Version.minor == 0, "table version %u.%u", t->Version.major, t->Version.minor);
     HMODULE m = t_module("ncryptprov.dll");
     MEMORY_BASIC_INFORMATION mbi;
     CHECK(VirtualQuery(t, &mbi, sizeof mbi) && mbi.AllocationBase == (PVOID)m);   /* static table inside the DLL */
     void **fn = (void **)&t->pfnOpenProvider;
     int nz = 0;
     for (int i = 0; i < 25; i++) if (fn[i]) nz++;
-    t_note("%d of 25 callbacks non-NULL", nz);
+    CHECKF(nz == 25, "%d of 25 callbacks non-NULL", nz);
 }
 TEST(mm_ksp_core_callbacks_present) {
     GKSI_t f = (GKSI_t)t_proc_in("ncryptprov.dll", "GetKeyStorageInterface"); REQUIRE(f);
@@ -312,8 +310,7 @@ TEST(mm_ksp_flag_bit0_selects_table) {
     CHECK(e == z);
     EQ32(f(kMsKsp, (void **)&e, 3), S_OK);
     CHECK(e == o);                          /* bit 0 set */
-    if (z == o) t_note("process uses the in-process table for both flag values");
-    else t_note("flags 0 and 1 give different tables");
+    CHECK(z != o);                          /* observed: flags 0 and 1 give different tables */
 }
 TEST(mm_ksp_other_flag_bits_are_ignored) {
     GKSI_t f = (GKSI_t)t_proc_in("ncryptprov.dll", "GetKeyStorageInterface"); REQUIRE(f);
@@ -333,7 +330,7 @@ TEST(mm_ksp_provider_name_is_not_validated) {
     CHECK(a == b);
 }
 TEST(mm_ksp_resolve_only_entry_points) {
-    if (!t_module("ncryptprov.dll")) { t_skip("ncryptprov.dll absent"); return; }
+    if (!t_module("ncryptprov.dll")) { if (t_is_wine()) t_skip("ncryptprov.dll absent"); else CHECKF(0, "ncryptprov.dll absent"); return; }
     /* SKCacheFlush drops cached secrets and SetAuditingInterface installs global callbacks; resolve only */
     CHECK(t_proc_in("ncryptprov.dll", "SKCacheFlush") != NULL);
     CHECK(t_proc_in("ncryptprov.dll", "SetAuditingInterface") != NULL);
