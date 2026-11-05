@@ -87,4 +87,5 @@ typedef struct { const char *name; const unsigned char *prv; size_t prvn; const 
 #define CAB_RK(nm, b) { nm, rsa##b##_prv, sizeof rsa##b##_prv, rsa##b##_pub, sizeof rsa##b##_pub, b }
 static const cab_rsakey_t CAB_RKS[] = { CAB_RK("rsa512", 512), CAB_RK("rsa1024", 1024), CAB_RK("rsa2048", 2048) };
 #define CAB_NRK 3
+#define CAB_NOWINE(why) do { if (t_is_wine()) { t_skip("emulator dssenh: " why); return; } } while (0)
 #endif
