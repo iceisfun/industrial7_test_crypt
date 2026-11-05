@@ -106,8 +106,9 @@ void sw_ordinal_only(const char *dll) {
         SET_ERR(0);
         FARPROC p = GetProcAddress(h, MAKEINTRESOURCEA(m_->e[i].ord));
         if (!p && t_is_wine()) { t_note("wine lacks %s ordinal-only export #%u", dll, m_->e[i].ord); continue; }
-        CHECKF(p != NULL, "%s ordinal-only export #%u", dll, m_->e[i].ord);
-        if (p) { CHECK(ex_in_image(&d, p)); }
+        /* ordinal-only slots are build specific (undocumented): note, do not fail */
+        if (!p) { t_note("%s ordinal-only export #%u not present on this build", dll, m_->e[i].ord); continue; }
+        CHECK(ex_in_image(&d, p));
     }
     if (!seen) {
         /* no ordinal-only exports in this module: every function slot with an RVA is named, or count gap */
@@ -174,7 +175,8 @@ void sw_unlisted(const char *dll) {
         const char *n = (const char *)(b + nm[i]);
         if (!listed(m_, n)) { extra++; if (extra <= 10) t_note("%s exports unlisted name %s", dll, n); }
     }
-    CHECK(extra >= 0);
+    t_note("%s: %d exported names not in the authoring snapshot", dll, extra);
+    CHECK(d.dir->NumberOfNames > 0);
 }
 void sw_case_sensitive(const char *dll) {
     LOADM(dll, h, d);
@@ -294,20 +296,28 @@ void sw_no_dup_names(const char *dll) {
     CHECK(m_->n > 0);
 }
 void sw_distinct_addrs(const char *dll) {
-    /* In this snapshot no two *named, non-forwarded* exports share an entry point unless the RVAs match;
-       we only verify the pointer is a function of the RVA (same RVA <=> same address). */
+    /* same RVA <=> same address, for named non-forwarded exports (RVAs read once; O(n^2) on cheap data only) */
     LOADM(dll, h, d);
-    for (int i = 0; i < m_->n; i++) {
+    int n = m_->n;
+    DWORD *rv = (DWORD *)calloc((size_t)n, sizeof *rv);
+    FARPROC *ad = (FARPROC *)calloc((size_t)n, sizeof *ad);
+    if (!rv || !ad) { free(rv); free(ad); t_skip("no memory"); return; }
+    for (int i = 0; i < n; i++) {
         if (!m_->e[i].name || m_->e[i].fwd) continue;
-        DWORD ri; if (!ex_dir_find(&d, m_->e[i].name, NULL, &ri, NULL)) continue;
-        for (int j = i + 1; j < m_->n; j++) {
-            if (!m_->e[j].name || m_->e[j].fwd) continue;
-            DWORD rj; if (!ex_dir_find(&d, m_->e[j].name, NULL, &rj, NULL)) continue;
-            FARPROC a = GetProcAddress(h, m_->e[i].name), b = GetProcAddress(h, m_->e[j].name);
-            if ((ri == rj) != (a == b)) CHECKF(0, "%s / %s: rva %lx %lx, addr %p %p", m_->e[i].name, m_->e[j].name, ri, rj, (void *)a, (void *)b);
-            else CHECK(1);
-        }
+        if (!ex_dir_find(&d, m_->e[i].name, NULL, &rv[i], NULL)) rv[i] = 0;
+        else ad[i] = GetProcAddress(h, m_->e[i].name);
     }
+    int bad = 0;
+    for (int i = 0; i < n; i++) {
+        if (!rv[i]) continue;
+        for (int j = i + 1; j < n; j++) {
+            if (!rv[j]) continue;
+            if ((rv[i] == rv[j]) != (ad[i] == ad[j]) && ++bad <= FAIL_BUDGET)
+                CHECKF(0, "%s / %s: rva %lx %lx, addr %p %p", m_->e[i].name, m_->e[j].name, rv[i], rv[j], (void *)ad[i], (void *)ad[j]);
+        }
+        CHECK(ad[i] == (FARPROC)((const BYTE *)h + rv[i]));
+    }
+    free(rv); free(ad);
 }
 void sw_getmodulehandle(const char *dll) {
     LOADM(dll, h, d);

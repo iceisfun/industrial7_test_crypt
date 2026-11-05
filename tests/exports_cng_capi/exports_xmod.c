@@ -254,7 +254,7 @@ TEST(exports_cng_capi_xmod_cryptdll_other_names_are_own_code) {
     if (!hc || !ex_dir(hc, &d)) { t_skip("no cryptdll"); return; }
     const XM *m = ex_find("cryptdll.dll");
     for (int i = 0; i < m->n; i++) {
-        if (m->e[i].fwd) continue;
+        if (m->e[i].fwd || !m->e[i].name) continue;
         FARPROC p = GetProcAddress(hc, m->e[i].name);
         CHECKF(p && ex_in_image(&d, p), "%s", m->e[i].name);
     }
@@ -354,4 +354,54 @@ TEST(exports_cng_capi_xmod_dpapi_no_ui_variants) {
     static const char *const n[] = { "CryptProtectDataNoUI","CryptUnprotectDataNoUI","CryptProtectMemory","CryptUnprotectMemory",
         "CryptResetMachineCredentials","CryptUpdateProtectedState","iCryptIdentifyProtection" };
     for (int i = 0; i < 7; i++) { FARPROC p = GetProcAddress(h, n[i]); CHECKF(p && ex_in_image(&d, p), "%s", n[i]); }
+}
+
+/* ---- additional forwarder / ordinal checks ---------------------------------------------------------- */
+TEST(exports_cng_capi_xmod_ncrypt_forwarders_by_ordinal_match_bcrypt) {
+    HMODULE n = t_module("ncrypt.dll"), b = t_module("bcrypt.dll"); XDIR d;
+    if (!n || !b || !ex_dir(n, &d)) { t_skip("module missing"); return; }
+    if (t_is_wine()) { t_skip("wine forwarders differ"); return; }
+    const XM *nc = ex_find("ncrypt.dll");
+    int k = 0;
+    for (int i = 0; i < nc->n && k < 60; i++) {
+        DWORD ord;
+        if (!nc->e[i].fwd || !ex_dir_find(&d, nc->e[i].name, &ord, NULL, NULL)) continue;
+        k++;
+        SET_ERR(0);
+        FARPROC byord = GetProcAddress(n, MAKEINTRESOURCEA(ord));
+        CHECKF(byord != NULL && byord == GetProcAddress(b, nc->e[i].name), "%s", nc->e[i].name);
+    }
+    CHECK(k > 0);
+}
+TEST(exports_cng_capi_xmod_forwarder_targets_are_loadable_modules) {
+    static const char *const mods[] = { "ncrypt.dll", "advapi32.dll", "cryptdll.dll" };
+    if (t_is_wine()) { t_skip("wine lacks forward target modules"); return; }
+    for (unsigned k = 0; k < 3; k++) {
+        const XM *m = ex_find(mods[k]);
+        for (int i = 0; m && i < m->n; i++) {
+            if (!m->e[i].fwd) continue;
+            char dll[64], sym[128]; ex_target_of(m->e[i].fwd, dll, sizeof dll, sym, sizeof sym);
+            CHECKF(t_module(dll) != NULL, "%s forwards %s to unloadable %s", mods[k], m->e[i].name, dll);
+            CHECKF(sym[0] && sym[0] != '#', "%s forwarder %s is not by name", m->e[i].name, m->e[i].fwd);
+        }
+    }
+}
+TEST(exports_cng_capi_xmod_ncrypt_getprocaddress_forwarder_resolves_to_other_image) {
+    HMODULE n = t_module("ncrypt.dll"); XDIR d;
+    if (!n || !ex_dir(n, &d)) { t_skip("no ncrypt"); return; }
+    static const char *const f[] = { "BCryptHash", "BCryptOpenAlgorithmProvider", "BCryptDecrypt", "BCryptVerifySignature" };
+    for (int i = 0; i < 4; i++) {
+        FARPROC p = GetProcAddress(n, f[i]);
+        if (!p && t_is_wine()) { t_note("wine: ncrypt!%s unresolved", f[i]); continue; }
+        CHECKF(p != NULL && !ex_in_image(&d, p), "%s", f[i]);
+    }
+}
+TEST(exports_cng_capi_xmod_getprocaddress_null_module_and_ordinal_zero) {
+    HMODULE b = t_module("bcrypt.dll");
+    if (!b) { t_skip("no bcrypt"); return; }
+    SET_ERR(0);
+    CHECK(GetProcAddress(b, MAKEINTRESOURCEA(0)) == NULL);
+    SET_ERR(0);
+    CHECK(GetProcAddress(NULL, "BCryptHash") == NULL);
+    CHECK(GetLastError() != 0);
 }
