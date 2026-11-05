@@ -668,3 +668,77 @@ TEST(kpp_sorted_ctl_encode_note) {
     CHECK(e[0] == 0x30);
     kp_free(e); kp_free(p);
 }
+
+/* ---------------------------------------------------------------- TIMESTAMP_REQUEST (RFC 3161 TimeStampReq) */
+static void fill_tsreq(CRYPT_TIMESTAMP_REQUEST *q) {
+    memset(q, 0, sizeof *q);
+    q->dwVersion = TIMESTAMP_VERSION;
+    q->HashAlgorithm.pszObjId = (LPSTR)szOID_NIST_sha256;
+    q->HashedMessage.cbData = 4; q->HashedMessage.pbData = (BYTE *)"\x01\x02\x03\x04";
+}
+#define TSREQ_BASE 2,1,1, 0x30,0x15, 0x30,0x0d,6,9,0x60,0x86,0x48,1,0x65,3,4,2,1,5,0, 4,4,1,2,3,4
+TEST(kpp_tsreq_encode_minimal) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    CRYPT_TIMESTAMP_REQUEST q; fill_tsreq(&q);
+    ENC_EQ(TIMESTAMP_REQUEST, &q, V(0x30,0x1a, TSREQ_BASE));
+}
+TEST(kpp_tsreq_encode_policy_nonce_certreq) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    CRYPT_TIMESTAMP_REQUEST q; fill_tsreq(&q);
+    q.pszTSAPolicyId = (LPSTR)"1.2.3";
+    BYTE nonce[1] = { 0x2a }; q.Nonce.cbData = 1; q.Nonce.pbData = nonce;
+    q.fCertReq = TRUE;
+    ENC_EQ(TIMESTAMP_REQUEST, &q, V(0x30,0x24, TSREQ_BASE, 6,2,0x2a,3, 2,1,0x2a, 1,1,0xff));
+}
+TEST(kpp_tsreq_certreq_false_is_omitted) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    CRYPT_TIMESTAMP_REQUEST q; fill_tsreq(&q); q.fCertReq = FALSE;
+    ENC_EQ(TIMESTAMP_REQUEST, &q, V(0x30,0x1a, TSREQ_BASE));            /* DEFAULT FALSE: not written */
+}
+TEST(kpp_tsreq_nonce_is_signed_little_endian) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    CRYPT_TIMESTAMP_REQUEST q; fill_tsreq(&q);
+    BYTE nonce[2] = { 0x00, 0x80 };         /* LE bytes: top bit set in the high byte => negative, no padding byte is added */
+    q.Nonce.cbData = 2; q.Nonce.pbData = nonce;
+    ENC_EQ(TIMESTAMP_REQUEST, &q, V(0x30,0x1e, TSREQ_BASE, 2,2,0x80,0x00));
+}
+TEST(kpp_tsreq_decode_roundtrip) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    CRYPT_TIMESTAMP_REQUEST *r = DEC_OK(TIMESTAMP_REQUEST, V(0x30,0x24, TSREQ_BASE, 6,2,0x2a,3, 2,1,0x2a, 1,1,0xff), 0);
+    if (r) {
+        CHECK(r->dwVersion == 1);
+        EXPECT_STR(r->HashAlgorithm.pszObjId, szOID_NIST_sha256);
+        BLOB_IS(r->HashedMessage, 1,2,3,4);
+        CHECK(r->pszTSAPolicyId && !strcmp(r->pszTSAPolicyId, "1.2.3"));
+        BLOB_IS(r->Nonce, 0x2a);
+        CHECK(r->fCertReq == TRUE && r->cExtension == 0);
+        kp_free(r);
+    }
+    r = DEC_OK(TIMESTAMP_REQUEST, V(0x30,0x1a, TSREQ_BASE), 0);
+    if (r) { CHECK(r->pszTSAPolicyId == NULL && r->Nonce.cbData == 0 && r->fCertReq == FALSE); kp_free(r); }
+}
+TEST(kpp_tsreq_extensions_roundtrip) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    CRYPT_TIMESTAMP_REQUEST q; fill_tsreq(&q);
+    CERT_EXTENSION ex = { (LPSTR)"1.2.3.4", FALSE, { 3, (BYTE *)"\x04\x01\x01" } };
+    q.cExtension = 1; q.rgExtension = &ex;
+    DWORD cb; BYTE *e = kp_enc_alloc(TIMESTAMP_REQUEST, &q, 0, &cb);
+    CHECK(e != NULL);
+    if (!e) return;
+    CHECK(e[0] == 0x30 && memchr(e, 0xa0, cb) != NULL);                    /* extensions are an implicit [0] */
+    CRYPT_TIMESTAMP_REQUEST *r = kp_dec_alloc(TIMESTAMP_REQUEST, e, cb, 0, NULL);
+    CHECK(r && r->cExtension == 1);
+    if (r && r->cExtension == 1) { EXPECT_STR(r->rgExtension[0].pszObjId, "1.2.3.4"); CHECK(!r->rgExtension[0].fCritical); BLOB_IS(r->rgExtension[0].Value, 4,1,1); }
+    kp_free(r); kp_free(e);
+}
+TEST(kpp_tsreq_decode_errors) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    DEC_FAILV(TIMESTAMP_REQUEST, KP_E_BADTAG, 2, 1, 1);
+    DEC_FAILV(TIMESTAMP_REQUEST, 0, 0x30, 3, 2, 1, 1);
+    DEC_FAILV(TIMESTAMP_REQUEST, KP_E_TRUNC, 0x30, 0x1a, 2, 1, 1);
+}
+TEST(kpp_tsreq_bad_policy_oid) {
+    REQ_TYPE(TIMESTAMP_REQUEST);
+    CRYPT_TIMESTAMP_REQUEST q; fill_tsreq(&q); q.pszTSAPolicyId = (LPSTR)"zz";
+    ENC_FAIL(TIMESTAMP_REQUEST, &q, 0);
+}
