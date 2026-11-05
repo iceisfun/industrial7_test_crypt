@@ -25,7 +25,7 @@ int mh_init(void) {
     typeof(&CryptAcquireContextW) acq = U(CryptAcquireContextW);
     typeof(&CryptImportKey) imp = U(CryptImportKey);
     if (!open || !add || !setp || !acq || !imp) { t_skip("missing fixture exports"); return 0; }
-    mh_priv_store = open(CERT_STORE_PROV_MEMORY, 0, 0, 0, NULL);
+    mh_priv_store = open(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_NO_CRYPT_RELEASE_FLAG, NULL);
     mh_pub_store = open(CERT_STORE_PROV_MEMORY, 0, 0, 0, NULL);
     if (!mh_priv_store || !mh_pub_store) { t_skip("memory store"); return 0; }
     add(mh_pub_store, ENC, v_ca, sizeof v_ca, CERT_STORE_ADD_ALWAYS, NULL);
@@ -141,4 +141,27 @@ static PCCERT_CONTEXT WINAPI mh_get_signer(void *arg, DWORD enc, PCERT_INFO id, 
 void mh_verify_para_cb(CRYPT_VERIFY_MESSAGE_PARA *p) {
     mh_verify_para(p);
     p->pfnGetSignerCertificate = mh_get_signer;
+}
+
+HCERTSTORE mh_make_store(unsigned privmask, unsigned pubmask) {
+    if (!mh_init()) return NULL;
+    typeof(&CertOpenStore) open = U(CertOpenStore);
+    typeof(&CertAddEncodedCertificateToStore) add = U(CertAddEncodedCertificateToStore);
+    typeof(&CertSetCertificateContextProperty) setp = U(CertSetCertificateContextProperty);
+    typeof(&CertFreeCertificateContext) fr = U(CertFreeCertificateContext);
+    HCERTSTORE s = open(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_NO_CRYPT_RELEASE_FLAG, NULL);
+    if (!s) return NULL;
+    for (int i = 0; i < MH_N; i++) {
+        PCCERT_CONTEXT c = NULL;
+        if ((privmask | pubmask) & (1u << i)) {
+            if (!add(s, ENC, g_fix[i].cert, g_fix[i].ccb, CERT_STORE_ADD_ALWAYS, &c)) continue;
+            if (privmask & (1u << i)) {
+                CERT_KEY_CONTEXT kc; memset(&kc, 0, sizeof kc);
+                kc.cbSize = sizeof kc; kc.hCryptProv = mh_prov[i]; kc.dwKeySpec = AT_KEYEXCHANGE;
+                setp(c, CERT_KEY_CONTEXT_PROP_ID, 0, &kc);
+            }
+            fr(c);
+        }
+    }
+    return s;
 }

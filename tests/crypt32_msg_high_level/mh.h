@@ -67,6 +67,8 @@ int mh_has(const BYTE *hay, DWORD n, const void *needle, DWORD m);
 /* hex {ASN} text / base64 text encodings of a blob (malloc'ed, caller frees) */
 char *mh_to_b64(const BYTE *p, DWORD cb, DWORD strflags, DWORD *pcch);
 char *mh_to_asnhex(const BYTE *p, DWORD cb, DWORD *pcch);
+/* fresh memory store: certs in privmask carry their ephemeral key, certs in pubmask do not (bit = 1 << MH_xx). */
+HCERTSTORE mh_make_store(unsigned privmask, unsigned pubmask);
 #define CERT_IS(ctx, vec) ((ctx) != NULL && (ctx)->cbCertEncoded == sizeof(vec) && !memcmp((ctx)->pbCertEncoded, (vec), sizeof(vec)))
 #define FREE_CERT(c) do { if (c) U(CertFreeCertificateContext)(c); (c) = NULL; } while (0)
 #endif

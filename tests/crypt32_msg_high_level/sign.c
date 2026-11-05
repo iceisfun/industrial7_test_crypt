@@ -618,7 +618,7 @@ TEST(mh_sign_cng_key_via_handle_property) {
     if (st != 0) { t_note("NCryptImportKey failed 0x%lx", (long)st); U(NCryptFreeObject)(prov); return; }
     PCCERT_CONTEXT cc = U(CertDuplicateCertificateContext)(mh_ids[MH_S2].pub);
     PCCERT_CONTEXT own = NULL;
-    HCERTSTORE tmp = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, 0, 0, NULL);
+    HCERTSTORE tmp = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_NO_CRYPT_RELEASE_FLAG, NULL);
     CHECK(U(CertAddCertificateContextToStore)(tmp, cc, CERT_STORE_ADD_ALWAYS, &own));
     CERT_KEY_CONTEXT kc; memset(&kc, 0, sizeof kc); kc.cbSize = sizeof kc; kc.hNCryptKey = key; kc.dwKeySpec = CERT_NCRYPT_KEY_SPEC;
     if (!U(CertSetCertificateContextProperty)(own, CERT_KEY_CONTEXT_PROP_ID, 0, &kc)) { t_note("set key ctx failed 0x%lx", GetLastError()); }
