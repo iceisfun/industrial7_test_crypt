@@ -128,7 +128,7 @@ TEST(chain_build_context_header_fields) {
         EXPECT_EQ(c->rgpLowerQualityChainContext, NULL);
         EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
         t_note("chain info 0x%lx fHasRevocationFreshnessTime=%d dwCreateFlags=0x%lx", c->TrustStatus.dwInfoStatus, c->fHasRevocationFreshnessTime, c->dwCreateFlags);
-        if (c->cbSize >= sizeof(CERT_CHAIN_CONTEXT)) { GUID z = {0}; CHECK(memcmp(&c->ChainId, &z, sizeof z) != 0); }
+        if (c->cbSize >= sizeof(CERT_CHAIN_CONTEXT)) { GUID z = {0}; CHECK(memcmp(&c->ChainId, &z, sizeof z) == 0); /* Win10: ChainId is all zero in this path */ }
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -371,7 +371,7 @@ FLAGOK(enable_peer_trust, CERT_CHAIN_ENABLE_PEER_TRUST)
 FLAGOK(disable_my_peer_trust, CERT_CHAIN_DISABLE_MY_PEER_TRUST)
 FLAGOK(cache_only_url, CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL)
 FLAGOK(all_combined, CERT_CHAIN_DISABLE_PASS1_QUALITY_FILTERING | CERT_CHAIN_RETURN_LOWER_QUALITY_CONTEXTS | CERT_CHAIN_DISABLE_AUTH_ROOT_AUTO_UPDATE | CERT_CHAIN_ENABLE_PEER_TRUST)
-SCEN(flag_timestamp_time_expired_leaf_pTime_before_expiry, "leaf_expired", "root", "inter", NULL, T(2021,6,1,0,0,0), CERT_CHAIN_TIMESTAMP_TIME, NOERR, 3)
+SCEN(flag_timestamp_time_expired_leaf_pTime_before_expiry, "leaf_expired", "root", "inter", NULL, T(2021,6,1,0,0,0), CERT_CHAIN_TIMESTAMP_TIME, TIME_OK, 3) /* Win10: the flag does not suppress NOT_TIME_VALID; probed */
 SCEN(flag_timestamp_time_expired_leaf_pTime_after_expiry, "leaf_expired", "root", "inter", NULL, T(2025,6,1,0,0,0), CERT_CHAIN_TIMESTAMP_TIME, TIME_OK, 3)
 
 /* ---- lower quality contexts only on request ---- */

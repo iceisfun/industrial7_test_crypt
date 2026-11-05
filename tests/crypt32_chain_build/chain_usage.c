@@ -32,7 +32,8 @@ USE(or_code_email_fails, "leaf", "inter", 0, 2, OIDS(OID_CODE, OID_EMAIL), BADUS
 USE(or_single_server_ok, "leaf", "inter", 0, 1, OIDS(OID_SERVER), 0)
 USE(or_single_code_fails, "leaf", "inter", 0, 1, OIDS(OID_CODE), BADUSE)
 USE(and_empty_list_ok, "leaf", "inter", 1, 0, OIDS(OID_SERVER), 0)
-USE(or_empty_list_ok, "leaf", "inter", 0, 0, OIDS(OID_SERVER), 0)
+/* Win10: an OR request with an empty usage list matches nothing (unlike AND, which accepts everything) */
+USE(or_empty_list_not_valid_for_usage, "leaf", "inter", 0, 0, OIDS(OID_SERVER), BADUSE)
 USE(and_no_oids_listed_all_leaf_ok, "leaf_code", "inter", 1, 0, OIDS(OID_SERVER), 0)
 USE(code_leaf_and_code_ok, "leaf_code", "inter", 1, 1, OIDS(OID_CODE), 0)
 USE(code_leaf_and_server_fails, "leaf_code", "inter", 1, 1, OIDS(OID_SERVER), BADUSE)
@@ -55,8 +56,9 @@ USE(ca_eku_code_leaf_server_requested_code_fails, "leaf_eku_bad", "inter_eku", 1
 USE(ca_eku_leaf_server_no_request_ok, "leaf_eku_bad", "inter_eku", 1, 0, OIDS(OID_SERVER), 0)
 USE(ca_eku_or_server_code_ok_on_code_leaf, "leaf_eku_ok", "inter_eku", 0, 2, OIDS(OID_SERVER, OID_CODE), 0)
 TEST(chain_usage_ca_eku_or_server_code_on_server_leaf_empty_intersection) {
-    /* leaf allows {server}, CA allows {code}: the intersection is empty, so even an OR request cannot match */
-    usage_case("ca_eku_or_observation", "leaf_eku_bad", "inter_eku", 0, 2, OIDS(OID_SERVER, OID_CODE), BADUSE);
+    /* leaf allows {server}, CA allows {code}. Probed on Win10 (std and adm, repeated): the OR request matches the
+       server usage of the leaf and the chain has no error, so the CA EKU is not intersected with an OR request. */
+    usage_case("ca_eku_or_observation", "leaf_eku_bad", "inter_eku", 0, 2, OIDS(OID_SERVER, OID_CODE), 0);
 }
 
 /* ---- anyExtendedKeyUsage ---- */
@@ -127,7 +129,7 @@ static void policy_case(const char *tag, const char *leaf, const char *others, i
     if (c) {
         pki_note_chain(tag, c);
         if (want_ok) CHECKF(c->TrustStatus.dwErrorStatus == 0, "%s: error 0x%lx", tag, c->TrustStatus.dwErrorStatus);
-        else CHECKF(c->TrustStatus.dwErrorStatus & CERT_TRUST_NO_ISSUANCE_CHAIN_POLICY, "%s: expected NO_ISSUANCE_CHAIN_POLICY got 0x%lx", tag, c->TrustStatus.dwErrorStatus);
+        else CHECKF(c->TrustStatus.dwErrorStatus == CERT_TRUST_IS_NOT_VALID_FOR_USAGE, "%s: expected exactly NOT_VALID_FOR_USAGE (0x10, probed on Win10) got 0x%lx", tag, c->TrustStatus.dwErrorStatus);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -371,14 +373,15 @@ TEST(chain_peer_trust_flag_marks_trusted_people_cert) {
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
-TEST(chain_peer_trust_without_flag_not_peer_trusted) {
+TEST(chain_peer_trust_without_flag_still_marks_peer_trusted) {
     REQUIRE(U(CertGetCertificateChain));
     PKI_ENG e; CHECK(pki_eng_open(&e, "", "inter root", "leaf", 0));
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf", NULL, PKI_T0, PKI_OFFLINE, NULL);
     CHECK(c != NULL);
     if (c && c->cChain) {
         pki_note_chain("trusted people store, no flag", c);
-        EXPECT_EQ(pki_elem_info(c, 0, 0) & CERT_TRUST_IS_PEER_TRUSTED, 0);
+        /* Win10: the leaf in the trusted-people store gets IS_PEER_TRUSTED in its element info even without the flag, but the chain still ends untrusted */
+        EXPECT_EQ(pki_elem_info(c, 0, 0) & CERT_TRUST_IS_PEER_TRUSTED, CERT_TRUST_IS_PEER_TRUSTED);
         EXPECT_EQ(c->TrustStatus.dwErrorStatus, CERT_TRUST_IS_UNTRUSTED_ROOT);
     }
     pki_chain_free(c); pki_eng_close(&e);
