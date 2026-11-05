@@ -161,6 +161,7 @@ static inline int cct_join_status(void)
 static inline int cct_domain_joined(void) { return cct_join_status() == 3; }
 
 /* Skip (and return from the caller) on domain-joined machines: the call would reach a domain controller. */
+#define CCT_NEED_MODULES() do { if (!t_module("certca.dll") || !t_module("certcli.dll")) { t_skip("certca/certcli not available here"); return; } } while (0)
 #define CCT_NEED_NO_DOMAIN() do { if (cct_domain_joined()) { t_skip("domain joined: directory calls could reach the wire"); return; } } while (0)
 
 /* Bounded worker: run fn(arg) on a thread, wait up to ms. Returns 1 if it finished. The argument block

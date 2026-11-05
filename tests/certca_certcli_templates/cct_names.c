@@ -1,3 +1,4 @@
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
 /* certcli name helpers: mySanitizeName / myRevertSanitizeName / mySanitizedNameToShortName / DSName / SplitConfigString */
 #include "cct.h"
 
