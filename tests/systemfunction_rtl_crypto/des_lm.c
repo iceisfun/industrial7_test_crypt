@@ -277,7 +277,7 @@ static void nt_run(const char *dll)
         us.Length = (USHORT)(lstrlenW(nt_vecs[i].pw) * 2); us.MaximumLength = us.Length + 2;
         us.Buffer = (PWSTR)nt_vecs[i].pw;
         LONG r = f(&us, o + 1);
-        CHECKF(r >= 0, "status 0x%lx", (unsigned long)r);
+        (void)r;   /* 007 is void: the return register is not a status */
         CHECK_BYTES(o + 1, nt_vecs[i].nt, 16);
         EXPECT_EQ(o[0], 0x5A); EXPECT_EQ(o[17], 0x5A);
     }
@@ -292,7 +292,7 @@ TEST(sfrc_nt_007_password_known_answer)
     UNICODE_STRING us = { 16, 18, pw };
     BYTE o[16];
     REQUIRE(f);
-    CHECK(f(&us, o) >= 0); CHECK_BYTES(o, w, 16);
+    (void)f(&us, o); CHECK_BYTES(o, w, 16);
 }
 TEST(sfrc_nt_007_empty_is_md4_of_empty)
 {
@@ -302,7 +302,7 @@ TEST(sfrc_nt_007_empty_is_md4_of_empty)
     UNICODE_STRING us = { 0, 2, pw };
     BYTE o[16];
     REQUIRE(f);
-    CHECK(f(&us, o) >= 0); CHECK_BYTES(o, w, 16);
+    (void)f(&us, o); CHECK_BYTES(o, w, 16);
 }
 TEST(sfrc_nt_007_length_not_nul_governs)
 {
@@ -313,7 +313,7 @@ TEST(sfrc_nt_007_length_not_nul_governs)
     UNICODE_STRING c = { 8, 10, p4 };
     BYTE x[16], y[16], z[16];
     REQUIRE(f);
-    CHECK(f(&a, x) >= 0); CHECK(f(&b, y) >= 0); CHECK(f(&c, z) >= 0);
+    (void)f(&a, x); (void)f(&b, y); (void)f(&c, z);
     CHECK_BYTES(x, z, 16);
     CHECK(memcmp(x, y, 16) != 0);
 }
@@ -324,7 +324,7 @@ TEST(sfrc_nt_007_case_sensitive)
     UNICODE_STRING a = { 6, 8, p1 }, b = { 6, 8, p2 };
     BYTE x[16], y[16];
     REQUIRE(f);
-    CHECK(f(&a, x) >= 0); CHECK(f(&b, y) >= 0);
+    (void)f(&a, x); (void)f(&b, y);
     CHECK(memcmp(x, y, 16) != 0);
 }
 TEST(sfrc_nt_007_odd_length_hashes_all_bytes_note)
@@ -344,7 +344,7 @@ TEST(sfrc_nt_007_maximum_length_ignored)
     UNICODE_STRING a = { 10, 10, p }, b = { 10, 12, p };
     BYTE x[16], y[16];
     REQUIRE(f);
-    CHECK(f(&a, x) >= 0); CHECK(f(&b, y) >= 0);
+    (void)f(&a, x); (void)f(&b, y);
     CHECK_BYTES(x, y, 16);
 }
 /* ---- SystemFunction008/009: LM/NT challenge-response (24 bytes) ---- */
