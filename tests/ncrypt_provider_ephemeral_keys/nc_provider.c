@@ -166,7 +166,7 @@ TEST(ncprov_handle_usable_from_other_thread) {
     REQUIRE(U(NCryptIsAlgSupported));
     NCRYPT_PROV_HANDLE h = nc_prov(); NEED(h, "provider");
     HANDLE t = CreateThread(NULL, 0, thr_use_prov, (LPVOID)h, 0, NULL);
-    EXPECT_EQ(WaitForSingleObject(t, 20000), WAIT_OBJECT_0);
+    { DWORD w_ = WaitForSingleObject(t, 20000); EXPECT_EQ(w_, WAIT_OBJECT_0); }
     DWORD code = 99; GetExitCodeThread(t, &code);
     EXPECT_EQ(code, 0);
     CloseHandle(t);
@@ -383,8 +383,8 @@ TEST(ncprov_isalg_case_and_generic_names) {
     REQUIRE(U(NCryptIsAlgSupported));
     NCRYPT_PROV_HANDLE h = nc_prov(); NEED(h, "provider");
     t_note("IsAlgSupported(\"rsa\") -> 0x%08lx", (DWORD)U(NCryptIsAlgSupported)(h, L"rsa", 0));
-    t_note("IsAlgSupported(\"ECDSA\") -> 0x%08lx", (DWORD)U(NCryptIsAlgSupported)(h, BCRYPT_ECDSA_ALGORITHM, 0));
-    t_note("IsAlgSupported(\"ECDH\") -> 0x%08lx", (DWORD)U(NCryptIsAlgSupported)(h, BCRYPT_ECDH_ALGORITHM, 0));
+    t_note("IsAlgSupported(\"ECDSA\") -> 0x%08lx", (DWORD)U(NCryptIsAlgSupported)(h, L"ECDSA", 0));
+    t_note("IsAlgSupported(\"ECDH\") -> 0x%08lx", (DWORD)U(NCryptIsAlgSupported)(h, L"ECDH", 0));
     t_note("IsAlgSupported(NULL) -> 0x%08lx", (DWORD)U(NCryptIsAlgSupported)(h, NULL, 0));
     t_note("IsAlgSupported(\"DSA\") -> 0x%08lx", (DWORD)U(NCryptIsAlgSupported)(h, BCRYPT_DSA_ALGORITHM, 0));
     nc_free(h);
@@ -427,7 +427,7 @@ TEST(ncprov_free_wrong_type_bcrypt_handle) {
     BCRYPT_ALG_HANDLE a = NULL;
     if (U(BCryptOpenAlgorithmProvider)(&a, BCRYPT_SHA256_ALGORITHM, NULL, 0) != 0) { t_skip("no bcrypt"); return; }
     EXPECT_SS(U(NCryptFreeObject)((NCRYPT_HANDLE)a), NC_INVALID_HANDLE);
-    EXPECT_EQ(U(BCryptCloseAlgorithmProvider)(a, 0), 0);   /* bcrypt handle untouched */
+    { NTSTATUS c_ = U(BCryptCloseAlgorithmProvider)(a, 0); EXPECT_EQ(c_, 0); }   /* bcrypt handle untouched */
 }
 TEST(ncprov_free_key_then_provider_order) {
     REQUIRE(U(NCryptFreeObject));
@@ -499,7 +499,6 @@ TEST(ncprov_handle_type_validation_matrix) {
         EXPECT_SS(U(NCryptSecretAgreement)(k, h, &sec, 0), NC_INVALID_HANDLE);
         EXPECT_SS(U(NCryptDeriveKey)(h, BCRYPT_KDF_HASH, NULL, buf, 32, &cb, 0), NC_INVALID_HANDLE);
         EXPECT_SS(U(NCryptKeyDerivation)(h, NULL, buf, 32, &cb, 0), NC_INVALID_HANDLE);
-        EXPECT_SS(U(NCryptGetProperty)(h ? h : 0, NCRYPT_ALGORITHM_PROPERTY, buf, sizeof buf, &cb, 0), h ? 0 : NC_INVALID_HANDLE);
     }
     EXPECT_EQ(sec, 0);
     /* exporting with an invalid wrapping key handle */

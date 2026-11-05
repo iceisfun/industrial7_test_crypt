@@ -2,6 +2,7 @@
 #ifndef NC_H
 #define NC_H
 #include "t.h"
+#include <wincrypt.h>
 #include <bcrypt.h>
 #include <ncrypt.h>
 #include "nc_vectors.h"
