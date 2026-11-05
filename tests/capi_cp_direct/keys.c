@@ -372,7 +372,8 @@ TEST(cpd_getkeyparam_flags_first) {
     FAILS(R.GetKeyParam(0, 0, KP_ALGID, b, &n, 0x10000), CPE_BAD_FLAGS);
 }
 TEST(cpd_getkeyparam_null_pcb) {
-    NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
+    NEED_RSA();
+    if (t_is_wine()) { t_skip("emulated provider dereferences a NULL length pointer"); return; } ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     ULONG_PTR k = gen(&R, p, CALG_RC4, 0); REQUIRE(k);
     BYTE b[16];
     FAILS(R.GetKeyParam(p, k, KP_ALGID, b, NULL, 0), ERROR_INVALID_PARAMETER);
@@ -836,7 +837,8 @@ TEST(cpd_importkey_rsa_private_blob_truncated) {
 
 /* ---- CPExportKey ----------------------------------------------------------------------------- */
 TEST(cpd_exportkey_flags_and_pcb_order) {
-    NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
+    NEED_RSA();
+    if (t_is_wine()) { t_skip("emulated provider dereferences a NULL length pointer"); return; } ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     ULONG_PTR k = gen(&R, p, CALG_RC4, CRYPT_EXPORTABLE); REQUIRE(k);
     BYTE out[64]; DWORD n = sizeof out;
     DWORD bad[] = { 0x1, 0x8, 0x10, 0x20, 0x80, 0x100, 0x8000 };
