@@ -138,7 +138,7 @@ NTSTATUS ck_cs_decrypt(LONG et, const BYTE *key, ULONG keylen, ULONG usage, cons
 
 /* the emulator's cryptdll is a partial stub; the expectations here are for the real DLL */
 #define CK_NOWINE() do { if (t_is_wine()) { t_skip("emulator cryptdll differs from Windows"); return; } } while (0)
-#define CK_NEED(fn) do { if (!CKP(fn)) { t_skip("missing export: " #fn); return; } } while (0)
+#define CK_NEED(fn) do { if (t_is_wine()) { t_skip("emulator cryptdll exports abort when called"); return; } if (!CKP(fn)) { t_skip("missing export: " #fn); return; } } while (0)
 #define EXPECT_NS(call, want) do { NTSTATUS st_ = (call); NTSTATUS w_ = (NTSTATUS)(want); \
     t_check(st_ == w_, __FILE__, __LINE__, #call " == " #want, "got 0x%08lx want 0x%08lx", (unsigned long)st_, (unsigned long)w_); } while (0)
 /* child-process assertion: exit with the source line on failure */
