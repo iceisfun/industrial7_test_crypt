@@ -34,8 +34,8 @@ extern mh_id mh_ids[MH_N];
 extern HCERTSTORE mh_priv_store, mh_pub_store;
 extern HCRYPTPROV mh_prov[MH_N];
 int mh_init(void);                              /* 1 when the fixtures exist, else t_skip + 0 */
-/* these crypt32 exports are unimplemented stubs that abort the process under Wine */
-#define MH_NOWINE() do { if (t_is_wine()) { t_skip("export is a stub under wine"); return; } } while (0)
+/* these crypt32 exports are unimplemented stubs that abort the process under an emulator */
+#define MH_NOWINE() do { if (t_is_wine()) { t_skip("export is an unimplemented stub in the emulator"); return; } } while (0)
 #define MH_INIT() do { if (!mh_init()) return; } while (0)
 
 /* parameter structure fillers */
