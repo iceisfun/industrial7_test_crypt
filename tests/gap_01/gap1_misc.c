@@ -119,7 +119,7 @@ TEST(gap1_csblob_chain_input) {
     if (out) { CHECK(!g1_has(out, cb, v_certA, sizeof v_certA)); LocalFree(out); }
     U(CertFreeCertificateChain)(chain); U(CertCloseStore)(s, 0);
 }
-TEST(gap1_csblob_chain_same_cert_twice_deduplicated) {
+TEST(gap1_csblob_chain_same_chain_twice_not_deduplicated) {
     REQUIRE(CSGSB); G1_INIT();
     HCERTSTORE s = mem_store(); REQUIRE(s);
     CHECK(U(CertAddCertificateContextToStore)(s, g1_A.cert, CERT_STORE_ADD_ALWAYS, NULL));
@@ -132,8 +132,9 @@ TEST(gap1_csblob_chain_same_cert_twice_deduplicated) {
     void *o1 = NULL, *o2 = NULL; ULONG c1 = 0, c2 = 0;
     EXPECT_EQ(CSGSB(&in1, &o1, &c1), 0);
     EXPECT_EQ(CSGSB(&in2, &o2, &c2), 0);
-    t_note("one chain %lu bytes, same chain twice %lu bytes (added with CERT_STORE_ADD_USE_EXISTING)", c1, c2);
-    CHECK(c1 == c2);      /* the memory store collapses duplicates (add disposition 4 = USE_EXISTING) */
+    t_note("one chain %lu bytes, same chain twice %lu bytes", c1, c2);
+    EXPECT_EQ(c1, 697);   /* the same chain passed twice is serialized twice: no deduplication */
+    EXPECT_EQ(c2, 1350);
     if (o1) LocalFree(o1); if (o2) LocalFree(o2);
     U(CertFreeCertificateChain)(chain); U(CertCloseStore)(s, 0);
 }

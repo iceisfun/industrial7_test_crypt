@@ -1,9 +1,12 @@
 /* Shared helpers for the gap_01 area. Every call into the DLLs under test goes through U()/UIN()/UN(). */
 #ifndef GAP1_H
 #define GAP1_H
+/* the CMS fields of CMSG_SIGNER_ENCODE_INFO (SignerId, HashEncryptionAlgorithm) are part of the documented struct */
+#define CMSG_SIGNER_ENCODE_INFO_HAS_CMS_FIELDS
 #include "t.h"
 #include <wincrypt.h>
 #include <bcrypt.h>
+#include <ncrypt.h>
 #include <stdlib.h>
 #include "vectors.h"
 
@@ -18,7 +21,9 @@
 #define E_INVALIDARG_         ((DWORD)0x80070057)
 #define NTE_BAD_SIGNATURE_    ((DWORD)0x80090006)
 #define CRYPT_E_INVALID_MSG_TYPE_  ((DWORD)0x80091004)
-#define CRYPT_E_ATTRIBUTES_MISSING_ ((DWORD)0x80091006)
+#define CRYPT_E_AUTH_ATTR_MISSING_ ((DWORD)0x80091006)
+#define CRYPT_E_ATTRIBUTES_MISSING_ ((DWORD)0x8009100F)
+#define CRYPT_E_MSG_ERROR_    ((DWORD)0x80091001)
 #define CRYPT_E_HASH_VALUE_   ((DWORD)0x80091007)
 #define CRYPT_E_INVALID_INDEX_ ((DWORD)0x80091008)
 #define CRYPT_E_UNEXPECTED_MSG_TYPE_ ((DWORD)0x8009200A)
@@ -34,6 +39,7 @@
 /* identity A/B: ephemeral CAPI provider with the private key imported, cert contexts without a key */
 typedef struct { PCCERT_CONTEXT cert; HCRYPTPROV prov; } g1_id;
 extern g1_id g1_A, g1_B;
+NCRYPT_KEY_HANDLE g1_cng_key(const BYTE *capi_privblob);   /* ephemeral CNG copy of a legacy RSA private key blob, 0 on failure */
 int g1_init(void);                  /* 1 on success, else t_skip + 0 */
 #define G1_INIT() do { if (!g1_init()) return; } while (0)
 

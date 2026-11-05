@@ -134,15 +134,13 @@ TEST(gap1_msglen_signed_flags_shrink_result) {
 }
 TEST(gap1_msglen_signed_null_encode_info) {
     REQUIRE(U(CryptMsgCalculateEncodedLength)); NOWINE_STUB();
+    /* the pointer is not validated for the signed, enveloped and hashed types: the call faults.  CMSG_DATA ignores it */
     SET_ERR(0);
-    DWORD r = U(CryptMsgCalculateEncodedLength)(ENC, 0, CMSG_SIGNED, NULL, NULL, 10);
-    CHECK(r == 0);
-    DWORD e = GetLastError();
-    t_note("signed with NULL encode info -> err 0x%08lx", e);
-    r = U(CryptMsgCalculateEncodedLength)(ENC, 0, CMSG_ENVELOPED, NULL, NULL, 10);
-    CHECK(r == 0);
-    r = U(CryptMsgCalculateEncodedLength)(ENC, 0, CMSG_HASHED, NULL, NULL, 10);
-    CHECK(r == 0);
+    DWORD r = U(CryptMsgCalculateEncodedLength)(ENC, 0, CMSG_DATA, NULL, NULL, 10);
+    EXPECT_EQ(r, 27);
+    T_EXPECT_FAULT(U(CryptMsgCalculateEncodedLength)(ENC, 0, CMSG_SIGNED, NULL, NULL, 10));
+    T_EXPECT_FAULT(U(CryptMsgCalculateEncodedLength)(ENC, 0, CMSG_ENVELOPED, NULL, NULL, 10));
+    T_EXPECT_FAULT(U(CryptMsgCalculateEncodedLength)(ENC, 0, CMSG_HASHED, NULL, NULL, 10));
 }
 TEST(gap1_msglen_hashed_is_upper_bound_of_actual) {
     REQUIRE(U(CryptMsgCalculateEncodedLength)); NOWINE_STUB(); REQUIRE(U(CryptMsgOpenToEncode));

@@ -368,7 +368,8 @@ TEST(gap1_multiops_null_operations) {
     REQUIRE(U(BCryptProcessMultiOperations)); REQUIRE(U(BCryptCreateMultiHash));
     BCRYPT_ALG_HANDLE a = open_alg(L"SHA256", 0); REQUIRE(a);
     BCRYPT_HASH_HANDLE h;
-    if (make_multi(a, 4, &h) != 0) { close_alg(a); t_skip("multi-hash not supported here"); return; }
+    NTSTATUS ms = make_multi(a, 4, &h);
+    if (ms != 0) { EXPECT_EQ(ms, ST_NOT_SUPPORTED); close_alg(a); t_skip("BCryptCreateMultiHash returns STATUS_NOT_SUPPORTED on this OS build"); return; }
     EXPECT_EQ(U(BCryptProcessMultiOperations)(h, BCRYPT_OPERATION_TYPE_HASH, NULL, 0, 0), ST_INVALID_PARAMETER);
     EXPECT_EQ(U(BCryptProcessMultiOperations)(h, BCRYPT_OPERATION_TYPE_HASH, NULL, 16, 0), ST_INVALID_PARAMETER);
     U(BCryptDestroyHash)(h); close_alg(a);
@@ -377,7 +378,8 @@ TEST(gap1_multiops_hash_four_lanes) {
     REQUIRE(U(BCryptProcessMultiOperations)); REQUIRE(U(BCryptCreateMultiHash));
     BCRYPT_ALG_HANDLE a = open_alg(L"SHA256", 0); REQUIRE(a);
     BCRYPT_HASH_HANDLE h;
-    if (make_multi(a, 4, &h) != 0) { close_alg(a); t_skip("multi-hash not supported here"); return; }
+    NTSTATUS ms = make_multi(a, 4, &h);
+    if (ms != 0) { EXPECT_EQ(ms, ST_NOT_SUPPORTED); close_alg(a); t_skip("BCryptCreateMultiHash returns STATUS_NOT_SUPPORTED on this OS build"); return; }
     BYTE out[4][32]; memset(out, 0, sizeof out);
     BCRYPT_MULTI_HASH_OPERATION ops[8];
     const char *msgs[4] = { "abc", "", "abc", "abcdef" };
@@ -403,7 +405,8 @@ TEST(gap1_multiops_incremental_chunks) {
     REQUIRE(U(BCryptProcessMultiOperations)); REQUIRE(U(BCryptCreateMultiHash));
     BCRYPT_ALG_HANDLE a = open_alg(L"SHA256", 0); REQUIRE(a);
     BCRYPT_HASH_HANDLE h;
-    if (make_multi(a, 2, &h) != 0) { close_alg(a); t_skip("multi-hash not supported here"); return; }
+    NTSTATUS ms = make_multi(a, 2, &h);
+    if (ms != 0) { EXPECT_EQ(ms, ST_NOT_SUPPORTED); close_alg(a); t_skip("BCryptCreateMultiHash returns STATUS_NOT_SUPPORTED on this OS build"); return; }
     BCRYPT_MULTI_HASH_OPERATION o1[2] = { {0, BCRYPT_HASH_OPERATION_HASH_DATA, (PUCHAR)"a", 1}, {1, BCRYPT_HASH_OPERATION_HASH_DATA, (PUCHAR)"abc", 3} };
     BCRYPT_MULTI_HASH_OPERATION o2[2] = { {0, BCRYPT_HASH_OPERATION_HASH_DATA, (PUCHAR)"bc", 2}, {1, BCRYPT_HASH_OPERATION_HASH_DATA, (PUCHAR)"", 0} };
     BYTE out[2][32];
@@ -421,7 +424,8 @@ TEST(gap1_multiops_bad_operation_note) {
     REQUIRE(U(BCryptProcessMultiOperations)); REQUIRE(U(BCryptCreateMultiHash));
     BCRYPT_ALG_HANDLE a = open_alg(L"SHA256", 0); REQUIRE(a);
     BCRYPT_HASH_HANDLE h;
-    if (make_multi(a, 2, &h) != 0) { close_alg(a); t_skip("multi-hash not supported here"); return; }
+    NTSTATUS ms = make_multi(a, 2, &h);
+    if (ms != 0) { EXPECT_EQ(ms, ST_NOT_SUPPORTED); close_alg(a); t_skip("BCryptCreateMultiHash returns STATUS_NOT_SUPPORTED on this OS build"); return; }
     BCRYPT_MULTI_HASH_OPERATION bad = { 7, BCRYPT_HASH_OPERATION_HASH_DATA, (PUCHAR)"abc", 3 };   /* lane out of range */
     NTSTATUS s = U(BCryptProcessMultiOperations)(h, BCRYPT_OPERATION_TYPE_HASH, &bad, sizeof bad, 0);
     t_note("lane index 7 of 2 -> 0x%08lx", (unsigned long)s);

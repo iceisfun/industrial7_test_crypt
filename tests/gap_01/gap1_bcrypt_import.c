@@ -12,6 +12,7 @@ static ULONG getprop(BCRYPT_HANDLE h, const WCHAR *prop) {
     U(BCryptGetProperty)(h, prop, (PUCHAR)&v, sizeof v, &n, 0);
     return v;
 }
+static BCRYPT_ALG_HANDLE open_aes_cbc(void) { return open_alg(L"AES", 0); }   /* default chaining mode (CBC) */
 static BCRYPT_ALG_HANDLE open_aes_ecb(void) {
     BCRYPT_ALG_HANDLE a = open_alg(L"AES", 0);
     if (a) U(BCryptSetProperty)(a, BCRYPT_CHAINING_MODE, (PUCHAR)BCRYPT_CHAIN_MODE_ECB, sizeof(BCRYPT_CHAIN_MODE_ECB), 0);
@@ -227,13 +228,19 @@ TEST(gap1_import_hImportKey_validation) {
     BCRYPT_KEY_HANDLE k = NULL;
     /* an algorithm handle is not a key handle */
     EXPECT_EQ(U(BCryptImportKey)(a, (BCRYPT_KEY_HANDLE)a, BCRYPT_KEY_DATA_BLOB, &k, NULL, 0, blob, cb, 0), ST_INVALID_HANDLE);
-    /* key from a different open of the same algorithm: must be a key-wrap blob type, otherwise invalid parameter */
+    /* for a plain key-data blob the hImportKey key is not consulted: the import succeeds */
     BCRYPT_ALG_HANDLE b = open_aes_ecb(); REQUIRE(b);
     BCRYPT_KEY_HANDLE kek = NULL;
     CHECK(U(BCryptImportKey)(b, NULL, BCRYPT_KEY_DATA_BLOB, &kek, NULL, 0, blob, cb, 0) == 0);
     NTSTATUS s = U(BCryptImportKey)(a, kek, BCRYPT_KEY_DATA_BLOB, &k, NULL, 0, blob, cb, 0);
-    EXPECT_EQ(s, ST_INVALID_PARAMETER);
-    CHECK(k == NULL);
+    EXPECT_EQ(s, 0);
+    CHECK(k != NULL);
+    if (k) U(BCryptDestroyKey)(k);
+    /* a key-wrap blob needs a wrapping key whose algorithm is not in ECB mode */
+    static const BYTE wrapped[24] = {0x1f,0xa6,0x8b,0x0a,0x81,0x12,0xb4,0x47,0xae,0xf3,0x4b,0xd8,0xfb,0x5a,0x7b,0x82,0x9d,0x3e,0x86,0x23,0x71,0xd2,0xcf,0xe5};
+    BCRYPT_KEY_HANDLE w = NULL;
+    EXPECT_EQ(U(BCryptImportKey)(a, kek, L"Rfc3565KeyWrapBlob", &w, NULL, 0, (PUCHAR)wrapped, sizeof wrapped, 0), ST_INVALID_PARAMETER);
+    CHECK(w == NULL);
     U(BCryptDestroyKey)(kek);
     close_alg(b); close_alg(a);
 }
@@ -255,7 +262,7 @@ TEST(gap1_import_aes_keywrap_rfc3394) {
     REQUIRE(U(BCryptImportKey)); REQUIRE(U(BCryptExportKey));
     static const BYTE wrapped[24] = {0x1f,0xa6,0x8b,0x0a,0x81,0x12,0xb4,0x47,0xae,0xf3,0x4b,0xd8,0xfb,0x5a,0x7b,0x82,0x9d,0x3e,0x86,0x23,0x71,0xd2,0xcf,0xe5};
     static const BYTE zero_ct[16] = {0xfd,0xe4,0xfb,0xae,0x4a,0x09,0xe0,0x20,0xef,0xf7,0x22,0x96,0x9f,0x83,0x83,0x2b};
-    BCRYPT_ALG_HANDLE a = open_aes_ecb(), b = open_aes_ecb(); REQUIRE(a && b);
+    BCRYPT_ALG_HANDLE a = open_aes_cbc(), b = open_aes_ecb(); REQUIRE(a && b);    /* the wrapping key must not be an ECB key */
     BYTE kek[16], blob[64]; seq(kek, 16); ULONG cb = kdblob(blob, kek, 16);
     BCRYPT_KEY_HANDLE hk = NULL, out = NULL;
     CHECK(U(BCryptImportKey)(a, NULL, BCRYPT_KEY_DATA_BLOB, &hk, NULL, 0, blob, cb, 0) == 0);

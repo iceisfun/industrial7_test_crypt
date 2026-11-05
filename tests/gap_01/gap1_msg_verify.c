@@ -315,7 +315,7 @@ TEST(gap1_vds_tampered_data) {
     CHECK(signer == NULL);                  /* output cleared on failure */
     SET_ERR(0);
     CHECK(!U(CryptVerifyDetachedMessageSignature)(&p, 0, BLOB(v_sig_det_noattr), 1, (const BYTE **)ch, cl, NULL));
-    EXPECT_ERR(NTE_BAD_SIGNATURE_);
+    EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE);
 }
 TEST(gap1_vds_signer_index_out_of_range) {
     REQUIRE(U(CryptVerifyDetachedMessageSignature));
@@ -355,7 +355,7 @@ TEST(gap1_vds_wrong_message_types) {
     EXPECT_ERR(CRYPT_E_UNEXPECTED_MSG_TYPE_);
     SET_ERR(0);
     CHECK(!U(CryptVerifyDetachedMessageSignature)(&p, 0, BLOB(v_env_aes256), 1, (const BYTE **)ch, cl, NULL));
-    EXPECT_ERR(CRYPT_E_UNEXPECTED_MSG_TYPE_);
+    EXPECT_ERR(CRYPT_E_MSG_ERROR_);          /* an enveloped message is not a decodable signed message here */
 }
 TEST(gap1_vds_garbage) {
     REQUIRE(U(CryptVerifyDetachedMessageSignature));
@@ -475,7 +475,7 @@ TEST(gap1_vsk_wrong_key) {
     for (int i = 0; i < 3; i++) {
         BYTE out[128]; DWORD co = sizeof out; SET_ERR(0);
         CHECKF(!U(CryptVerifyMessageSignatureWithKey)(&p, &b->pCertInfo->SubjectPublicKeyInfo, (BYTE *)blobs[i], lens[i], out, &co), "blob %d", i);
-        EXPECT_ERR(NTE_BAD_SIGNATURE_);
+        EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE);
         EXPECT_EQ(co, 0);
     }
     U(CertFreeCertificateContext)(b);
@@ -495,12 +495,12 @@ TEST(gap1_vsk_tampered_content_and_signature) {
     BYTE *c = dup_flip(v_sig_att, sizeof v_sig_att, at + 3); co = sizeof out; SET_ERR(0);
     CHECK(!U(CryptVerifyMessageSignatureWithKey)(&p, k, c, sizeof v_sig_att, out, &co)); EXPECT_ERR(CRYPT_E_HASH_VALUE_); free(c);
     c = dup_flip(v_sig_att_noattr, sizeof v_sig_att_noattr, an + 3); co = sizeof out; SET_ERR(0);
-    CHECK(!U(CryptVerifyMessageSignatureWithKey)(&p, k, c, sizeof v_sig_att_noattr, out, &co)); EXPECT_ERR(NTE_BAD_SIGNATURE_); free(c);
+    CHECK(!U(CryptVerifyMessageSignatureWithKey)(&p, k, c, sizeof v_sig_att_noattr, out, &co)); EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE); free(c);
     /* signature value is the tail of each message (last OCTET STRING of 128 bytes) */
     c = dup_flip(v_sig_att, sizeof v_sig_att, sizeof v_sig_att - 20); co = sizeof out; SET_ERR(0);
-    CHECK(!U(CryptVerifyMessageSignatureWithKey)(&p, k, c, sizeof v_sig_att, out, &co)); EXPECT_ERR(NTE_BAD_SIGNATURE_); free(c);
+    CHECK(!U(CryptVerifyMessageSignatureWithKey)(&p, k, c, sizeof v_sig_att, out, &co)); EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE); free(c);
     c = dup_flip(v_sig_att_noattr, sizeof v_sig_att_noattr, sizeof v_sig_att_noattr - 20); co = sizeof out; SET_ERR(0);
-    CHECK(!U(CryptVerifyMessageSignatureWithKey)(&p, k, c, sizeof v_sig_att_noattr, out, &co)); EXPECT_ERR(NTE_BAD_SIGNATURE_); free(c);
+    CHECK(!U(CryptVerifyMessageSignatureWithKey)(&p, k, c, sizeof v_sig_att_noattr, out, &co)); EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE); free(c);
     U(CertFreeCertificateContext)(a);
 }
 TEST(gap1_vsk_null_key_skips_verification) {
@@ -588,8 +588,12 @@ static HCERTSTORE dec_store(const g1_id *id, int with_key) {
     PCCERT_CONTEXT c = NULL;
     if (!U(CertAddCertificateContextToStore)(s, id->cert, CERT_STORE_ADD_ALWAYS, &c)) { U(CertCloseStore)(s, 0); return NULL; }
     if (with_key) {
+        /* AES content needs a CNG key handle: a legacy provider handle only decrypts the 3DES message.  Every store gets its
+           own handle because crypt32 releases the handle of a context it has finished with. */
         CERT_KEY_CONTEXT kc; memset(&kc, 0, sizeof kc);
-        kc.cbSize = sizeof kc; kc.hCryptProv = id->prov; kc.dwKeySpec = AT_KEYEXCHANGE;
+        kc.cbSize = sizeof kc;
+        kc.hNCryptKey = g1_cng_key(id == &g1_A ? v_keyA : v_keyB); kc.dwKeySpec = CERT_NCRYPT_KEY_SPEC;
+        if (!kc.hNCryptKey) { kc.hCryptProv = id->prov; kc.dwKeySpec = AT_KEYEXCHANGE; }
         U(CertSetCertificateContextProperty)(c, CERT_KEY_CONTEXT_PROP_ID, 0, &kc);
     }
     U(CertFreeCertificateContext)(c);
@@ -622,7 +626,7 @@ TEST(gap1_decrypt_buffer_protocol) {
     CRYPT_DECRYPT_MESSAGE_PARA p; dpara(&p, &st, 1);
     DWORD n = 0xFFFF;
     CHECK(U(CryptDecryptMessage)(&p, BLOB(v_env_aes256), NULL, &n, NULL));
-    EXPECT_EQ(n, sizeof v_payload);
+    EXPECT_EQ(n, 54);          /* the NULL-buffer query reports an upper bound (54), not the exact 44-byte payload size */
     BYTE out[128];
     for (DWORD cap = 1; cap < sizeof v_payload; cap += 10) {
         n = cap; SET_ERR(0);

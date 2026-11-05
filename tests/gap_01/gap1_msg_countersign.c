@@ -199,7 +199,7 @@ TEST(gap1_csverify_roundtrip_with_attributes) {
     /* wrong countersigner key */
     SET_ERR(0);
     CHECK(!U(CryptMsgVerifyCountersignatureEncoded)(0, ENC, si, sicb, (BYTE *)s, scb, g1_B.cert->pCertInfo));
-    EXPECT_ERR(NTE_BAD_SIGNATURE_);
+    EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE);
     /* the countersignature covers the original signature value: another message's signer info fails the digest comparison */
     DWORD sicb2 = 0; BYTE *si2 = signer_info(BLOB(v_sig_att_sha1), &sicb2); REQUIRE(si2);
     SET_ERR(0);
@@ -220,7 +220,7 @@ TEST(gap1_csverify_tampered_signer_info) {
     BYTE *cbad = malloc(scb); memcpy(cbad, s, scb); cbad[scb - 10] ^= 0x01;
     SET_ERR(0);
     CHECK(!U(CryptMsgVerifyCountersignatureEncoded)(0, ENC, si, sicb, cbad, scb, g1_A.cert->pCertInfo));
-    EXPECT_ERR(NTE_BAD_SIGNATURE_);
+    EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE);
     free(bad); free(cbad); free(cs); free(si);
 }
 TEST(gap1_csverify_encoding_type_and_garbage) {
@@ -253,7 +253,7 @@ TEST(gap1_csverify_no_authenticated_attributes) {
     SET_ERR(0);
     BOOL r = U(CryptMsgVerifyCountersignatureEncoded)(0, ENC, si, sicb, (BYTE *)s, scb, g1_A.cert->pCertInfo);
     t_note("countersigner without auth attributes: messageDigest present %d, verify ret %d err 0x%08lx", has_md, r, GetLastError());
-    if (!has_md) { CHECK(!r); EXPECT_ERR(CRYPT_E_ATTRIBUTES_MISSING_); }
+    if (!has_md) { CHECK(!r); EXPECT_ERR(CRYPT_E_AUTH_ATTR_MISSING_); }
     else CHECK(r);
     free(cs); free(si);
 }
@@ -272,10 +272,10 @@ TEST(gap1_csverifyex_signer_types) {
     SET_ERR(0);
     CHECK(!U(CryptMsgVerifyCountersignatureEncodedEx)(0, ENC, si, sicb, (BYTE *)s, scb, CMSG_VERIFY_SIGNER_PUBKEY,
             &g1_B.cert->pCertInfo->SubjectPublicKeyInfo, 0, NULL));
-    EXPECT_ERR(NTE_BAD_SIGNATURE_);
+    EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE);
     SET_ERR(0);
     CHECK(!U(CryptMsgVerifyCountersignatureEncodedEx)(0, ENC, si, sicb, (BYTE *)s, scb, CMSG_VERIFY_SIGNER_CERT, (void *)g1_B.cert, 0, NULL));
-    EXPECT_ERR(NTE_BAD_SIGNATURE_);
+    EXPECT_ERR((DWORD)ST_INVALID_SIGNATURE);
     /* bad encoding type */
     SET_ERR(0);
     CHECK(!U(CryptMsgVerifyCountersignatureEncodedEx)(0, 0, si, sicb, (BYTE *)s, scb, CMSG_VERIFY_SIGNER_PUBKEY,
@@ -332,10 +332,19 @@ TEST(gap1_cs_add_countersignature_to_message) {
     BOOL r = U(CryptMsgCountersign)(m, 0, 1, &c);
     CHECKF(r, "0x%08lx", GetLastError());
     if (r) {
-        DWORD cb = 0;
-        CHECK(U(CryptMsgGetParam)(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &cb) && cb);
+        DWORD cb = 0; SET_ERR(0);
+        /* the decoded handle does not expose the new attribute; the re-encoded message does */
+        CHECK(!U(CryptMsgGetParam)(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &cb)); EXPECT_ERR(CRYPT_E_ATTRIBUTES_MISSING_);
+        DWORD en0 = 0; BYTE *eb0 = NULL; HCRYPTMSG m4 = NULL;
+        if (U(CryptMsgGetParam)(m, CMSG_ENCODED_MESSAGE, 0, NULL, &en0) && en0) {
+            eb0 = malloc(en0);
+            if (U(CryptMsgGetParam)(m, CMSG_ENCODED_MESSAGE, 0, eb0, &en0)) m4 = open_decoded(eb0, en0);
+        }
+        REQUIRE(m4);
+        cb = 0;
+        CHECK(U(CryptMsgGetParam)(m4, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &cb) && cb);
         BYTE *ua = malloc(cb);
-        if (U(CryptMsgGetParam)(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, ua, &cb)) {
+        if (U(CryptMsgGetParam)(m4, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, ua, &cb)) {
             CRYPT_ATTRIBUTES *attrs = (CRYPT_ATTRIBUTES *)ua;
             CHECK(attrs->cAttr == 1);
             if (attrs->cAttr == 1) {
@@ -355,7 +364,7 @@ TEST(gap1_cs_add_countersignature_to_message) {
                 }
             }
         }
-        free(ua);
+        free(ua); U(CryptMsgClose)(m4); free(eb0);
         /* the re-encoded message now carries the countersignature OID */
         DWORD en = 0;
         if (U(CryptMsgGetParam)(m, CMSG_ENCODED_MESSAGE, 0, NULL, &en) && en) {
@@ -398,26 +407,40 @@ TEST(gap1_cs_message_after_update_has_no_unauth_attrs_before) {
     CHECK(!r);
     U(CryptMsgClose)(m);
 }
-TEST(gap1_cs_two_countersignatures_accumulate) {
+TEST(gap1_cs_second_countersign_call_rejected) {
     REQUIRE(U(CryptMsgCountersign)); NOWINE_STUB(); G1_INIT();
     HCRYPTMSG m = open_decoded(BLOB(v_sig_att)); REQUIRE(m);
     CMSG_SIGNER_ENCODE_INFO c; CRYPT_ATTRIBUTE a; CRYPT_ATTR_BLOB v;
     signer_para(&c, &g1_A, &a, &v, 1);
     CHECK(U(CryptMsgCountersign)(m, 0, 1, &c));
-    signer_para(&c, &g1_B, &a, &v, 1);
+    /* a decoded message accepts one CryptMsgCountersign call: later calls (any signer) fail with E_INVALIDARG */
+    signer_para(&c, &g1_B, &a, &v, 1); SET_ERR(0);
     BOOL r = U(CryptMsgCountersign)(m, 0, 1, &c);
-    CHECKF(r, "second countersignature: 0x%08lx", GetLastError());
-    DWORD cb = 0;
-    if (U(CryptMsgGetParam)(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &cb)) {
+    CHECK(!r); EXPECT_ERR(E_INVALIDARG_);
+    signer_para(&c, &g1_A, &a, &v, 1); SET_ERR(0);
+    r = U(CryptMsgCountersign)(m, 0, 1, &c);
+    CHECK(!r); EXPECT_ERR(E_INVALIDARG_);
+    /* the one countersignature is visible in the re-encoded message, not through the decoded handle */
+    DWORD cb = 0; SET_ERR(0);
+    CHECK(!U(CryptMsgGetParam)(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &cb)); EXPECT_ERR(CRYPT_E_ATTRIBUTES_MISSING_);
+    DWORD en = 0; BYTE *eb = NULL; HCRYPTMSG m3 = NULL;
+    if (U(CryptMsgGetParam)(m, CMSG_ENCODED_MESSAGE, 0, NULL, &en) && en) {
+        eb = malloc(en);
+        if (U(CryptMsgGetParam)(m, CMSG_ENCODED_MESSAGE, 0, eb, &en)) m3 = open_decoded(eb, en);
+    }
+    REQUIRE(m3);
+    cb = 0;
+    if (U(CryptMsgGetParam)(m3, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &cb)) {
         BYTE *ua = malloc(cb);
-        if (U(CryptMsgGetParam)(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, ua, &cb)) {
+        if (U(CryptMsgGetParam)(m3, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, ua, &cb)) {
             CRYPT_ATTRIBUTES *at = (CRYPT_ATTRIBUTES *)ua;
             DWORD total = 0;
             for (DWORD i = 0; i < at->cAttr; i++) if (!strcmp(at->rgAttr[i].pszObjId, "1.2.840.113549.1.9.6")) total += at->rgAttr[i].cValue;
             t_note("attributes %lu, countersignature values %lu", at->cAttr, total);
-            if (r) CHECK(total == 2);
+            CHECK(total == 1);
         }
         free(ua);
     }
+    U(CryptMsgClose)(m3); free(eb);
     U(CryptMsgClose)(m);
 }
