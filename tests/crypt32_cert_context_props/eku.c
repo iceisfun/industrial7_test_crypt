@@ -65,7 +65,7 @@ TEST(ccp_eku_size_protocol) {
     EXPECT_FAIL(!C32(CertGetEnhancedKeyUsage)(c, 0, (CERT_ENHKEY_USAGE *)buf, &cb), ERROR_MORE_DATA);
     cb = need;
     CHECK(C32(CertGetEnhancedKeyUsage)(c, 0, (CERT_ENHKEY_USAGE *)buf, &cb));
-    CHECK(cb <= need);
+    EXPECT_EQ(cb, need);
     { CERT_ENHKEY_USAGE *u = (CERT_ENHKEY_USAGE *)buf; DWORD i;     /* the OID strings live inside the caller's buffer */
       for (i = 0; i < u->cUsageIdentifier; i++) CHECK((BYTE *)u->rgpszUsageIdentifier[i] >= buf && (BYTE *)u->rgpszUsageIdentifier[i] < buf + need); }
     cb = need + 64;
@@ -196,11 +196,11 @@ TEST(ccp_eku_set_invalid_oid_string_fails) {
     REQUIRE(C32(CertSetEnhancedKeyUsage));
     if (!c) { CHECK(0); return; }
     usage_of(&x, 1, bad); SET_ERR(0);
-    CHECK(!C32(CertSetEnhancedKeyUsage)(c, &x.u)); CHECK(GetLastError() != 0);
+    CHECK(!C32(CertSetEnhancedKeyUsage)(c, &x.u)); EXPECT_ERR(0x80093109);
     usage_of(&x, 1, bad2); SET_ERR(0);
-    CHECK(!C32(CertSetEnhancedKeyUsage)(c, &x.u)); CHECK(GetLastError() != 0);
+    CHECK(!C32(CertSetEnhancedKeyUsage)(c, &x.u)); EXPECT_ERR(0x80093109);
     usage_of(&x, 1, bad3); SET_ERR(0);
-    CHECK(!C32(CertSetEnhancedKeyUsage)(c, &x.u)); CHECK(GetLastError() != 0);
+    CHECK(!C32(CertSetEnhancedKeyUsage)(c, &x.u)); EXPECT_ERR(E_INVALIDARG_);
     { DWORD cb = 0; CHECK(!ccp_getprop(c, CERT_ENHKEY_USAGE_PROP_ID, NULL, &cb)); }      /* nothing was stored */
     ccp_free(c);
 }
@@ -327,16 +327,15 @@ TEST(ccp_valid_usages_single_cert_list) {
     if (!c) { CHECK(0); return; }
     CHECK(C32(CertGetValidUsages)(1, &c, &n, NULL, &cb));
     EXPECT_EQ(n, 2);
-    CHECK(cb >= 2 * sizeof(LPSTR) + strlen(szOID_PKIX_KP_SERVER_AUTH) + strlen(szOID_PKIX_KP_CLIENT_AUTH) + 2);
+    EXPECT_EQ(cb, 52);
     buf = (BYTE *)LocalAlloc(LPTR, cb + 8); oids = (LPSTR *)buf;
     { DWORD small = cb - 1; SET_ERR(0); EXPECT_FAIL(!C32(CertGetValidUsages)(1, &c, &n, oids, &small), ERROR_MORE_DATA); EXPECT_EQ(small, cb); }
     n = 0;
     CHECK(C32(CertGetValidUsages)(1, &c, &n, oids, &cb));
     EXPECT_EQ(n, 2);
     if (n == 2) {
-        int a = !strcmp(oids[0], szOID_PKIX_KP_SERVER_AUTH) && !strcmp(oids[1], szOID_PKIX_KP_CLIENT_AUTH);
-        int b = !strcmp(oids[1], szOID_PKIX_KP_SERVER_AUTH) && !strcmp(oids[0], szOID_PKIX_KP_CLIENT_AUTH);
-        CHECK(a || b);
+        EXPECT_STR(oids[0], szOID_PKIX_KP_SERVER_AUTH);
+        EXPECT_STR(oids[1], szOID_PKIX_KP_CLIENT_AUTH);
     }
     LocalFree(buf); ccp_free(c);
 }
@@ -509,14 +508,14 @@ TEST(ccp_public_key_length_unknown_algorithm) {
     k = c->pCertInfo->SubjectPublicKeyInfo;
     k.Algorithm.pszObjId = "1.2.3.4.5.6.7";
     SET_ERR(0);
-    t_note("unknown public key algorithm: length %lu err 0x%lx", (unsigned long)C32(CertGetPublicKeyLength)(ENC, &k), (unsigned long)GetLastError());
+    EXPECT_EQ(C32(CertGetPublicKeyLength)(ENC, &k), 2048);      /* the length comes from the key bytes, the algorithm OID is not consulted */
     ccp_free(c);
 }
 TEST(ccp_public_key_length_property) {
     PCCERT_CONTEXT c = ccp_ctx(&fx_root);
     REQUIRE(C32(CertGetCertificateContextProperty));
     if (!c) { CHECK(0); return; }
-    { DWORD v = 0, cb = 4; if (ccp_getprop(c, 92, &v, &cb)) { EXPECT_EQ(cb, 4); EXPECT_EQ(v, 2048); } else t_note("property 92 (public key bit length) unavailable: 0x%lx", (unsigned long)GetLastError()); }
+    { DWORD v = 0, cb = 4; CHECK(ccp_getprop(c, 92, &v, &cb)); EXPECT_EQ(cb, 4); EXPECT_EQ(v, 2048); }
     ccp_free(c);
 }
 
@@ -530,7 +529,7 @@ TEST(ccp_is_strong_hash_to_sign_sha256_and_md5) {
     CHECK(r);
     SET_ERR(0);
     r = C32(CertIsStrongHashToSign)(&p, L"MD5", c);
-    t_note("CertIsStrongHashToSign(MD5) = %d err 0x%lx", r, (unsigned long)GetLastError());
     CHECK(!r);
+    EXPECT_ERR(NTE_BAD_ALGID_);
     ccp_free(c);
 }

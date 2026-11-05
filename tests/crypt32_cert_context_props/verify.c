@@ -187,6 +187,122 @@ TEST(ccp_sig_verify_plain_all_pairs) {
         ccp_free(is);
     }
 }
+/* Observed status of the sampled wrong-issuer-key matrix below (subject, signing issuer, wrong key). The status is the CNG
+ * verify result: STATUS_INVALID_PARAMETER (0xc000000d) when the key type or size does not fit the signature, or when the
+ * signature value is not below the modulus; STATUS_INVALID_SIGNATURE (0xc000a000) otherwise; sha1leaf goes through the
+ * legacy path (NTE_BAD_SIGNATURE) and an EC key given to an RSA signature in the legacy path is a bad tag. The fixtures are
+ * fixed, so the statuses are fixed. */
+static const struct { const char *sub, *iss, *key; DWORD err; } wrong_key_err[] = {
+    {"root", "root", "ec256", 0xc000000d},
+    {"root", "root", "future", 0xc000a000},
+    {"root", "root", "leaf2", 0xc000a000},
+    {"root", "root", "leafi", 0xc000a000},
+    {"root", "root", "nestbad2", 0xc000a000},
+    {"root", "root", "rsa1024", 0xc000a000},
+    {"inter", "root", "expired", 0xc000a000},
+    {"inter", "root", "leaf", 0xc000a000},
+    {"inter", "root", "leaffut", 0xc000a000},
+    {"inter", "root", "nestbad", 0xc000a000},
+    {"inter", "root", "root2", 0xc000a000},
+    {"inter", "root", "utf8", 0xc000a000},
+    {"leaf", "root", "ec384v1", 0xc000000d},
+    {"leaf", "root", "inter", 0xc000a000},
+    {"leaf", "root", "leafexp", 0xc000a000},
+    {"leaf", "root", "negserial", 0xc000a000},
+    {"leaf", "root", "sha1leaf", 0xc000a000},
+    {"leafi", "inter", "ec256", 0xc000000d},
+    {"leafi", "inter", "future", 0xc000000d},
+    {"leafi", "inter", "leaf2", 0xc000000d},
+    {"leafi", "inter", "leafi", 0xc000000d},
+    {"leafi", "inter", "nestbad2", 0xc000000d},
+    {"leafi", "inter", "rsa1024", 0xc000a000},
+    {"ec256", "ec256", "expired", 0xc000000d},
+    {"ec256", "ec256", "leaf", 0xc000000d},
+    {"ec256", "ec256", "leaffut", 0xc000000d},
+    {"ec256", "ec256", "nestbad", 0xc000000d},
+    {"ec256", "ec256", "root2", 0xc000000d},
+    {"ec256", "ec256", "utf8", 0xc000000d},
+    {"sha1leaf", "root", "ec384v1", 0x8009310b},
+    {"sha1leaf", "root", "inter", 0x80090006},
+    {"sha1leaf", "root", "leafexp", 0x80090006},
+    {"sha1leaf", "root", "negserial", 0x80090006},
+    {"sha1leaf", "root", "sha1leaf", 0x80090006},
+    {"ec384v1", "ec384v1", "ec256", 0x0000000d},
+    {"ec384v1", "ec384v1", "future", 0xc000000d},
+    {"ec384v1", "ec384v1", "leaf2", 0xc000000d},
+    {"ec384v1", "ec384v1", "leafi", 0xc000000d},
+    {"ec384v1", "ec384v1", "nestbad2", 0xc000000d},
+    {"ec384v1", "ec384v1", "rsa1024", 0xc000000d},
+    {"expired", "expired", "leaf", 0xc000000d},
+    {"expired", "expired", "leaffut", 0xc000a000},
+    {"expired", "expired", "nestbad", 0xc000a000},
+    {"expired", "expired", "root2", 0xc000000d},
+    {"expired", "expired", "utf8", 0xc000a000},
+    {"future", "future", "ec384v1", 0xc000000d},
+    {"future", "future", "inter", 0xc000a000},
+    {"future", "future", "leafexp", 0xc000a000},
+    {"future", "future", "negserial", 0xc000a000},
+    {"future", "future", "root", 0xc000a000},
+    {"future", "future", "sha1leaf", 0xc000a000},
+    {"nestbad", "root", "ec256", 0xc000000d},
+    {"nestbad", "root", "future", 0xc000a000},
+    {"nestbad", "root", "leaf2", 0xc000a000},
+    {"nestbad", "root", "leafi", 0xc000a000},
+    {"nestbad", "root", "nestbad2", 0xc000a000},
+    {"nestbad", "root", "rsa1024", 0xc000a000},
+    {"nestbad2", "root", "expired", 0xc000a000},
+    {"nestbad2", "root", "leaf", 0xc000a000},
+    {"nestbad2", "root", "leaffut", 0xc000a000},
+    {"nestbad2", "root", "nestbad", 0xc000a000},
+    {"nestbad2", "root", "root2", 0xc000a000},
+    {"nestbad2", "root", "utf8", 0xc000a000},
+    {"root2", "root2", "ec384v1", 0xc000000d},
+    {"root2", "root2", "inter", 0xc000a000},
+    {"root2", "root2", "leafexp", 0xc000a000},
+    {"root2", "root2", "negserial", 0xc000a000},
+    {"root2", "root2", "root", 0xc000a000},
+    {"root2", "root2", "sha1leaf", 0xc000a000},
+    {"leaf2", "root2", "ec256", 0xc000000d},
+    {"leaf2", "root2", "future", 0xc000a000},
+    {"leaf2", "root2", "leaf2", 0xc000a000},
+    {"leaf2", "root2", "leafi", 0xc000a000},
+    {"leaf2", "root2", "nestbad2", 0xc000a000},
+    {"leaf2", "root2", "rsa1024", 0xc000a000},
+    {"rsa1024", "rsa1024", "expired", 0xc000000d},
+    {"rsa1024", "rsa1024", "leaf", 0xc000000d},
+    {"rsa1024", "rsa1024", "leaffut", 0xc000000d},
+    {"rsa1024", "rsa1024", "nestbad", 0xc000000d},
+    {"rsa1024", "rsa1024", "root2", 0xc000000d},
+    {"rsa1024", "rsa1024", "utf8", 0xc000000d},
+    {"negserial", "negserial", "ec384v1", 0xc000000d},
+    {"negserial", "negserial", "inter", 0xc000a000},
+    {"negserial", "negserial", "leafexp", 0xc000a000},
+    {"negserial", "negserial", "root", 0xc000a000},
+    {"negserial", "negserial", "sha1leaf", 0xc000a000},
+    {"utf8", "utf8", "ec256", 0xc000000d},
+    {"utf8", "utf8", "future", 0xc000000d},
+    {"utf8", "utf8", "leaf2", 0xc000000d},
+    {"utf8", "utf8", "leafi", 0xc000a000},
+    {"utf8", "utf8", "nestbad2", 0xc000a000},
+    {"utf8", "utf8", "rsa1024", 0xc000a000},
+    {"leafexp", "root", "expired", 0xc000a000},
+    {"leafexp", "root", "leaf", 0xc000a000},
+    {"leafexp", "root", "leaffut", 0xc000a000},
+    {"leafexp", "root", "nestbad", 0xc000a000},
+    {"leafexp", "root", "root2", 0xc000a000},
+    {"leafexp", "root", "utf8", 0xc000a000},
+    {"leaffut", "root", "ec384v1", 0xc000000d},
+    {"leaffut", "root", "inter", 0xc000a000},
+    {"leaffut", "root", "leafexp", 0xc000a000},
+    {"leaffut", "root", "negserial", 0xc000a000},
+    {"leaffut", "root", "sha1leaf", 0xc000a000},
+};
+static int wrong_key_expect(const char *sub, const char *iss, const char *key, DWORD *err) {
+    size_t n;
+    for (n = 0; n < sizeof wrong_key_err / sizeof wrong_key_err[0]; n++)
+        if (!strcmp(wrong_key_err[n].sub, sub) && !strcmp(wrong_key_err[n].iss, iss) && !strcmp(wrong_key_err[n].key, key)) { *err = wrong_key_err[n].err; return 1; }
+    return 0;
+}
 TEST(ccp_sig_verify_wrong_issuer_key_fails) {
     int i, j, tested = 0; REQUIRE(C32(CryptVerifyCertificateSignature));
     for (i = 0; i < NPAIRS; i++) for (j = 0; j < ccp_nall; j++) {
@@ -197,7 +313,9 @@ TEST(ccp_sig_verify_wrong_issuer_key_fails) {
         if (!is) { CHECK(0); continue; }
         SET_ERR(0);
         CHECKF(!C32(CryptVerifyCertificateSignature)(0, ENC, sigpairs[i].sub->der, sigpairs[i].sub->cb, &is->pCertInfo->SubjectPublicKeyInfo), "%s must not verify under %s", sigpairs[i].sub->name, k->name);
-        CHECK(GetLastError() != 0);
+        { DWORD want = 0, got = GetLastError(); t_label("%s signed by %s checked under %s", sigpairs[i].sub->name, sigpairs[i].iss->name, k->name);
+          { int have = wrong_key_expect(sigpairs[i].sub->name, sigpairs[i].iss->name, k->name, &want);
+            CHECKF(have, "pair missing from the pinned table"); if (have) EXPECT_EQ(got, want); } }
         tested++;
         ccp_free(is);
     }
@@ -209,9 +327,7 @@ TEST(ccp_sig_verify_rsa_bad_signature_error) {
     if (!is) { CHECK(0); return; }
     SET_ERR(0);
     CHECK(!C32(CryptVerifyCertificateSignature)(0, ENC, fx_leaf.der, fx_leaf.cb, &is->pCertInfo->SubjectPublicKeyInfo));
-    t_note("RSA signature mismatch last error 0x%lx (NTE_BAD_SIGNATURE = 0x80090006)", (unsigned long)GetLastError());
-    /* exact error depends on the RSA verify path; not hard-checked */
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(0xc000a000);        /* STATUS_INVALID_SIGNATURE from the CNG verify */
     ccp_free(is);
 }
 TEST(ccp_sig_verify_tampered_signature_byte) {
@@ -260,7 +376,7 @@ TEST(ccp_sig_verify_encoding_type_zero) {
     if (!is) { CHECK(0); return; }
     SET_ERR(0);
     CHECK(!C32(CryptVerifyCertificateSignature)(0, 0, fx_root.der, fx_root.cb, &is->pCertInfo->SubjectPublicKeyInfo));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     ccp_free(is);
 }
 TEST(ccp_sig_verify_ex_subject_blob_and_cert_agree) {
@@ -282,7 +398,7 @@ TEST(ccp_sig_verify_ex_wrong_issuer) {
     if (!leaf || !r2) { CHECK(0); return; }
     SET_ERR(0);
     CHECK(!C32(CryptVerifyCertificateSignatureEx)(0, ENC, CRYPT_VERIFY_CERT_SIGN_SUBJECT_CERT, (void *)leaf, CRYPT_VERIFY_CERT_SIGN_ISSUER_CERT, (void *)r2, 0, NULL));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(0xc000a000);
     ccp_free(leaf); ccp_free(r2);
 }
 TEST(ccp_sig_verify_ex_invalid_types_and_flags) {
@@ -315,8 +431,7 @@ TEST(ccp_sig_verify_ex_unknown_signature_algorithm_fails) {
     b.cbData = fx_root.cb; b.pbData = buf;
     SET_ERR(0);
     CHECK(!C32(CryptVerifyCertificateSignatureEx)(0, ENC, CRYPT_VERIFY_CERT_SIGN_SUBJECT_BLOB, &b, CRYPT_VERIFY_CERT_SIGN_ISSUER_CERT, (void *)r, 0, NULL));
-    t_note("unknown signature algorithm OID: last error 0x%lx", (unsigned long)GetLastError());
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_NOT_SUPPORTED);
     LocalFree(buf); ccp_free(r);
 }
 TEST(ccp_sig_verify_ex_issuer_null_type_for_standard_alg_fails) {
@@ -343,8 +458,7 @@ TEST(ccp_hash_certificate_md5_and_sha256) {
         const FX *f = ccp_all[i]; BYTE h[64]; DWORD cb = sizeof h;
         CHECKF(C32(CryptHashCertificate)(0, CALG_MD5, 0, f->der, f->cb, h, &cb) && cb == 16 && !memcmp(h, f->md5, 16), "%s md5", f->name);
         cb = sizeof h;
-        if (C32(CryptHashCertificate)(0, CALG_SHA_256, 0, f->der, f->cb, h, &cb)) CHECKF(cb == 32 && !memcmp(h, f->sha256, 32), "%s sha256", f->name);
-        else t_note("CALG_SHA_256 unsupported by the default provider (0x%lx)", (unsigned long)GetLastError());
+        CHECKF(C32(CryptHashCertificate)(0, CALG_SHA_256, 0, f->der, f->cb, h, &cb) && cb == 32 && !memcmp(h, f->sha256, 32), "%s sha256", f->name);
     }
 }
 TEST(ccp_hash_certificate_size_protocol) {
@@ -379,11 +493,10 @@ TEST(ccp_hash_certificate_bad_algid) {
     REQUIRE(C32(CryptHashCertificate));
     SET_ERR(0);
     CHECK(!C32(CryptHashCertificate)(0, 0x1234, 0, fx_root.der, fx_root.cb, h, &cb));
-    t_note("bad ALG_ID last error 0x%lx", (unsigned long)GetLastError());
     EXPECT_ERR(NTE_BAD_ALGID_);
     cb = sizeof h; SET_ERR(0);
     CHECK(!C32(CryptHashCertificate)(0, CALG_RC4, 0, fx_root.der, fx_root.cb, h, &cb));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_NOT_SUPPORTED);
 }
 TEST(ccp_hash_certificate2_sha_family) {
     static const struct { const WCHAR *alg; DWORD len; } t[] = {{L"SHA1", 20}, {L"SHA256", 32}, {L"SHA384", 48}, {L"SHA512", 64}, {L"MD5", 16}, {L"MD2", 16}, {L"MD4", 16}};
@@ -415,11 +528,10 @@ TEST(ccp_hash_certificate2_size_protocol_and_errors) {
     EXPECT_EQ(cb, 32);
     cb = sizeof h; SET_ERR(0);
     CHECK(!C32(CryptHashCertificate2)(L"NO_SUCH_HASH", 0, NULL, fx_root.der, fx_root.cb, h, &cb));
-    t_note("unknown CNG hash name: last error 0x%lx", (unsigned long)GetLastError());
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(0xc0000225);        /* STATUS_NOT_FOUND */
     cb = sizeof h; SET_ERR(0);
     CHECK(!C32(CryptHashCertificate2)(L"RSA", 0, NULL, fx_root.der, fx_root.cb, h, &cb));    /* an algorithm that is not a hash */
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(0xc00000bb);        /* STATUS_NOT_SUPPORTED */
 }
 TEST(ccp_hash_to_be_signed_matches_signature_hash) {
     int i; REQUIRE(C32(CryptHashToBeSigned));

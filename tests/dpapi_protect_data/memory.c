@@ -78,12 +78,11 @@ TEST(dpapi_mem_only_requested_bytes_touched) {
 }
 TEST(dpapi_mem_blocks_independent_sizes_prefix) {
     DP_NEED_MEM(); DP_NOT_WINE();
-    /* unprotecting only the first 32 bytes of a 64 byte protected buffer must not restore the first 32 bytes
-       unless the cipher is prefix-compatible; observation only */
+    /* unprotecting only the first 32 bytes of a 64 byte protected buffer restores the first 32 bytes (observed) */
     BYTE b[64], o[64]; dp_fill(b, 64, 1); memcpy(o, b, 64);
     CHECK(U(CryptProtectMemory)(b, 64, 0));
     CHECK(U(CryptUnprotectMemory)(b, 32, 0));
-    t_note("prefix unprotect of 32 of 64 protected bytes recovers first 32: %d", !memcmp(b, o, 32));
+    EXPECT_EQ(!memcmp(b, o, 32), 1);
 }
 TEST(dpapi_mem_double_protect_roundtrips) {
     DP_NEED_MEM(); DP_NOT_WINE();
@@ -97,21 +96,21 @@ TEST(dpapi_mem_double_protect_roundtrips) {
     CHECK(U(CryptUnprotectMemory)(b, 48, 0));
     CHECK(!memcmp(b, o, 48));
 }
-TEST(dpapi_mem_protect_deterministic_observed) {
+TEST(dpapi_mem_protect_is_deterministic_in_one_process) {
     DP_NEED_MEM(); DP_NOT_WINE();
     BYTE a[32], b[32]; dp_fill(a, 32, 6); memcpy(b, a, 32);
     CHECK(U(CryptProtectMemory)(a, 32, 0)); CHECK(U(CryptProtectMemory)(b, 32, 0));
-    t_note("same plaintext protected twice in one process gives identical bytes: %d", !memcmp(a, b, 32));
+    EXPECT_EQ(!memcmp(a, b, 32), 1);
 }
 TEST(dpapi_mem_flags_produce_distinct_ciphertext) {
     DP_NEED_MEM(); DP_NOT_WINE();
     BYTE c[3][32];
     for (int f = 0; f < 3; f++) { dp_fill(c[f], 32, 7); CHECK(U(CryptProtectMemory)(c[f], 32, FLAGS3[f])); }
-    t_note("ciphertext equal same/cross=%d same/logon=%d cross/logon=%d", !memcmp(c[0], c[1], 32), !memcmp(c[0], c[2], 32), !memcmp(c[1], c[2], 32));
+    EXPECT_EQ(!memcmp(c[0], c[1], 32), 0); EXPECT_EQ(!memcmp(c[0], c[2], 32), 0); EXPECT_EQ(!memcmp(c[1], c[2], 32), 0);
     BYTE p[32]; dp_fill(p, 32, 7);
     CHECK(memcmp(c[0], p, 32) != 0 && memcmp(c[1], p, 32) != 0 && memcmp(c[2], p, 32) != 0);
 }
-TEST(dpapi_mem_wrong_flag_does_not_restore) {
+TEST(dpapi_mem_wrong_flag_succeeds_but_does_not_restore) {
     DP_NEED_MEM(); DP_NOT_WINE();
     for (int a = 0; a < 3; a++) for (int b = 0; b < 3; b++) {
         if (a == b) continue;
@@ -119,16 +118,18 @@ TEST(dpapi_mem_wrong_flag_does_not_restore) {
         CHECK(U(CryptProtectMemory)(buf, 32, FLAGS3[a]));
         SET_ERR(0);
         BOOL r = U(CryptUnprotectMemory)(buf, 32, FLAGS3[b]);
-        t_note("protect %s, unprotect %s -> r=%d err=%lu restored=%d", FNAME[a], FNAME[b], r, GetLastError(), !memcmp(buf, o, 32));
+        t_label("protect %s, unprotect %s", FNAME[a], FNAME[b]);
+        EXPECT_EQ(r, 1);                              /* no error, but the bytes are not the plaintext */
+        EXPECT_EQ(!memcmp(buf, o, 32), 0);
     }
 }
-TEST(dpapi_mem_unprotect_never_protected_observed) {
+TEST(dpapi_mem_unprotect_never_protected_succeeds_with_garbage) {
     DP_NEED_MEM(); DP_NOT_WINE();
     BYTE buf[32], o[32]; dp_fill(buf, 32, 9); memcpy(o, buf, 32);
     SET_ERR(0);
     BOOL r = U(CryptUnprotectMemory)(buf, 32, 0);
-    t_note("unprotect of never-protected memory -> r=%d err=%lu", r, GetLastError());
-    CHECK(memcmp(buf, o, 32) != 0 || !r);   /* decrypting plaintext cannot give the same bytes back */
+    EXPECT_EQ(r, 1);
+    CHECK(memcmp(buf, o, 32) != 0);   /* decrypting plaintext cannot give the same bytes back */
 }
 /* ---- parameter validation ---- */
 
@@ -159,24 +160,24 @@ TEST(dpapi_mem_misaligned_size_leaves_buffer) {
     CHECK(!U(CryptUnprotectMemory)(b, 17, 0));
     CHECK(!memcmp(b, o, 48));
 }
-TEST(dpapi_mem_size_zero_observed) {
+TEST(dpapi_mem_size_zero_is_invalid_parameter) {
     DP_NEED_MEM();
     BYTE b[16] = { 0 };
     SET_ERR(0);
     BOOL r = U(CryptProtectMemory)(b, 0, 0);
-    t_note("CryptProtectMemory(size 0) -> %d err %lu", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_INVALID_PARAMETER);
     SET_ERR(0);
     r = U(CryptUnprotectMemory)(b, 0, 0);
-    t_note("CryptUnprotectMemory(size 0) -> %d err %lu", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_INVALID_PARAMETER);
 }
-TEST(dpapi_mem_null_buffer_observed) {
+TEST(dpapi_mem_null_buffer_is_invalid_access) {
     DP_NEED_MEM();
     SET_ERR(0);
     BOOL r = U(CryptProtectMemory)(NULL, 16, 0);
-    t_note("CryptProtectMemory(NULL,16) -> %d err %lu", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_NOACCESS);
     SET_ERR(0);
     r = U(CryptUnprotectMemory)(NULL, 16, 0);
-    t_note("CryptUnprotectMemory(NULL,16) -> %d err %lu", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_NOACCESS);
 }
 static void bad_flag(DWORD fl) {
     BYTE b[32], o[32]; dp_fill(b, 32, 1); memcpy(o, b, 32);
@@ -199,12 +200,13 @@ BADFLAG_TEST(0x100, 0x100)
 BADFLAG_TEST(0x10000, 0x10000)
 BADFLAG_TEST(0x80000000, 0x80000000u)
 BADFLAG_TEST(0xffffffff, 0xffffffffu)
-TEST(dpapi_mem_flag_4_observed) {
+TEST(dpapi_mem_flag_4_protects_but_cannot_be_unprotected) {
     DP_NEED_MEM();
     BYTE b[32]; dp_fill(b, 32, 1);
     SET_ERR(0);
     BOOL r = U(CryptProtectMemory)(b, 32, 4);
-    t_note("CryptProtectMemory flags=4 (not in dpapi.h; SystemFunction040 maps it to a separate ioctl) -> %d err %lu", r, GetLastError());
+    EXPECT_EQ(r, 1);          /* flags 4 is not in dpapi.h: protect accepts it, unprotect with it is denied */
+    { BYTE o[32]; dp_fill(o, 32, 1); SET_ERR(0); EXPECT_EQ(U(CryptUnprotectMemory)(b, 32, 4), 0); EXPECT_ERR(ERROR_ACCESS_DENIED); CHECK(memcmp(b, o, 32) != 0); }
 }
 TEST(dpapi_mem_bad_flag_precedes_size_check) {
     DP_NOT_WINE();
@@ -367,20 +369,17 @@ TEST(dpapi_mem_same_logon_recovers_in_child) {
 TEST(dpapi_mem_same_process_not_recovered_in_child) {
     DP_NEED_MEM(); DP_NOT_WINE();
     DWORD rc = child_mem(CRYPTPROTECTMEMORY_SAME_PROCESS, CRYPTPROTECTMEMORY_SAME_PROCESS);
-    CHECK(rc == 1 || rc == 2);                      /* the key is bound to the protecting process */
-    t_note("SAME_PROCESS ciphertext unprotected in another process -> child exit %lu (1 = call failed, 2 = garbage)", rc);
+    EXPECT_EQ(rc, 2);                      /* the call succeeds in the child but yields garbage: the key is bound to the protecting process */
 }
 TEST(dpapi_mem_cross_process_blob_wrong_flag_in_child) {
     DP_NEED_MEM(); DP_NOT_WINE();
     DWORD rc = child_mem(CRYPTPROTECTMEMORY_CROSS_PROCESS, CRYPTPROTECTMEMORY_SAME_LOGON);
-    CHECK(rc != 0);
-    t_note("CROSS_PROCESS ciphertext unprotected as SAME_LOGON in child -> %lu", rc);
+    EXPECT_EQ(rc, 2);          /* succeeds, garbage */
 }
 TEST(dpapi_mem_same_logon_blob_wrong_flag_in_child) {
     DP_NEED_MEM(); DP_NOT_WINE();
     DWORD rc = child_mem(CRYPTPROTECTMEMORY_SAME_LOGON, CRYPTPROTECTMEMORY_CROSS_PROCESS);
-    CHECK(rc != 0);
-    t_note("SAME_LOGON ciphertext unprotected as CROSS_PROCESS in child -> %lu", rc);
+    EXPECT_EQ(rc, 2);          /* succeeds, garbage */
 }
 TEST(dpapi_mem_cross_process_flag_rejected_in_child_bad_size) {
     DP_NOT_WINE();
@@ -391,5 +390,5 @@ TEST(dpapi_mem_cross_process_flag_rejected_in_child_bad_size) {
     snprintf(args, sizeof args, "1 %s %s", hc, hc);   /* identical hex, 32 bytes: valid length; child must not hang */
     DWORD rc = t_run_child("dpapi_mem_unprot", args, 20000);
     CHECK(rc != 0xDEAD0001 && rc != 0xDEAD0000);
-    CHECK(rc != 0);                                    /* unprotecting plaintext can never reproduce itself */
+    EXPECT_EQ(rc, 2);                                  /* the call succeeds, plaintext cannot reproduce itself */
 }

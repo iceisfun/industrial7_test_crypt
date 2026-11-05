@@ -54,12 +54,11 @@ static inline PCCERT_CONTEXT ccp_add(HCERTSTORE s, const FX *f) {
     if (!C32(CertAddEncodedCertificateToStore)(s, ENC, f->der, f->cb, CERT_STORE_ADD_ALWAYS, &c)) return NULL;
     return c;
 }
-/* Serial comparison: DER leading 00 pad bytes may or may not be kept in CERT_INFO. */
+/* Serial comparison: CERT_INFO keeps the DER 00 pad octet of a serial whose top bit is set (observed on Win10). */
 static inline int ccp_serial_ok(const CRYPT_INTEGER_BLOB *b, const FX *f) {
     DWORD n = f->cbSerial;
-    if (b->cbData == n && !memcmp(b->pbData, f->serial_le, n)) return 1;
-    if (n && (f->serial_le[n - 1] & 0x80) && b->cbData == n + 1 && b->pbData[n] == 0 && !memcmp(b->pbData, f->serial_le, n)) return 1;
-    return 0;
+    if (n && (f->serial_le[n - 1] & 0x80)) return b->cbData == n + 1 && b->pbData[n] == 0 && !memcmp(b->pbData, f->serial_le, n);
+    return b->cbData == n && !memcmp(b->pbData, f->serial_le, n);
 }
 static inline int blob_eq(const CRYPT_DATA_BLOB *b, const BYTE *p, DWORD n) { return b->cbData == n && (n == 0 || !memcmp(b->pbData, p, n)); }
 /* Read a property into a fixed buffer. Returns BOOL; *cb gets the length. */

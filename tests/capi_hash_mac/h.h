@@ -41,7 +41,7 @@ static void h_rev(BYTE *b, size_t n) { size_t i; for (i = 0; i < n/2; i++) { BYT
 /* ephemeral (VERIFYCONTEXT) provider; 0 on failure */
 static HCRYPTPROV h_acq(DWORD type, const char *name) {
     HCRYPTPROV p = 0;
-    if (!U(CryptAcquireContextA)(&p, NULL, name, type, CRYPT_VERIFYCONTEXT)) { t_note("acquire %s type %lu failed: %lu", name ? name : "(default)", type, GetLastError()); return 0; }
+    if (!U(CryptAcquireContextA)(&p, NULL, name, type, CRYPT_VERIFYCONTEXT)) { CHECKF(0, "acquire %s type %lu failed: %lu", name ? name : "(default)", type, GetLastError()); return 0; }
     return p;
 }
 static HCRYPTPROV h_acq_aes(void) { return h_acq(PROV_RSA_AES, PROVNAME_AES); }
@@ -57,14 +57,14 @@ done:
     U(CryptDestroyHash)(h);
     return ok;
 }
-/* import a plaintext session key blob (raw key bytes) */
+/* import a plaintext session key blob (raw key bytes); an import that must succeed, so a failure is counted */
 static HCRYPTKEY h_plainkey(HCRYPTPROV p, ALG_ID alg, const BYTE *key, DWORD len, DWORD flags) {
     BYTE blob[600]; BLOBHEADER *bh = (BLOBHEADER *)blob; HCRYPTKEY k = 0;
     bh->bType = PLAINTEXTKEYBLOB; bh->bVersion = CUR_BLOB_VERSION; bh->reserved = 0; bh->aiKeyAlg = alg;
     *(DWORD *)(blob + sizeof *bh) = len;
     memcpy(blob + sizeof *bh + 4, key, len);
     if (!U(CryptImportKey)(p, blob, (DWORD)(sizeof *bh + 4 + len), 0, flags, &k)) {
-        t_note("import plaintext key alg 0x%lx len %lu flags 0x%lx failed: 0x%lx", alg, len, flags, GetLastError()); return 0; }
+        CHECKF(0, "import plaintext key alg 0x%lx len %lu flags 0x%lx failed: 0x%lx", alg, len, flags, GetLastError()); return 0; }
     return k;
 }
 static DWORD h_digest_len(ALG_ID a) {

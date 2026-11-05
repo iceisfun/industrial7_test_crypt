@@ -141,36 +141,35 @@ TEST(capi_hash_destroy_after_partial_and_after_final) {
 }
 /* A destroyed handle is rejected. cryptsp tags a live hash object and clears the tag in CryptDestroyHash,
  * so a stale handle gives ERROR_INVALID_PARAMETER (the tag check) rather than an NTE_ code. */
-/* The stale handle points at freed heap memory, so the exact error is heap-state dependent: observed only. */
-static int bad_handle_err_ok(DWORD e) { if (e != ERROR_INVALID_PARAMETER) t_note("stale hash handle error 0x%lx (decomp: 87)", e); return 1; }
+/* Pinned: every use of a destroyed hash handle gave 87 on Win10 in every run (std, adm, repeated fresh VMs). */
 TEST(capi_hash_use_after_destroy_hashdata) {
     REQUIRE(U(CryptDestroyHash)); PROLOG; HCRYPTHASH h = 0;
     CHECK(U(CryptCreateHash)(p, CALG_SHA1, 0, 0, &h)); CHECK(U(CryptDestroyHash)(h));
     SET_ERR(0); CHECK(!U(CryptHashData)(h, (const BYTE *)"abc", 3, 0));
-    DWORD e = GetLastError(); CHECKF(bad_handle_err_ok(e), "err 0x%lx", e);
+    EXPECT_ERR(ERROR_INVALID_PARAMETER);
     EPILOG;
 }
 TEST(capi_hash_use_after_destroy_getparam) {
     REQUIRE(U(CryptDestroyHash)); PROLOG; HCRYPTHASH h = 0; DWORD dl = 4, v;
     CHECK(U(CryptCreateHash)(p, CALG_MD5, 0, 0, &h)); CHECK(U(CryptDestroyHash)(h));
     SET_ERR(0); CHECK(!U(CryptGetHashParam)(h, HP_ALGID, (BYTE *)&v, &dl, 0));
-    DWORD e = GetLastError(); CHECKF(bad_handle_err_ok(e), "err 0x%lx", e);
+    EXPECT_ERR(ERROR_INVALID_PARAMETER);
     EPILOG;
 }
 TEST(capi_hash_use_after_destroy_destroy_again) {
     REQUIRE(U(CryptDestroyHash)); PROLOG; HCRYPTHASH h = 0;
     CHECK(U(CryptCreateHash)(p, CALG_MD5, 0, 0, &h)); CHECK(U(CryptDestroyHash)(h));
     SET_ERR(0); CHECK(!U(CryptDestroyHash)(h));
-    DWORD e = GetLastError(); CHECKF(bad_handle_err_ok(e), "err 0x%lx", e);
+    EXPECT_ERR(ERROR_INVALID_PARAMETER);
     EPILOG;
 }
 TEST(capi_hash_use_after_destroy_setparam_and_duplicate) {
     REQUIRE(U(CryptDestroyHash)); PROLOG; HCRYPTHASH h = 0, d = 0; BYTE v[16] = { 0 };
     CHECK(U(CryptCreateHash)(p, CALG_MD5, 0, 0, &h)); CHECK(U(CryptDestroyHash)(h));
     SET_ERR(0); CHECK(!U(CryptSetHashParam)(h, HP_HASHVAL, v, 0));
-    DWORD e = GetLastError(); CHECKF(bad_handle_err_ok(e), "set err 0x%lx", e);
+    EXPECT_ERR(ERROR_INVALID_PARAMETER);
     SET_ERR(0); CHECK(!U(CryptDuplicateHash)(h, NULL, 0, &d));
-    e = GetLastError(); CHECKF(bad_handle_err_ok(e), "dup err 0x%lx", e);
+    EXPECT_ERR(ERROR_INVALID_PARAMETER);
     EPILOG;
 }
 TEST(capi_hash_destroy_hash_after_provider_released_is_independent) {
@@ -393,7 +392,7 @@ TEST(capi_hash_acquire_a_w_parity_same_digest) {
 TEST(capi_hash_provider_default_aes_type_sha256) {
     REQUIRE(U(CryptAcquireContextA));
     HCRYPTPROV p = 0; BYTE d[32]; DWORD dl = 32;
-    if (!U(CryptAcquireContextA)(&p, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) { t_note("default AES provider unavailable 0x%lx", GetLastError()); return; }
+    CHECKF(U(CryptAcquireContextA)(&p, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT), "default AES provider err 0x%lx", GetLastError()); if (!p) return;
     CHECK(h_hash(p, CALG_SHA_256, (const BYTE *)"abc", 3, d, &dl));
     EXPECT_HEX(d, 32, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     h_rel(p);

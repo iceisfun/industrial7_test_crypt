@@ -13,9 +13,9 @@ static int kopen(kctx *c, int ki) {
     c->spec = hv_keys[ki].keyalg == CALG_RSA_SIGN ? AT_SIGNATURE : AT_KEYEXCHANGE;
     c->nb = hv_keys[ki].bits / 8;
     n = h_hex2bin(hv_keys[ki].prv, blob, sizeof blob);
-    if (!U(CryptImportKey)(c->p, blob, n, 0, 0, &c->prv)) { t_note("import private key %d failed 0x%lx", ki, GetLastError()); h_rel(c->p); return 0; }
+    if (!U(CryptImportKey)(c->p, blob, n, 0, 0, &c->prv)) { CHECKF(0, "import private key %d failed 0x%lx", ki, GetLastError()); h_rel(c->p); return 0; }
     n = h_hex2bin(hv_keys[ki].pub, blob, sizeof blob);
-    if (!U(CryptImportKey)(c->p, blob, n, 0, 0, &c->pub)) { t_note("import public key %d failed 0x%lx", ki, GetLastError()); h_rel(c->p); return 0; }
+    if (!U(CryptImportKey)(c->p, blob, n, 0, 0, &c->pub)) { CHECKF(0, "import public key %d failed 0x%lx", ki, GetLastError()); h_rel(c->p); return 0; }
     return 1;
 }
 static void kclose(kctx *c) { h_rel(c->p); }
@@ -187,7 +187,7 @@ TEST(capi_sign_invalid_keyspec_fails) {
     HCRYPTHASH h = row_hash(c.p, CALG_SHA1, 0); BYTE s[128];
     for (i = 0; i < sizeof ks / sizeof ks[0]; i++) {
         DWORD sl = sizeof s; SET_ERR(0); CHECKF(!U(CryptSignHashW)(h, ks[i], NULL, 0, s, &sl), "keyspec 0x%lx", ks[i]);
-        t_note("keyspec 0x%lx -> error 0x%lx", ks[i], GetLastError());
+        t_label("keyspec 0x%lx", ks[i]); EXPECT_ERR(E_NTE_BAD_ALGID);
     }
     U(CryptDestroyHash)(h); kclose(&c);
 }
@@ -195,9 +195,7 @@ TEST(capi_sign_missing_keyspec_key_fails) {
     REQUIRE(U(CryptSignHashW)); kctx c; if (!kopen(&c, 0)) return;   /* only AT_SIGNATURE is present */
     HCRYPTHASH h = row_hash(c.p, CALG_SHA1, 0); BYTE s[128]; DWORD sl = sizeof s;
     SET_ERR(0); CHECK(!U(CryptSignHashW)(h, AT_KEYEXCHANGE, NULL, 0, s, &sl));
-    DWORD e = GetLastError();
-    CHECKF(e == E_NTE_NO_KEY || e == E_NTE_BAD_KEYSET, "err 0x%lx", e);
-    t_note("sign with absent AT_KEYEXCHANGE key: 0x%lx", e);
+    EXPECT_ERR(E_NTE_BAD_KEYSET);
     U(CryptDestroyHash)(h); kclose(&c);
 }
 TEST(capi_sign_no_key_in_fresh_context_fails) {
@@ -205,17 +203,17 @@ TEST(capi_sign_no_key_in_fresh_context_fails) {
     HCRYPTHASH h = 0; BYTE s[256]; DWORD sl = sizeof s;
     CHECK(U(CryptCreateHash)(p, CALG_SHA1, 0, 0, &h)); CHECK(U(CryptHashData)(h, (const BYTE *)"abc", 3, 0));
     SET_ERR(0); CHECK(!U(CryptSignHashW)(h, AT_SIGNATURE, NULL, 0, s, &sl));
-    DWORD e = GetLastError(); CHECKF(e == E_NTE_NO_KEY || e == E_NTE_BAD_KEYSET, "err 0x%lx", e);
-    t_note("sign in key-less verify context: 0x%lx", e);
+    EXPECT_ERR(E_NTE_BAD_KEYSET);
     sl = sizeof s; SET_ERR(0); CHECK(!U(CryptSignHashW)(h, AT_KEYEXCHANGE, NULL, 0, s, &sl));
-    e = GetLastError(); CHECKF(e == E_NTE_NO_KEY || e == E_NTE_BAD_KEYSET, "err 0x%lx", e);
+    EXPECT_ERR(E_NTE_BAD_KEYSET);
     U(CryptDestroyHash)(h); h_rel(p);
 }
 TEST(capi_sign_mac_hmac_hash_bad_algid) {
     REQUIRE(U(CryptSignHashW)); kctx c; if (!kopen(&c, 0)) return;
     BYTE k[16] = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 }; HCRYPTHASH h = 0; HMAC_INFO hi; BYTE s[128]; DWORD sl = sizeof s;
     HCRYPTKEY key = h_plainkey(c.p, CALG_RC2, k, 16, CRYPT_IPSEC_HMAC_KEY);
-    if (key && U(CryptCreateHash)(c.p, CALG_HMAC, key, 0, &h)) {
+    CHECK(key != 0); if (key) CHECK(U(CryptCreateHash)(c.p, CALG_HMAC, key, 0, &h));
+    if (key && h) {
         memset(&hi, 0, sizeof hi); hi.HashAlgid = CALG_SHA1;
         CHECK(U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0));
         CHECK(U(CryptHashData)(h, (const BYTE *)"abc", 3, 0));
@@ -231,13 +229,13 @@ TEST(capi_sign_ssl3_shamd5_requires_value_set) {
     SET_ERR(0); CHECK(!U(CryptSignHashW)(h, c.spec, NULL, CRYPT_NOHASHOID, s, &sl)); EXPECT_ERR(E_NTE_BAD_HASH_STATE);
     U(CryptDestroyHash)(h); kclose(&c);
 }
-TEST(capi_sign_ssl3_shamd5_without_nohashoid_observed) {
+TEST(capi_sign_ssl3_shamd5_without_nohashoid_equals_nohashoid) {
     REQUIRE(U(CryptSignHashW)); kctx c; if (!kopen(&c, 0)) return;
     HCRYPTHASH h = row_hash(c.p, CALG_SSL3_SHAMD5, 0); BYTE a[128], b[128]; DWORD la = 128, lb = 128;
     SET_ERR(0); BOOL ok0 = U(CryptSignHashW)(h, c.spec, NULL, 0, a, &la);
     BOOL ok1 = U(CryptSignHashW)(h, c.spec, NULL, CRYPT_NOHASHOID, b, &lb);
-    t_note("SSL3_SHAMD5 sign flags 0: %d (err 0x%lx), NOHASHOID: %d, equal=%d", ok0, ok0 ? 0 : GetLastError(), ok1, ok0 && ok1 && !memcmp(a, b, 128));
-    CHECK(ok1);
+    EXPECT_EQ(ok0, 1); EXPECT_EQ(ok1, 1);
+    EXPECT_EQ(la, 128); EXPECT_EQ(lb, 128); CHECK(ok0 && ok1 && !memcmp(a, b, 128));       /* an SSL3 SHA+MD5 signature never carries a DigestInfo OID */
     U(CryptDestroyHash)(h); kclose(&c);
 }
 TEST(capi_sign_finalizes_hash) {
@@ -307,7 +305,7 @@ TEST(capi_verify_nohashoid_mismatch_bad_signature) {
         HCRYPTHASH h = row_hash(c.p, r->alg, r->msg);
         SET_ERR(0); BOOL ok = U(CryptVerifySignatureW)(h, sig, sl, c.pub, NULL, r->flags ^ CRYPT_NOHASHOID);
         if (r->flags == 0) { CHECKF(!ok, "row %zu", i); EXPECT_ERR(E_NTE_BAD_SIGNATURE); }
-        else t_note("row %zu: OID-less signature verified with DigestInfo expected: %d", i, ok);
+        else { t_label("row %zu", i); EXPECT_EQ(ok, 1); }    /* an OID-less signature still verifies when the DigestInfo form is expected */
         U(CryptDestroyHash)(h);
     }
     kclose(&c);
@@ -327,7 +325,8 @@ TEST(capi_verify_with_session_key_handle_bad_key) {
     BYTE k[16] = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 }; HCRYPTKEY sk = h_plainkey(c.p, CALG_RC4, k, 16, 0);
     const hv_sig *r = &hv_keys[0].sigs[0]; BYTE sig[128]; int sl = h_hex2bin(r->sig, sig, sizeof sig);
     HCRYPTHASH h = row_hash(c.p, r->alg, r->msg);
-    if (sk) { SET_ERR(0); CHECK(!U(CryptVerifySignatureW)(h, sig, sl, sk, NULL, r->flags)); t_note("verify with RC4 key handle: err 0x%lx", GetLastError()); }
+    CHECK(sk != 0);
+    if (sk) { SET_ERR(0); CHECK(!U(CryptVerifySignatureW)(h, sig, sl, sk, NULL, r->flags)); EXPECT_ERR(E_NTE_BAD_KEY); }
     U(CryptDestroyHash)(h); kclose(&c);
 }
 TEST(capi_verify_ssl3_shamd5_requires_value) {
@@ -335,7 +334,7 @@ TEST(capi_verify_ssl3_shamd5_requires_value) {
     const hv_sig *r = &hv_keys[0].sigs[0]; BYTE sig[128]; int sl = h_hex2bin(r->sig, sig, sizeof sig);
     HCRYPTHASH h = 0; CHECK(U(CryptCreateHash)(c.p, CALG_SSL3_SHAMD5, 0, 0, &h));
     SET_ERR(0); BOOL ok = U(CryptVerifySignatureW)(h, sig, sl, c.pub, NULL, CRYPT_NOHASHOID);
-    CHECK(!ok); t_note("verify with unset SSL3_SHAMD5 hash: err 0x%lx", GetLastError());
+    CHECK(!ok); EXPECT_ERR(E_NTE_BAD_HASH_STATE);
     U(CryptDestroyHash)(h); kclose(&c);
 }
 TEST(capi_sign_verify_roundtrip_all_algs_both_keyspecs) {

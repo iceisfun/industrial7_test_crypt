@@ -45,7 +45,7 @@ TEST(ccp_create_encoding_type_p7_bit_is_masked) {
     REQUIRE(C32(CertCreateCertificateContext));
     c = C32(CertCreateCertificateContext)(ENC_P7, fx_root.der, fx_root.cb);
     CHECK(c != NULL);
-    if (c) { t_note("dwCertEncodingType for ENC|PKCS7 input = 0x%lx", (unsigned long)c->dwCertEncodingType); CHECK((c->dwCertEncodingType & ENC) != 0); ccp_free(c); }
+    if (c) { EXPECT_EQ(c->dwCertEncodingType, ENC); ccp_free(c); }
 }
 TEST(ccp_create_encoding_type_zero_is_invalidarg) {
     PCCERT_CONTEXT c;
@@ -69,7 +69,7 @@ TEST(ccp_create_encoding_type_unknown_fails) {
     SET_ERR(0);
     c = C32(CertCreateCertificateContext)(0x4, fx_root.der, fx_root.cb);
     CHECK(c == NULL);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     ccp_free(c);
 }
 TEST(ccp_create_trailing_bytes_are_trimmed) {
@@ -338,10 +338,10 @@ TEST(ccp_createcontext_crl_and_ctl_reject_cert_bytes) {
     REQUIRE(C32(CertCreateContext));
     SET_ERR(0);
     c = C32(CertCreateContext)(CERT_STORE_CRL_CONTEXT, ENC, fx_root.der, fx_root.cb, 0, NULL);
-    CHECK(c == NULL); CHECK(GetLastError() != 0);
+    CHECK(c == NULL); EXPECT_ERR(CRYPT_E_ASN1_BADTAG_);
     SET_ERR(0);
     c = C32(CertCreateContext)(CERT_STORE_CTL_CONTEXT, ENC_P7, fx_root.der, fx_root.cb, 0, NULL);
-    CHECK(c == NULL); CHECK(GetLastError() != 0);
+    CHECK(c == NULL); EXPECT_ERR(ERROR_INVALID_DATA);
 }
 TEST(ccp_createcontext_certs_not_in_any_store) {
     PCCERT_CONTEXT c; HCERTSTORE s;
@@ -388,8 +388,9 @@ TEST(ccp_info_high_bit_serial_form_observed) {
     c = ccp_ctx(&fx_negserial);  /* DER integer 00 ff 80 aa 55 */
     if (c) {
         const CRYPT_INTEGER_BLOB *s = &c->pCertInfo->SerialNumber;
+        static const BYTE want[5] = {0x55, 0xaa, 0x80, 0xff, 0x00};      /* the DER pad octet is kept, little endian */
         CHECK(ccp_serial_ok(s, &fx_negserial));
-        t_note("serial 00ff80aa55 decodes to %lu bytes in CERT_INFO (first %02x)", (unsigned long)s->cbData, s->cbData ? s->pbData[0] : 0);
+        EXPECT_EQ(s->cbData, 5); if (s->cbData == 5) CHECK(!memcmp(s->pbData, want, 5));
         ccp_free(c);
     }
 }
@@ -462,7 +463,7 @@ TEST(ccp_info_extension_counts) {
         const FX *f = ccp_all[i]; PCCERT_CONTEXT c = ccp_ctx(f);
         if (!c) { CHECK(0); continue; }
         CHECKF(c->pCertInfo->cExtension == (DWORD)f->cext, "%s ext %lu want %d", f->name, (unsigned long)c->pCertInfo->cExtension, f->cext);
-        if (!f->cext) CHECK(c->pCertInfo->rgExtension == NULL || c->pCertInfo->cExtension == 0);
+        CHECKF((c->pCertInfo->rgExtension == NULL) == (f->cext == 0), "%s rgExtension %s", f->name, c->pCertInfo->rgExtension ? "set" : "NULL");
         ccp_free(c);
     }
 }

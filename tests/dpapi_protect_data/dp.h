@@ -72,7 +72,4 @@ static inline int dp_unhex(const char *s, BYTE *out, DWORD cap) {
     DWORD n = 0; while (s[0] && s[1] && n < cap) { char t[3] = { s[0], s[1], 0 }; out[n++] = (BYTE)strtoul(t, NULL, 16); s += 2; } return (int)n;
 }
 
-/* common error classes for rejected blobs */
-#define DP_IS_BLOB_ERR(e) ((e) == ERROR_INVALID_DATA || (e) == ERROR_INVALID_PARAMETER || (e) == (DWORD)NTE_BAD_DATA || (e) == (DWORD)NTE_BAD_KEY || (e) == (DWORD)NTE_BAD_SIGNATURE || (e) == ERROR_NOT_FOUND || (e) == ERROR_FILE_NOT_FOUND)
-
 #endif

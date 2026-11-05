@@ -115,13 +115,16 @@ for name in H:
     w('static const char *const hv_hmac_%s[] = {' % name)
     for n,k,d in HM: w('  "%s",' % hmac_g(name, k, d).hex())
     w('};')
-# DES CBC-MAC (zero IV, data multiple of 8)
+# DES MAC as CALG_MAC computes it on Windows 10: CBC with a zero IV over the data with PKCS#5 padding (a whole-block message
+# gets a full padding block); the MAC is the last cipher block
 deskey = bytes.fromhex('0123456789abcdef')
 w('typedef struct { const char *data; const char *mac; } hv_mac;')
 w('static const hv_mac hv_desmac[] = {')
 for d in (pat(8), pat(16), pat(24), pat(64), b'\0'*8, b'12345678'*5):
+    from cryptography.hazmat.primitives import padding
+    pd = padding.PKCS7(64).padder(); padded = pd.update(d)+pd.finalize()
     enc = Cipher(TripleDES(deskey*3), modes.CBC(b'\0'*8)).encryptor()
-    ct = enc.update(d)+enc.finalize()
+    ct = enc.update(padded)+enc.finalize()
     w('  { "%s", "%s" },' % (d.hex(), ct[-8:].hex()))
 w('};')
 w('#define HV_NDESMAC (sizeof(hv_desmac)/sizeof(hv_desmac[0]))')

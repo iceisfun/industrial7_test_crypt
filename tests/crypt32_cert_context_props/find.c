@@ -471,8 +471,8 @@ TEST(ccp_find_property_hash_ids_match_all) {
     HCERTSTORE s = bigstore(); DWORD id = CERT_SHA1_HASH_PROP_ID;
     REQUIRE(C32(CertFindCertificateInStore));
     if (!s) { CHECK(0); return; }
-    /* whether computed (never explicitly set) properties count as present is not specified */
-    t_note("CERT_FIND_PROPERTY(SHA1_HASH) matched %d of %d certs", count_find(s, 0, CERT_FIND_PROPERTY, &id), NSET);
+    /* a computed (never explicitly set) property counts as present */
+    EXPECT_EQ(count_find(s, 0, CERT_FIND_PROPERTY, &id), NSET);
     ccp_close(s);
 }
 TEST(ccp_find_key_spec) {
@@ -540,10 +540,10 @@ TEST(ccp_find_cert_id_bad_choice) {
     memset(&id, 0, sizeof id); id.dwIdChoice = 0;
     SET_ERR(0);
     c = C32(CertFindCertificateInStore)(s, ENC, 0, CERT_FIND_CERT_ID, &id, NULL);
-    CHECK(c == NULL); CHECK(GetLastError() != 0);
+    CHECK(c == NULL); EXPECT_ERR(CRYPT_E_NOT_FOUND_);
     id.dwIdChoice = 9; SET_ERR(0);
     c = C32(CertFindCertificateInStore)(s, ENC, 0, CERT_FIND_CERT_ID, &id, NULL);
-    CHECK(c == NULL); CHECK(GetLastError() != 0);
+    CHECK(c == NULL); EXPECT_ERR(CRYPT_E_NOT_FOUND_);
     ccp_free(c); ccp_close(s);
 }
 TEST(ccp_find_enhkey_usage) {
@@ -580,8 +580,7 @@ TEST(ccp_find_enhkey_usage_optional_includes_certs_without_eku) {
     with_opt = count_find(s, CERT_FIND_OPTIONAL_ENHKEY_USAGE_FLAG, CERT_FIND_ENHKEY_USAGE, &u);
     EXPECT_EQ(without, 1);
     /* certs lacking any EKU (root, root2, inter, sha1leaf, leaf2, nestbad, leafexp, leaffut, utf8) are now acceptable */
-    CHECKF(with_opt > without, "optional=%d plain=%d", with_opt, without);
-    t_note("optional EKU find count %d (expected 10 by decomp reading)", with_opt);
+    EXPECT_EQ(with_opt, 10);
     ccp_close(s);
 }
 TEST(ccp_find_enhkey_usage_no_eku_flag) {
@@ -661,7 +660,7 @@ TEST(ccp_find_unknown_type_fails) {
     SET_ERR(0);
     c = C32(CertFindCertificateInStore)(s, ENC, 0, 0x7F << 16, NULL, NULL);
     CHECK(c == NULL);
-    t_note("unknown find type last error 0x%lx", GetLastError());
+    EXPECT_ERR(CRYPT_E_NOT_FOUND_);
     ccp_free(c); ccp_close(s);
 }
 TEST(ccp_find_after_delete_from_store) {
@@ -714,7 +713,8 @@ TEST(ccp_get_subject_cert_encoding_zero) {
     if (!s || !l) { CHECK(0); return; }
     SET_ERR(0);
     r = C32(CertGetSubjectCertificateFromStore)(s, 0, l->pCertInfo);
-    t_note("encoding 0 -> last error 0x%lx", GetLastError());
+    CHECK(r == NULL);
+    EXPECT_ERR(CRYPT_E_NOT_FOUND_);
     ccp_free(r); ccp_free(l); ccp_close(s);
 }
 
@@ -956,7 +956,7 @@ TEST(ccp_rdn_attrs_bad_name_blob) {
     EXPECT_ASN1_ERR();
     nb.cbData = 0; nb.pbData = NULL; SET_ERR(0);
     CHECK(!C32(CertIsRDNAttrsInCertificateName)(ENC, 0, &nb, &r));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(0x80093102);
 }
 TEST(ccp_rdn_attrs_issuer_and_subject_names) {
     CERT_RDN_ATTR a; CERT_RDN r; CERT_NAME_BLOB nb;

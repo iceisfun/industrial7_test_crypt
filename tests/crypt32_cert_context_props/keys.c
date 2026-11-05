@@ -4,8 +4,11 @@
 #include <bcrypt.h>
 
 typedef struct { NCRYPT_PROV_HANDLE prov; NCRYPT_KEY_HANDLE key; } EKEY;
-/* NOTE: unnamed (ephemeral) CNG keys make CertCreateSelfSignCertificate hang on Win10, so test keys are named
- * (unique per run) and deleted again by ekey_free and by the sweeper below. */
+/* NOTE: on Win10 CertCreateSelfSignCertificate never returns for an unnamed (ephemeral) CNG key unless
+ * CERT_CREATE_SELFSIGN_NO_KEY_INFO is given (it tries to attach key info for a key that has no name). Probed: RSA and
+ * ECDSA keys alike, with and without CERT_CREATE_SELFSIGN_NO_SIGN, std and adm. Test keys are therefore named (unique per
+ * run) and deleted again by ekey_free and by the sweeper below; the unnamed key with NO_KEY_INFO is covered by
+ * ccp_selfsign_ephemeral_key_with_no_key_info. */
 
 static int ekey_new(EKEY *k, LPCWSTR alg, DWORD bits) {
     SECURITY_STATUS st;
@@ -77,7 +80,35 @@ static BOOL verify_self(PCCERT_CONTEXT c) {
     return C32(CryptVerifyCertificateSignatureEx)(0, ENC, CRYPT_VERIFY_CERT_SIGN_SUBJECT_CERT, (void *)c, CRYPT_VERIFY_CERT_SIGN_ISSUER_PUBKEY, &c->pCertInfo->SubjectPublicKeyInfo, 0, NULL);
 }
 
+/* BCryptVerifySignature on a wrong or unreversed RSA signature: STATUS_INVALID_PARAMETER when the signature value (big endian)
+ * is not below the modulus, STATUS_INVALID_SIGNATURE when it is. Both byte strings are big endian and equally long. */
+static DWORD rsa_bad_sig_status(const BYTE *sig_be, const BYTE *mod_be, DWORD n) { return memcmp(sig_be, mod_be, n) >= 0 ? 0xC000000D : 0xC000A000; }
+/* the 256 byte modulus inside a DER RSAPublicKey of a 2048 bit key (SEQUENCE 30 82 01 0a, INTEGER 02 82 01 01 00 n e) */
+static const BYTE *rsa2048_modulus(const BYTE *der, DWORD cb) { return (cb == 270 && der[0] == 0x30 && der[4] == 0x02 && der[8] == 0x00) ? der + 9 : NULL; }
+
 /* ---- CertCreateSelfSignCertificate ---- */
+TEST(ccp_selfsign_ephemeral_key_with_no_key_info) {
+    static const LPCWSTR algs[] = {BCRYPT_RSA_ALGORITHM, BCRYPT_ECDSA_P256_ALGORITHM};
+    static const DWORD fl[] = {CERT_CREATE_SELFSIGN_NO_KEY_INFO, CERT_CREATE_SELFSIGN_NO_KEY_INFO | CERT_CREATE_SELFSIGN_NO_SIGN};
+    int a, f;
+    REQUIRE(C32(CertCreateSelfSignCertificate)); REQUIRE(NCR(NCryptCreatePersistedKey));
+    for (a = 0; a < 2; a++) for (f = 0; f < 2; f++) {
+        NCRYPT_PROV_HANDLE p = 0; NCRYPT_KEY_HANDLE key = 0; EKEY k; PCCERT_CONTEXT c; DWORD cb = 0;
+        t_label("alg %d flags %d", a, f);
+        if (NCR(NCryptOpenStorageProvider)(&p, MS_KEY_STORAGE_PROVIDER, 0)) { CHECK(0); return; }
+        EXPECT_EQ(NCR(NCryptCreatePersistedKey)(p, &key, algs[a], NULL, 0, 0), 0);
+        EXPECT_EQ(NCR(NCryptFinalizeKey)(key, 0), 0);
+        k.prov = p; k.key = key;
+        c = selfsign(&k, "CN=cryptt ephemeral", fl[f], NULL, NULL, NULL, NULL);
+        CHECK(c != NULL);
+        if (c) {
+            SET_ERR(0); CHECK(!ccp_getprop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL, &cb)); EXPECT_ERR(CRYPT_E_NOT_FOUND_);
+            if (!(fl[f] & CERT_CREATE_SELFSIGN_NO_SIGN)) CHECK(verify_self(c));
+            ccp_free(c);
+        }
+        NCR(NCryptFreeObject)(key); NCR(NCryptFreeObject)(p);
+    }
+}
 TEST(ccp_selfsign_rsa_defaults) {
     EKEY k; PCCERT_CONTEXT c; BYTE *mem; CERT_NAME_BLOB nb; SYSTEMTIME now; FILETIME fnow;
     REQUIRE(C32(CertCreateSelfSignCertificate)); REQUIRE(C32(CertStrToNameA));
@@ -153,7 +184,7 @@ TEST(ccp_selfsign_invalid_time_fails) {
     SET_ERR(0);
     c = selfsign(&k, "CN=cryptt badtime", 0, NULL, &s, &e, NULL);
     CHECK(c == NULL);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_INVALID_PARAMETER);
     ccp_free(c); ekey_free(&k);
 }
 TEST(ccp_selfsign_explicit_signature_algorithms) {
@@ -179,8 +210,7 @@ TEST(ccp_selfsign_unknown_signature_algorithm_fails) {
     SET_ERR(0);
     c = selfsign(&k, "CN=cryptt badalg", 0, "1.2.3.4.5.6", NULL, NULL, NULL);
     CHECK(c == NULL);
-    t_note("unknown signature algorithm OID: last error 0x%lx", (unsigned long)GetLastError());
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(NTE_BAD_ALGID_);
     ccp_free(c); ekey_free(&k);
 }
 TEST(ccp_selfsign_extensions) {
@@ -230,8 +260,7 @@ TEST(ccp_selfsign_ecdsa_defaults_and_explicit) {
     CHECK(c != NULL);
     if (c) {
         CERT_INFO *ci = c->pCertInfo;
-        t_note("default EC signature algorithm: %s", ci->SignatureAlgorithm.pszObjId);
-        CHECK(!strncmp(ci->SignatureAlgorithm.pszObjId, "1.2.840.10045.4.", 16));      /* some ecdsa-with-SHA* OID */
+        EXPECT_STR(ci->SignatureAlgorithm.pszObjId, szOID_ECDSA_SHA1);      /* the default for a P-256 key is ecdsa-with-SHA1 */
         CHECK(!strcmp(ci->SubjectPublicKeyInfo.Algorithm.pszObjId, szOID_ECC_PUBLIC_KEY));
         EXPECT_EQ(ci->SubjectPublicKeyInfo.PublicKey.cbData, 65);
         CHECK(ci->SubjectPublicKeyInfo.PublicKey.pbData[0] == 0x04);
@@ -290,7 +319,8 @@ TEST(ccp_selfsign_key_info_property) {
     CHECK(c != NULL);
     if (c) {
         cb = 0;
-        t_note("KEY_PROV_INFO property present for an ephemeral CNG key without key info: %d (err 0x%lx)", ccp_getprop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL, &cb), (unsigned long)GetLastError());
+        CHECK(ccp_getprop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL, &cb));      /* a named CNG key gets its key info attached */
+        CHECK(cb > sizeof(CRYPT_KEY_PROV_INFO));
         ccp_free(c);
     }
     ekey_free(&k);
@@ -303,8 +333,7 @@ TEST(ccp_selfsign_with_given_key_prov_info_missing_container) {
     SET_ERR(0);
     c = C32(CertCreateSelfSignCertificate)(0, &nb, 0, &ki, NULL, NULL, NULL, NULL);
     CHECK(c == NULL);
-    t_note("missing named CNG key: last error 0x%lx", (unsigned long)GetLastError());
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(NTE_BAD_KEYSET);
     ccp_free(c); LocalFree(mem);
 }
 TEST(ccp_selfsign_context_properties_and_enum) {
@@ -354,7 +383,8 @@ TEST(ccp_sign_certificate_rsa_sha256_size_and_determinism) {
     EXPECT_EQ(cb, 256);
     cb = 255; SET_ERR(0);
     CHECK(!C32(CryptSignCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, fx_leaf.der + off, len, &alg, NULL, sig1, &cb));
-    t_note("CNG signature into a 255 byte buffer: err 0x%lx, cb %lu", (unsigned long)GetLastError(), (unsigned long)cb);
+    EXPECT_ERR(0x80090028);        /* NTE_BUFFER_TOO_SMALL */
+    EXPECT_EQ(cb, 256);
     cb = 512; cb2 = 512;
     CHECK(C32(CryptSignCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, fx_leaf.der + off, len, &alg, NULL, sig1, &cb) && cb == 256);
     CHECK(C32(CryptSignCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, fx_leaf.der + off, len, &alg, NULL, sig2, &cb2) && cb2 == 256);
@@ -379,8 +409,8 @@ TEST(ccp_sign_certificate_signature_verifies_with_bcrypt) {
         CHECK(cb == 256);
         /* CryptSignCertificate returns the signature in CryptoAPI (little endian) byte order: BCrypt wants it reversed */
         st = UIN("bcrypt.dll", BCryptVerifySignature)(bk, &pad, h, 32, sig, cb, BCRYPT_PAD_PKCS1);
-        /* STATUS_INVALID_SIGNATURE, or STATUS_INVALID_PARAMETER when the byte-swapped value is not below the modulus (depends on the random key) */
-        CHECKF(st == 0xC000A000 || st == 0xC000000D, "unreversed signature: status 0x%lx", (unsigned long)st);
+        { const BYTE *mod = rsa2048_modulus(pki->PublicKey.pbData, pki->PublicKey.cbData);      /* the key is random: the status follows the value */
+          CHECK(mod != NULL); if (mod) EXPECT_EQ(st, rsa_bad_sig_status(sig, mod, 256)); }
         { DWORD i; for (i = 0; i < cb / 2; i++) { BYTE t = sig[i]; sig[i] = sig[cb - 1 - i]; sig[cb - 1 - i] = t; } }
         st = UIN("bcrypt.dll", BCryptVerifySignature)(bk, &pad, h, 32, sig, cb, BCRYPT_PAD_PKCS1);
         EXPECT_EQ(st, 0);
@@ -398,8 +428,7 @@ TEST(ccp_sign_certificate_ecdsa_signature_length) {
     CHECK(tbs_span(fx_leaf.der, fx_leaf.cb, &off, &len));
     memset(&alg, 0, sizeof alg); alg.pszObjId = (LPSTR)szOID_ECDSA_SHA256;
     CHECK(C32(CryptSignCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, fx_leaf.der + off, len, &alg, NULL, NULL, &cb));
-    t_note("ECDSA P-256 signature size reported: %lu (DER-encoded SEQUENCE of two INTEGERs)", (unsigned long)cb);
-    CHECK(cb >= 8 && cb <= 72);
+    EXPECT_EQ(cb, 72);        /* the largest DER SEQUENCE of two INTEGERs for P-256 */
     ekey_free(&k);
 }
 TEST(ccp_sign_certificate_bad_algorithm_and_encoding_ignored) {
@@ -427,7 +456,7 @@ TEST(ccp_sign_and_encode_certificate_roundtrip) {
     memset(&alg, 0, sizeof alg); alg.pszObjId = (LPSTR)szOID_RSA_SHA256RSA;
     ci.SignatureAlgorithm = alg;
     CHECK(C32(CryptSignAndEncodeCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, X509_CERT_TO_BE_SIGNED, &ci, &alg, NULL, NULL, &cb));
-    CHECK(cb > 300);
+    EXPECT_EQ(cb, 923);
     buf = (BYTE *)LocalAlloc(LPTR, cb + 8);
     cb2 = cb - 1; SET_ERR(0);
     EXPECT_FAIL(!C32(CryptSignAndEncodeCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, X509_CERT_TO_BE_SIGNED, &ci, &alg, NULL, buf, &cb2), ERROR_MORE_DATA);
@@ -459,7 +488,7 @@ TEST(ccp_sign_and_encode_certificate_bad_struct_type) {
     memset(&alg, 0, sizeof alg); alg.pszObjId = (LPSTR)szOID_RSA_SHA256RSA;
     SET_ERR(0);
     CHECK(!C32(CryptSignAndEncodeCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, (LPCSTR)(ULONG_PTR)9999, src->pCertInfo, &alg, NULL, NULL, &cb));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     ccp_free(src); ekey_free(&k);
 }
 
@@ -496,7 +525,8 @@ TEST(ccp_export_public_key_info_ex_explicit_oid) {
     LocalFree(p);
     SET_ERR(0);
     cb = 0;
-    CHECK(!C32(CryptExportPublicKeyInfoEx)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, "1.2.3.4.5", 0, NULL, NULL, &cb) || cb > 0);
+    CHECK(!C32(CryptExportPublicKeyInfoEx)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, "1.2.3.4.5", 0, NULL, NULL, &cb));
+    EXPECT_ERR(ERROR_NOT_SUPPORTED);
     ekey_free(&k);
 }
 TEST(ccp_export_public_key_info_ex_ec) {
@@ -583,7 +613,8 @@ TEST(ccp_import_public_key_info_ex2_ec) {
     if (!C32(CryptImportPublicKeyInfoEx2)(ENC, &c->pCertInfo->SubjectPublicKeyInfo, 0, NULL, &bk)) { if (t_is_wine()) t_skip("ECC import unsupported"); else CHECK(0); ccp_free(c); return; }
     CHECK(bk != NULL);
     if (bk) {
-        if (UIN("bcrypt.dll", BCryptGetProperty)(bk, BCRYPT_ALGORITHM_NAME, (PUCHAR)name, sizeof name, &got, 0) == 0) t_note("imported EC key algorithm name: %ls", name);
+        EXPECT_EQ(UIN("bcrypt.dll", BCryptGetProperty)(bk, BCRYPT_ALGORITHM_NAME, (PUCHAR)name, sizeof name, &got, 0), 0);
+        EXPECT_WSTR(name, BCRYPT_ECDSA_P256_ALGORITHM);
         UIN("bcrypt.dll", BCryptDestroyKey)(bk);
     }
     (void)pad;
@@ -596,15 +627,14 @@ TEST(ccp_import_public_key_info_ex2_bad_params) {
     bad = c->pCertInfo->SubjectPublicKeyInfo; bad.Algorithm.pszObjId = "1.2.3.4.5.6.7";
     SET_ERR(0);
     CHECK(!C32(CryptImportPublicKeyInfoEx2)(ENC, &bad, 0, NULL, &bk));
-    CHECK(bk == NULL); CHECK(GetLastError() != 0);
-    t_note("unknown public key algorithm: err 0x%lx", (unsigned long)GetLastError());
+    CHECK(bk == NULL); EXPECT_ERR(0x80091002);        /* CRYPT_E_UNKNOWN_ALGO */
     bad = c->pCertInfo->SubjectPublicKeyInfo; bad.PublicKey.cbData = 10;
     SET_ERR(0);
     CHECK(!C32(CryptImportPublicKeyInfoEx2)(ENC, &bad, 0, NULL, &bk));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(0x80093102);
     SET_ERR(0);
     CHECK(!C32(CryptImportPublicKeyInfoEx2)(0, &c->pCertInfo->SubjectPublicKeyInfo, 0, NULL, &bk));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     ccp_free(c);
 }
 TEST(ccp_import_public_key_info_capi_verifycontext) {
@@ -633,10 +663,10 @@ TEST(ccp_import_public_key_info_capi_bad_encoding) {
     bad = c->pCertInfo->SubjectPublicKeyInfo; bad.PublicKey.cbData = 20;
     SET_ERR(0);
     CHECK(!C32(CryptImportPublicKeyInfo)(prov, ENC, &bad, &key));
-    CHECK(key == 0); CHECK(GetLastError() != 0);
+    CHECK(key == 0); EXPECT_ERR(0x80093102);
     SET_ERR(0);
     CHECK(!C32(CryptImportPublicKeyInfo)(prov, 0, &c->pCertInfo->SubjectPublicKeyInfo, &key));
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     ADV(CryptReleaseContext)(prov, 0);
     ccp_free(c);
 }
@@ -652,7 +682,6 @@ TEST(ccp_create_key_identifier_from_csp) {
     CHECK(C32(CryptCreateKeyIdentifierFromCSP)(ENC, NULL, (PUBLICKEYSTRUC *)blob, cb, 0, NULL, id, &idcb));
     EXPECT_EQ(idcb, 20);
     CHECK(!memcmp(id, fx_root.spkisha1, 20));
-    t_note("key identifier from CSP blob %s the SHA1 of the encoded SubjectPublicKeyInfo", !memcmp(id, fx_root.spkisha1, 20) ? "equals" : "differs from");
     idcb = 0;
     CHECK(C32(CryptCreateKeyIdentifierFromCSP)(ENC, NULL, (PUBLICKEYSTRUC *)blob, cb, 0, NULL, NULL, &idcb) && idcb == 20);
     idcb = 19; SET_ERR(0);
@@ -740,8 +769,7 @@ TEST(ccp_key_prov_handle_property_roundtrip) {
     EXPECT_EQ(free_, 0);
     CHECK(C32(CertSetCertificateContextProperty)(c, CERT_KEY_PROV_HANDLE_PROP_ID, 0, NULL));        /* delete: handle is not released (flag) */
     { DWORD z = 8; BOOL g; h = 0x77; SET_ERR(0); g = ccp_getprop(c, CERT_KEY_PROV_HANDLE_PROP_ID, &h, &z);
-      t_note("KEY_PROV_HANDLE after delete: %s (handle 0x%llx)", g ? "present" : "absent", (unsigned long long)h);
-      if (g) CHECK(h == 0 || h != (ULONG_PTR)prov); }
+      CHECK(g); EXPECT_EQ(z, 8); EXPECT_EQ(h, 0); }       /* the property stays readable and reports a null handle */
     ADV(CryptReleaseContext)(prov, 0);
     ccp_free(c);
 }
@@ -763,8 +791,7 @@ TEST(ccp_find_certificate_key_prov_info_no_match) {
     if (!c) { CHECK(0); return; }
     SET_ERR(0);
     CHECK(!C32(CryptFindCertificateKeyProvInfo)(c, CRYPT_FIND_SILENT_KEYSET_FLAG | CRYPT_FIND_USER_KEYSET_FLAG, NULL));
-    t_note("no key for a freshly authored certificate: last error 0x%lx", (unsigned long)GetLastError());
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(0x80090010);        /* NTE_PERM */
     CHECK(!ccp_getprop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL, &cb));          /* nothing was attached */
     ccp_free(c);
 }
@@ -802,13 +829,14 @@ TEST(ccp_sign_message_with_key_roundtrip) {
     CHECK(C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, dec, &dcb));
     CHECK(dcb == sizeof msg && !memcmp(dec, msg, sizeof msg));
     /* tampering breaks it: STATUS_INVALID_SIGNATURE */
-    sig[cb - 1] ^= 1; dcb = sizeof dec; SET_ERR(0);
+    sig[cb - 1] ^= 1; dcb = sizeof dec; SET_ERR(0);      /* the big endian signature ends the blob: flip its lowest order bit */
     EXPECT_FAIL(!C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, dec, &dcb), 0xC000A000);
     sig[cb - 1] ^= 1;
     { PCCERT_CONTEXT r = ccp_ctx(&fx_root); dcb = sizeof dec; SET_ERR(0);
-      /* another 2048 bit key: STATUS_INVALID_SIGNATURE, or STATUS_INVALID_PARAMETER when the random signature value is not below the other modulus */
+      /* another 2048 bit key: the status follows the signature value against the other modulus (the signing key is random) */
       if (r) { BOOL vok = C32(CryptVerifyMessageSignatureWithKey)(&vp, &r->pCertInfo->SubjectPublicKeyInfo, sig, cb, dec, &dcb); DWORD ge = GetLastError();
-               CHECKF(!vok && (ge == 0xC000A000 || ge == 0xC000000D), "wrong key: ok=%d err=0x%lx", vok, (unsigned long)ge); }
+               const BYTE *be = sig + cb - 256; const BYTE *mod = rsa2048_modulus(r->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData, r->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData);
+               CHECK(!vok); CHECK(mod != NULL); if (mod) EXPECT_EQ(ge, rsa_bad_sig_status(be, mod, 256)); }
       ccp_free(r); }
     LocalFree(pki); LocalFree(sig); ekey_free(&k);
 }

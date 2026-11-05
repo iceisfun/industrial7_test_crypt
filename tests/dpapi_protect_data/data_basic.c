@@ -55,7 +55,7 @@ TEST(dpapi_unprot_null_pbdata) {
     DP_NEED_DATA();
     DATA_BLOB in = { 100, NULL }, out = { 0x42, (BYTE *)(ULONG_PTR)1 };
     SET_ERR(0);
-    CHECK(!U(CryptUnprotectData)(&in, NULL, NULL, NULL, NULL, 0, &out)); { DWORD e = GetLastError(); CHECKF(DP_IS_BLOB_ERR(e), "err=%lu", e); t_note("unprotect pbData NULL -> %lu", e); }
+    CHECK(!U(CryptUnprotectData)(&in, NULL, NULL, NULL, NULL, 0, &out)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
     CHECK(out.cbData == 0x42 && out.pbData == (BYTE *)(ULONG_PTR)1);
 }
 TEST(dpapi_unprot_short_blob_sizes) {
@@ -69,7 +69,7 @@ TEST(dpapi_unprot_short_blob_sizes) {
         BOOL r = U(CryptUnprotectData)(&in, &d, NULL, NULL, NULL, 0, &out);
         DWORD e = GetLastError();
         CHECKF(!r, "n=%lu", n);
-        CHECKF(DP_IS_BLOB_ERR(e), "n=%lu err=%lu", n, e);
+        t_label("n=%lu", n); EXPECT_EQ(e, ERROR_INVALID_PARAMETER);
         CHECKF(out.cbData == 0x31 && out.pbData == (BYTE *)(ULONG_PTR)1, "n=%lu out modified", n);
         CHECKF(d == (LPWSTR)(ULONG_PTR)1, "n=%lu descr modified", n);
     }
@@ -81,10 +81,9 @@ TEST(dpapi_unprot_zero_blob_rejected) {
     LPWSTR d = NULL;
     SET_ERR(0);
     CHECK(!U(CryptUnprotectData)(&in, &d, NULL, NULL, NULL, 0, &out));
-    DWORD e = GetLastError(); CHECKF(DP_IS_BLOB_ERR(e), "err=%lu", e);
+    EXPECT_ERR(ERROR_INVALID_DATA);
     CHECK(out.pbData == NULL && out.cbData == 0);
     CHECK(d == NULL);                         /* cleared before the lsass call */
-    t_note("all-zero 256 byte blob -> error %lu", e);
 }
 TEST(dpapi_unprot_garbage_blob_rejected) {
     DP_NEED_DATA();
@@ -94,8 +93,9 @@ TEST(dpapi_unprot_garbage_blob_rejected) {
     SET_ERR(0);
     BOOL r = U(CryptUnprotectData)(&in, &d, NULL, NULL, NULL, 0, &out);
     DWORD e = GetLastError();
-    CHECK(!r); CHECKF(DP_IS_BLOB_ERR(e), "err=%lu", e);
-    t_note("garbage 200 byte blob -> error %lu out(cb=%lu pb=%p) descr=%p", e, out.cbData, out.pbData, d);
+    CHECK(!r); EXPECT_EQ(e, ERROR_INVALID_DATA);
+    CHECK(out.cbData == 0 && out.pbData == NULL);      /* the output is reset, the description cleared */
+    CHECK(d == NULL);
 }
 TEST(dpapi_unprot_descr_length_overflow) {
     DP_NEED_DATA();
@@ -262,7 +262,7 @@ TEST(dpapi_rt_empty_data) {
         r = dp_unprotect(blob.pbData, blob.cbData, &d, NULL, 0, 0, &plain);
         CHECKF(r, "err=%lu", GetLastError());
         CHECK(plain.cbData == 0);
-        t_note("zero-length plaintext: out pbData=%p", plain.pbData);
+        CHECK(plain.pbData != NULL);          /* an empty result is still an allocation */
         CHECK(d && !lstrcmpW(d, L"empty"));
         if (d) LocalFree(d);
     }
@@ -365,14 +365,14 @@ TEST(dpapi_entropy_single_byte_values) {
 }
 TEST(dpapi_entropy_empty_blob_observed) {
     DP_NEED_DATA();
-    /* a DATA_BLOB with cbData 0: does it equal "no entropy"? observation only */
+    /* a DATA_BLOB with cbData 0 is the same as no entropy */
     BYTE z = 0;
     DATA_BLOB e = { 0, &z }, in = { sizeof SECRET, (BYTE *)SECRET }, blob = { 0 }, plain = { 0 };
     BOOL r = U(CryptProtectData)(&in, NULL, &e, NULL, NULL, 0, &blob);
-    t_note("protect with empty entropy blob -> %d err %lu", r, GetLastError());
+    EXPECT_EQ(r, 1);
     if (r) {
         BOOL r1 = U(CryptUnprotectData)(&blob, NULL, NULL, NULL, NULL, 0, &plain);
-        t_note("unprotect with no entropy -> %d", r1); dp_free(&plain);
+        EXPECT_EQ(r1, 1); dp_free(&plain);
         BOOL r2 = U(CryptUnprotectData)(&blob, NULL, &e, NULL, NULL, 0, &plain);
         CHECK(r2);                                          /* the same entropy always round-trips */
         dp_free(&plain);
@@ -482,36 +482,43 @@ TEST(dpapi_descr_distinct_per_blob) {
 
 /* ---- flags ---- */
 
-static void flag_roundtrip(DWORD pflags, DWORD uflags, int hard) {
+/* One protect/unprotect round trip with the given flags. NULL prompt structs throughout, so none of these rows can show a
+ * window; the prompt rows are kept apart (dpapi_prompt_* below, prompt_ui.c). perr/uerr are the exact last errors of a
+ * failing call. */
+static void flag_roundtrip(DWORD pflags, DWORD uflags, int pok, DWORD perr, int uok, DWORD uerr) {
     DATA_BLOB blob = { 0 }, plain = { 0 };
     SET_ERR(0);
     BOOL r = dp_protect(SECRET, sizeof SECRET, L"flags", NULL, 0, pflags, &blob);
     DWORD e = GetLastError();
-    if (hard) CHECKF(r, "protect flags=0x%lx err=%lu", pflags, e); else t_note("protect flags=0x%lx -> %d err %lu", pflags, r, e);
+    EXPECT_EQ(r, pok); if (!pok) EXPECT_EQ(e, perr);
     if (r) {
+        SET_ERR(0);
         r = dp_unprotect(blob.pbData, blob.cbData, NULL, NULL, 0, uflags, &plain);
         e = GetLastError();
-        if (hard) CHECKF(r, "unprotect flags=0x%lx err=%lu", uflags, e); else t_note("unprotect flags=0x%lx -> %d err %lu", uflags, r, e);
+        EXPECT_EQ(r, uok); if (!uok) EXPECT_EQ(e, uerr);
         if (r) CHECK(plain.cbData == sizeof SECRET && !memcmp(plain.pbData, SECRET, sizeof SECRET));
     }
     dp_free(&blob); dp_free(&plain);
 }
-#define FLAG_TEST(nm, pf, uf, hard) TEST(dpapi_flags_##nm) { DP_NEED_DATA(); flag_roundtrip(pf, uf, hard); }
-FLAG_TEST(none, 0, 0, 1)
-FLAG_TEST(ui_forbidden_both, CRYPTPROTECT_UI_FORBIDDEN, CRYPTPROTECT_UI_FORBIDDEN, 1)
-FLAG_TEST(ui_forbidden_protect_only, CRYPTPROTECT_UI_FORBIDDEN, 0, 1)
-FLAG_TEST(ui_forbidden_unprotect_only, 0, CRYPTPROTECT_UI_FORBIDDEN, 1)
-FLAG_TEST(local_machine, CRYPTPROTECT_LOCAL_MACHINE, 0, 1)
-FLAG_TEST(local_machine_ui_forbidden, CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN, CRYPTPROTECT_UI_FORBIDDEN, 1)
-FLAG_TEST(audit, CRYPTPROTECT_AUDIT, 0, 1)
-FLAG_TEST(audit_unprotect, 0, CRYPTPROTECT_AUDIT, 1)
-FLAG_TEST(verify_protection_unprotect, 0, CRYPTPROTECT_VERIFY_PROTECTION, 1)
-FLAG_TEST(verify_protection_both, CRYPTPROTECT_VERIFY_PROTECTION, CRYPTPROTECT_VERIFY_PROTECTION, 1)
-FLAG_TEST(no_recovery, CRYPTPROTECT_NO_RECOVERY, 0, 0)
-FLAG_TEST(cred_sync, CRYPTPROTECT_CRED_SYNC, 0, 0)
-FLAG_TEST(cred_regenerate, CRYPTPROTECT_CRED_REGENERATE, 0, 0)
-FLAG_TEST(all_documented, CRYPTPROTECT_UI_FORBIDDEN | CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_AUDIT | CRYPTPROTECT_VERIFY_PROTECTION, 0, 0)
-FLAG_TEST(unprotect_local_machine_flag_irrelevant, CRYPTPROTECT_LOCAL_MACHINE, CRYPTPROTECT_LOCAL_MACHINE, 0)
+#define FLAG_TEST(nm, pf, uf, pok, perr, uok, uerr) TEST(dpapi_flags_##nm) { DP_NEED_DATA(); flag_roundtrip(pf, uf, pok, perr, uok, uerr); }
+FLAG_TEST(none, 0, 0, 1, 0, 1, 0)
+/* fresh synthetic blob, same user, NULL prompt structs, UI forbidden at protect and unprotect: an ordinary round trip */
+FLAG_TEST(ui_forbidden_both, CRYPTPROTECT_UI_FORBIDDEN, CRYPTPROTECT_UI_FORBIDDEN, 1, 0, 1, 0)
+FLAG_TEST(ui_forbidden_protect_only, CRYPTPROTECT_UI_FORBIDDEN, 0, 1, 0, 1, 0)
+FLAG_TEST(ui_forbidden_unprotect_only, 0, CRYPTPROTECT_UI_FORBIDDEN, 1, 0, 1, 0)
+FLAG_TEST(local_machine, CRYPTPROTECT_LOCAL_MACHINE, 0, 1, 0, 1, 0)
+FLAG_TEST(local_machine_ui_forbidden, CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN, CRYPTPROTECT_UI_FORBIDDEN, 1, 0, 1, 0)
+FLAG_TEST(audit, CRYPTPROTECT_AUDIT, 0, 1, 0, 1, 0)
+FLAG_TEST(audit_unprotect, 0, CRYPTPROTECT_AUDIT, 1, 0, 1, 0)
+FLAG_TEST(verify_protection_unprotect, 0, CRYPTPROTECT_VERIFY_PROTECTION, 1, 0, 1, 0)
+FLAG_TEST(verify_protection_both, CRYPTPROTECT_VERIFY_PROTECTION, CRYPTPROTECT_VERIFY_PROTECTION, 1, 0, 1, 0)
+FLAG_TEST(no_recovery, CRYPTPROTECT_NO_RECOVERY, 0, 1, 0, 1, 0)
+/* a CRED_SYNC blob protects but cannot be unprotected without the flag (observed) */
+FLAG_TEST(cred_sync, CRYPTPROTECT_CRED_SYNC, 0, 1, 0, 0, ERROR_INVALID_PARAMETER)
+/* CRED_REGENERATE needs a privilege that neither the standard nor the elevated test user holds */
+FLAG_TEST(cred_regenerate, CRYPTPROTECT_CRED_REGENERATE, 0, 0, ERROR_PRIVILEGE_NOT_HELD, 0, 0)
+FLAG_TEST(all_documented, CRYPTPROTECT_UI_FORBIDDEN | CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_AUDIT | CRYPTPROTECT_VERIFY_PROTECTION, 0, 1, 0, 1, 0)
+FLAG_TEST(unprotect_local_machine_flag_irrelevant, CRYPTPROTECT_LOCAL_MACHINE, CRYPTPROTECT_LOCAL_MACHINE, 1, 0, 1, 0)
 
 TEST(dpapi_flags_verify_protection_current_blob_no_new_protection) {
     DP_NEED_DATA();
@@ -531,7 +538,7 @@ TEST(dpapi_flags_local_machine_blob_flag_bit) {
         DWORD fu = dp_rd(u.pbData, 40), fm = dp_rd(m.pbData, 40);
         CHECK((fm & CRYPTPROTECT_LOCAL_MACHINE) != 0);
         CHECK((fu & CRYPTPROTECT_LOCAL_MACHINE) == 0);
-        t_note("blob flags: user=0x%lx machine=0x%lx", fu, fm);
+        EXPECT_EQ(fu, 0); EXPECT_EQ(fm, 4);
     }
     dp_free(&u); dp_free(&m);
 }
@@ -577,28 +584,50 @@ TEST(dpapi_prompt_reserved_bit_only_no_ui) {
     BOOL r = U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob);   
     EXPECT_EQ(r, 0); EXPECT_EQ(GetLastError(), 87); dp_free(&blob);   /* observed: rejected, not ignored */
 }
-TEST(dpapi_prompt_on_protect_ui_forbidden_observed) {
+/* Prompt-policy conflict: a prompt is requested (dwPromptFlags) AND CRYPTPROTECT_UI_FORBIDDEN is given. Non-interactive: the
+ * call is refused up front with ERROR_PASSWORD_RESTRICTION (1325) and no output blob. Separate from the interactive rows
+ * in prompt_ui.c that really show the window. */
+TEST(dpapi_prompt_policy_conflict_on_protect_with_ui_forbidden) {
     DP_NEED_DATA();
     CRYPTPROTECT_PROMPTSTRUCT ps = { sizeof ps, CRYPTPROTECT_PROMPT_ON_PROTECT, NULL, L"cryptt" };
     DATA_BLOB in = { sizeof SECRET, (BYTE *)SECRET }, blob = { 0 };
     SET_ERR(0);
-    BOOL r = U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob);
-    DWORD e = GetLastError();
-    t_note("PROMPT_ON_PROTECT + UI_FORBIDDEN -> %d err %lu", r, e);
-    if (!r) CHECK(blob.pbData == NULL);
+    EXPECT_EQ(U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob), 0);
+    EXPECT_ERR(ERROR_PASSWORD_RESTRICTION);
+    CHECK(blob.pbData == NULL && blob.cbData == 0);
     dp_free(&blob);
 }
-TEST(dpapi_prompt_on_unprotect_blob_ui_forbidden_observed) {
+TEST(dpapi_prompt_policy_conflict_on_unprotect_with_ui_forbidden) {
     DP_NEED_DATA();
     CRYPTPROTECT_PROMPTSTRUCT ps = { sizeof ps, CRYPTPROTECT_PROMPT_ON_UNPROTECT, NULL, L"cryptt" };
-    DATA_BLOB in = { sizeof SECRET, (BYTE *)SECRET }, blob = { 0 }, plain = { 0 };
-    BOOL r = U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob);
-    t_note("PROMPT_ON_UNPROTECT protect + UI_FORBIDDEN -> %d err %lu", r, GetLastError());
-    if (r) {
+    DATA_BLOB in = { sizeof SECRET, (BYTE *)SECRET }, blob = { 0 };
+    SET_ERR(0);
+    EXPECT_EQ(U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob), 0);
+    EXPECT_ERR(ERROR_PASSWORD_RESTRICTION);
+    CHECK(blob.pbData == NULL && blob.cbData == 0);
+    dp_free(&blob);
+}
+TEST(dpapi_prompt_policy_conflict_both_prompt_bits_with_ui_forbidden) {
+    DP_NEED_DATA();
+    CRYPTPROTECT_PROMPTSTRUCT ps = { sizeof ps, CRYPTPROTECT_PROMPT_ON_PROTECT | CRYPTPROTECT_PROMPT_ON_UNPROTECT, NULL, L"cryptt" };
+    DATA_BLOB in = { sizeof SECRET, (BYTE *)SECRET }, blob = { 0 };
+    SET_ERR(0);
+    EXPECT_EQ(U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob), 0);
+    EXPECT_ERR(ERROR_PASSWORD_RESTRICTION);
+    dp_free(&blob);
+}
+TEST(dpapi_prompt_struct_request_ignored_when_unprotecting_plain_blob_with_ui_forbidden) {
+    DP_NEED_DATA();
+    /* not a conflict: the prompt policy is enforced from the flags stored in the blob at protect time, so a fresh blob without
+     * prompt bits opens with UI forbidden even when the unprotect call carries a prompt struct that requests a prompt */
+    CRYPTPROTECT_PROMPTSTRUCT ps = { sizeof ps, CRYPTPROTECT_PROMPT_ON_UNPROTECT, NULL, L"cryptt" };
+    DATA_BLOB blob = { 0 }, plain = { 0 };
+    CHECK(dp_protect(SECRET, sizeof SECRET, NULL, NULL, 0, CRYPTPROTECT_UI_FORBIDDEN, &blob));
+    if (blob.pbData) {
+        DATA_BLOB in = { blob.cbData, blob.pbData };
         SET_ERR(0);
-        BOOL r2 = U(CryptUnprotectData)(&blob, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &plain);
-        t_note("unprotect of a prompt-on-unprotect blob with UI_FORBIDDEN -> %d err %lu", r2, GetLastError());
-        if (r2) CHECK(plain.cbData == sizeof SECRET);
+        EXPECT_EQ(U(CryptUnprotectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &plain), 1);
+        CHECK(plain.cbData == sizeof SECRET && plain.pbData && !memcmp(plain.pbData, SECRET, sizeof SECRET));
     }
     dp_free(&blob); dp_free(&plain);
 }

@@ -91,7 +91,12 @@ TEST(ccp_prop_issuer_serial_number_md5_all_fixtures) {
         if (!c) { CHECK(0); continue; }
         /* MD5(issuer name blob || serial number as stored in CERT_INFO) */
         if (f->cbSerial && (f->serial_le[f->cbSerial - 1] & 0x80)) {
-            if (ccp_getprop(c, CERT_ISSUER_SERIAL_NUMBER_MD5_HASH_PROP_ID, b, &cb)) t_note("%s issuer+serial md5 first byte %02x (serial has high bit)", f->name, b[0]);
+            /* a high bit serial keeps its DER 00 pad octet in the hashed bytes */
+            BYTE buf[1024], want[16]; DWORD wcb = 16;
+            CHECKF(f->cbIss + f->cbSerial + 1 <= sizeof buf, "%s buffer", f->name);
+            memcpy(buf, f->iss, f->cbIss); memcpy(buf + f->cbIss, f->serial_le, f->cbSerial); buf[f->cbIss + f->cbSerial] = 0;
+            CHECKF(C32(CryptHashCertificate)(0, CALG_MD5, 0, buf, f->cbIss + f->cbSerial + 1, want, &wcb) && wcb == 16, "%s md5 of issuer+serial", f->name);
+            CHECKF(ccp_getprop(c, CERT_ISSUER_SERIAL_NUMBER_MD5_HASH_PROP_ID, b, &cb) && cb == 16 && !memcmp(b, want, 16), "%s (serial has high bit)", f->name);
         } else {
             CHECKF(ccp_getprop(c, CERT_ISSUER_SERIAL_NUMBER_MD5_HASH_PROP_ID, b, &cb) && cb == 16 && !memcmp(b, f->issser_md5, 16), "%s", f->name);
         }
@@ -115,7 +120,7 @@ TEST(ccp_prop_hashes_are_cached_and_enumerated) {
     if (!c) { CHECK(0); return; }
     CHECK(getb(c, CERT_MD5_HASH_PROP_ID, b, 32) == 16);
     n = enum_ids(c, ids, 64);
-    CHECK(pos_of(ids, n, CERT_MD5_HASH_PROP_ID) >= 0);
+    EXPECT_EQ(n, 1); EXPECT_EQ(pos_of(ids, n, CERT_MD5_HASH_PROP_ID), 0);
     ccp_free(c);
 }
 TEST(ccp_prop_hash_survives_clear_and_recompute) {
@@ -221,8 +226,8 @@ TEST(ccp_prop_get_invalid_ids_fail) {
     PCCERT_CONTEXT c = ccp_ctx(&fx_root); DWORD cb = 0;
     REQUIRE(C32(CertGetCertificateContextProperty));
     if (!c) { CHECK(0); return; }
-    SET_ERR(0); CHECK(!ccp_getprop(c, 0, NULL, &cb)); CHECK(GetLastError() != 0);
-    SET_ERR(0); CHECK(!ccp_getprop(c, 0x10000, NULL, &cb)); CHECK(GetLastError() != 0);
+    SET_ERR(0); CHECK(!ccp_getprop(c, 0, NULL, &cb)); EXPECT_ERR(CRYPT_E_NOT_FOUND_);
+    SET_ERR(0); CHECK(!ccp_getprop(c, 0x10000, NULL, &cb)); EXPECT_ERR(CRYPT_E_NOT_FOUND_);
     ccp_free(c);
 }
 
@@ -349,7 +354,7 @@ TEST(ccp_enum_most_recently_set_first) {
     CHECK(setb(c, 0x8100, d, 2)); CHECK(setb(c, 0x8200, d, 2)); CHECK(setb(c, 0x8300, d, 2));
     n = enum_ids(c, ids, 32);
     a = pos_of(ids, n, 0x8100); b2 = pos_of(ids, n, 0x8200); c2 = pos_of(ids, n, 0x8300);
-    CHECK(a >= 0 && b2 >= 0 && c2 >= 0);
+    EXPECT_EQ(n, 3); EXPECT_EQ(a, 2); EXPECT_EQ(b2, 1); EXPECT_EQ(c2, 0);
     CHECK(c2 < b2 && b2 < a);        /* newest property first */
     EXPECT_EQ(ids[0], 0x8300);
     CHECK(setb(c, 0x8100, d, 2));    /* re-setting moves it to the front */
@@ -364,7 +369,7 @@ TEST(ccp_enum_each_reported_id_is_gettable) {
     setb(c, CERT_DESCRIPTION_PROP_ID, d, 2); setb(c, CERT_FRIENDLY_NAME_PROP_ID, d, 2); setb(c, 0x9000, d, 2);
     { BYTE h[32]; getb(c, CERT_SHA1_HASH_PROP_ID, h, 32); }
     n = enum_ids(c, ids, 64);
-    CHECK(n >= 4);
+    EXPECT_EQ(n, 4);
     for (k = 0; k < n; k++) CHECKF(has_prop(c, ids[k]), "id %lu", (unsigned long)ids[k]);
     for (k = 0; k < n; k++) { int j; for (j = k + 1; j < n; j++) CHECK(ids[k] != ids[j]); }
     ccp_free(c);
@@ -375,7 +380,7 @@ TEST(ccp_enum_terminates_with_zero) {
     if (!c) { CHECK(0); return; }
     setb(c, 0x8001, d, 1); setb(c, 0x8002, d, 1);
     while ((id = C32(CertEnumCertificateContextProperties)(c, id)) != 0 && steps < 100) steps++;
-    CHECK(steps >= 2 && steps < 100);
+    EXPECT_EQ(steps, 2);
     EXPECT_EQ(id, 0);
     ccp_free(c);
 }
@@ -488,8 +493,7 @@ TEST(ccp_prop_access_state_is_dword) {
     REQUIRE(C32(CertGetCertificateContextProperty));
     if (!c) { CHECK(0); return; }
     CHECK(ccp_getprop(c, CERT_ACCESS_STATE_PROP_ID, &v, &cb) && cb == 4);
-    t_note("standalone context access state = 0x%lx", (unsigned long)v);
-    CHECK((v & ~0x1FUL) == 0);
+    EXPECT_EQ(v, 0);
     cb = 0; CHECK(ccp_getprop(c, CERT_ACCESS_STATE_PROP_ID, NULL, &cb) && cb == 4);
     cb = 3; SET_ERR(0); EXPECT_FAIL(!ccp_getprop(c, CERT_ACCESS_STATE_PROP_ID, &v, &cb), ERROR_MORE_DATA); EXPECT_EQ(cb, 4);
     ccp_free(c);
@@ -502,8 +506,7 @@ TEST(ccp_prop_access_state_in_memory_store) {
     CHECK(c != NULL);
     if (c) {
         CHECK(ccp_getprop(c, CERT_ACCESS_STATE_PROP_ID, &v, &cb) && cb == 4);
-        t_note("memory-store access state = 0x%lx", (unsigned long)v);
-        CHECK((v & CERT_ACCESS_STATE_WRITE_PERSIST_FLAG) == 0);       /* memory stores do not persist */
+        EXPECT_EQ(v, 0);       /* memory stores do not persist */
         ccp_free(c);
     }
     ccp_close(s);
@@ -513,15 +516,11 @@ TEST(ccp_prop_cng_alg_strings) {
     REQUIRE(C32(CertGetCertificateContextProperty));
     if (!c) { CHECK(0); return; }
     n = getb(c, CERT_SIGN_HASH_CNG_ALG_PROP_ID, w, sizeof w);
-    if (n > 0) {
-        CHECK(n >= 4 && (n % 2) == 0 && w[n / 2 - 1] == 0 && wcschr(w, L'/') != NULL);
-        t_note("sign hash cng alg: %ls", w);
-    } else t_note("CERT_SIGN_HASH_CNG_ALG_PROP_ID unavailable err=0x%lx", GetLastError());
+    EXPECT_EQ(n, 22);          /* L"RSA/SHA256" with its terminator */
+    if (n == 22) EXPECT_WSTR(w, L"RSA/SHA256");
     n = getb(c, CERT_PUB_KEY_CNG_ALG_BIT_LENGTH_PROP_ID, w, sizeof w);
-    if (n > 0) {
-        CHECK(n >= 4 && (n % 2) == 0 && w[n / 2 - 1] == 0 && wcschr(w, L'/') != NULL);
-        t_note("pub key cng alg/bitlen: %ls", w);
-    } else t_note("CERT_PUB_KEY_CNG_ALG_BIT_LENGTH_PROP_ID unavailable err=0x%lx", GetLastError());
+    EXPECT_EQ(n, 18);          /* L"RSA/2048" with its terminator */
+    if (n == 18) EXPECT_WSTR(w, L"RSA/2048");
     ccp_free(c);
 }
 
@@ -597,7 +596,7 @@ TEST(ccp_prop_serialize_excludes_key_context) {
     ser = (BYTE *)LocalAlloc(LPTR, cb);
     CHECK(C32(CertSerializeCertificateStoreElement)(a, 0, ser, &cb));
     CHECK(C32(CertAddSerializedElementToStore)(s2, ser, cb, CERT_STORE_ADD_ALWAYS, 0, CERT_STORE_CERTIFICATE_CONTEXT_FLAG, NULL, (const void **)&b));
-    if (b) { n = sizeof k; int r = ccp_getprop(b, CERT_KEY_CONTEXT_PROP_ID, &k, &n); t_note("KEY_CONTEXT after serialize round trip: %s", r ? "present" : "absent"); ccp_free(b); } else CHECK(0);
+    if (b) { n = sizeof k; SET_ERR(0); CHECK(!ccp_getprop(b, CERT_KEY_CONTEXT_PROP_ID, &k, &n)); EXPECT_ERR(CRYPT_E_NOT_FOUND_); ccp_free(b); } else CHECK(0);
     LocalFree(ser); ccp_free(a); ccp_close(s1); ccp_close(s2);
 }
 TEST(ccp_prop_serialize_size_protocol) {

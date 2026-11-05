@@ -146,8 +146,7 @@ TEST(dpapi_noui_protect_null_args) {
     SET_ERR(0);
     CHECK(!UIN("dpapi.dll", CryptProtectDataNoUI)(&nul, L"d", NULL, NULL, NULL, 0, NULL, 0, &out));
     DWORD e3 = GetLastError();
-    t_note("ProtectDataNoUI NULL out -> %lu, NULL in -> %lu, NULL pbData -> %lu", e1, e2, e3);
-    CHECK(e1 != 0 && e2 != 0 && e3 != 0);
+    EXPECT_EQ(e1, ERROR_INVALID_PARAMETER); EXPECT_EQ(e2, ERROR_INVALID_PARAMETER); EXPECT_EQ(e3, ERROR_INVALID_PARAMETER);
     CHECK(out.pbData == NULL);
 }
 TEST(dpapi_noui_unprotect_null_args) {
@@ -160,8 +159,7 @@ TEST(dpapi_noui_unprotect_null_args) {
     SET_ERR(0);
     CHECK(!UIN("dpapi.dll", CryptUnprotectDataNoUI)(NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, &out));
     DWORD e2 = GetLastError();
-    t_note("UnprotectDataNoUI NULL out -> %lu, NULL in -> %lu", e1, e2);
-    CHECK(e1 != 0 && e2 != 0);
+    EXPECT_EQ(e1, ERROR_INVALID_PARAMETER); EXPECT_EQ(e2, ERROR_INVALID_PARAMETER);
 }
 TEST(dpapi_noui_unprotect_garbage) {
     NEED_DPAPI_FN(CryptUnprotectDataNoUI);
@@ -170,7 +168,7 @@ TEST(dpapi_noui_unprotect_garbage) {
     SET_ERR(0);
     CHECK(!noui_unprotect(junk, sizeof junk, NULL, NULL, 0, 0, &out));
     DWORD e = GetLastError();
-    CHECKF(DP_IS_BLOB_ERR(e), "err=%lu", e);
+    EXPECT_EQ(e, ERROR_INVALID_DATA);
 }
 TEST(dpapi_noui_empty_data) {
     NEED_DPAPI_FN(CryptProtectDataNoUI); NEED_DPAPI_FN(CryptUnprotectDataNoUI);
@@ -349,13 +347,13 @@ TEST(dpapi_identify_unknown_type_ignores_pointers) {
     EXPECT_EQ(UN(iCryptIdentifyProtection)(0, NULL, 0, NULL, NULL), ERROR_NOT_SUPPORTED);
     EXPECT_EQ(UN(iCryptIdentifyProtection)(9, NULL, 0, NULL, NULL), ERROR_NOT_SUPPORTED);
 }
-TEST(dpapi_identify_types_2_3_4_garbage_observed) {
+TEST(dpapi_identify_types_2_3_4_empty_blob_is_invalid_data) {
     NEED_DPAPI_FN(iCryptIdentifyProtection);
     BYTE b[64]; memset(b, 0, sizeof b);
     for (int t = 2; t <= 4; t++) {
         unsigned a = 0xAA, h = 0xBB;
         ULONG r = UN(iCryptIdentifyProtection)(t, b, 0, &a, &h);
-        t_note("iCryptIdentifyProtection(type %d, size 0) -> %lu", t, r);
+        t_label("type %d", t); EXPECT_EQ(r, ERROR_INVALID_DATA);
     }
 }
 TEST(dpapi_identify_real_blob) {

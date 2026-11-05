@@ -28,12 +28,12 @@ static HCRYPTHASH hmac_begin(HCRYPTPROV p, ALG_ID halg, const BYTE *key, DWORD k
     HCRYPTKEY k = h_plainkey(p, CALG_RC2, key, klen, CRYPT_IPSEC_HMAC_KEY);
     HCRYPTHASH h = 0; HMAC_INFO hi; size_t i; *okp = FALSE;
     if (!k) return 0;
-    if (!U(CryptCreateHash)(p, CALG_HMAC, k, 0, &h)) { t_note("HMAC create failed 0x%lx", GetLastError()); U(CryptDestroyKey)(k); return 0; }
+    if (!U(CryptCreateHash)(p, CALG_HMAC, k, 0, &h)) { CHECKF(0, "HMAC create failed 0x%lx", GetLastError()); U(CryptDestroyKey)(k); return 0; }
     memset(&hi, 0, sizeof hi); hi.HashAlgid = halg;
-    if (!U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0)) { t_note("HMAC_INFO set failed 0x%lx", GetLastError()); U(CryptDestroyHash)(h); U(CryptDestroyKey)(k); return 0; }
+    if (!U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0)) { CHECKF(0, "HMAC_INFO set failed 0x%lx", GetLastError()); U(CryptDestroyHash)(h); U(CryptDestroyKey)(k); return 0; }
     for (i = 0; i < sizeof g_hk / sizeof g_hk[0]; i++)
         if (!g_hk[i].h) { g_hk[i].h = h; g_hk[i].k = k; break; }
-    if (i == sizeof g_hk / sizeof g_hk[0]) { t_note("HMAC key table full"); U(CryptDestroyHash)(h); U(CryptDestroyKey)(k); return 0; }
+    if (i == sizeof g_hk / sizeof g_hk[0]) { CHECKF(0, "HMAC key table full"); U(CryptDestroyHash)(h); U(CryptDestroyKey)(k); return 0; }
     *okp = TRUE; return h;
 }
 static void hmac_rows(ALG_ID alg, const char *const *exp, DWORD chunk) {
@@ -41,8 +41,19 @@ static void hmac_rows(ALG_ID alg, const char *const *exp, DWORD chunk) {
     for (i = 0; i < HV_NHMAC; i++) {
         BYTE key[200], data[400], out[80], e[80]; DWORD ol = sizeof out, off; BOOL ok;
         int kl = h_hex2bin(hv_hmac_ins[i].key, key, sizeof key), dl = h_hex2bin(hv_hmac_ins[i].data, data, sizeof data);
-        HCRYPTHASH h = hmac_begin(p, alg, key, (DWORD)kl, &ok);
-        if (kl == 1) { /* a 1-byte RC2 key cannot be imported with CRYPT_IPSEC_HMAC_KEY: pinned in capi_hmac_one_byte_key_import_rejected */ continue; }
+        HCRYPTHASH h;
+        if (kl == 1) {
+            /* a 1-byte key cannot be imported at all (any algorithm, with or without CRYPT_IPSEC_HMAC_KEY; probed), so these rows
+             * cannot be run; the rejection is checked here for each such row so that the skip is visible */
+            BYTE blob[sizeof(BLOBHEADER) + 4 + 1]; BLOBHEADER *bh = (BLOBHEADER *)blob; HCRYPTKEY k1 = 0;
+            bh->bType = PLAINTEXTKEYBLOB; bh->bVersion = CUR_BLOB_VERSION; bh->reserved = 0; bh->aiKeyAlg = CALG_RC2;
+            *(DWORD *)(blob + sizeof *bh) = 1; blob[sizeof *bh + 4] = key[0];
+            t_label("%s", hv_hmac_ins[i].name);
+            EXPECT_CAPI_FAIL(U(CryptImportKey)(p, blob, sizeof blob, 0, CRYPT_IPSEC_HMAC_KEY, &k1), ERROR_INVALID_PARAMETER);
+            if (k1) U(CryptDestroyKey)(k1);
+            continue;
+        }
+        h = hmac_begin(p, alg, key, (DWORD)kl, &ok);
         if (!h) { CHECKF(0, "begin %s", hv_hmac_ins[i].name); continue; }
         for (off = 0; off < (DWORD)dl; off += chunk) { DWORD n = (DWORD)dl - off < chunk ? (DWORD)dl - off : chunk; CHECK(U(CryptHashData)(h, data + off, n, 0)); }
         CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0));
@@ -83,7 +94,7 @@ static HCRYPTHASH new_hmac_noinfo(HCRYPTPROV p) {
     BYTE k[16] = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 }; HCRYPTHASH h = 0;
     HCRYPTKEY key = h_plainkey(p, CALG_RC2, k, 16, CRYPT_IPSEC_HMAC_KEY);
     if (!key) return 0;
-    U(CryptCreateHash)(p, CALG_HMAC, key, 0, &h); g_noinfo_key = key; return h;
+    CHECK(U(CryptCreateHash)(p, CALG_HMAC, key, 0, &h)); g_noinfo_key = key; return h;
 }
 TEST(capi_hmac_getparam_algid_and_size) {
     REQUIRE(U(CryptCreateHash)); PROLOG; size_t i;
@@ -196,18 +207,16 @@ TEST(capi_hmac_key_change_alters_mac) {
     if (h2) hmac_free(h2);
     EPILOG;
 }
-TEST(capi_hmac_hashing_without_info_observed) {
+TEST(capi_hmac_hashing_without_info_is_bad_algid) {
     REQUIRE(U(CryptCreateHash)); PROLOG; HCRYPTHASH h = new_hmac_noinfo(p);
     if (h) {
-        SET_ERR(0); BOOL ok = U(CryptHashData)(h, (const BYTE *)"abc", 3, 0);
-        t_note("HashData on HMAC hash before HP_HMAC_INFO: %d err 0x%lx", ok, ok ? 0 : GetLastError());
-        BYTE d[64]; DWORD dl = 64; SET_ERR(0); ok = U(CryptGetHashParam)(h, HP_HASHVAL, d, &dl, 0);
-        t_note("HP_HASHVAL on HMAC hash before HP_HMAC_INFO: %d len %lu err 0x%lx", ok, dl, ok ? 0 : GetLastError());
+        SET_ERR(0); EXPECT_EQ(U(CryptHashData)(h, (const BYTE *)"abc", 3, 0), 0); EXPECT_ERR(E_NTE_BAD_ALGID);
+        BYTE d[64]; DWORD dl = 64; SET_ERR(0); EXPECT_EQ(U(CryptGetHashParam)(h, HP_HASHVAL, d, &dl, 0), 0); EXPECT_ERR(E_NTE_BAD_ALGID);
         U(CryptDestroyHash)(h);
     }
     EPILOG;
 }
-TEST(capi_hmac_nondefault_pads_observed) {
+TEST(capi_hmac_nondefault_pads_change_the_mac) {
     REQUIRE(U(CryptCreateHash)); PROLOG; BYTE k[20]; memset(k, 0x0b, 20); HMAC_INFO hi; BYTE in[64], ou[64], r[20]; DWORD rl = 20;
     HCRYPTHASH h = new_hmac_noinfo(p);
     HCRYPTKEY key = h_plainkey(p, CALG_RC2, k, 20, CRYPT_IPSEC_HMAC_KEY); HCRYPTHASH c = 0;
@@ -216,12 +225,11 @@ TEST(capi_hmac_nondefault_pads_observed) {
         memset(in, 0x37, 64); memset(ou, 0x5d, 64);
         memset(&hi, 0, sizeof hi); hi.HashAlgid = CALG_SHA1; hi.pbInnerString = in; hi.cbInnerString = 64; hi.pbOuterString = ou; hi.cbOuterString = 64;
         BOOL ok = U(CryptSetHashParam)(c, HP_HMAC_INFO, (BYTE *)&hi, 0);
-        t_note("non-default pad set: %d err 0x%lx", ok, ok ? 0 : GetLastError());
+        EXPECT_EQ(ok, 1);
         if (ok) {
             CHECK(U(CryptHashData)(c, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(c, HP_HASHVAL, r, &rl, 0));
-            char hx[64]; h_bin2hex(r, rl, hx);
-            CHECK(strcmp(hx, "b617318655057264e28bc0b6fb378c8ef146be00") != 0);
-            t_note("non-default pad (0x37/0x5d) HMAC-SHA1 = %s", hx);
+            EXPECT_EQ(rl, 20);
+            EXPECT_HEX(r, 20, "6c305ddb1fcf27d13016d98afa30eca09b217b69");      /* HMAC-SHA1 with the pads 0x37 / 0x5d */
         }
         U(CryptDestroyHash)(c);
     }
@@ -307,7 +315,7 @@ TEST(capi_hash_setparam_tls1prf_values_on_plain_hash_bad_hash) {
 
 /* -------------------------------------------------------------------- MAC */
 static void mac_rows(ALG_ID kalg, const BYTE *key, DWORD klen, DWORD bs, const hv_mac *rows, size_t n) {
-    PROLOG; size_t i; int nmatch = 0;
+    PROLOG; size_t i;
     HCRYPTKEY k = h_plainkey(p, kalg, key, klen, 0);
     if (k) {
         for (i = 0; i < n; i++) {
@@ -318,12 +326,13 @@ static void mac_rows(ALG_ID kalg, const BYTE *key, DWORD klen, DWORD bs, const h
             CHECK(U(CryptHashData)(h, data, (DWORD)dl, 0));
             CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0));
             CHECKF(ol == bs && el == (int)bs, "MAC row %zu length %lu", i, ol);
-            /* CBC-MAC value (zero IV, whole blocks): the final-block layout is implementation defined, so observe only */
-            if (ol == bs && el == (int)bs) { if (!memcmp(out, e, bs)) nmatch++; else t_note("MAC row %zu differs from plain CBC-MAC", i); }
+            /* CALG_MAC: CBC with a zero IV over the data with PKCS#5 padding (a whole-block message gets a full padding block), the
+             * MAC is the last cipher block; the vectors were computed independently of Windows (gen_vectors.py) */
+            t_label("MAC row %zu", i);
+            CHECK(ol == bs && el == (int)bs && !memcmp(out, e, bs));
             U(CryptDestroyHash)(h);
         }
         U(CryptDestroyKey)(k);
-        t_note("MAC rows equal to plain CBC-MAC: %d of %zu", nmatch, n);
     }
     EPILOG;
 }
@@ -337,16 +346,17 @@ TEST(capi_mac_aes128_cbc_known_answers) {
     /* data = pattern (i*7+3) bytes */
     BYTE pat[80]; int i; for (i = 0; i < 80; i++) pat[i] = (BYTE)(i * 7 + 3);
     static const struct { int n; const char *mac; } v[] = {
-        { 16, "268590873ef180ab539cf461a5c5f892" }, { 32, "e234097cd413dd84532e948e444fd43b" },
-        { 48, "c491c4ed0d20ffe84e0d3d4559964089" }, { 80, "7467e8bb26335dc3f049f19414677b48" } };
+        { 16, "fe5b17ecd2bdf64c1aacecda4bb39446" }, { 32, "93c3fb165be830f4789a60cbe069152a" },
+        { 48, "81c3e7972331d485b6c6bac211710d21" }, { 80, "e1e2eb71e4f798c8913da7e05eee74b2" } };      /* AES-CBC, zero IV, PKCS#5 padding, last block */
     PROLOG; HCRYPTKEY k = h_plainkey(p, CALG_AES_128, key, 16, 0);
     if (k) {
         for (i = 0; i < 4; i++) {
             HCRYPTHASH h = 0; BYTE out[32]; DWORD ol = 32;
             if (!U(CryptCreateHash)(p, CALG_MAC, k, 0, &h)) { CHECK(0); continue; }
             CHECK(U(CryptHashData)(h, pat, v[i].n, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0));
-            CHECK(ol == 16);
-            { BYTE e[16]; h_hex2bin(v[i].mac, e, 16); if (memcmp(out, e, 16)) t_note("AES MAC len %d differs from plain CBC-MAC", v[i].n); }
+            EXPECT_EQ(ol, 16);
+            t_label("AES MAC len %d", v[i].n);
+            EXPECT_HEX(out, 16, v[i].mac);
             U(CryptDestroyHash)(h);
         }
         U(CryptDestroyKey)(k);
@@ -385,7 +395,7 @@ TEST(capi_mac_getparam_algid_size_and_state) {
     }
     EPILOG;
 }
-TEST(capi_mac_partial_block_observed) {
+TEST(capi_mac_partial_block_is_padded) {
     REQUIRE(U(CryptCreateHash)); PROLOG; static const BYTE key[8] = { 0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef };
     HCRYPTKEY k = h_plainkey(p, CALG_DES, key, 8, 0);
     if (k) {
@@ -393,30 +403,34 @@ TEST(capi_mac_partial_block_observed) {
         CHECK(U(CryptCreateHash)(p, CALG_MAC, k, 0, &h));
         CHECK(U(CryptHashData)(h, (const BYTE *)"abcde", 5, 0));
         BOOL ok = U(CryptGetHashParam)(h, HP_HASHVAL, out, &dl, 0); CHECK(ok);
-        if (ok) { h_bin2hex(out, 8, hx); t_note("DES MAC of 'abcde' (partial block): %s", hx); }
+        if (ok) EXPECT_HEX(out, 8, "b3d0c43dcd5e7d2c");      /* DES-CBC of "abcde" + 03 03 03, zero IV */
         U(CryptDestroyHash)(h); U(CryptDestroyKey)(k);
     }
     EPILOG;
 }
-TEST(capi_mac_with_hashsessionkey_updates_state) {
+TEST(capi_mac_with_hashsessionkey_hashes_the_key_bytes) {
     REQUIRE(U(CryptCreateHash)); REQUIRE(U(CryptHashSessionKey)); PROLOG; static const BYTE key[8] = { 0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef };
     HCRYPTKEY k = h_plainkey(p, CALG_DES, key, 8, 0), k2 = h_plainkey(p, CALG_DES, key, 8, 0);
     if (k && k2) {
-        HCRYPTHASH h = 0; BOOL ok;
-        CHECK(U(CryptCreateHash)(p, CALG_MAC, k, 0, &h));
-        SET_ERR(0); ok = U(CryptHashSessionKey)(h, k2, CRYPT_LITTLE_ENDIAN); t_note("CryptHashSessionKey into MAC: %d err 0x%lx", ok, ok ? 0 : GetLastError());
-        U(CryptDestroyHash)(h);
+        HCRYPTHASH h = 0, h2 = 0; BOOL ok; BYTE a[8], b[8]; DWORD la = 8, lb = 8;
+        CHECK(U(CryptCreateHash)(p, CALG_MAC, k, 0, &h)); CHECK(U(CryptCreateHash)(p, CALG_MAC, k, 0, &h2));
+        SET_ERR(0); ok = U(CryptHashSessionKey)(h, k2, CRYPT_LITTLE_ENDIAN);
+        EXPECT_EQ(ok, 1);
+        CHECK(U(CryptHashData)(h2, key, 8, 0));
+        CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, a, &la, 0)); CHECK(U(CryptGetHashParam)(h2, HP_HASHVAL, b, &lb, 0));
+        CHECK(!memcmp(a, b, 8));          /* hashing a session key hashes its key bytes */
+        U(CryptDestroyHash)(h); U(CryptDestroyHash)(h2);
     }
     if (k) U(CryptDestroyKey)(k);
     if (k2) U(CryptDestroyKey)(k2);
     EPILOG;
 }
-TEST(capi_mac_stream_key_observed) {
+TEST(capi_mac_stream_key_is_bad_key) {
     REQUIRE(U(CryptCreateHash)); PROLOG; BYTE k16[16] = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 };
     HCRYPTKEY k = h_plainkey(p, CALG_RC4, k16, 16, 0);
     if (k) {
         HCRYPTHASH h = 0; SET_ERR(0); BOOL ok = U(CryptCreateHash)(p, CALG_MAC, k, 0, &h);
-        t_note("CALG_MAC with RC4 key: %d err 0x%lx", ok, ok ? 0 : GetLastError());
+        EXPECT_EQ(ok, 0); EXPECT_ERR(E_NTE_BAD_KEY);
         if (ok) U(CryptDestroyHash)(h);
         U(CryptDestroyKey)(k);
     }
@@ -424,26 +438,16 @@ TEST(capi_mac_stream_key_observed) {
 }
 
 /* ----------------------------------------------------------------- TLS1PRF */
-TEST(capi_tls1prf_known_answer_observed) {
-    REQUIRE(U(CryptCreateHash)); PROLOG; BYTE sec[48], seed[64]; int i;
+/* CALG_TLS1PRF cannot be created from any key that a plain test can obtain: not from a plaintext or generated session key
+ * (RC2, RC4, AES, DES, the CALG_SSL3/TLS1 master algids) and not without a key; a known-answer test needs a Schannel
+ * handshake, so only the rejections are pinned (probed on Win10, std and adm). */
+TEST(capi_tls1prf_rc2_hmac_key_is_bad_key) {
+    REQUIRE(U(CryptCreateHash)); PROLOG; BYTE sec[48]; int i;
     for (i = 0; i < 48; i++) sec[i] = (BYTE)(i * 7 + 3);
-    for (i = 0; i < 64; i++) seed[i] = (BYTE)(i * 7 + 3);
     HCRYPTKEY k = h_plainkey(p, CALG_RC2, sec, 48, CRYPT_IPSEC_HMAC_KEY);
     if (k) {
         HCRYPTHASH h = 0; SET_ERR(0);
-        BOOL ok = U(CryptCreateHash)(p, CALG_TLS1PRF, k, 0, &h);
-        t_note("CALG_TLS1PRF create: %d err 0x%lx", ok, ok ? 0 : GetLastError());
-        if (ok) {
-            CRYPT_DATA_BLOB lab, sd; lab.cbData = 13; lab.pbData = (BYTE *)"master secret"; sd.cbData = 64; sd.pbData = seed;
-            BOOL a = U(CryptSetHashParam)(h, HP_TLS1PRF_LABEL, (BYTE *)&lab, 0), b = U(CryptSetHashParam)(h, HP_TLS1PRF_SEED, (BYTE *)&sd, 0);
-            t_note("set label %d seed %d", a, b);
-            BYTE out[48]; DWORD ol = 48;
-            if (a && b && U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)) {
-                char hx[100]; h_bin2hex(out, ol, hx);
-                t_note("TLS1PRF 48 bytes: %s (expect %s)", hx, "9202f7f7b67c5965fc540f92dba6a5fc5885f60f4ec735017dcb4685f2d9619c54b48511f9095aea2be04e4d0dd510ee");
-            }
-            U(CryptDestroyHash)(h);
-        }
+        EXPECT_EQ(U(CryptCreateHash)(p, CALG_TLS1PRF, k, 0, &h), 0); EXPECT_ERR(E_NTE_BAD_KEY);
         U(CryptDestroyKey)(k);
     }
     EPILOG;
@@ -451,9 +455,20 @@ TEST(capi_tls1prf_known_answer_observed) {
 TEST(capi_tls1prf_without_key_fails) {
     REQUIRE(U(CryptCreateHash)); PROLOG; HCRYPTHASH h = 0; SET_ERR(0);
     BOOL ok = U(CryptCreateHash)(p, CALG_TLS1PRF, 0, 0, &h);
-    t_note("TLS1PRF create without key: ok=%d err 0x%lx", ok, ok ? 0 : GetLastError());
+    EXPECT_EQ(ok, 0); EXPECT_ERR(E_NTE_BAD_KEY);
     if (ok) U(CryptDestroyHash)(h);
     EPILOG;
+}
+TEST(capi_tls1prf_schannel_master_key_is_invalid_parameter) {
+    REQUIRE(U(CryptCreateHash)); REQUIRE(U(CryptGenKey));
+    HCRYPTPROV p = h_acq(PROV_RSA_SCHANNEL, "Microsoft RSA SChannel Cryptographic Provider"); if (!p) return;
+    HCRYPTKEY k = 0;
+    if (U(CryptGenKey)(p, 0x4c06 /* CALG_TLS1_MASTER */, CRYPT_EXPORTABLE, &k)) {
+        HCRYPTHASH h = 0; SET_ERR(0);
+        EXPECT_EQ(U(CryptCreateHash)(p, CALG_TLS1PRF, k, 0, &h), 0); EXPECT_ERR(ERROR_INVALID_PARAMETER);   /* the master key lacks its handshake parameters */
+        U(CryptDestroyKey)(k);
+    } else CHECKF(0, "GenKey CALG_TLS1_MASTER err 0x%lx", GetLastError());
+    h_rel(p);
 }
 
 /* ------------------------------------------------------- key lifetime */
@@ -465,17 +480,17 @@ TEST(capi_hmac_one_byte_key_import_rejected) {
     if (k) U(CryptDestroyKey)(k);
     EPILOG;
 }
-TEST(capi_hmac_destroying_key_before_hash_observed) {
+TEST(capi_hmac_destroying_key_before_hash_bad_key) {
     REQUIRE(U(CryptCreateHash)); PROLOG; BYTE kb[4] = { 'J','e','f','e' }; HCRYPTKEY k = h_plainkey(p, CALG_RC2, kb, 4, CRYPT_IPSEC_HMAC_KEY); HCRYPTHASH h = 0; HMAC_INFO hi;
     if (k) {
         EXPECT_CAPI_OK(U(CryptCreateHash)(p, CALG_HMAC, k, 0, &h));
         memset(&hi, 0, sizeof hi); hi.HashAlgid = CALG_SHA1;
         EXPECT_CAPI_OK(U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0));
         EXPECT_CAPI_OK(U(CryptDestroyKey)(k));
-        /* undefined behaviour on Win10: HashData after the key is gone varies run to run (success, NTE_BAD_KEY,
-         * NTE_BAD_UID), so it is observed only and never checked */
+        /* The hash keeps using the destroyed key object, so the error follows the heap state. Repeated 40 fresh processes each in std
+         * and adm: always a failure, NTE_BAD_KEY (6 and 11 times) or NTE_BAD_UID (34 and 29 times), nothing else. */
         { DWORD ge; BOOL r = (BOOL)T_CALL_ERR(&ge, U(CryptHashData)(h, (const BYTE *)"abc", 3, 0));
-          t_note("HashData after key destroy: %d err 0x%lx", r, r ? 0 : ge); }
+          EXPECT_EQ(r, 0); CHECKF(ge == E_NTE_BAD_KEY || ge == E_NTE_BAD_UID, "err 0x%lx", ge); }
         U(CryptDestroyHash)(h);
     }
     EPILOG;
