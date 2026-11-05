@@ -35,5 +35,6 @@ int  oidr_value_count(const wchar_t *subkey);
 /* Key identifier helpers */
 void oidr_kid(CRYPT_HASH_BLOB *b, BYTE *store20, const char *tag, size_t len);  /* "cryptt" + pid + tag */
 void oidr_kid_cleanup(void);
+void oidr_kid_track(const BYTE *id, size_t len);   /* remember an identifier for cleanup */
 int  oidr_kid_begin(int machine);   /* machine=1 needs elevation; 0 => caller must return */
 #endif

@@ -130,6 +130,10 @@ void oidr_kid(CRYPT_HASH_BLOB *b, BYTE *st, const char *tag, size_t len) {
     }
 }
 
+void oidr_kid_track(const BYTE *id, size_t len) {
+    if (len >= 1 && len <= 20 && g_nkid < MAXKID) { memcpy(g_kids[g_nkid], id, len); g_kidlen[g_nkid++] = len; }
+}
+
 static void hexname(wchar_t *out, const BYTE *p, size_t n) {
     for (size_t i = 0; i < n; i++) _snwprintf(out + 2 * i, 3, L"%02X", p[i]);
 }
