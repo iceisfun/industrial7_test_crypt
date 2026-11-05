@@ -174,13 +174,13 @@ static void check_short(const WCHAR *in, const WCHAR *want, int flag)
 TEST(cct_shortname_short_input_unchanged)
 {
     REQUIRE(CCLI(mySanitizedNameToShortName));
-    check_short(L"Short", L"Short", 0);
     check_short(L"Short", L"Short", 1);
-    check_short(L"", L"", 0);
+    check_short(L"Short", L"Short", 1);
+    check_short(L"", L"", 1);
     check_short(L"With!0028escape", L"With!0028escape", 1);
-    /* exactly 51 characters is still passed through */
+    /* exactly 51 characters is still passed through (flag 1 keeps 51, flag 0 keeps 33) */
     WCHAR a51[52]; for (int i = 0; i < 51; i++) a51[i] = L'a'; a51[51] = 0;
-    check_short(a51, a51, 0);
+    check_short(a51, a51, 1);
 }
 
 TEST(cct_shortname_52_chars_hashed)
@@ -190,7 +190,7 @@ TEST(cct_shortname_52_chars_hashed)
     for (int i = 0; i < 52; i++) in[i] = L'a'; in[52] = 0;
     for (int i = 0; i < 51; i++) want[i] = L'a'; want[51] = 0;
     lstrcatW(want, L"-00097");
-    check_short(in, want, 0);
+    check_short(in, want, 1);
 }
 
 TEST(cct_shortname_60_chars_hashed_vectors)
@@ -200,7 +200,7 @@ TEST(cct_shortname_60_chars_hashed_vectors)
     int i;
     for (i = 0; i < 60; i++) in[i] = L'a'; in[60] = 0;
     for (i = 0; i < 51; i++) want[i] = L'a'; want[51] = 0; lstrcatW(want, L"-49567");
-    check_short(in, want, 0);
+    check_short(in, want, 1);
 }
 
 TEST(cct_shortname_hash_depends_on_cut_tail)
@@ -210,7 +210,7 @@ TEST(cct_shortname_hash_depends_on_cut_tail)
     int i;
     for (i = 0; i < 51; i++) in[i] = L'a'; for (; i < 60; i++) in[i] = L'b'; in[60] = 0;
     for (i = 0; i < 51; i++) want[i] = L'a'; want[51] = 0; lstrcatW(want, L"-50078");
-    check_short(in, want, 0);
+    check_short(in, want, 1);
 }
 
 TEST(cct_shortname_100_chars_vector)
@@ -230,7 +230,7 @@ TEST(cct_shortname_pattern_vector)
     int i;
     for (i = 0; i < 80; i++) in[i] = (i & 1) ? L'b' : L'a'; in[80] = 0;
     for (i = 0; i < 51; i++) want[i] = (i & 1) ? L'b' : L'a'; want[51] = 0; lstrcatW(want, L"-35413");
-    check_short(in, want, 0);
+    check_short(in, want, 1);
 }
 
 /* an escape (!XXXX) cut by the 51 character limit by fewer than 5 characters is removed before hashing */
@@ -241,7 +241,7 @@ TEST(cct_shortname_cut_escape_removed)
     for (i = 0; i < 47; i++) in[i] = L'x';
     in[i] = 0; lstrcatW(in, L"!0041yyyyyyy");
     for (i = 0; i < 47; i++) want[i] = L'x'; want[47] = 0; lstrcatW(want, L"-45193");
-    check_short(in, want, 0);
+    check_short(in, want, 1);
 }
 
 TEST(cct_shortname_complete_escape_kept)
@@ -251,7 +251,7 @@ TEST(cct_shortname_complete_escape_kept)
     for (i = 0; i < 46; i++) in[i] = L'x';
     in[i] = 0; lstrcatW(in, L"!0041yyyyyyy");
     for (i = 0; i < 46; i++) want[i] = L'x'; want[46] = 0; lstrcatW(want, L"!0041-15367");
-    check_short(in, want, 0);
+    check_short(in, want, 1);
 }
 
 TEST(cct_shortname_escape_in_middle_kept)
@@ -261,7 +261,7 @@ TEST(cct_shortname_escape_in_middle_kept)
     for (i = 0; i < 40; i++) in[i] = L'A'; in[i] = 0;
     lstrcatW(in, L"!0028BBBBBBBBBBBBBBBBBBBB");
     for (i = 0; i < 40; i++) want[i] = L'A'; want[40] = 0; lstrcatW(want, L"!0028BBBBBB-32718");
-    check_short(in, want, 0);
+    check_short(in, want, 1);
 }
 
 TEST(cct_shortname_null_arguments)
@@ -300,10 +300,24 @@ TEST(cct_shortname_sanitize_pipeline)
     LPWSTR s = NULL, sh = NULL;
     CHECK(CCLI(mySanitizeName)(in, &s) == 0 && s);
     CHECK(s && lstrlenW(s) == 30 * 6);
-    CHECK(CCLI(mySanitizedNameToShortName)(s, 0, &sh) == 0 && sh);
-    CHECK(sh && lstrlenW(sh) <= 57);
-    CHECK(sh && lstrlenW(sh) >= 46);
+    CHECK(CCLI(mySanitizedNameToShortName)(s, 1, &sh) == 0 && sh);
+    /* 8 whole 6-character escapes (48), the cut 9th is dropped, then -NNNNN */
+    CHECK(sh && lstrlenW(sh) == 54);
     freel(s); freel(sh);
+}
+
+TEST(cct_shortname_flag0_keeps_33_characters)
+{
+    REQUIRE(CCLI(mySanitizedNameToShortName));
+    WCHAR in[64], want[64]; int i;
+    for (i = 0; i < 33; i++) in[i] = L'a'; in[33] = 0;
+    check_short(in, in, 0);
+    for (i = 0; i < 34; i++) in[i] = L'a'; in[34] = 0;
+    for (i = 0; i < 33; i++) want[i] = L'a'; want[33] = 0; lstrcatW(want, L"-00097");
+    check_short(in, want, 0);
+    for (i = 0; i < 60; i++) in[i] = L'a'; in[60] = 0;
+    for (i = 0; i < 33; i++) want[i] = L'a'; want[33] = 0; lstrcatW(want, L"-00930");
+    check_short(in, want, 0);
 }
 
 /* ---- SplitConfigString --------------------------------------------------- */
