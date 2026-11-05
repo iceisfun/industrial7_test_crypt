@@ -23,25 +23,27 @@ DER = serialization.Encoding.DER
 
 def mkkey(bits): return rsa.generate_private_key(65537, bits)
 ca1k, ca2k, sk = mkkey(2048), mkkey(2048), mkkey(1024)
-def mkcert(subj, key, issuer, ikey, serial, ca=False, ekus=None):
+def mkcert(subj, key, issuer, ikey, serial, ca=False, ekus=None, cdp=None):
     b = (x509.CertificateBuilder().subject_name(name(subj)).issuer_name(name(issuer)).public_key(key.public_key())
          .serial_number(serial).not_valid_before(THIS).not_valid_after(NEXT))
     b = b.add_extension(x509.BasicConstraints(ca=ca, path_length=None), True)
     b = b.add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), False)
     if ikey is not key:
         b = b.add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ikey.public_key()), False)
+    if cdp: b = b.add_extension(x509.CRLDistributionPoints([x509.DistributionPoint([x509.UniformResourceIdentifier(cdp)], None, None, None)]), False)
     return b.sign(ikey, hashes.SHA256())
 ca1 = mkcert("cryptt CA1", ca1k, "cryptt CA1", ca1k, 1, True)
 ca2 = mkcert("cryptt CA2", ca2k, "cryptt CA2", ca2k, 1, True)
 sc = mkcert("cryptt CTL signer", sk, "cryptt CA1", ca1k, 0x77)
 leafkey = mkkey(1024)
 leaf = {}
-def addleaf(tag, serial, ca=ca1, key=ca1k, iss="cryptt CA1"):
-    leaf[tag] = mkcert("cryptt leaf %s" % tag, leafkey, iss, key, serial)
+def addleaf(tag, serial, ca=ca1, key=ca1k, iss="cryptt CA1", cdp=None):
+    leaf[tag] = mkcert("cryptt leaf %s" % tag, leafkey, iss, key, serial, cdp=cdp)
     arr("v_cert_" + tag, leaf[tag].public_bytes(DER))
 arr("v_ca1", ca1.public_bytes(DER)); arr("v_ca2", ca2.public_bytes(DER)); arr("v_signer", sc.public_bytes(DER))
 addleaf("1001", 0x1001); addleaf("1002", 0x1002); addleaf("1003", 0x1003)
 addleaf("c2_1001", 0x1001, key=ca2k, iss="cryptt CA2")
+addleaf("cdp_match", 0x3001, cdp="file:///cryptt/none.crl"); addleaf("cdp_other", 0x3002, cdp="file:///cryptt/other.crl")
 for r in range(0, 11): 
     if r != 7: addleaf("r%d" % r, 0x2000 + r)
 arr("v_ca1_subject", ca1.subject.public_bytes())
@@ -136,7 +138,9 @@ def ent(h, attrs=None):
     return SEQ(OCT(h), SET(*attrs)) if attrs else SEQ(OCT(h))
 fname = "cryptt friendly".encode("utf-16-le") + b"\0\0"
 prop11 = SEQ(OID("1.3.6.1.4.1.311.10.11.11"), SET(OCT(fname)))
-e1, e2, e3 = ent(sha1(leaf["1001"]), [prop11]), ent(sha1(leaf["1002"])), ent(sha1(leaf["1003"]))
+desc = "cryptt desc".encode("utf-16-le") + b"\0\0"
+prop13 = SEQ(OID("1.3.6.1.4.1.311.10.11.13"), SET(OCT(desc)))
+e1, e2, e3 = ent(sha1(leaf["1001"]), [prop11]), ent(sha1(leaf["1002"]), [prop13]), ent(sha1(leaf["1003"]), [prop13])
 ctl = ctl_content(b"cryptt-list-1", 0x0102, THIS, NEXT, [e1, e2, e3])
 arr("v_ctl_content", ctl)
 arr("v_ctl_content_min", ctl_content(None, None, THIS, None, [e1]))
@@ -145,29 +149,33 @@ arr("v_ctl_content_expired", ctl_content(b"cryptt-list-exp", 1, THIS, EXP_NEXT, 
 for tag, h in (("1001", leaf["1001"]), ("1002", leaf["1002"]), ("1003", leaf["1003"]), ("r0", leaf["r0"])):
     arr("v_sha1_" + tag, sha1(h))
 arr("v_md5_1001", hashlib.md5(leaf["1001"].public_bytes(DER)).digest())
-arr("v_ctl_prop11_value", fname)
-# sign with openssl cms (signer cert issued by CA1 is included)
-td = tempfile.mkdtemp()
-def w(n, d): p = os.path.join(td, n); open(p, "wb").write(d); return p
-kp = w("s.pem", sk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-cp = w("s.crt", sc.public_bytes(serialization.Encoding.PEM))
-def sign(content, tag, noattr=False, certs=True):
-    ip = w("in.der", content); op = os.path.join(td, "o.der")
-    args = ["openssl", "cms", "-sign", "-binary", "-nodetach", "-in", ip, "-inform", "DER", "-outform", "DER", "-out", op,
-            "-signer", cp, "-inkey", kp, "-econtent_type", "1.3.6.1.4.1.311.10.1", "-md", "sha256"]
-    if not certs: args.append("-nocerts")
-    if noattr: args.append("-noattr")
-    subprocess.check_call(args)
-    d = open(op, "rb").read(); arr(tag, d); return d
+arr("v_ctl_prop11_value", fname); arr("v_ctl_prop13_value", desc)
+# hand-assembled PKCS#7 SignedData with inner content type szOID_CTL, content as raw [0] ANY (no OCTET STRING)
+from cryptography.hazmat.primitives.asymmetric import padding
+def signed_msg(ctlder, ctype="1.3.6.1.4.1.311.10.1", certs=True, octet=False):
+    sha256 = SEQ(OID("2.16.840.1.101.3.4.2.1"), NUL())
+    inner = OCT(ctlder) if octet else ctlder
+    ci = SEQ(OID(ctype), T(0xa0, inner))
+    digest = hashlib.sha256(inner if octet is False else ctlder).digest()
+    attrs = [SEQ(OID("1.2.840.113549.1.9.3"), SET(OID(ctype))), SEQ(OID("1.2.840.113549.1.9.4"), SET(OCT(digest)))]
+    attrs_set = SET(*attrs)
+    sig = sk.sign(attrs_set, padding.PKCS1v15(), hashes.SHA256())
+    ias = SEQ(sc.issuer.public_bytes(), INT(sc.serial_number))
+    si = SEQ(INT(1), ias, sha256, T(0xa0, *attrs), SEQ(OID("1.2.840.113549.1.1.1"), NUL()), OCT(sig))
+    parts = [INT(1), SET(sha256), ci]
+    if certs: parts.append(T(0xa0, sc.public_bytes(DER)))
+    parts.append(SET(si))
+    return SEQ(OID("1.2.840.113549.1.7.2"), T(0xa0, SEQ(*parts))), sig
+def sign(content, tag, certs=True):
+    d, sig = signed_msg(content, certs=certs); arr(tag, d); return d
 s1 = sign(ctl, "v_ctl_signed")
 sign(ctl, "v_ctl_signed_nocerts", certs=False)
 sign(ctl_content(b"cryptt-list-exp", 1, THIS, EXP_NEXT, [e1, e2]), "v_ctl_signed_expired")
 sign(ctl_content(None, None, THIS, None, [e1]), "v_ctl_signed_min")
+# flip a bit inside the final signature value
 bad = bytearray(s1); bad[-3] ^= 0x55; arr("v_ctl_signed_badsig", bytes(bad))
-# a signed message with the wrong inner content type (id-data)
-ip = w("in2.der", ctl); op = os.path.join(td, "o2.der")
-subprocess.check_call(["openssl", "cms", "-sign", "-binary", "-nodetach", "-in", ip, "-inform", "DER", "-outform", "DER", "-out", op, "-signer", cp, "-inkey", kp, "-md", "sha256"])
-arr("v_ctl_signed_wrongtype", open(op, "rb").read())
+d, _ = signed_msg(ctl, ctype="1.2.840.113549.1.7.1", octet=True); arr("v_ctl_signed_wrongtype", d)
+arr("v_ctl_signed_usage_only", signed_msg(ctl_content(None, None, THIS, None, [], usages=["1.3.6.1.5.5.7.3.3"]) , certs=True)[0])
 
 const("V_THIS_FT", "0x%xULL" % ft(THIS)); const("V_NEXT_FT", "0x%xULL" % ft(NEXT)); const("V_EXP_NEXT_FT", "0x%xULL" % ft(EXP_NEXT))
 const("V_REVD_FT", "0x%xULL" % ft(REVD)); const("V_INVD_FT", "0x%xULL" % ft(dt(2020, 5, 1))); const("V_NEWER_THIS_FT", "0x%xULL" % ft(dt(2021, 1, 1)))

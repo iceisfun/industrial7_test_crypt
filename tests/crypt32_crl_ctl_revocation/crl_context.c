@@ -318,7 +318,8 @@ TEST(crlctx_store_context_survives_store_close_when_duplicated) {
 }
 
 /* ---- properties ---- */
-#define PROP_USER 0x8123
+#define PROP_USER CERT_DESCRIPTION_PROP_ID
+#define PROP_USER_HI 0x8123
 TEST(crlprop_enum_fresh_has_none) {
     REQUIRE(U(CertEnumCRLContextProperties));
     PCCRL_CONTEXT c = cc_crl(VEC(v_crl_basic));
@@ -631,5 +632,25 @@ TEST(crlser_roundtrip_via_add_serialized) {
     EXPECT_EQ(cc_count_certs(s), 0);
     LocalFree(buf);
     cc_close(s);
+    rel(c);
+}
+
+TEST(crlprop_user_range_ids) {
+    /* property ids 1..0xffff are accepted; ids in the user range are stored as opaque blobs */
+    REQUIRE(U(CertSetCRLContextProperty));
+    PCCRL_CONTEXT c = cc_crl(VEC(v_crl_basic));
+    REQUIRE(c);
+    BYTE d[3] = { 1, 2, 3 }; CRYPT_DATA_BLOB b = { 3, d };
+    CHECK(U(CertSetCRLContextProperty)(c, PROP_USER_HI, 0, &b));
+    BYTE got[8]; DWORD cb = sizeof got;
+    CHECK(U(CertGetCRLContextProperty)(c, PROP_USER_HI, got, &cb));
+    EXPECT_EQ(cb, 3);
+    CHECK(!memcmp(got, d, 3));
+    EXPECT_EQ(cc_props_crl(c), 1);
+    SET_ERR(0);
+    CHECK(!U(CertSetCRLContextProperty)(c, 0x10000, 0, &b)); EXPECT_ERR(CC_E_INVALIDARG);
+    SET_ERR(0);
+    CHECK(!U(CertSetCRLContextProperty)(c, 0xffffffff, 0, &b)); EXPECT_ERR(CC_E_INVALIDARG);
+    CHECK(U(CertSetCRLContextProperty)(c, 0xffff, 0, &b));
     rel(c);
 }
