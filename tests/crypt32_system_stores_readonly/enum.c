@@ -53,12 +53,6 @@ TEST(sss_loc_enum_invalid_flag_bits) {
         EXPECT_EQ(c.n, 0);
     }
 }
-TEST(sss_loc_enum_high_flags_ignored_or_valid) {
-    REQUIRE(U(CertEnumSystemStoreLocation));
-    sss_cap_t c; memset(&c, 0, sizeof c);
-    BOOL r = U(CertEnumSystemStoreLocation)(0x00010000, &c, sss_cb_loc);
-    t_note("flags 0x10000 -> %d n=%d gle=%lu", r, c.n, GetLastError());
-}
 
 /* ---- CertEnumSystemStore ---- */
 TEST(sss_store_enum_each_location) {
@@ -114,7 +108,7 @@ TEST(sss_store_enum_callback_args) {
     CHECK(U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_USER, NULL, &c, sss_cb_store));
     EXPECT_EQ(c.resv_nonnull, 0);
     CHECK(!c.info_null);
-    t_note("pStoreInfo->cbSize=%lu (sizeof=%zu)", c.info_cb0, sizeof(CERT_SYSTEM_STORE_INFO));
+    EXPECT_EQ(c.info_cb0, sizeof(CERT_SYSTEM_STORE_INFO));   /* decomp: info block {cbSize=4} */
 }
 TEST(sss_store_enum_names_unique) {
     REQUIRE(U(CertEnumSystemStore));
@@ -143,16 +137,6 @@ TEST(sss_store_enum_all_enumerated_names_openable) {
         DWORD e = GetLastError();
         t_note("open existing %ls -> %p (gle=%lu)", c.names[i], h, h ? 0 : e);
         if (h) U(CertCloseStore)(h, 0);
-    }
-}
-TEST(sss_store_enum_invalid_flag_bits_note) {
-    REQUIRE(U(CertEnumSystemStore));
-    static const DWORD bits[] = { 0x1, 0x2, 0x4, 0x10, 0x100, 0x200, 0x2000 };
-    for (unsigned i = 0; i < sizeof bits / sizeof bits[0]; i++) {
-        sss_cap_t c; memset(&c, 0, sizeof c);
-        SET_ERR(0);
-        BOOL r = U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_USER | bits[i], NULL, &c, sss_cb_store);
-        t_note("flags CU|0x%lx -> %d n=%d gle=0x%lx", bits[i], r, c.n, GetLastError());
     }
 }
 TEST(sss_store_enum_unknown_location_fails) {
@@ -198,13 +182,6 @@ TEST(sss_store_enum_relocate_hkcu_base_note) {
     SET_ERR(0);
     BOOL r = U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_USER | CERT_SYSTEM_STORE_RELOCATE_FLAG, &p, &c, sss_cb_store);
     t_note("relocate enum -> %d n=%d gle=%lu", r, c.n, GetLastError());
-}
-TEST(sss_store_enum_relocate_null_para_fails) {
-    REQUIRE(U(CertEnumSystemStore));
-    sss_cap_t c; memset(&c, 0, sizeof c);
-    SET_ERR(0);
-    BOOL r = U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_USER | CERT_SYSTEM_STORE_RELOCATE_FLAG, NULL, &c, sss_cb_store);
-    t_note("relocate NULL para -> %d n=%d gle=0x%lx", r, c.n, GetLastError());
 }
 
 /* ---- CertEnumPhysicalStore ---- */

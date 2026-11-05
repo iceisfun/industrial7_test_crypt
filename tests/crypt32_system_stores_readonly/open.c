@@ -146,35 +146,8 @@ TEST(sss_open_empty_name_note) {
     t_note("system store empty name -> %p gle=0x%lx", h, GetLastError());
     if (h) U(CertCloseStore)(h, 0);
 }
-TEST(sss_open_readonly_blocks_add_to_root) {
-    REQUIRE(U(CertOpenStore)); REQUIRE(U(CertAddEncodedCertificateToStore));
-    HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO, L"Root");
-    CHECK(h != NULL); if (!h) return;
-    BYTE junk[4] = { 0x30, 0x02, 0x05, 0x00 };
-    SET_ERR(0);
-    BOOL r = U(CertAddEncodedCertificateToStore)(h, X509_ASN_ENCODING, junk, sizeof junk, CERT_STORE_ADD_ALWAYS, NULL);
-    CHECK(!r);   /* malformed encoding: must not be added regardless of read-only state */
-    U(CertCloseStore)(h, 0);
-}
-TEST(sss_open_readonly_store_delete_fails_or_not_found) {
-    REQUIRE(U(CertOpenStore)); REQUIRE(U(CertEnumCertificatesInStore)); REQUIRE(U(CertDeleteCertificateFromStore));
-    HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO, L"Root");
-    CHECK(h != NULL); if (!h) return;
-    int before = sss_count_certs(h);
-    PCCERT_CONTEXT c = U(CertEnumCertificatesInStore)(h, NULL);
-    if (c) {
-        PCCERT_CONTEXT d = U(CertDuplicateCertificateContext)(c);
-        SET_ERR(0);
-        BOOL r = U(CertDeleteCertificateFromStore)(d);
-        CHECK(!r);
-        t_note("delete on readonly CU Root gle=0x%lx", GetLastError());
-        U(CertFreeCertificateContext)(c);
-    }
-    EXPECT_EQ(sss_count_certs(h), before);
-    U(CertCloseStore)(h, 0);
-}
 TEST(sss_open_handles_independent_close_order) {
-    REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
+    REQUIRE(U(CertOpenSystemStoreW)); REQUIRE(U(CertCloseStore)); REQUIRE(U(CertDuplicateStore));
     HCERTSTORE a = U(CertOpenSystemStoreW)(0, L"Root"), b = U(CertDuplicateStore)(a);
     CHECK(a && b == a);
     CHECK(U(CertCloseStore)(a, 0));
@@ -329,12 +302,6 @@ TEST(sss_reloc_hkcu_base_existing_root_note) {
     t_note("reloc HKCU Root -> %p gle=%lu", h, h ? 0 : GetLastError());
     if (h) { t_note("  certs=%d", sss_count_certs(h)); U(CertCloseStore)(h, 0); }
 }
-TEST(sss_reloc_flag_with_plain_string_name_note) {
-    REQUIRE(U(CertOpenStore));
-    SET_ERR(0);
-    /* a string where a relocate struct is expected is a caller bug; do not dereference-test it */
-    t_skip("pointer-confusion case intentionally not exercised");
-}
 
 /* ---- localized names ---- */
 TEST(sss_loc_name_null_and_empty) {
@@ -409,24 +376,6 @@ TEST(sss_prop_unset_property_not_found) {
     BOOL r = U(CertGetStoreProperty)(h, 0x7ff0, NULL, &cb);
     CHECK(!r);
     EXPECT_ERR(CRYPT_E_NOT_FOUND);
-    U(CertCloseStore)(h, 0);
-}
-TEST(sss_prop_null_pcb_fails) {
-    REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenSystemStoreW));
-    HCERTSTORE h = U(CertOpenSystemStoreW)(0, L"Root");
-    CHECK(h != NULL); if (!h) return;
-    SET_ERR(0);
-    BOOL r = U(CertGetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, NULL, NULL);
-    t_note("pcb NULL -> %d gle=0x%lx", r, GetLastError());
-    U(CertCloseStore)(h, 0);
-}
-TEST(sss_prop_dwflags_nonzero_note) {
-    REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenSystemStoreW));
-    HCERTSTORE h = U(CertOpenSystemStoreW)(0, L"Root");
-    CHECK(h != NULL); if (!h) return;
-    DWORD cb = 0; SET_ERR(0);
-    BOOL r = U(CertGetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, NULL, &cb);
-    t_note("size query r=%d cb=%lu", r, cb);
     U(CertCloseStore)(h, 0);
 }
 

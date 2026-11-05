@@ -34,10 +34,13 @@ typedef struct {
     int resv_nonnull;
     DWORD info_cb0;      /* pStoreInfo->cbSize of the first physical/system callback */
     int info_null;
+    DWORD tid;           /* when nonzero, callbacks verify they run on this thread */
+    int tid_bad;
 } sss_cap_t;
 
 static BOOL WINAPI sss_cb_loc(LPCWSTR name, DWORD flags, void *resv, void *arg) {
     sss_cap_t *c = (sss_cap_t *)arg;
+    if (c->tid && c->tid != GetCurrentThreadId()) c->tid_bad++;
     if (c->n < 64) { lstrcpynW(c->names[c->n], name ? name : L"(null)", 64); c->flags[c->n] = flags; }
     c->n++;
     if (resv) c->resv_nonnull++;
@@ -45,6 +48,7 @@ static BOOL WINAPI sss_cb_loc(LPCWSTR name, DWORD flags, void *resv, void *arg) 
 }
 static BOOL WINAPI sss_cb_store(const void *sys, DWORD flags, PCERT_SYSTEM_STORE_INFO info, void *resv, void *arg) {
     sss_cap_t *c = (sss_cap_t *)arg;
+    if (c->tid && c->tid != GetCurrentThreadId()) c->tid_bad++;
     if (c->n < 64) { lstrcpynW(c->names[c->n], sys ? (LPCWSTR)sys : L"(null)", 64); c->flags[c->n] = flags; }
     if (c->n == 0) { c->info_null = info == NULL; c->info_cb0 = info ? info->cbSize : 0; }
     c->n++;
@@ -53,6 +57,7 @@ static BOOL WINAPI sss_cb_store(const void *sys, DWORD flags, PCERT_SYSTEM_STORE
 }
 static BOOL WINAPI sss_cb_phys(const void *sys, DWORD flags, LPCWSTR name, PCERT_PHYSICAL_STORE_INFO info, void *resv, void *arg) {
     sss_cap_t *c = (sss_cap_t *)arg;
+    if (c->tid && c->tid != GetCurrentThreadId()) c->tid_bad++;
     if (c->n < 64) { lstrcpynW(c->names[c->n], name ? name : L"(null)", 64); c->flags[c->n] = flags; }
     if (c->n == 0) { c->info_null = info == NULL; c->info_cb0 = info ? info->cbSize : 0; }
     c->n++;
