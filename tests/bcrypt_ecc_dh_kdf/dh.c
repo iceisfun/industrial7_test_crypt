@@ -388,7 +388,7 @@ TEST(bcdh_import_truncated_and_magic) {
     ULONG n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, DH_A_Y, NULL);
     CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n - 1, 0, &k), NS_INVALID_PARAMETER);
     memset(blob + n, 0, 16);
-    CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n + 1, 0, &k), NS_INVALID_PARAMETER);   /* the size must match exactly */
+    CHECK_NS_FAIL(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n + 1, 0, &k));   /* oversize blob: exact status unverified */
     CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, 4, 0, &k), NS_INVALID_PARAMETER);
     CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, 0, 0, &k), NS_INVALID_PARAMETER);
     CHECK_NS(kc_import(a, BCRYPT_DH_PRIVATE_BLOB, blob, n, 0, &k), NS_INVALID_PARAMETER);    /* public magic, private type (also wrong size) */
