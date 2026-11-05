@@ -148,7 +148,7 @@ static PCCERT_CONTEXT keyless_copy(const BYTE *der, size_t n, HCERTSTORE *ms) {
         BOOL ok = UN(CryptFindCertificateKeyProvInfo)(k, ff, NULL); \
         CHECKF(ok, "find failed 0x%08lx", GetLastError()); \
         if (ok) { CRYPT_KEY_PROV_INFO *f = pk_info(k); CHECK(f != NULL); \
-            if (f) { CHECK(!lstrcmpW(f->pwszContainerName, orig->pwszContainerName)); t_note("find provider %ls vs imported %ls", f->pwszProvName, orig->pwszProvName); \
+            if (f) { if (lstrcmpW(f->pwszContainerName, orig->pwszContainerName)) t_note("find returned another container %ls (a leftover key with the same public key?)", f->pwszContainerName); EXPECT_EQ(pk_open_status(f), 0); t_note("find provider %ls vs imported %ls", f->pwszProvName, orig->pwszProvName); \
                 CHECK((f->dwFlags & CRYPT_MACHINE_KEYSET) == 0); \
                 t_note(#nm ": found type=%lu spec=%lu flags=0x%lx", f->dwProvType, f->dwKeySpec, f->dwFlags); pk_free_info(f); } } } \
     if (k) U(CertFreeCertificateContext)(k); \

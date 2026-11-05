@@ -207,3 +207,25 @@ TEST(pfxp_import_garbage_blob_fails) {
     CHECK(GetLastError() != 0);
     if (s) U(CertCloseStore)(s, 0);
 }
+
+/* Password helpers on the fixtures: no key is persisted by these calls. */
+UDECL(BOOL, PFXIsPFXBlob, (CRYPT_DATA_BLOB *));
+UDECL(BOOL, PFXVerifyPassword, (CRYPT_DATA_BLOB *, LPCWSTR, DWORD));
+TEST(pfxp_is_pfx_blob_fixtures) {
+    REQUIRE(UN(PFXIsPFXBlob));
+    CRYPT_DATA_BLOB r = { sizeof fx_rsa_pfx, (BYTE *)fx_rsa_pfx }, e = { sizeof fx_ec_pfx, (BYTE *)fx_ec_pfx };
+    BYTE junk[8] = { 1, 2, 3, 4, 5, 6, 7, 8 }; CRYPT_DATA_BLOB j = { sizeof junk, junk };
+    CHECK(UN(PFXIsPFXBlob)(&r));
+    CHECK(UN(PFXIsPFXBlob)(&e));
+    CHECK(!UN(PFXIsPFXBlob)(&j));
+}
+TEST(pfxp_verify_password_fixtures) {
+    REQUIRE(UN(PFXVerifyPassword));
+    if (t_is_wine()) { t_skip("emulator PFX decryption unavailable here"); return; }
+    CRYPT_DATA_BLOB r = { sizeof fx_rsa_pfx, (BYTE *)fx_rsa_pfx }, e = { sizeof fx_ec_pfx, (BYTE *)fx_ec_pfx };
+    CHECK(UN(PFXVerifyPassword)(&r, PK_PW, 0));
+    CHECK(UN(PFXVerifyPassword)(&e, PK_PW, 0));
+    SET_ERR(0);
+    CHECK(!UN(PFXVerifyPassword)(&r, L"wrong-password", 0));
+    EXPECT_ERR(86);
+}
