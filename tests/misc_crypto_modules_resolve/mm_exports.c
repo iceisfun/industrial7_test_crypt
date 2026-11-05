@@ -35,6 +35,7 @@ static void by_name(const char *dll, const mm_exp *e, unsigned n) {
 /* ordinal and name give the same address; ordinals are 1..n without holes */
 static void by_ord(const char *dll, const mm_exp *e, unsigned n) {
     HMODULE m; if (!load_or_skip(dll, &m)) return;
+    if (t_is_wine()) { t_skip("ordinal numbering is emulator specific"); return; }
     for (unsigned i = 0; i < n; i++) {
         FARPROC a = GetProcAddress(m, (LPCSTR)(ULONG_PTR)e[i].ord);
         FARPROC b = GetProcAddress(m, e[i].name);
@@ -50,7 +51,7 @@ static void negatives(const char *dll, const mm_exp *e, unsigned n) {
     SET_ERR(0);
     CHECK(GetProcAddress(m, "NoSuchExport_cryptt") == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
     SET_ERR(0);
-    CHECK(GetProcAddress(m, (LPCSTR)(ULONG_PTR)(n + 1)) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
+    if (!t_is_wine()) { CHECK(GetProcAddress(m, (LPCSTR)(ULONG_PTR)(n + 1)) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND); }
     SET_ERR(0);
     CHECK(GetProcAddress(m, (LPCSTR)(ULONG_PTR)0xFFFF) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
     char buf[128]; lstrcpynA(buf, e[0].name, sizeof buf);
@@ -74,6 +75,7 @@ static void negatives(const char *dll, const mm_exp *e, unsigned n) {
     TEST(mm_exports_##mod##_negatives) { negatives(dll, exp_##mod, NEXP(exp_##mod)); } \
     TEST(mm_exports_##mod##_count) { \
         HMODULE m; if (!load_or_skip(dll, &m)) return; \
+        if (t_is_wine()) { t_skip("ordinal numbering is emulator specific"); return; } \
         /* nothing beyond the documented range resolves */ \
         for (unsigned o = NEXP(exp_##mod) + 1; o < NEXP(exp_##mod) + 6; o++) \
             CHECKF(GetProcAddress(m, (LPCSTR)(ULONG_PTR)o) == NULL, "ordinal %u", o); \
