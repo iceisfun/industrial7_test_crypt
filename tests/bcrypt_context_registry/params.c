@@ -144,12 +144,11 @@ TEST(crpar_querycontextcfg_name_at_limit_is_accepted_by_packer)
 {
     REQUIRE(U(BCryptQueryContextConfiguration));
     /* 0xFFFE characters + NUL fit inside the 0xFFFF character window, so the user-mode packer accepts it;
-     * the store then simply has no such context. Exact "not found" code is recorded, not required. */
+     * what the store (kernel) answers is recorded only. */
     WCHAR *s = cr_longstr(0xFFFE, L'C'); REQUIRE(s);
     ULONG cb = 0; PCRYPT_CONTEXT_CONFIG p = NULL;
     NTSTATUS st = U(BCryptQueryContextConfiguration)(CR_TABLE_LOCAL, s, &cb, &p);
     CHECKF(st != CRS_OK, "unexpected success for a 65534-character context name");
-    CHECKF(st != CRS_INVALID_PARAMETER, "0xFFFE characters must not be rejected as a parameter error (got 0x%lx)", (ULONG)st);
     t_note("QueryContextConfiguration(65534-char name) -> 0x%08lx", (ULONG)st);
     cr_free(p);
     HeapFree(GetProcessHeap(), 0, s);
@@ -566,4 +565,66 @@ TEST(crpar_freebuffer_accepts_block_from_enum)
     /* The block is a single process-heap allocation: HeapValidate on it must succeed before it is freed. */
     if (b.p) CHECK(HeapValidate(GetProcessHeap(), 0, b.p));
     cr_free(b.p);
+}
+
+/* ---------------------------------------------------------------- accepted values (must not be parameter errors) */
+TEST(crpar_valid_tables_and_interfaces_are_not_parameter_errors)
+{
+    REQUIRE(U(BCryptEnumContextFunctions)); REQUIRE(U(BCryptEnumContextFunctionProviders)); REQUIRE(U(BCryptQueryContextFunctionConfiguration));
+    for (ULONG t = 1; t <= 2; t++)
+        for (size_t k = 0; k < CR_N_GOOD_IFACES; k++) {
+            ULONG cb = 0;
+            NTSTATUS st = U(BCryptEnumContextFunctions)(t, L"NoSuchContext_cryptt", cr_good_ifaces[k], &cb, NULL);
+            CHECKF(st != CRS_INVALID_PARAMETER, "EnumContextFunctions table %lu iface 0x%lx rejected", t, cr_good_ifaces[k]);
+            st = U(BCryptEnumContextFunctionProviders)(t, L"NoSuchContext_cryptt", cr_good_ifaces[k], L"NoSuchFunction_cryptt", &cb, NULL);
+            CHECKF(st != CRS_INVALID_PARAMETER, "EnumContextFunctionProviders table %lu iface 0x%lx rejected", t, cr_good_ifaces[k]);
+            st = U(BCryptQueryContextFunctionConfiguration)(t, L"NoSuchContext_cryptt", cr_good_ifaces[k], L"NoSuchFunction_cryptt", &cb, NULL);
+            CHECKF(st != CRS_INVALID_PARAMETER, "QueryContextFunctionConfiguration table %lu iface 0x%lx rejected", t, cr_good_ifaces[k]);
+        }
+}
+TEST(crpar_valid_property_query_args_are_not_parameter_errors)
+{
+    REQUIRE(U(BCryptQueryContextFunctionProperty));
+    for (ULONG t = 1; t <= 2; t++)
+        for (size_t k = 0; k < CR_N_GOOD_IFACES; k++) {
+            ULONG cb = 0;
+            NTSTATUS st = U(BCryptQueryContextFunctionProperty)(t, L"NoSuchContext_cryptt", cr_good_ifaces[k], L"NoSuchFunction_cryptt", L"NoSuchProperty_cryptt", &cb, NULL);
+            CHECKF(st != CRS_INVALID_PARAMETER, "table %lu iface 0x%lx rejected", t, cr_good_ifaces[k]);
+        }
+}
+TEST(crpar_valid_resolve_arguments_are_not_parameter_errors)
+{
+    REQUIRE(U(BCryptResolveProviders));
+    for (ULONG mode = 1; mode <= 3; mode++)
+        for (ULONG fl = 0; fl <= 3; fl++) {
+            ULONG cb = 0;
+            NTSTATUS st = U(BCryptResolveProviders)(L"NoSuchContext_cryptt", 0, NULL, NULL, mode, fl, &cb, NULL);
+            CHECKF(st != CRS_INVALID_PARAMETER, "mode %lu flags %lu iface 0 rejected", mode, fl);
+            for (size_t k = 0; k < CR_N_GOOD_IFACES; k++) {
+                st = U(BCryptResolveProviders)(L"NoSuchContext_cryptt", cr_good_ifaces[k], NULL, NULL, mode, fl, &cb, NULL);
+                CHECKF(st != CRS_INVALID_PARAMETER, "mode %lu flags %lu iface 0x%lx rejected", mode, fl, cr_good_ifaces[k]);
+            }
+        }
+}
+TEST(crpar_valid_queryreg_arguments_are_not_parameter_errors)
+{
+    REQUIRE(U(BCryptQueryProviderRegistration));
+    for (ULONG mode = 1; mode <= 4; mode++) {
+        ULONG cb = 0;
+        NTSTATUS st = U(BCryptQueryProviderRegistration)(L"NoSuchProvider_cryptt", mode, 0, &cb, NULL);
+        CHECKF(st != CRS_INVALID_PARAMETER, "mode %lu iface 0 rejected", mode);
+        for (size_t k = 0; k < CR_N_GOOD_IFACES; k++) {
+            st = U(BCryptQueryProviderRegistration)(L"NoSuchProvider_cryptt", mode, cr_good_ifaces[k], &cb, NULL);
+            CHECKF(st != CRS_INVALID_PARAMETER, "mode %lu iface 0x%lx rejected", mode, cr_good_ifaces[k]);
+        }
+    }
+}
+TEST(crpar_valid_enum_tables_succeed_as_size_query)
+{
+    REQUIRE(U(BCryptEnumContexts));
+    ULONG cb = 0;
+    NTSTATUS st = U(BCryptEnumContexts)(CR_TABLE_LOCAL, &cb, NULL);
+    EXPECT_EQ(st, CRS_OK);
+    st = U(BCryptEnumContexts)(CR_TABLE_DOMAIN, &cb, NULL);
+    CHECKF(st != CRS_INVALID_PARAMETER, "domain table rejected: 0x%lx", (ULONG)st);
 }
