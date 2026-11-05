@@ -87,7 +87,7 @@ TEST(capiab_dh_export_public_blob) {
     BYTE b[512]; DWORD n = 0;
     CHECK(U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, NULL, &n)); EXPECT_EQ(n, sizeof dh1024_pub_a);
     n = sizeof dh1024_pub_a - 1; SET_ERR(0);
-    EXPECT_FAIL(!U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n), ERROR_MORE_DATA); EXPECT_EQ(n, sizeof dh1024_pub_a);
+    EXPECT_FAIL(!U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n), ERROR_MORE_DATA); EXPECT_EQ(n, sizeof dh1024_pub_a - 1);   /* length left unchanged (probed) */
     n = sizeof b;
     BOOL r = U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n);
     CHECKF(r, "err 0x%lx", GetLastError());

@@ -442,7 +442,9 @@ TEST(capiab_rsa_import_flag_table) {
     for (int i = 0; i < (int)(sizeof bad / sizeof bad[0]); i++) {
         HCRYPTKEY k = 0;
         SET_ERR(0);
-        EXPECT_FAIL(!U(CryptImportKey)(h, rsa1024_pub, sizeof rsa1024_pub, 0, bad[i], &k), CAB_NTE_BAD_FLAGS);
+        /* 0x8 is rejected with ERROR_INVALID_PARAMETER, all others with NTE_BAD_FLAGS (probed) */
+        EXPECT_FAIL(!U(CryptImportKey)(h, rsa1024_pub, sizeof rsa1024_pub, 0, bad[i], &k),
+                    bad[i] == 0x8 ? ERROR_INVALID_PARAMETER : CAB_NTE_BAD_FLAGS);
     }
     DWORD good[] = { CRYPT_EXPORTABLE, CRYPT_NO_SALT, CRYPT_OAEP };
     for (int i = 0; i < 3; i++) {

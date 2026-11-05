@@ -138,7 +138,7 @@ TEST(capiab_dss_export_public_from_public) {
         t_note("DSSSEED tail of exported public blob differs from the imported (no-seed) one");
     n = (DWORD)DSSPUBLEN - 1; SET_ERR(0);
     EXPECT_FAIL(!U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n), ERROR_MORE_DATA);
-    EXPECT_EQ(n, DSSPUBLEN);
+    EXPECT_EQ(n, DSSPUBLEN - 1);   /* dssenh leaves the length unchanged on ERROR_MORE_DATA (probed) */
     cab_kd(k); cab_rel(p);
 }
 

@@ -193,7 +193,8 @@ TEST(capiab_rsa_verify_nohashoid_mismatch) {
     CHECK(k != 0);
     HCRYPTHASH h = cab_hash(p, CALG_SHA1, rsa_msg, sizeof rsa_msg);
     SET_ERR(0);
-    EXPECT_FAIL(!U(CryptVerifySignatureW)(h, rsa1024_nooid_sha1, 128, k, NULL, 0), CAB_NTE_BAD_SIGNATURE);
+    /* a raw (no hash OID) signature also verifies without CRYPT_NOHASHOID on Win10 (probed) */
+    EXPECT_SUCCEEDS(U(CryptVerifySignatureW)(h, rsa1024_nooid_sha1, 128, k, NULL, 0));
     SET_ERR(0);
     EXPECT_FAIL(!U(CryptVerifySignatureW)(h, rsa1024_sig_sha1, 128, k, NULL, CRYPT_NOHASHOID), CAB_NTE_BAD_SIGNATURE);
     CHECK(U(CryptVerifySignatureW)(h, rsa1024_nooid_sha1, 128, k, NULL, CRYPT_NOHASHOID));
@@ -418,9 +419,9 @@ TEST(capiab_rsa_decrypt_known_oaep) {
     if (r) { EXPECT_EQ(n, 9); CHECK(!memcmp(b, "hello rsa", 9)); }
     /* an OAEP ciphertext is not a valid PKCS1 v1.5 block and vice versa */
     memcpy(b, rsa1024_ct_oaep, 128); n = 128; SET_ERR(0);
-    EXPECT_FAIL(!U(CryptDecrypt)(k, 0, TRUE, 0, b, &n), CAB_NTE_BAD_DATA);
+    EXPECT_FAIL(!U(CryptDecrypt)(k, 0, TRUE, 0, b, &n), ERROR_INVALID_PARAMETER);
     memcpy(b, rsa1024_ct_pkcs1, 128); n = 128; SET_ERR(0);
-    EXPECT_FAIL(!U(CryptDecrypt)(k, 0, TRUE, CRYPT_OAEP, b, &n), CAB_NTE_BAD_DATA);
+    EXPECT_FAIL(!U(CryptDecrypt)(k, 0, TRUE, CRYPT_OAEP, b, &n), ERROR_INVALID_PARAMETER);
     cab_kd(k); cab_rel(p);
 }
 
@@ -445,7 +446,7 @@ TEST(capiab_rsa_decrypt_tampered_ciphertext_fails) {
         SET_ERR(0);
         BOOL r = U(CryptDecrypt)(k, 0, TRUE, 0, b, &n);
         CHECKF(!r, "tampered at %d decrypted", pos[i]);
-        if (!r) EXPECT_ERR(CAB_NTE_BAD_DATA);
+        if (!r) EXPECT_ERR(ERROR_INVALID_PARAMETER);
     }
     cab_kd(k); cab_rel(p);
 }
@@ -545,7 +546,8 @@ TEST(capiab_rsa_encrypt_too_long) {
     memset(b, 0x41, sizeof b);
     EXPECT_EQ(rsa_enc(pk, b, 128, 0, b, sizeof b, &err), 0); EXPECT_EQ(err, CAB_NTE_BAD_LEN);
     memset(b, 0x41, sizeof b);
-    EXPECT_EQ(rsa_enc(pk, b, 87, CRYPT_OAEP, b, sizeof b, &err), 0); EXPECT_EQ(err, CAB_NTE_BAD_LEN);
+    /* OAEP capacity of a 1024-bit key is 86 bytes; the next length reports ERROR_INVALID_PARAMETER (probed) */
+    EXPECT_EQ(rsa_enc(pk, b, 87, CRYPT_OAEP, b, sizeof b, &err), 0); EXPECT_EQ(err, ERROR_INVALID_PARAMETER);
     cab_kd(pk); cab_rel(p);
 }
 

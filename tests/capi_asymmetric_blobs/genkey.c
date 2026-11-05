@@ -101,8 +101,16 @@ TEST(capiab_rsagen_base_provider_limit) {
     cab_kd(r ? k : 0); k = 0;
     SET_ERR(0);
     r = U(CryptGenKey)(h, AT_KEYEXCHANGE, 1024u << 16, &k);
-    CHECKF(!r, "base provider generated a 1024-bit key");
-    if (!r) EXPECT_ERR(CAB_NTE_BAD_FLAGS); else cab_kd(k);
+    /* the base provider generates up to 1024 bits (probed); 1032 and above are rejected */
+    CHECKF(r, "base provider 1024 err 0x%lx", GetLastError());
+    cab_kd(r ? k : 0); k = 0;
+    DWORD over[] = { 1032, 2048, 4096 };
+    for (int i = 0; i < 3; i++) {
+        SET_ERR(0);
+        r = U(CryptGenKey)(h, AT_KEYEXCHANGE, over[i] << 16, &k);
+        CHECKF(!r, "base provider generated %lu bits", over[i]);
+        if (!r) EXPECT_ERR(CAB_NTE_BAD_FLAGS); else { cab_kd(k); k = 0; }
+    }
     cab_rel(h);
 }
 
