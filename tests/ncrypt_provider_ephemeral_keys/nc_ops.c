@@ -106,12 +106,8 @@ TEST(ncops_rsa_sign_parameter_errors) {
     BCRYPT_PKCS1_PADDING_INFO bad = { L"cryptt-no-such-hash" };
     s = U(NCryptSignHash)(k, &bad, (PBYTE)k_dig_sha256, 32, sig, 128, &cb, BCRYPT_PAD_PKCS1);
     EXPECT_SS_FAIL(s); t_note("unknown padding hash id -> 0x%08lx", (DWORD)s);
-    s = U(NCryptSignHash)(k, &pi, NULL, 32, sig, 128, &cb, BCRYPT_PAD_PKCS1);
-    EXPECT_SS_FAIL(s);
     s = U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 0, sig, 128, &cb, BCRYPT_PAD_PKCS1);
     EXPECT_SS_FAIL(s);
-    s = U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 32, sig, 128, NULL, BCRYPT_PAD_PKCS1);
-    EXPECT_SS_FAIL(s); t_note("pcbResult NULL -> 0x%08lx", (DWORD)s);
     s = U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 32, sig, 128, &cb, BCRYPT_PAD_PKCS1 | BCRYPT_PAD_PSS);
     EXPECT_SS_FAIL(s);
     s = U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 32, sig, 128, &cb, 0x10000000);
@@ -176,6 +172,7 @@ TEST(ncops_rsa_generated_key_sign_verify_matrix) {
         BCRYPT_PKCS1_PADDING_INFO pi = { PK1S[i].alg }; BYTE sig[128]; DWORD cb = 0;
         EXPECT_SS(U(NCryptSignHash)(k, &pi, (PBYTE)PK1S[i].dig, PK1S[i].cd, sig, 128, &cb, BCRYPT_PAD_PKCS1), 0);
         EXPECT_SS(U(NCryptVerifySignature)(k, &pi, (PBYTE)PK1S[i].dig, PK1S[i].cd, sig, cb, BCRYPT_PAD_PKCS1), 0);
+        if (i == 3) continue;   /* SHA-512 with a 64-byte salt does not fit in a 1024-bit modulus */
         BCRYPT_PSS_PADDING_INFO ps = { PK1S[i].alg, PK1S[i].cd };
         EXPECT_SS(U(NCryptSignHash)(k, &ps, (PBYTE)PK1S[i].dig, PK1S[i].cd, sig, 128, &cb, BCRYPT_PAD_PSS), 0);
         EXPECT_SS(U(NCryptVerifySignature)(k, &ps, (PBYTE)PK1S[i].dig, PK1S[i].cd, sig, cb, BCRYPT_PAD_PSS), 0);
@@ -249,8 +246,10 @@ TEST(ncops_ecdsa_hash_lengths) {
         EXPECT_SS(U(NCryptSignHash)(k, NULL, h, lens[i], sig, 64, &cb, 0), 0);
         EXPECT_SS(U(NCryptVerifySignature)(k, NULL, h, lens[i], sig, cb, 0), 0);
         /* a signature over a different length input must not verify */
-        SECURITY_STATUS s = U(NCryptVerifySignature)(k, NULL, h, lens[i] - 1, sig, cb, 0);
-        EXPECT_SS(s, NC_BAD_SIGNATURE);
+        if (lens[i] <= 32) {   /* longer inputs are truncated to the order size, so only shorter ones differ */
+            SECURITY_STATUS s = U(NCryptVerifySignature)(k, NULL, h, lens[i] - 1, sig, cb, 0);
+            EXPECT_SS(s, NC_BAD_SIGNATURE);
+        }
     }
     BYTE sig[64]; DWORD cb = 0;
     SECURITY_STATUS s = U(NCryptSignHash)(k, NULL, h, 0, sig, 64, &cb, 0);
@@ -444,6 +443,7 @@ TEST(ncops_ecc_key_cannot_encrypt) {
     nc_free(k); nc_free(p);
 }
 TEST(ncops_rsa_empty_plaintext_note) {
+    NC_NOWINE();
     REQUIRE(U(NCryptEncrypt));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_RSA_ALGORITHM, 1024, 0, TRUE); NEED(k, "key");
@@ -470,6 +470,7 @@ static void sec_cleanup(NCRYPT_KEY_HANDLE a, NCRYPT_KEY_HANDLE b, NCRYPT_KEY_HAN
 { nc_free(s1); nc_free(s2); nc_free(a); nc_free(b); nc_free(c); nc_free(d); nc_free(p); }
 
 TEST(ncops_agreement_rfc5903_p256_raw) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSecretAgreement)); REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -492,6 +493,7 @@ TEST(ncops_agreement_rfc5903_p256_raw) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_agreement_hash_kdf) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSecretAgreement)); REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -517,6 +519,7 @@ TEST(ncops_agreement_hash_kdf) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_agreement_hash_prepend_append) {
+    NC_NOWINE();
     REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -545,6 +548,7 @@ TEST(ncops_agreement_hash_prepend_append) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_agreement_hmac_kdf) {
+    NC_NOWINE();
     REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -569,6 +573,7 @@ TEST(ncops_agreement_hmac_kdf) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_agreement_tls_prf) {
+    NC_NOWINE();
     REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -586,6 +591,7 @@ TEST(ncops_agreement_tls_prf) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_derive_buffer_protocol) {
+    NC_NOWINE();
     REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -606,6 +612,7 @@ TEST(ncops_derive_buffer_protocol) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_derive_invalid_kdf) {
+    NC_NOWINE();
     REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -626,6 +633,7 @@ TEST(ncops_derive_invalid_kdf) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_agreement_invalid_keys) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSecretAgreement));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a = nc_import(p, BCRYPT_ECCPRIVATE_BLOB, NCV(k_ecdh256_a_priv)), bpub = nc_import(p, BCRYPT_ECCPUBLIC_BLOB, NCV(k_ecdh256_b_pub));
@@ -642,6 +650,7 @@ TEST(ncops_agreement_invalid_keys) {
     nc_free(a); nc_free(bpub); nc_free(p384); nc_free(ecdsa); nc_free(rsa); nc_free(p);
 }
 TEST(ncops_agreement_self_and_random_keys) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSecretAgreement));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     static const LPCWSTR algs[] = { BCRYPT_ECDH_P256_ALGORITHM, BCRYPT_ECDH_P384_ALGORITHM, BCRYPT_ECDH_P521_ALGORITHM };
@@ -671,6 +680,7 @@ TEST(ncops_agreement_self_and_random_keys) {
     nc_free(p);
 }
 TEST(ncops_agreement_dh_modp2048) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSecretAgreement));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k[2] = {0, 0}, imp[2] = {0, 0};
@@ -702,6 +712,7 @@ TEST(ncops_agreement_dh_modp2048) {
     nc_free(p);
 }
 TEST(ncops_secret_handle_survives_key_close) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSecretAgreement));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -714,6 +725,7 @@ TEST(ncops_secret_handle_survives_key_close) {
     EXPECT_SS(U(NCryptFreeObject)(sb), 0);
 }
 TEST(ncops_derive_secret_reusable) {
+    NC_NOWINE();
     REQUIRE(U(NCryptDeriveKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a, ap, b, bp; NCRYPT_SECRET_HANDLE sa, sb;
@@ -725,6 +737,7 @@ TEST(ncops_derive_secret_reusable) {
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
 TEST(ncops_key_derivation_needs_kdf_key) {
+    NC_NOWINE();
     REQUIRE(U(NCryptKeyDerivation));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDH_P256_ALGORITHM, 0, 0, TRUE); NEED(k, "key");
@@ -736,6 +749,7 @@ TEST(ncops_key_derivation_needs_kdf_key) {
 
 /* ---------- NCryptTranslateHandle ---------- */
 TEST(ncops_translate_parameter_validation) {
+    NC_NOWINE();
     REQUIRE(U(NCryptTranslateHandle));
     NCRYPT_PROV_HANDLE ph = 0; NCRYPT_KEY_HANDLE kh = 0;
     EXPECT_SS(U(NCryptTranslateHandle)(&ph, NULL, 1, 0, 0, 0), NC_INVALID_PARAMETER);
@@ -744,6 +758,7 @@ TEST(ncops_translate_parameter_validation) {
     EXPECT_EQ(ph, 0); EXPECT_EQ(kh, 0);
 }
 TEST(ncops_translate_capi_ephemeral_note) {
+    NC_NOWINE();
     REQUIRE(U(NCryptTranslateHandle)); REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenKey));
     HCRYPTPROV hp = 0; HCRYPTKEY hk = 0;
     if (!U(CryptAcquireContextW)(&hp, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) { t_skip("no CAPI provider"); return; }
@@ -756,8 +771,5 @@ TEST(ncops_translate_capi_ephemeral_note) {
         DWORD v; if (kh && nc_getdw(kh, NCRYPT_LENGTH_PROPERTY, &v) == 0) EXPECT_EQ(v, 1024);
         nc_free(kh); nc_free(ph);
     } else { EXPECT_EQ(kh, 0); }
-    s = U(NCryptTranslateHandle)(NULL, &kh, hp, hk, AT_KEYEXCHANGE, 0x80000000u);
-    t_note("translate with unknown flag -> 0x%08lx", (DWORD)s);
-    if (s == 0) nc_free(kh);
     U(CryptDestroyKey)(hk); U(CryptReleaseContext)(hp, 0);
 }

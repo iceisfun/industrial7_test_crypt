@@ -24,6 +24,8 @@
 #define EXPECT_SS_FAIL(a) do { DWORD s_ = (DWORD)(a); t_check(s_ != 0, __FILE__, __LINE__, #a " must fail", "unexpected success"); } while (0)
 /* Skip (and flag on real Windows) when an object could not be created. */
 #define NEED(x, what) do { if (!(x)) { CHECKF(t_is_wine(), "cannot create %s", what); t_skip("%s unavailable", what); return; } } while (0)
+/* Wine ships these NCrypt exports as aborting stubs */
+#define NC_NOWINE() do { if (t_is_wine()) { t_skip("not implemented by the emulator"); return; } } while (0)
 #define NCV(arr) (arr), (DWORD)sizeof(arr)
 
 static const WCHAR NC_MSKSP[] = L"Microsoft Software Key Storage Provider";

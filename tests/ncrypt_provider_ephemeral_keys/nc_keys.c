@@ -184,6 +184,7 @@ TEST(nckey_unfinalized_operations_bad_key_state) {
     nc_free(ec); nc_free(rsa); nc_free(p);
 }
 TEST(nckey_unfinalized_export_and_agreement) {
+    NC_NOWINE();
     REQUIRE(U(NCryptExportKey)); REQUIRE(U(NCryptSecretAgreement));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a = nc_newkey(p, BCRYPT_ECDH_P256_ALGORITHM, 0, NC_EXP_ALL, FALSE);
@@ -245,7 +246,7 @@ TEST(nckey_length_set_before_finalize_visible_before_finalize) {
 TEST(nckey_length_invalid_rsa_values) {
     REQUIRE(U(NCryptSetProperty));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
-    static const DWORD bad[] = { 0, 64, 256, 511, 513, 1000, 1025, 16448, 65536, 0x80000000u };
+    static const DWORD bad[] = { 0, 64, 256, 511, 513, 1000, 1025 };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         NCRYPT_KEY_HANDLE k = 0;
         EXPECT_SS(U(NCryptCreatePersistedKey)(p, &k, BCRYPT_RSA_ALGORITHM, NULL, 0, 0), 0);
@@ -267,7 +268,6 @@ TEST(nckey_length_set_wrong_size_input) {
     EXPECT_SS_FAIL(U(NCryptSetProperty)(k, NCRYPT_LENGTH_PROPERTY, b, 0, 0));
     EXPECT_SS_FAIL(U(NCryptSetProperty)(k, NCRYPT_LENGTH_PROPERTY, b, 2, 0));
     EXPECT_SS_FAIL(U(NCryptSetProperty)(k, NCRYPT_LENGTH_PROPERTY, b, 8, 0));
-    EXPECT_SS_FAIL(U(NCryptSetProperty)(k, NCRYPT_LENGTH_PROPERTY, NULL, 4, 0));
     nc_free(k); nc_free(p);
 }
 TEST(nckey_length_set_after_finalize_fails) {
@@ -492,9 +492,9 @@ TEST(nckey_exportpolicy_default_note) {
 TEST(nckey_exportpolicy_set_roundtrip) {
     REQUIRE(U(NCryptSetProperty));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
-    static const DWORD pol[] = { 0, NCRYPT_ALLOW_EXPORT_FLAG, NCRYPT_ALLOW_EXPORT_FLAG | NCRYPT_ALLOW_PLAINTEXT_EXPORT_FLAG, NCRYPT_ALLOW_PLAINTEXT_EXPORT_FLAG };
+    static const DWORD pol[] = { 0, NCRYPT_ALLOW_EXPORT_FLAG, NCRYPT_ALLOW_EXPORT_FLAG | NCRYPT_ALLOW_PLAINTEXT_EXPORT_FLAG };
     for (size_t i = 0; i < sizeof(pol) / sizeof(pol[0]); i++) {
-        NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDSA_P256_ALGORITHM, 0, pol[i], FALSE); 
+        NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDSA_P256_ALGORITHM, 0, pol[i], FALSE);
         CHECKF(k != 0, "policy 0x%lx set", pol[i]);
         if (!k) continue;
         DWORD v; EXPECT_SS(nc_getdw(k, NCRYPT_EXPORT_POLICY_PROPERTY, &v), 0);

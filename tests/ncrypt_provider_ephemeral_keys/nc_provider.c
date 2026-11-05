@@ -163,6 +163,7 @@ static DWORD WINAPI thr_use_prov(LPVOID p)
     return (DWORD)U(NCryptIsAlgSupported)(h, BCRYPT_ECDSA_P384_ALGORITHM, 0);
 }
 TEST(ncprov_handle_usable_from_other_thread) {
+    NC_NOWINE();
     REQUIRE(U(NCryptIsAlgSupported));
     NCRYPT_PROV_HANDLE h = nc_prov(); NEED(h, "provider");
     HANDLE t = CreateThread(NULL, 0, thr_use_prov, (LPVOID)h, 0, NULL);
@@ -175,6 +176,7 @@ TEST(ncprov_handle_usable_from_other_thread) {
 
 /* ---------- NCryptEnumStorageProviders / NCryptFreeBuffer ---------- */
 TEST(ncprov_enumprov_basic) {
+    NC_NOWINE();
     REQUIRE(U(NCryptEnumStorageProviders)); REQUIRE(U(NCryptFreeBuffer));
     DWORD n = 0; NCryptProviderName *l = NULL;
     EXPECT_SS(U(NCryptEnumStorageProviders)(&n, &l, 0), 0);
@@ -190,6 +192,7 @@ TEST(ncprov_enumprov_basic) {
     EXPECT_SS(U(NCryptFreeBuffer)(l), 0);
 }
 TEST(ncprov_enumprov_null_params) {
+    NC_NOWINE();
     REQUIRE(U(NCryptEnumStorageProviders));
     DWORD n = 5; NCryptProviderName *l = NULL;
     EXPECT_SS(U(NCryptEnumStorageProviders)(NULL, &l, 0), NC_INVALID_PARAMETER);
@@ -198,6 +201,7 @@ TEST(ncprov_enumprov_null_params) {
     EXPECT_EQ(n, 5);   /* untouched on parameter failure */
 }
 TEST(ncprov_enumprov_bad_flags) {
+    NC_NOWINE();
     REQUIRE(U(NCryptEnumStorageProviders));
     static const DWORD bad[] = { 0x1, 0x2, 0x20, 0x80, 0x100, 0x80000000u };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
@@ -209,6 +213,7 @@ TEST(ncprov_enumprov_bad_flags) {
     }
 }
 TEST(ncprov_enumprov_silent_flag_accepted) {
+    NC_NOWINE();
     REQUIRE(U(NCryptEnumStorageProviders));
     DWORD n = 0; NCryptProviderName *l = NULL;
     EXPECT_SS(U(NCryptEnumStorageProviders)(&n, &l, NCRYPT_SILENT_FLAG), 0);   /* only 0x40 passes the (flags & ~0x40) test */
@@ -216,6 +221,7 @@ TEST(ncprov_enumprov_silent_flag_accepted) {
     if (l) U(NCryptFreeBuffer)(l);
 }
 TEST(ncprov_enumprov_repeatable) {
+    NC_NOWINE();
     REQUIRE(U(NCryptEnumStorageProviders));
     DWORD n1 = 0, n2 = 0; NCryptProviderName *a = NULL, *b = NULL;
     EXPECT_SS(U(NCryptEnumStorageProviders)(&n1, &a, 0), 0);
@@ -226,6 +232,7 @@ TEST(ncprov_enumprov_repeatable) {
     if (b) U(NCryptFreeBuffer)(b);
 }
 TEST(ncprov_enumprov_listed_names_open) {
+    NC_NOWINE();
     REQUIRE(U(NCryptEnumStorageProviders)); REQUIRE(U(NCryptOpenStorageProvider));
     DWORD n = 0; NCryptProviderName *l = NULL;
     EXPECT_SS(U(NCryptEnumStorageProviders)(&n, &l, 0), 0);
@@ -465,6 +472,7 @@ TEST(ncprov_iskeyhandle) {
     nc_free(k); nc_free(h);
 }
 TEST(ncprov_secret_handle_not_key_not_provider) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSecretAgreement));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE a = nc_import(p, BCRYPT_ECCPRIVATE_BLOB, NCV(k_ecdh256_a_priv)), b = nc_import(p, BCRYPT_ECCPUBLIC_BLOB, NCV(k_ecdh256_b_pub));
@@ -480,6 +488,7 @@ TEST(ncprov_secret_handle_not_key_not_provider) {
     nc_free(a); nc_free(b); nc_free(p);
 }
 TEST(ncprov_handle_type_validation_matrix) {
+    NC_NOWINE();
     REQUIRE(U(NCryptSignHash)); REQUIRE(U(NCryptVerifySignature)); REQUIRE(U(NCryptEncrypt)); REQUIRE(U(NCryptDecrypt));
     REQUIRE(U(NCryptFinalizeKey)); REQUIRE(U(NCryptExportKey)); REQUIRE(U(NCryptSecretAgreement)); REQUIRE(U(NCryptDeriveKey));
     REQUIRE(U(NCryptKeyDerivation)); REQUIRE(U(NCryptImportKey)); REQUIRE(U(NCryptCreatePersistedKey));

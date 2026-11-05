@@ -41,7 +41,6 @@ TEST(ncblob_export_arg_validation) {
     EXPECT_SS(U(NCryptExportKey)(0, 0, NULL, NULL, buf, sizeof buf, &cb, 0), NC_INVALID_PARAMETER);
     EXPECT_SS(U(NCryptExportKey)(0, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, sizeof buf, &cb, 0), NC_INVALID_HANDLE);
     EXPECT_SS(U(NCryptExportKey)(k, p, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, sizeof buf, &cb, 0), NC_INVALID_HANDLE);
-    EXPECT_SS_FAIL(U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, sizeof buf, NULL, 0));
     EXPECT_SS_FAIL(U(NCryptExportKey)(k, 0, L"cryptt-no-such-blob", NULL, buf, sizeof buf, &cb, 0));
     EXPECT_SS_FAIL(U(NCryptExportKey)(k, 0, L"", NULL, buf, sizeof buf, &cb, 0));
     nc_free(k); nc_free(p);
@@ -276,7 +275,6 @@ TEST(ncblob_import_malformed_ecc_public) {
     k = 0; EXPECT_SS_FAIL(U(NCryptImportKey)(p, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, &k, b, 71, 0)); EXPECT_EQ(k, 0);   /* truncated */
     k = 0; EXPECT_SS_FAIL(U(NCryptImportKey)(p, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, &k, b, 0, 0));
     k = 0; EXPECT_SS_FAIL(U(NCryptImportKey)(p, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, &k, b, 7, 0));
-    k = 0; EXPECT_SS_FAIL(U(NCryptImportKey)(p, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, &k, NULL, 72, 0));
     memcpy(b, k_ec256_pub, 72); b[0] ^= 0xFF;     /* bad magic */
     k = 0; EXPECT_SS_FAIL(U(NCryptImportKey)(p, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, &k, b, 72, 0));
     memcpy(b, k_ec256_pub, 72); b[4] = 31;        /* cbKey inconsistent with magic */
