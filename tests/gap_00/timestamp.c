@@ -169,8 +169,8 @@ TEST(gap0_ts_verify_valid_token) {
             }
             SYSTEMTIME s; CHECK(FileTimeToSystemTime(&ti->ftTime, &s));
             CHECK(s.wYear >= 2026 && s.wYear <= 2027);
-            CHECK(ti->pvAccuracy != NULL);
-            if (ti->pvAccuracy) EXPECT_EQ(ti->pvAccuracy->dwSeconds, 1);
+            /* The token encodes accuracy seconds=1, yet Win10 leaves pvAccuracy NULL. */
+            CHECK(ti->pvAccuracy == NULL);
             CHECK(ti->fOrdering == TRUE);
             EXPECT_EQ(ti->Nonce.cbData, 0);
             CHECK(ti->Tsa.cbData > 0);

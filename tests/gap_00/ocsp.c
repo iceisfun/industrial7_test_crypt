@@ -171,15 +171,13 @@ TEST(gap0_ocsp_get_context_null_handle) {
     }
 }
 
-TEST(gap0_ocsp_null_handles_are_noops) {
+TEST(gap0_ocsp_null_handles_set_proc_not_found) {
     REQUIRE(U(CertAddRefServerOcspResponse)); REQUIRE(U(CertCloseServerOcspResponse));
     REQUIRE(U(CertAddRefServerOcspResponseContext)); REQUIRE(U(CertFreeServerOcspResponseContext));
-    SET_ERR(0x1234);
-    U(CertAddRefServerOcspResponse)(NULL);
-    U(CertCloseServerOcspResponse)(NULL, 0);
-    U(CertCloseServerOcspResponse)(NULL, 0xFFFFFFFF);
-    U(CertAddRefServerOcspResponseContext)(NULL);
-    U(CertFreeServerOcspResponseContext)(NULL);
-    /* No-ops leave the thread's last error alone. */
-    EXPECT_EQ(GetLastError(), 0x1234);
+    /* On Win10 every one of these NULL-handle calls ends with ERROR_PROC_NOT_FOUND (127) in the last error. */
+    SET_ERR(0x1234); U(CertAddRefServerOcspResponse)(NULL); EXPECT_EQ(GetLastError(), 127);
+    SET_ERR(0x1234); U(CertCloseServerOcspResponse)(NULL, 0); EXPECT_EQ(GetLastError(), 127);
+    SET_ERR(0x1234); U(CertCloseServerOcspResponse)(NULL, 0xFFFFFFFF); EXPECT_EQ(GetLastError(), 127);
+    SET_ERR(0x1234); U(CertAddRefServerOcspResponseContext)(NULL); EXPECT_EQ(GetLastError(), 127);
+    SET_ERR(0x1234); U(CertFreeServerOcspResponseContext)(NULL); EXPECT_EQ(GetLastError(), 127);
 }
