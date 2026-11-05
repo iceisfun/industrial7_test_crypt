@@ -319,7 +319,8 @@ TEST(cpc_acquire_type_nomatch_dss_name_rsa_type) {
     SET_ERR(0);
     CHECK(!cpc_acq(&h, MS_DEF_PROV_A, PROV_DSS, X_VERIFY)); EXPECT_ERR(X_NTE_PROV_TYPE_NO_MATCH);
     SET_ERR(0);
-    CHECK(!cpc_acq(&h, MS_DEF_RSA_SIG_PROV_A, PROV_RSA_FULL, X_VERIFY)); EXPECT_ERR(X_NTE_PROV_TYPE_NO_MATCH);
+    /* no registry entry for the type-2 signature provider on Win10: the provider lookup fails first */
+    CHECK(!cpc_acq(&h, MS_DEF_RSA_SIG_PROV_A, PROV_RSA_FULL, X_VERIFY)); EXPECT_ERR(X_NTE_KEYSET_NOT_DEF);
 }
 TEST(cpc_acquire_xp_aes_name_note) {
     REQUIRE(U(CryptAcquireContextA));
@@ -384,6 +385,7 @@ TEST(cpc_release_all_providers) {
     REQUIRE(U(CryptAcquireContextA)); REQUIRE(U(CryptReleaseContext));
     for (int i = 0; i < cpc_nprovs; i++) {
         HCRYPTPROV h = 0;
+        if (i == CPC_SIG_IDX && !cpc_prov_registered(cpc_provs[i].a)) { t_note("skipping unregistered \"%s\"", cpc_provs[i].a); continue; }
         if (!cpc_acq(&h, cpc_provs[i].a, cpc_provs[i].type, X_VERIFY)) { CHECKF(0, "acquire %s", cpc_provs[i].a); continue; }
         t_check(U(CryptReleaseContext)(h, 0), __FILE__, __LINE__, "release", "%s err 0x%lx", cpc_provs[i].a, GetLastError());
     }
@@ -480,4 +482,14 @@ TEST(cpc_release_from_other_thread) {
         if (w == WAIT_OBJECT_0) CHECK(ctx.ok); else TerminateThread(t, 0);
         CloseHandle(t);
     } else cpc_rel(h);
+}
+
+/* The type-2 signature provider is not part of Win10 22H2: no registry entry, not enumerated, not loadable. */
+TEST(cpc_sig_provider_absent) {
+    REQUIRE(U(CryptAcquireContextA));
+    const cpc_prov *P = &cpc_provs[CPC_SIG_IDX];
+    CHECK(!cpc_prov_registered(P->a));
+    HCRYPTPROV h = 0x61; SET_ERR(0);
+    CHECK(!cpc_acq(&h, P->a, P->type, X_VERIFY)); EXPECT_ERR(X_NTE_KEYSET_NOT_DEF);
+    EXPECT_EQ(h, 0x61);
 }

@@ -144,9 +144,16 @@ static void guk_rsa(int i) {
     k = 0x4242; SET_ERR(0);
     BOOL ok = U(CryptGetUserKey)(h, AT_SIGNATURE, &k);
     CHECK(!ok);
-    if (P->type == 2 || exch_ok || P->type == 12 || P->type == 3 || P->type == 13) EXPECT_ERR(X_NTE_NO_KEY);
+    /* the SChannel RSA provider has only an exchange key slot: AT_SIGNATURE is a bad type */
+    if (P->type == 12) EXPECT_ERR(X_NTE_BAD_TYPE);
+    else if (P->type == 2 || exch_ok || P->type == 3 || P->type == 13) EXPECT_ERR(X_NTE_NO_KEY);
     if (ok) U(CryptDestroyKey)(k);
     EXPECT_EQ(k, 0x4242);
+    /* AT_KEYEXCHANGE on a VERIFYCONTEXT: dssenh type 3 has no exchange algorithm, everything else has no key */
+    { HCRYPTKEY k2 = 0x4242; SET_ERR(0);
+      CHECK(!U(CryptGetUserKey)(h, AT_KEYEXCHANGE, &k2));
+      if (P->type == 3) EXPECT_ERR(X_NTE_BAD_ALGID); else EXPECT_ERR(X_NTE_NO_KEY);
+      EXPECT_EQ(k2, 0x4242); }
     if (exch_ok) {
         k = 0x4242; SET_ERR(0);
         CHECK(!U(CryptGetUserKey)(h, AT_KEYEXCHANGE, &k)); EXPECT_ERR(X_NTE_NO_KEY);

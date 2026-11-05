@@ -132,7 +132,10 @@ static void p_unique(int i) {
     BOOL ok = cpc_gpp(h, PP_UNIQUE_CONTAINER, buf, &n, 0);
     t_note("%s PP_UNIQUE_CONTAINER under VERIFYCONTEXT: %s (0x%lx) n=%lu", cpc_provs[i].a, ok ? buf : "fail", ok ? 0 : GetLastError(), n);
     n = sizeof buf; SET_ERR(0);
-    CHECK(!cpc_gpp(h, PP_UNIQUE_CONTAINER, buf, &n, 1)); EXPECT_ERR(X_NTE_BAD_FLAGS);
+    /* flag 1 (CRYPT_FIRST): rsaenh rejects it, dssenh ignores it and returns the same empty name */
+    ok = cpc_gpp(h, PP_UNIQUE_CONTAINER, buf, &n, 1);
+    if (cpc_provs[i].dss) { CHECK(ok); EXPECT_EQ(n, 1); EXPECT_EQ(buf[0], 0); }
+    else { CHECK(!ok); EXPECT_ERR(X_NTE_BAD_FLAGS); }
     cpc_rel(h);
 }
 PERPROV(cpc_gpp_unique_container, p_unique)

@@ -16,7 +16,7 @@ const cpc_prov cpc_provs[] = {
     /* 4 */ { MS_DEF_RSA_SIG_PROV_A,    MS_DEF_RSA_SIG_PROV_W,    2,  0, 0x200, 8,    2,
               R(CALG_MD5, CALG_SHA1, CALG_RSA_SIGN) },
     /* 5 */ { MS_DEF_RSA_SCHANNEL_PROV_A, MS_DEF_RSA_SCHANNEL_PROV_W, 12, 0, 0x200, 8, 1,
-              R(CALG_MD5, CALG_SHA1, CALG_RSA_SIGN, CALG_RSA_KEYX) },
+              R(CALG_MD5, CALG_SHA1, CALG_RSA_KEYX) },   /* no CALG_RSA_SIGN (0x2400) in the SChannel provider on Win10 */
     /* 6 */ { MS_DEF_DSS_PROV_A,        MS_DEF_DSS_PROV_W,        3,  1, 0x100, 0x40, 2,
               R(CALG_SHA1, CALG_DSS_SIGN) },
     /* 7 */ { MS_DEF_DSS_DH_PROV_A,     MS_DEF_DSS_DH_PROV_W,     13, 1, 0x100, 0x40, 3,
@@ -28,6 +28,18 @@ const cpc_prov cpc_provs[] = {
 };
 const int cpc_nprovs = 10;
 
+int cpc_prov_registered(const char *name) {
+    char key[512]; HKEY k;
+    snprintf(key, sizeof key, "SOFTWARE\\Microsoft\\Cryptography\\Defaults\\Provider\\%s", name);
+    LONG r = RegOpenKeyExA(HKEY_LOCAL_MACHINE, key, 0, KEY_READ, &k);
+    if (r == ERROR_SUCCESS) { RegCloseKey(k); return 1; }
+    return 0;
+}
+int cpc_skip_absent(int i) {
+    if (i != CPC_SIG_IDX || cpc_prov_registered(cpc_provs[i].a)) return 0;
+    t_skip("provider \"%s\" has no registry entry on this OS", cpc_provs[i].a);
+    return 1;
+}
 BOOL cpc_acq(HCRYPTPROV *h, const char *prov, DWORD type, DWORD flags) {
     return U(CryptAcquireContextA)(h, NULL, prov, type, flags);
 }

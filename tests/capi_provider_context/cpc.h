@@ -42,8 +42,14 @@ void cpc_rel(HCRYPTPROV h);
 /* enumerate PP_ENUMALGS; returns count (or -1 on protocol failure) */
 int cpc_enum_algs(HCRYPTPROV h, PROV_ENUMALGS *out, int max);
 int cpc_enum_algs_ex(HCRYPTPROV h, PROV_ENUMALGS_EX *out, int max);
+#define CPC_SIG_IDX 4   /* Microsoft RSA Signature Cryptographic Provider (type 2) */
+/* The type-2 signature provider has no registry entry on Windows 10 22H2; the per-provider
+ * tests skip that row with a stated reason (cpc_sig_provider_absent pins the absence). */
+int cpc_skip_absent(int i);
+int cpc_prov_registered(const char *name);
 #define PERPROV(tn, fn) \
-    TEST(tn##_0) { fn(0); } TEST(tn##_1) { fn(1); } TEST(tn##_2) { fn(2); } TEST(tn##_3) { fn(3); } \
-    TEST(tn##_4) { fn(4); } TEST(tn##_5) { fn(5); } TEST(tn##_6) { fn(6); } TEST(tn##_7) { fn(7); } \
-    TEST(tn##_8) { fn(8); } TEST(tn##_9) { fn(9); }
+    static void tn##_w(int i) { if (cpc_skip_absent(i)) return; fn(i); } \
+    TEST(tn##_0) { tn##_w(0); } TEST(tn##_1) { tn##_w(1); } TEST(tn##_2) { tn##_w(2); } TEST(tn##_3) { tn##_w(3); } \
+    TEST(tn##_4) { tn##_w(4); } TEST(tn##_5) { tn##_w(5); } TEST(tn##_6) { tn##_w(6); } TEST(tn##_7) { tn##_w(7); } \
+    TEST(tn##_8) { tn##_w(8); } TEST(tn##_9) { tn##_w(9); }
 #endif

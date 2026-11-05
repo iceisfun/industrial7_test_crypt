@@ -41,7 +41,7 @@ TEST(cpc_enumprov_contains_default_providers) {
     eprov e[MAXP]; int n = collect_providers(e, MAXP);
     CHECK(n > 0);
     for (int i = 0; i < cpc_nprovs; i++)
-        t_check(find_prov(e, n, cpc_provs[i].a, cpc_provs[i].type), __FILE__, __LINE__, "listed", "missing \"%s\" type %lu", cpc_provs[i].a, cpc_provs[i].type);
+        if (i != CPC_SIG_IDX) t_check(find_prov(e, n, cpc_provs[i].a, cpc_provs[i].type), __FILE__, __LINE__, "listed", "missing \"%s\" type %lu", cpc_provs[i].a, cpc_provs[i].type);
 }
 TEST(cpc_enumprov_each_acquirable_or_explained) {
     /* every registered provider resolves its registry entry: the failure, if any, is never a registry-level one */
@@ -431,4 +431,11 @@ TEST(cpc_defprov_type_matches_provider_type) {
         t_check(ok, __FILE__, __LINE__, "acquire default by name", "type %lu \"%s\" err 0x%lx", deftypes[k], nm, GetLastError());
         cpc_rel(h);
     }
+}
+
+TEST(cpc_enumprov_lacks_sig_provider) {
+    REQUIRE(U(CryptEnumProvidersA));
+    eprov e[MAXP]; int n = collect_providers(e, MAXP);
+    CHECK(n > 0);
+    CHECK(!find_prov(e, n, cpc_provs[CPC_SIG_IDX].a, cpc_provs[CPC_SIG_IDX].type));
 }

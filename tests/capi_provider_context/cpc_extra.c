@@ -163,6 +163,7 @@ TEST(cpc_handles_distinct_across_providers) {
     int ok[10] = {0};
     for (int i = 0; i < cpc_nprovs; i++) {
         if (cpc_provs[i].dss && t_is_wine()) continue;
+        if (i == CPC_SIG_IDX && !cpc_prov_registered(cpc_provs[i].a)) continue;
         ok[i] = cpc_acq(&h[i], cpc_provs[i].a, cpc_provs[i].type, X_VERIFY);
         CHECKF(ok[i], "%s err 0x%lx", cpc_provs[i].a, GetLastError());
         if (ok[i]) CHECK(h[i] != 0);
