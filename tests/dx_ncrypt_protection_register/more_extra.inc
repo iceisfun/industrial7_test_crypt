@@ -17,7 +17,7 @@ TEST(dxnpr_stored_size_tracks_length) {
 TEST(dxnpr_register_stops_at_first_nul) {
     NPR_GUARD();
     wchar_t n[128]; npr_name(n, 128, L"nul");
-    EXPECT_SS(reg(n, L"AB\\0CD", 0), 0);       /* only the first string is read */
+    EXPECT_SS(reg(n, L"AB\0CD", 0), 0);       /* only the first string is read */
     wchar_t buf[16]; SIZE_T cch = 16;
     EXPECT_SS(query(n, buf, &cch, 0), 0);
     EXPECT_EQ(cch, 3);
