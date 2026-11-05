@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Fetch named exports of a module from the Windows 10 corpus API.
-usage: fetch_exports.py <module> <out.txt> [--json out.json]
+"""Fetch named exports of a module from an export-table dump service.
+usage: CORPUS_API=<base url> fetch_exports.py <module> <out.txt> [--json out.json]
+The service address is taken from the CORPUS_API environment variable only; there is no default.
 Writes one exported name per line (sorted, unique). The JSON dump keeps ordinals and forwarder targets
 (useful for forwarder/export-table tests)."""
 import json, sys, urllib.request, os
-B = os.environ.get("CORPUS_API", "http://docker1.dev.moonlightcompanies.com:8765")
+B = os.environ.get("CORPUS_API")
+if not B or len(sys.argv) < 3:
+    sys.exit("usage: CORPUS_API=<base url> fetch_exports.py <module> <out.txt> [--json out.json]")
 mod, out = sys.argv[1], sys.argv[2]
 items, off = [], 0
 while True:
