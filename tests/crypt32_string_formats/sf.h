@@ -11,115 +11,9 @@
 #ifndef CRYPT_E_INVALID_X500_STRING
 #define CRYPT_E_INVALID_X500_STRING ((DWORD)0x80092023)
 
-/* ---- DER name builder ---- */
-typedef struct { int nrdn; const char *oid; BYTE tag; const void *v; int n; } sf_attr; /* nrdn=1: begins a new RDN; n<0: strlen */
-
-static int sf_der_hdr(BYTE *o, BYTE tag, int len)
-{
-    int k = 0; o[k++] = tag;
-    if (len < 0x80) o[k++] = (BYTE)len;
-    else if (len < 0x100) { o[k++] = 0x81; o[k++] = (BYTE)len; }
-    else { o[k++] = 0x82; o[k++] = (BYTE)(len >> 8); o[k++] = (BYTE)len; }
-    return k;
-}
-static int sf_der_oid(BYTE *o, const char *s)
-{
-    unsigned a = 0, b = 0; int k = 0, first = 1, idx = 0; const char *p = s; BYTE tmp[64];
-    while (*p) {
-        unsigned long v = strtoul(p, (char **)&p, 10);
-        if (idx == 0) a = (unsigned)v; else if (idx == 1) { b = (unsigned)v; tmp[k++] = (BYTE)(a * 40 + b); }
-        else { BYTE enc[8]; int e = 0; do { enc[e++] = (BYTE)(v & 0x7f); v >>= 7; } while (v); while (e--) tmp[k++] = enc[e] | (e ? 0x80 : 0); }
-        idx++; if (*p == '.') p++;
-    }
-    (void)first;
-    { int h = sf_der_hdr(o, 0x06, k); memcpy(o + h, tmp, k); return h + k; }
-}
-static DWORD sf_build_name(BYTE *out, const sf_attr *a, int cnt)
-{
-    static BYTE rdns[8192]; int rn = 0, i = 0;
-    while (i < cnt) {
-        BYTE set[2048]; int sn = 0, j = i;
-        do {
-            BYTE attr[1024], one[1024]; int an = 0, on, vl = a[j].n < 0 ? (int)strlen((const char*)a[j].v) : a[j].n, h;
-            an += sf_der_oid(attr + an, a[j].oid);
-            h = sf_der_hdr(attr + an, a[j].tag, vl); an += h; memcpy(attr + an, a[j].v, vl); an += vl;
-            on = sf_der_hdr(one, 0x30, an); memcpy(one + on, attr, an); on += an;
-            memcpy(set + sn, one, on); sn += on;
-            j++;
-        } while (j < cnt && !a[j].nrdn);
-        { BYTE hd[8]; int hl = sf_der_hdr(hd, 0x31, sn); memcpy(rdns + rn, hd, hl); rn += hl; memcpy(rdns + rn, set, sn); rn += sn; }
-        i = j;
-    }
-    { int hl = sf_der_hdr(out, 0x30, rn); memcpy(out + hl, rdns, rn); return (DWORD)(hl + rn); }
-}
-#define PS 0x13   /* PrintableString */
-#define U8 0x0c   /* UTF8String */
-#define IA 0x16   /* IA5String */
-#define T6 0x14   /* TeletexString */
-#define BM 0x1e   /* BMPString */
-#define NM 0x12   /* NumericString */
-
-extern const BYTE sf_cert_leaf[], sf_cert_ou[], sf_cert_o[], sf_cert_ca[], sf_cert_idn[];
-extern const DWORD sf_cert_leaf_len, sf_cert_ou_len, sf_cert_o_len, sf_cert_ca_len, sf_cert_idn_len;
-
-#define NAME_OF(buf, blob, ...) do { const sf_attr a_[] = { __VA_ARGS__ }; (blob).cbData = sf_build_name(buf, a_, (int)NELEM(a_)); (blob).pbData = buf; } while (0)
-
 #endif
 #ifndef CRYPT_E_NOT_FOUND
 #define CRYPT_E_NOT_FOUND ((DWORD)0x80092004)
-
-/* ---- DER name builder ---- */
-typedef struct { int nrdn; const char *oid; BYTE tag; const void *v; int n; } sf_attr; /* nrdn=1: begins a new RDN; n<0: strlen */
-
-static int sf_der_hdr(BYTE *o, BYTE tag, int len)
-{
-    int k = 0; o[k++] = tag;
-    if (len < 0x80) o[k++] = (BYTE)len;
-    else if (len < 0x100) { o[k++] = 0x81; o[k++] = (BYTE)len; }
-    else { o[k++] = 0x82; o[k++] = (BYTE)(len >> 8); o[k++] = (BYTE)len; }
-    return k;
-}
-static int sf_der_oid(BYTE *o, const char *s)
-{
-    unsigned a = 0, b = 0; int k = 0, first = 1, idx = 0; const char *p = s; BYTE tmp[64];
-    while (*p) {
-        unsigned long v = strtoul(p, (char **)&p, 10);
-        if (idx == 0) a = (unsigned)v; else if (idx == 1) { b = (unsigned)v; tmp[k++] = (BYTE)(a * 40 + b); }
-        else { BYTE enc[8]; int e = 0; do { enc[e++] = (BYTE)(v & 0x7f); v >>= 7; } while (v); while (e--) tmp[k++] = enc[e] | (e ? 0x80 : 0); }
-        idx++; if (*p == '.') p++;
-    }
-    (void)first;
-    { int h = sf_der_hdr(o, 0x06, k); memcpy(o + h, tmp, k); return h + k; }
-}
-static DWORD sf_build_name(BYTE *out, const sf_attr *a, int cnt)
-{
-    static BYTE rdns[8192]; int rn = 0, i = 0;
-    while (i < cnt) {
-        BYTE set[2048]; int sn = 0, j = i;
-        do {
-            BYTE attr[1024], one[1024]; int an = 0, on, vl = a[j].n < 0 ? (int)strlen((const char*)a[j].v) : a[j].n, h;
-            an += sf_der_oid(attr + an, a[j].oid);
-            h = sf_der_hdr(attr + an, a[j].tag, vl); an += h; memcpy(attr + an, a[j].v, vl); an += vl;
-            on = sf_der_hdr(one, 0x30, an); memcpy(one + on, attr, an); on += an;
-            memcpy(set + sn, one, on); sn += on;
-            j++;
-        } while (j < cnt && !a[j].nrdn);
-        { BYTE hd[8]; int hl = sf_der_hdr(hd, 0x31, sn); memcpy(rdns + rn, hd, hl); rn += hl; memcpy(rdns + rn, set, sn); rn += sn; }
-        i = j;
-    }
-    { int hl = sf_der_hdr(out, 0x30, rn); memcpy(out + hl, rdns, rn); return (DWORD)(hl + rn); }
-}
-#define PS 0x13   /* PrintableString */
-#define U8 0x0c   /* UTF8String */
-#define IA 0x16   /* IA5String */
-#define T6 0x14   /* TeletexString */
-#define BM 0x1e   /* BMPString */
-#define NM 0x12   /* NumericString */
-
-extern const BYTE sf_cert_leaf[], sf_cert_ou[], sf_cert_o[], sf_cert_ca[], sf_cert_idn[];
-extern const DWORD sf_cert_leaf_len, sf_cert_ou_len, sf_cert_o_len, sf_cert_ca_len, sf_cert_idn_len;
-
-#define NAME_OF(buf, blob, ...) do { const sf_attr a_[] = { __VA_ARGS__ }; (blob).cbData = sf_build_name(buf, a_, (int)NELEM(a_)); (blob).pbData = buf; } while (0)
 
 #endif
 #define SF_E_INVALIDARG ((DWORD)0x80070057)
@@ -342,8 +236,8 @@ static DWORD sf_build_name(BYTE *out, const sf_attr *a, int cnt)
 #define BM 0x1e   /* BMPString */
 #define NM 0x12   /* NumericString */
 
-extern const BYTE sf_cert_leaf[], sf_cert_ou[], sf_cert_o[], sf_cert_ca[], sf_cert_idn[];
-extern const DWORD sf_cert_leaf_len, sf_cert_ou_len, sf_cert_o_len, sf_cert_ca_len, sf_cert_idn_len;
+extern const BYTE sf_cert_leaf[], sf_cert_ou[], sf_cert_o[], sf_cert_ca[], sf_cert_idn[], sf_cert_em[];
+extern const DWORD sf_cert_leaf_len, sf_cert_ou_len, sf_cert_o_len, sf_cert_ca_len, sf_cert_idn_len, sf_cert_em_len;
 
 #define NAME_OF(buf, blob, ...) do { const sf_attr a_[] = { __VA_ARGS__ }; (blob).cbData = sf_build_name(buf, a_, (int)NELEM(a_)); (blob).pbData = buf; } while (0)
 
