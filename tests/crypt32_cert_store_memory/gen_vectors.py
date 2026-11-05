@@ -86,4 +86,9 @@ for n, b in [("v_cert_ca", der(ca)), ("v_cert_a", der(A)), ("v_cert_a2", der(A2)
              ("v_ctl_1a", ctl1a), ("v_ctl_1b", ctl1b), ("v_ctl_2", ctl2),
              ("v_p7_certs", p7), ("v_p7_certs_crl", p7crl), ("v_p12", p12), ("v_p12pw", p12pw)]:
     out += arr(n, b)
+import hashlib
+for n, o in [("a", der(A)), ("a2", der(A2)), ("b", der(B)), ("c", der(C)), ("ca", der(ca))]:
+    out += arr("v_sha1_" + n, hashlib.sha1(o).digest()) + arr("v_md5_" + n, hashlib.md5(o).digest())
+out += arr("v_name_a", A.subject.public_bytes()) + arr("v_name_b", B.subject.public_bytes()) + arr("v_name_ca", ca.subject.public_bytes())
+out += arr("v_serial_a", (0x1001).to_bytes(2,'little'))
 open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors.h"), "w").write(out)
