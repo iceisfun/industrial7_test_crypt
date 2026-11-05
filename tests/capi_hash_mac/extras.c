@@ -129,3 +129,34 @@ TEST(capi_hash_handle_usable_from_other_thread) {
     CHECKF(code == 0, "thread result %lu", code);
     U(CryptDestroyHash)(h); h_rel(p);
 }
+
+/* ---- review additions: duplicate independence and known answers over the duplicate */
+TEST(capi_hash_review_duplicate_diverges_independently) {
+    REQUIRE(U(CryptCreateHash)); REQUIRE(U(CryptDuplicateHash)); REQUIRE(U(CryptGetHashParam));
+    HCRYPTPROV p = h_acq_aes(); if (!p) return;
+    HCRYPTHASH a = 0, b = 0; BYTE da[20], db[20]; DWORD la = 20, lb = 20; char hx[64];
+    CHECK(U(CryptCreateHash)(p, CALG_SHA1, 0, 0, &a));
+    CHECK(U(CryptHashData)(a, (const BYTE *)"a", 1, 0));
+    CHECK(U(CryptDuplicateHash)(a, NULL, 0, &b));
+    CHECK(U(CryptHashData)(a, (const BYTE *)"bc", 2, 0));
+    CHECK(U(CryptHashData)(b, (const BYTE *)"bc", 2, 0));
+    CHECK(U(CryptGetHashParam)(a, HP_HASHVAL, da, &la, 0));
+    CHECK(U(CryptGetHashParam)(b, HP_HASHVAL, db, &lb, 0));
+    CHECK(la == 20 && lb == 20 && !memcmp(da, db, 20));
+    h_bin2hex(da, 20, hx);
+    CHECK(!strcmp(hx, "a9993e364706816aba3e25717850c26c9cd0d89d")); /* SHA-1("abc") */
+    U(CryptDestroyHash)(a); U(CryptDestroyHash)(b);
+    U(CryptReleaseContext)(p, 0);
+}
+TEST(capi_hash_review_empty_hashdata_then_value) {
+    REQUIRE(U(CryptCreateHash)); REQUIRE(U(CryptHashData)); REQUIRE(U(CryptGetHashParam));
+    HCRYPTPROV p = h_acq_aes(); if (!p) return;
+    HCRYPTHASH h = 0; BYTE d[16]; DWORD l = 16; char hx[64];
+    CHECK(U(CryptCreateHash)(p, CALG_MD5, 0, 0, &h));
+    CHECK(U(CryptHashData)(h, (const BYTE *)"", 0, 0));
+    CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, d, &l, 0));
+    h_bin2hex(d, 16, hx);
+    CHECK(l == 16 && !strcmp(hx, "d41d8cd98f00b204e9800998ecf8427e")); /* RFC 1321 empty */
+    U(CryptDestroyHash)(h);
+    U(CryptReleaseContext)(p, 0);
+}

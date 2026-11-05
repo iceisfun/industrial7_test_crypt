@@ -391,7 +391,8 @@ TEST(capi_mac_with_hashsessionkey_updates_state) {
         SET_ERR(0); ok = U(CryptHashSessionKey)(h, k2, CRYPT_LITTLE_ENDIAN); t_note("CryptHashSessionKey into MAC: %d err 0x%lx", ok, ok ? 0 : GetLastError());
         U(CryptDestroyHash)(h);
     }
-    if (k) U(CryptDestroyKey)(k); if (k2) U(CryptDestroyKey)(k2);
+    if (k) U(CryptDestroyKey)(k);
+    if (k2) U(CryptDestroyKey)(k2);
     EPILOG;
 }
 TEST(capi_mac_stream_key_observed) {
