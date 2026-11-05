@@ -695,8 +695,8 @@ TEST(dxss_control_notify_resync_rearms_event) {
         PCCERT_CONTEXT c = ds_find(a, 0);
         CHECK(c != NULL);                                             /* resynchronised content */
         if (c) U(CertFreeCertificateContext)(c);
-        CHECK(ds_add_ok(b, 1)); ds_sync(b);
-        WAITEV(ev, 5000, WAIT_OBJECT_0);       /* second change signals again */
+        /* second change signals again; the re-arm after RESYNC is asynchronous, so a change made inside that window is absorbed: retry with new certificates */
+        { DWORD w_ = WAIT_TIMEOUT; for (int k_ = 1; k_ <= 4 && w_ != WAIT_OBJECT_0; k_++) { CHECK(ds_add_ok(b, 1 + (k_ - 1) % 3)); ds_sync(b); w_ = WaitForSingleObject(ev, 2500); } EXPECT_EQ(w_, WAIT_OBJECT_0); }
         U(CertControlStore)(a, 0, CERT_STORE_CTRL_CANCEL_NOTIFY, &ev);
     } else CHECK(0);
     CloseHandle(ev);
