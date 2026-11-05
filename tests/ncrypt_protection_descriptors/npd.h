@@ -27,7 +27,9 @@ typedef void  (WINAPI *npd_free_fn)(PVOID);
 typedef struct { DWORD cbSize; npd_alloc_fn pfnAlloc; npd_free_fn pfnFree; } NPD_ALLOC_PARA;
 typedef LONG (WINAPI *npd_stream_cb)(void *ctx, const BYTE *data, SIZE_T cb, BOOL final);
 typedef struct { npd_stream_cb pfnStreamOutput; void *pvCallbackCtxt; } NPD_STREAM_INFO;
-typedef struct { npd_stream_cb pfnStreamOutput; void *pvCallbackCtxt; HWND hwndParent; } NPD_STREAM_INFO_EX;
+/* Ex callback: extra descriptor handle argument BEFORE fFinal (PFNCryptStreamOutputCallbackEx) */
+typedef LONG (WINAPI *npd_stream_cb_ex)(void *ctx, const BYTE *data, SIZE_T cb, void *hDescriptor, BOOL final);
+typedef struct { npd_stream_cb_ex pfnStreamOutput; void *pvCallbackCtxt; } NPD_STREAM_INFO_EX;
 
 UDECL(LONG, NCryptCreateProtectionDescriptor, (LPCWSTR, DWORD, void **));
 UDECL(LONG, NCryptCloseProtectionDescriptor, (void *));
@@ -87,6 +89,9 @@ static LONG WINAPI npd_cb(void *ctx, const BYTE *p, SIZE_T cb, BOOL fin) {
     }
     if (s->fail_at && s->calls == s->fail_at) return s->fail_ret;
     return s->ret;
+}
+static LONG WINAPI npd_cb_ex(void *ctx, const BYTE *p, SIZE_T cb, void *hdesc, BOOL fin) {
+    return npd_cb(ctx, p, cb, fin);
 }
 static void npd_sink_free(npd_sink *s) { free(s->buf); memset(s, 0, sizeof *s); }
 
