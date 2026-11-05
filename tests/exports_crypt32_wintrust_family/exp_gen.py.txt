@@ -1,5 +1,5 @@
 import json,os
-T="/home/it/industrial7_test_crypt/tools/"
+T=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","..","tools")+os.sep
 mods="crypt32 cryptnet cryptui cryptdlg cryptext cryptxml cryptowinrt cryptcatsvc cryptngc wintrust mssign32 mssip32 capisp tbs keyiso certenc certprop msasn1 ntasn1 certca certcli".split()
 def emit(fn,group):
     o=['/* GENERATED from tools/<mod>_exports.json at authoring time (Windows 10 x64 export tables). */','#include "exp.h"']
