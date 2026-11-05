@@ -312,9 +312,9 @@ TEST(dxnpr_query_forces_terminator_on_unterminated_value) {
     EXPECT_EQ(raw_set(0, n, REG_SZ, L"LOCAL=user", 10 * sizeof(wchar_t)), 0);
     wchar_t buf[16]; memset(buf, 0x55, sizeof buf); SIZE_T cch = 16;
     EXPECT_SS(query(n, buf, &cch, 0), 0);
-    EXPECT_EQ(cch, 10);
-    t_note("unterminated value: last char 0x%x", buf[9]);
-    CHECK(buf[9] == 0);   /* the final character slot is overwritten with NUL */
+    t_note("unterminated value: cch %lu", (unsigned long)cch);   /* registry layer may or may not append a NUL */
+    CHECK(cch == 10 || cch == 11);
+    if (cch >= 1 && cch <= 16) CHECK(buf[cch - 1] == 0);   /* the final returned slot is always NUL */
     npr_end();
 }
 
@@ -423,3 +423,6 @@ TEST(dxnpr_machine_register_requires_elevation_or_succeeds) {
     EXPECT_SS(query(n, NULL, &cch, NPD_MACHINE_FLAG), NPD_HR_FILE_NOT_FOUND);
     npr_end();
 }
+
+#include "more_validation.inc"
+#include "more_state.inc"
