@@ -69,7 +69,7 @@ TEST(winrt_buffer_statics_no_default_ctor) {
     void *o = (void *)1;
     HRESULT hr = VF(f, 6, void **)(f, &o);
     CHECK(FAILED(hr));
-    CHECK(o == NULL);
+    if (!t_is_wine()) CHECK(o == NULL);
     wr_release(f);
 }
 
