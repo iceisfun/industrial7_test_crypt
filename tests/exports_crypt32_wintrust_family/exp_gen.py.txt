@@ -1,0 +1,42 @@
+import json,os
+T="/home/it/industrial7_test_crypt/tools/"
+mods="crypt32 cryptnet cryptui cryptdlg cryptext cryptxml cryptowinrt cryptcatsvc cryptngc wintrust mssign32 mssip32 capisp tbs keyiso certenc certprop msasn1 ntasn1 certca certcli".split()
+def emit(fn,group):
+    o=['/* GENERATED from tools/<mod>_exports.json at authoring time (Windows 10 x64 export tables). */','#include "exp.h"']
+    for m in group:
+        d=sorted(json.load(open(T+m+"_exports.json")),key=lambda x:x['ordinal'])
+        o.append("const exp_ent exp_tab_%s[]={"%m)
+        for x in d:
+            n='"%s"'%x['name'] if x['name'] else 'NULL'
+            f='"%s"'%x['forwarder'] if x['forwarder'] else 'NULL'
+            o.append(' {%s,%d,%s},'%(n,x['ordinal'],f))
+        o.append("};")
+        o.append("const int exp_cnt_%s=%d;"%(m,len(d)))
+    open(fn,"w").write("\n".join(o)+"\n")
+emit("exp_data1.c",mods[:10]); emit("exp_data2.c",mods[10:])
+h=['/* GENERATED */','#ifndef EXP_H','#define EXP_H','#include "t.h"',
+'typedef struct { const char *name; unsigned ord; const char *fwd; } exp_ent;',
+'void exp_run(const char *dll, const char *which, const exp_ent *tab, int n);',
+'#define EXP_DECL(m) extern const exp_ent exp_tab_##m[]; extern const int exp_cnt_##m;']
+for m in mods: h.append("EXP_DECL(%s)"%m)
+h.append('''#define EXP_SUITE(m, dll) \\
+ TEST(exp_##m##_module_loads)       { exp_run(dll, "load", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_names_resolve)      { exp_run(dll, "names", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_ordinals_resolve)   { exp_run(dll, "ords", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_name_matches_ordinal) { exp_run(dll, "nameord", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_local_in_image)     { exp_run(dll, "inimg", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_forwarders)         { exp_run(dll, "fwd", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_bogus_name)         { exp_run(dll, "bogusname", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_bogus_ordinal)      { exp_run(dll, "bogusord", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_case_sensitive)     { exp_run(dll, "case", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_table_sanity)       { exp_run(dll, "sanity", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_aw_pairs)           { exp_run(dll, "awpairs", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_dll_entry_points)   { exp_run(dll, "dllentry", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_no_unlisted_ordinals) { exp_run(dll, "extras", exp_tab_##m, exp_cnt_##m); } \\
+ TEST(exp_##m##_getprocaddress_null_name) { exp_run(dll, "nullname", exp_tab_##m, exp_cnt_##m); }
+#endif''')
+open("exp.h","w").write("\n".join(h)+"\n")
+for fn,grp in (("exp_suite1.c",mods[:7]),("exp_suite2.c",mods[7:14]),("exp_suite3.c",mods[14:])):
+    o=['#include "exp.h"','/* Resolve-only export sweeps; see exp_common.c for the per-test semantics. */']
+    for m in grp: o.append('EXP_SUITE(%s, "%s.dll")'%(m,m))
+    open(fn,"w").write("\n".join(o)+"\n")
