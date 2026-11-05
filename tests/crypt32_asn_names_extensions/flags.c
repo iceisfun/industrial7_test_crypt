@@ -335,7 +335,9 @@ TEST(sweep_every_truncation_fails) {
             ok = U(CryptDecodeObjectEx)(ENC, v->oid, v->der, cut, v->flags, NULL, NULL, &cb);
             if (ok) { t_check(0, __FILE__, __LINE__, "truncated decode must fail", "%s cut %lu of %lu succeeded", v->label, cut, v->n); continue; }
             DWORD e = GetLastError();
-            if ((e >> 16) != 0x8009) t_check(0, __FILE__, __LINE__, "truncation error is a CRYPT_E code", "%s cut %lu err 0x%lx", v->label, cut, e);
+            /* the name-value decoder leaves the last error untouched (0) */
+            if (!strcmp(v->label, "namevalue")) t_check(e == 0, __FILE__, __LINE__, "name-value truncation leaves last error 0", "cut %lu err 0x%lx", cut, e);
+            else if ((e >> 16) != 0x8009) t_check(0, __FILE__, __LINE__, "truncation error is a CRYPT_E code", "%s cut %lu err 0x%lx", v->label, cut, e);
             else t_check(1, __FILE__, __LINE__, "", NULL);
         }
     }
@@ -348,6 +350,7 @@ TEST(sweep_truncated_error_is_eod_or_corrupt) {
         DWORD cb = 0; SET_ERR(0);
         BOOL ok = U(CryptDecodeObjectEx)(ENC, v->oid, v->der, v->n - 1, v->flags, NULL, NULL, &cb);
         DWORD e = GetLastError();
+        if (!strcmp(v->label, "namevalue")) { CHECKF(!ok && e == 0, "namevalue: ok=%d err=0x%lx", ok, e); continue; }
         CHECKF(!ok && (e == HR_ASN1_EOD || e == HR_ASN1_CORRUPT), "%s: ok=%d err=0x%lx", v->label, ok, e);
     }
 }

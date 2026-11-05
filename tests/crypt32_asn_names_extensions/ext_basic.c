@@ -308,13 +308,14 @@ TEST(bc_encode) {
     static BYTE ca = CERT_CA_SUBJECT_FLAG;
     CERT_BASIC_CONSTRAINTS_INFO s; memset(&s, 0, sizeof s);
     s.SubjectType.cbData = 1; s.SubjectType.pbData = &ca; s.SubjectType.cUnusedBits = 0;
-    ENC_EQ(X509_BASIC_CONSTRAINTS, &s, v_bc_ca);
-    ENC_EQ(szOID_BASIC_CONSTRAINTS, &s, v_bc_ca);
+    /* the encoder trims trailing zero bits: a CA flag always has 7 unused bits (Windows 10) */
+    ENC_EQ(X509_BASIC_CONSTRAINTS, &s, v_bc_ca_enc);
+    ENC_EQ(szOID_BASIC_CONSTRAINTS, &s, v_bc_ca_enc);
     s.fPathLenConstraint = TRUE; s.dwPathLenConstraint = 2;
-    ENC_EQ(X509_BASIC_CONSTRAINTS, &s, v_bc_ca_pl2);
+    ENC_EQ(X509_BASIC_CONSTRAINTS, &s, v_bc_ca_pl2_enc);
     CERT_NAME_BLOB nb = { sizeof v_name_cn_test, (BYTE *)v_name_cn_test };
     s.cSubtreesConstraint = 1; s.rgSubtreesConstraint = &nb;
-    ENC_EQ(X509_BASIC_CONSTRAINTS, &s, v_bc_ca_pl2_sub);
+    ENC_EQ(X509_BASIC_CONSTRAINTS, &s, v_bc_ca_pl2_sub_enc);
     memset(&s, 0, sizeof s);
     ENC_EQ(X509_BASIC_CONSTRAINTS, &s, v_bc_empty);
 }
@@ -330,9 +331,9 @@ TEST(bc_decode) {
     }
     s = DEC(X509_BASIC_CONSTRAINTS, v_bc_empty, 0, NULL);
     if (s) { CHECK(s->SubjectType.cbData == 0 && !s->fPathLenConstraint && s->cSubtreesConstraint == 0); LocalFree(s); }
-    ROUNDTRIP(X509_BASIC_CONSTRAINTS, v_bc_ca);
-    ROUNDTRIP(X509_BASIC_CONSTRAINTS, v_bc_ca_pl2);
-    ROUNDTRIP(X509_BASIC_CONSTRAINTS, v_bc_ca_pl2_sub);
+    ROUNDTRIP_TO(X509_BASIC_CONSTRAINTS, v_bc_ca, v_bc_ca_enc);
+    ROUNDTRIP_TO(X509_BASIC_CONSTRAINTS, v_bc_ca_pl2, v_bc_ca_pl2_enc);
+    ROUNDTRIP_TO(X509_BASIC_CONSTRAINTS, v_bc_ca_pl2_sub, v_bc_ca_pl2_sub_enc);
 }
 
 /* ---- key usage (bit string) -------------------------------------------- */
@@ -363,7 +364,8 @@ TEST(keyusage_decode) {
     if (b) { CHECK(b->cbData == 1); LocalFree(b); }
     DWORD c1, c2; b = DEC(X509_KEY_USAGE, v_ku_two, 0, &c1);
     CRYPT_BIT_BLOB *n = DEC(X509_KEY_USAGE, v_ku_two, CRYPT_DECODE_NOCOPY_FLAG, &c2);
-    if (n) { CHECK(PTR_IN(n->pbData, v_ku_two, sizeof v_ku_two)); if (b) CHECK(c2 < c1); LocalFree(n); }
+    if (n) { /* bit strings are copied even with NOCOPY (probed): same size, not in place */
+        CHECKF(!PTR_IN(n->pbData, v_ku_two, sizeof v_ku_two), "ptr %p input %p", n->pbData, v_ku_two); if (b) CHECKF(c2 == c1, "nocopy size %lu copy size %lu", c2, c1); LocalFree(n); }
     if (b) LocalFree(b);
 }
 TEST(keyusage_decode_errors) {
@@ -417,8 +419,10 @@ TEST(eku_encode_invalid_oid) {
     LPSTR bad[] = { (LPSTR)"1.2.x" }; CERT_ENHKEY_USAGE e = { 1, bad };
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_ENHANCED_KEY_USAGE, &e, 0, NULL, NULL, &cb);
-    CHECK(!r);
-    t_note("EKU with malformed OID string: err 0x%lx", GetLastError());
+    /* the OID string parser is lenient: a non-numeric arc encodes as 0 (probed on Windows 10) */
+    static const BYTE lenient[] = { 0x30, 0x04, 0x06, 0x02, 0x2a, 0x00 };
+    CHECKF(r, "ret %d cb %lu err 0x%lx", r, cb, GetLastError());
+    ENC_EQ(X509_ENHANCED_KEY_USAGE, &e, lenient);
     LPSTR one[] = { (LPSTR)"1" }; e.rgpszUsageIdentifier = one; SET_ERR(0);
     r = U(CryptEncodeObjectEx)(ENC, X509_ENHANCED_KEY_USAGE, &e, 0, NULL, NULL, &cb);
     t_note("EKU with one-arc OID \"1\": ok=%d err=0x%lx", r, GetLastError());
@@ -437,7 +441,8 @@ TEST(authkeyid_v1_encode_decode) {
     s.CertSerialNumber.cbData = 1; s.CertSerialNumber.pbData = ser;
     ENC_EQ(X509_AUTHORITY_KEY_ID, &s, v_aki_serial1);
     s.CertIssuer.cbData = sizeof v_name_cn_test; s.CertIssuer.pbData = (BYTE *)v_name_cn_test;
-    ENC_TRY(X509_AUTHORITY_KEY_ID, &s, v_aki_issuer_serial);
+    /* the legacy structure puts the issuer name blob straight into [1] (no directoryName wrapper) */
+    ENC_EQ(X509_AUTHORITY_KEY_ID, &s, v_aki_issuer_serial_enc);
     CERT_AUTHORITY_KEY_ID_INFO *d = DEC(X509_AUTHORITY_KEY_ID, v_aki_keyid, 0, NULL);
     if (d) { CHECK(d->KeyId.cbData == 4 && !memcmp(d->KeyId.pbData, kid, 4)); CHECK(d->CertIssuer.cbData == 0 && d->CertSerialNumber.cbData == 0); LocalFree(d); }
     d = DEC(X509_AUTHORITY_KEY_ID, v_aki_serial1, 0, NULL);

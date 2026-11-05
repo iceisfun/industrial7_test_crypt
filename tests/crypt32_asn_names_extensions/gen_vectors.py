@@ -76,6 +76,10 @@ V['bc_ca'] = seq(bits(b'\x80'))
 V['bc_ca_pl2'] = seq(bits(b'\x80'), integer(2))
 V['bc_ca_pl2_sub'] = seq(bits(b'\x80'), integer(2), seq(N))
 V['bc_empty'] = seq(tlv(3, b'\x00'))
+# Windows 10 trims trailing zero bits when encoding a bit string, so a CA flag always goes out as 7 unused bits
+V['bc_ca_enc'] = seq(bits(b'\x80', 7))
+V['bc_ca_pl2_enc'] = seq(bits(b'\x80', 7), integer(2))
+V['bc_ca_pl2_sub_enc'] = seq(bits(b'\x80', 7), integer(2), seq(N))
 # key usage
 V['ku_ds'] = bits(b'\x80', 7)
 V['ku_two'] = bits(b'\xa0\x80', 7)
@@ -97,6 +101,7 @@ V['aki2_serial'] = seq(tlv(0x82, b'\x03\x02\x01'))  # INTEGER blobs are little-e
 V['aki2_all'] = seq(tlv(0x80, b'\x01\x02\x03\x04'), ctx(1, ctx(4, N)), tlv(0x82, b'\x01'))
 V['aki_serial1'] = seq(tlv(0x82, b'\x01'))
 V['aki_issuer_serial'] = seq(ctx(1, ctx(4, N)), tlv(0x82, b'\x01'))
+V['aki_issuer_serial_enc'] = seq(ctx(1, N), tlv(0x82, b'\x01'))
 # SKI
 V['ski_3'] = octets(b'\x01\x02\x03')
 V['ski_empty'] = octets(b'')
@@ -140,12 +145,13 @@ V['idp_indirect'] = seq(tlv(0x84, b'\xff'))
 V['idp_user_indirect'] = seq(tlv(0x81, b'\xff'), tlv(0x84, b'\xff'))
 V['idp_url'] = seq(fn(tlv(0x86, b'http://x')))
 V['idp_reasons'] = seq(tlv(0x83, b'\x06\x80'))
+V['idp_reasons_enc'] = seq(tlv(0x83, b'\x07\x80'))
 # name constraints
 st = lambda base, mn=None, mx=None: seq(base, *( [tlv(0x80, bytes([mn]))] if mn else []), *([tlv(0x81, bytes([mx]))] if mx is not None else []))
 V['nc_empty'] = seq()
 V['nc_perm'] = seq(ctx(0, st(dns('a.com'))))
 V['nc_excl'] = seq(ctx(1, st(dns('a.com'))))
-V['nc_both'] = seq(ctx(0, st(dns('a.com')), st(tlv(0x81, b'x@y.z'))), ctx(1, st(tlv(0x86, b'http://x'))))
+V['nc_both'] = seq(ctx(0, st(dns('a.com')) + st(tlv(0x81, b'x@y.z'))), ctx(1, st(tlv(0x86, b'http://x'))))
 V['nc_minmax'] = seq(ctx(0, st(dns('a.com'), 1, 5)))
 V['nc_max0'] = seq(ctx(0, st(dns('a.com'), None, 0)))
 # crl reason
@@ -184,30 +190,35 @@ spki = seq(seq(oid('1.2.840.113549.1.1.1'), bytes([5,0])), bits(seq(integer(0x01
 V['spki_rsa_tiny'] = spki
 V['sigalg_sha1rsa_null'] = sha1rsa
 V['sigalg_sha1rsa_np'] = sha1rsa_np
-tbs_base = lambda ver, ext='': seq(*( [ctx(0, integer(ver))] if ver else []), integer(1), sha1rsa_np, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki, *([ext] if ext else []))
-V['tbs_v1'] = seq(integer(1), sha1rsa_np, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
 V['tbs_v1_nullparams'] = seq(integer(1), sha1rsa, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
-V['tbs_v3'] = seq(ctx(0, integer(2)), integer(1), sha1rsa_np, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
-V['tbs_v3_serial2'] = seq(ctx(0, integer(2)), tlv(2, b'\x02\x01'), sha1rsa_np, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
-V['tbs_v3_ext'] = seq(ctx(0, integer(2)), integer(1), sha1rsa_np, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki, ctx(3, V['ext_one']))
-V['tbs_v3_uid'] = seq(ctx(0, integer(2)), integer(1), sha1rsa_np, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki, tlv(0x81, b'\x00\x01'), tlv(0x82, b'\x00\x02'))
-V['tbs_v3_gentime'] = seq(ctx(0, integer(2)), integer(1), sha1rsa_np, N, seq(utc('000101000000Z'), gen('20500101000000Z')), N, spki)
-V['tbs_truncated'] = V['tbs_v1'][:-3]
-V['x509_cert'] = seq(V['tbs_v1'], sha1rsa_np, bits(b'\x01\x02\x03', 0))
+def build_cert_structs(SIG, sfx):
+    V['tbs_v1'+sfx] = seq(integer(1), SIG, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
+    V['tbs_v3'+sfx] = seq(ctx(0, integer(2)), integer(1), SIG, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
+    V['tbs_v3_serial2'+sfx] = seq(ctx(0, integer(2)), tlv(2, b'\x02\x01'), SIG, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
+    V['tbs_v3_ext'+sfx] = seq(ctx(0, integer(2)), integer(1), SIG, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki, ctx(3, V['ext_one']))
+    V['tbs_v3_uid'+sfx] = seq(ctx(0, integer(2)), integer(1), SIG, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki, tlv(0x81, b'\x00\x01'), tlv(0x82, b'\x00\x02'))
+    V['tbs_v3_gentime'+sfx] = seq(ctx(0, integer(2)), integer(1), SIG, N, seq(utc('000101000000Z'), gen('20500101000000Z')), N, spki)
+    if not sfx: V['tbs_truncated'] = V['tbs_v1'][:-3]
+    V['x509_cert'+sfx] = seq(V['tbs_v1'], SIG, bits(b'\x01\x02\x03', 0))
+    V['x509_cert_v3'+sfx] = seq(V['tbs_v3'], SIG, bits(b'\x01\x02\x03', 0))
+    V['x509_cert_tiny'+sfx] = seq(integer(5), SIG, bits(b'\x01\x02\x03', 0))
+    # CRL TBS
+    rev = seq(integer(1), utc('000101000000Z'))
+    V['crl_v1_nonext'+sfx] = seq(SIG, N, utc('000101000000Z'))
+    V['crl_v1_next'+sfx] = seq(SIG, N, utc('000101000000Z'), utc('491231235959Z'))
+    V['crl_v1_entry'+sfx] = seq(SIG, N, utc('000101000000Z'), utc('491231235959Z'), seq(rev))
+    V['crl_v2_ext'+sfx] = seq(integer(1), SIG, N, utc('000101000000Z'), utc('491231235959Z'), ctx(0, V['ext_one']))
+    V['crl_v2_entry_ext'+sfx] = seq(integer(1), SIG, N, utc('000101000000Z'), utc('491231235959Z'), seq(seq(integer(1), utc('000101000000Z'), V['ext_one'])))
+    # CSR
+    V['csr_noattr'+sfx] = seq(integer(0), N, spki, ctx(0, b''))
+    V['csr_attr'+sfx] = seq(integer(0), N, spki, ctx(0, seq(oid('1.2.840.113549.1.9.14'), sset(V['ext_empty']))))
+    # cert request info with CTL? no
+
+build_cert_structs(sha1rsa_np, '')
+# Windows 10 never writes absent AlgorithmIdentifier parameters: it adds NULL, so encoders produce the _n forms
+build_cert_structs(sha1rsa, '_n')
 V['x509_cert_nullparams'] = seq(V['tbs_v1'], sha1rsa, bits(b'\x01\x02\x03', 0))
-V['x509_cert_v3'] = seq(V['tbs_v3'], sha1rsa_np, bits(b'\x01\x02\x03', 0))
-V['x509_cert_tiny'] = seq(integer(5), sha1rsa_np, bits(b'\x01\x02\x03', 0))
-# CRL TBS
-rev = seq(integer(1), utc('000101000000Z'))
-V['crl_v1_nonext'] = seq(sha1rsa_np, N, utc('000101000000Z'))
-V['crl_v1_next'] = seq(sha1rsa_np, N, utc('000101000000Z'), utc('491231235959Z'))
-V['crl_v1_entry'] = seq(sha1rsa_np, N, utc('000101000000Z'), utc('491231235959Z'), seq(rev))
-V['crl_v2_ext'] = seq(integer(1), sha1rsa_np, N, utc('000101000000Z'), utc('491231235959Z'), ctx(0, V['ext_one']))
-V['crl_v2_entry_ext'] = seq(integer(1), sha1rsa_np, N, utc('000101000000Z'), utc('491231235959Z'), seq(seq(integer(1), utc('000101000000Z'), V['ext_one'])))
-# CSR
-V['csr_noattr'] = seq(integer(0), N, spki, ctx(0, b''))
-V['csr_attr'] = seq(integer(0), N, spki, ctx(0, seq(oid('1.2.840.113549.1.9.14'), sset(V['ext_empty']))))
-# cert request info with CTL? no
+V['tbs_v3_serial_hi_enc'] = seq(ctx(0, integer(2)), tlv(2, b'\x80'), sha1rsa, N, seq(utc('000101000000Z'), utc('491231235959Z')), N, spki)
 V['spki_pubkey_seq'] = seq(integer(0x010001+0x100000000), integer(3))
 V['csr_signed'] = seq(V['csr_noattr'], sha1rsa_np, bits(b'\x01\x02\x03', 0))
 V['crl_signed'] = seq(V['crl_v1_next'], sha1rsa_np, bits(b'\x01\x02\x03', 0))

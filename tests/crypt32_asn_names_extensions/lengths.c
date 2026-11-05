@@ -90,7 +90,8 @@ TEST(lengths_decode_oversized_length_field) {
     CHECK(e == HR_ASN1_EOD || e == HR_ASN1_LARGE || e == HR_ASN1_CORRUPT);
     SET_ERR(0);
     r = U(CryptDecodeObjectEx)(ENC, X509_NAME, v_seq_long_form_len, sizeof v_seq_long_form_len, 0, NULL, NULL, &cb);
-    CHECK(!r); t_note("truncated length-of-length: err 0x%lx", GetLastError());
+    /* "30 81 00" is a long-form zero length: accepted as an empty name (probed) */
+    CHECKF(r, "ret %d err 0x%lx", r, GetLastError());
 }
 
 /* ---- character sets ------------------------------------------------------ */
@@ -224,14 +225,38 @@ TEST(oid_arcs_in_alt_name_registered_id) {
         LocalFree(p);
     }
 }
-TEST(oid_malformed_strings_rejected) {
+TEST(oid_malformed_strings) {
     REQUIRE(U(CryptEncodeObjectEx));
-    static const char *bad[] = { "", "1", "1..2", "1.2.", ".1.2", "1.2.x", "3.1", "1.40", "2.5.4.-3", "1. 2" };
-    for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
-        LPSTR u[1] = { (LPSTR)bad[i] }; CERT_ENHKEY_USAGE e = { 1, u };
+    /* Windows 10 rejects structural errors with ASN1_BADARG and takes non-numeric arcs leniently (they become 0 or wrap). */
+    static const struct { const char *s; DWORD err; const char *hex; } rows[] = {
+        { "",         HR_INVALIDARG, NULL },
+        { "1",        0x80093109, NULL },
+        { "1..2",     0x80093109, NULL },
+        { "1.2.",     0x80093109, NULL },
+        { ".1.2",     0x80093109, NULL },
+        { "3.1",      0x80093109, NULL },
+        { "1.40",     0x80093109, NULL },
+        { "1. 2",     0x80093109, NULL },
+        { "1.2.x",    0, "3004" "06022a00" },
+        /* an arc that stops at a letter keeps its leading digits; a fresh value is used because crypt32 remembers OID strings it has seen (decoding 2a03 later would return the malformed text) */
+        { "1.2.777777x", 0, "3006" "06042aafbc31" },
+        { "2.5.4.-3", 0, "300e" "060c550481ffffffffffffffff7d" },
+    };
+    for (unsigned i = 0; i < sizeof rows / sizeof *rows; i++) {
+        LPSTR u[1] = { (LPSTR)rows[i].s }; CERT_ENHKEY_USAGE e = { 1, u };
         DWORD cb = 0; SET_ERR(0);
         BOOL r = U(CryptEncodeObjectEx)(ENC, X509_ENHANCED_KEY_USAGE, &e, 0, NULL, NULL, &cb);
-        t_note("EKU OID \"%s\": ok=%d err=0x%lx", bad[i], r, GetLastError());
-        if (bad[i][0] == 0 || !strcmp(bad[i], "1..2") || !strcmp(bad[i], "1.2.x")) CHECKF(!r, "\"%s\" must be rejected", bad[i]);
+        DWORD err = GetLastError();
+        t_label("OID \"%s\"", rows[i].s);
+        if (rows[i].hex) {
+            BYTE exp[32]; DWORD n = 0; const char *h = rows[i].hex;
+            for (; h[0] && h[1]; h += 2) { unsigned v; sscanf(h, "%2x", &v); exp[n++] = (BYTE)v; }
+            CHECKF(r, "ret %d err 0x%lx", r, err);
+            a_enc_eq(__FILE__, __LINE__, X509_ENHANCED_KEY_USAGE, &e, 0, exp, n);
+        } else {
+            CHECKF(!r, "ret %d", r);
+            CHECKF(err == rows[i].err, "err got 0x%lx want 0x%lx", err, rows[i].err);
+        }
     }
+    t_label(NULL);
 }

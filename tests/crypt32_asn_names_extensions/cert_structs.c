@@ -104,7 +104,7 @@ TEST(extensions_decode_errors) {
 TEST(tbs_cert_encode_v1) {
     REQUIRE(U(CryptEncodeObjectEx));
     CERT_INFO ci; CERT_PUBLIC_KEY_INFO k; mk_cert(&ci, &k);
-    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v1);
+    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v1_n);
 }
 TEST(tbs_cert_encode_algorithm_parameters) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -116,13 +116,14 @@ TEST(tbs_cert_encode_v3_and_serials) {
     REQUIRE(U(CryptEncodeObjectEx));
     CERT_INFO ci; CERT_PUBLIC_KEY_INFO k; mk_cert(&ci, &k);
     ci.dwVersion = CERT_V3;
-    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3);
+    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_n);
     static BYTE s2[] = { 0x01, 0x02 };           /* little-endian blob => big-endian 0x0201 */
     ci.SerialNumber.cbData = 2; ci.SerialNumber.pbData = s2;
-    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_serial2);
+    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_serial2_n);
     static BYTE s80[] = { 0x80 };
     ci.SerialNumber.cbData = 1; ci.SerialNumber.pbData = s80;
-    ENC_TRY(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_serial_hi);
+    /* the serial blob is written as the raw big-endian bytes with no sign padding */
+    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_serial_hi_enc);
 }
 TEST(tbs_cert_encode_extensions_and_unique_ids) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -130,18 +131,18 @@ TEST(tbs_cert_encode_extensions_and_unique_ids) {
     ci.dwVersion = CERT_V3;
     CERT_EXTENSION e = { (LPSTR)szOID_BASIC_CONSTRAINTS2, FALSE, { sizeof empty_seq, empty_seq } };
     ci.cExtension = 1; ci.rgExtension = &e;
-    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_ext);
+    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_ext_n);
     ci.cExtension = 0; ci.rgExtension = NULL;
     static BYTE u1[] = { 0x01 }, u2[] = { 0x02 };
     ci.IssuerUniqueId.cbData = 1; ci.IssuerUniqueId.pbData = u1;
     ci.SubjectUniqueId.cbData = 1; ci.SubjectUniqueId.pbData = u2;
-    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_uid);
+    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_uid_n);
 }
 TEST(tbs_cert_encode_generalized_time_after_2049) {
     REQUIRE(U(CryptEncodeObjectEx));
     CERT_INFO ci; CERT_PUBLIC_KEY_INFO k; mk_cert(&ci, &k);
     ci.dwVersion = CERT_V3; ci.NotAfter = a_ft(2050, 1, 1, 0, 0, 0);
-    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_gentime);
+    ENC_EQ(X509_CERT_TO_BE_SIGNED, &ci, v_tbs_v3_gentime_n);
 }
 TEST(tbs_cert_decode_v1) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -194,13 +195,16 @@ TEST(tbs_cert_roundtrips) {
     /* decode with the to-be-signed flag, then re-encode (encoding never emits the signature) */
     const BYTE *vs[] = { v_tbs_v1, v_tbs_v1_nullparams, v_tbs_v3, v_tbs_v3_serial2, v_tbs_v3_ext, v_tbs_v3_uid, v_tbs_v3_gentime };
     const DWORD ns[] = { sizeof v_tbs_v1, sizeof v_tbs_v1_nullparams, sizeof v_tbs_v3, sizeof v_tbs_v3_serial2, sizeof v_tbs_v3_ext, sizeof v_tbs_v3_uid, sizeof v_tbs_v3_gentime };
+    /* encoding adds NULL parameters where the input had none */
+    const BYTE *xs[] = { v_tbs_v1_n, v_tbs_v1_nullparams, v_tbs_v3_n, v_tbs_v3_serial2_n, v_tbs_v3_ext_n, v_tbs_v3_uid_n, v_tbs_v3_gentime_n };
+    const DWORD xn[] = { sizeof v_tbs_v1_n, sizeof v_tbs_v1_nullparams, sizeof v_tbs_v3_n, sizeof v_tbs_v3_serial2_n, sizeof v_tbs_v3_ext_n, sizeof v_tbs_v3_uid_n, sizeof v_tbs_v3_gentime_n };
     for (unsigned i = 0; i < 7; i++) {
         void *p = NULL; DWORD cb = 0;
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CERT_TO_BE_SIGNED, vs[i], ns[i], CRYPT_DECODE_ALLOC_FLAG | CRYPT_DECODE_TO_BE_SIGNED_FLAG, NULL, &p, &cb);
         CHECKF(r, "vector %u decode err 0x%lx", i, GetLastError());
         if (!r) continue;
         DWORD ec = 0; BYTE *e = a_enc(X509_CERT_TO_BE_SIGNED, p, 0, &ec);
-        CHECKF(e && ec == ns[i] && !memcmp(e, vs[i], ns[i]), "vector %u", i);
+        if (e) DIFF("reencode equals normalized input", e, ec, xs[i], xn[i]); else CHECKF(0, "vector %u reencode failed 0x%lx", i, GetLastError());
         if (e) LocalFree(e);
         LocalFree(p);
     }
@@ -212,8 +216,9 @@ TEST(tbs_cert_decode_signed_vs_to_be_signed_flag) {
     if (ci) { CHECK(ci->dwVersion == CERT_V1 && ci->SerialNumber.cbData == 1); LocalFree(ci); }
     ci = DEC(X509_CERT_TO_BE_SIGNED, v_x509_cert_v3, 0, NULL);
     if (ci) { CHECK(ci->dwVersion == CERT_V3); LocalFree(ci); }
-    /* the bare TBS needs the flag */
-    DEC_FAIL(X509_CERT_TO_BE_SIGNED, v_tbs_v1, 0);
+    /* a bare TBS also decodes without the flag on Windows 10 (the decoder accepts both forms) */
+    ci = DEC(X509_CERT_TO_BE_SIGNED, v_tbs_v1, 0, NULL);
+    if (ci) { CHECK(ci->dwVersion == CERT_V1 && ci->SerialNumber.cbData == 1 && ci->Subject.cbData == sizeof v_name_cn_test); LocalFree(ci); }
     /* and the flag must not be combined with the signed structure */
     a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_x509_cert, sizeof v_x509_cert, CRYPT_DECODE_TO_BE_SIGNED_FLAG, 0);
 }
@@ -242,15 +247,16 @@ TEST(signed_content_encode) {
     static BYTE sig_b[] = { 3, 2, 1 };
     s.Signature.cbData = 3; s.Signature.pbData = sig_b;
     /* the signature blob is in CryptoAPI (little-endian) order; the DER carries it reversed */
-    ENC_EQ(X509_CERT, &s, v_x509_cert);
+    /* absent algorithm parameters are written as NULL (Windows 10 always does) */
+    ENC_EQ(X509_CERT, &s, v_x509_cert_n);
     static BYTE sig_c[] = { 1, 2, 3 };
     s.Signature.pbData = sig_c; s.Signature.cUnusedBits = 0;
     DWORD cb = 0; BYTE *p = a_enc(X509_CERT, &s, 0, &cb);
-    CHECK(p && cb == sizeof v_x509_cert && p[cb - 3] == 3 && p[cb - 1] == 1);
+    CHECKF(p && cb == sizeof v_x509_cert_n && p[cb - 3] == 3 && p[cb - 1] == 1, "cb %lu last bytes %02x %02x %02x", cb, p ? p[cb - 3] : 0, p ? p[cb - 2] : 0, p ? p[cb - 1] : 0);
     if (p) LocalFree(p);
     s.ToBeSigned.cbData = 3; s.ToBeSigned.pbData = (BYTE *)"\x02\x01\x05";
     s.SignatureAlgorithm.Parameters.cbData = 0; s.Signature.pbData = sig_b;
-    ENC_EQ(X509_CERT, &s, v_x509_cert_tiny);
+    ENC_EQ(X509_CERT, &s, v_x509_cert_tiny_n);
 }
 TEST(signed_content_decode_reversal_flag) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -269,10 +275,10 @@ TEST(signed_content_decode_reversal_flag) {
 }
 TEST(signed_content_roundtrip) {
     REQUIRE(U(CryptDecodeObjectEx));
-    ROUNDTRIP(X509_CERT, v_x509_cert);
+    ROUNDTRIP_TO(X509_CERT, v_x509_cert, v_x509_cert_n);
     ROUNDTRIP(X509_CERT, v_x509_cert_nullparams);
-    ROUNDTRIP(X509_CERT, v_x509_cert_v3);
-    ROUNDTRIP(X509_CERT, v_x509_cert_tiny);
+    ROUNDTRIP_TO(X509_CERT, v_x509_cert_v3, v_x509_cert_v3_n);
+    ROUNDTRIP_TO(X509_CERT, v_x509_cert_tiny, v_x509_cert_tiny_n);
 }
 TEST(signed_content_decode_params_and_errors) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -298,14 +304,14 @@ static void mk_crl(CRL_INFO *c) {
 TEST(tbs_crl_encode_variants) {
     REQUIRE(U(CryptEncodeObjectEx));
     CRL_INFO c; mk_crl(&c);
-    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v1_nonext);
+    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v1_nonext_n);
     c.NextUpdate = a_ft(2049, 12, 31, 23, 59, 59);
-    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v1_next);
+    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v1_next_n);
     static BYTE ser[] = { 1 };
     CRL_ENTRY e; memset(&e, 0, sizeof e);
     e.SerialNumber.cbData = 1; e.SerialNumber.pbData = ser; e.RevocationDate = a_ft(2000, 1, 1, 0, 0, 0);
     c.cCRLEntry = 1; c.rgCRLEntry = &e;
-    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v1_entry);
+    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v1_entry_n);
 }
 TEST(tbs_crl_encode_v2_extensions) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -313,14 +319,14 @@ TEST(tbs_crl_encode_v2_extensions) {
     c.NextUpdate = a_ft(2049, 12, 31, 23, 59, 59); c.dwVersion = CRL_V2;
     CERT_EXTENSION x = { (LPSTR)szOID_BASIC_CONSTRAINTS2, FALSE, { sizeof empty_seq, empty_seq } };
     c.cExtension = 1; c.rgExtension = &x;
-    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v2_ext);
+    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v2_ext_n);
     c.cExtension = 0; c.rgExtension = NULL;
     static BYTE ser[] = { 1 };
     CRL_ENTRY e; memset(&e, 0, sizeof e);
     e.SerialNumber.cbData = 1; e.SerialNumber.pbData = ser; e.RevocationDate = a_ft(2000, 1, 1, 0, 0, 0);
     e.cExtension = 1; e.rgExtension = &x;
     c.cCRLEntry = 1; c.rgCRLEntry = &e;
-    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v2_entry_ext);
+    ENC_EQ(X509_CERT_CRL_TO_BE_SIGNED, &c, v_crl_v2_entry_ext_n);
 }
 TEST(tbs_crl_decode) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -342,19 +348,23 @@ TEST(tbs_crl_decode) {
     if (c) { CHECK(c->cCRLEntry == 1 && c->rgCRLEntry[0].cExtension == 1); LocalFree(c); }
     c = DEC(X509_CERT_CRL_TO_BE_SIGNED, v_crl_signed, 0, NULL);
     if (c) { CHECK(c->dwVersion == CRL_V1 && c->Issuer.cbData == sizeof v_name_cn_test); LocalFree(c); }
-    DEC_FAIL(X509_CERT_CRL_TO_BE_SIGNED, v_crl_v1_next, 0);
+    /* a bare CRL TBS decodes without the flag too */
+    c = DEC(X509_CERT_CRL_TO_BE_SIGNED, v_crl_v1_next, 0, NULL);
+    if (c) { CHECK(c->dwVersion == CRL_V1 && c->cCRLEntry == 0); LocalFree(c); }
 }
 TEST(tbs_crl_roundtrips) {
     REQUIRE(U(CryptDecodeObjectEx));
     const BYTE *vs[] = { v_crl_v1_nonext, v_crl_v1_next, v_crl_v1_entry, v_crl_v2_ext, v_crl_v2_entry_ext };
     const DWORD ns[] = { sizeof v_crl_v1_nonext, sizeof v_crl_v1_next, sizeof v_crl_v1_entry, sizeof v_crl_v2_ext, sizeof v_crl_v2_entry_ext };
+    const BYTE *xs[] = { v_crl_v1_nonext_n, v_crl_v1_next_n, v_crl_v1_entry_n, v_crl_v2_ext_n, v_crl_v2_entry_ext_n };
+    const DWORD xn[] = { sizeof v_crl_v1_nonext_n, sizeof v_crl_v1_next_n, sizeof v_crl_v1_entry_n, sizeof v_crl_v2_ext_n, sizeof v_crl_v2_entry_ext_n };
     for (unsigned i = 0; i < 5; i++) {
         void *p = NULL; DWORD cb = 0;
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CERT_CRL_TO_BE_SIGNED, vs[i], ns[i], CRYPT_DECODE_ALLOC_FLAG | CRYPT_DECODE_TO_BE_SIGNED_FLAG, NULL, &p, &cb);
         CHECKF(r, "vector %u err 0x%lx", i, GetLastError());
         if (!r) continue;
         DWORD ec = 0; BYTE *e = a_enc(X509_CERT_CRL_TO_BE_SIGNED, p, 0, &ec);
-        CHECKF(e && ec == ns[i] && !memcmp(e, vs[i], ns[i]), "vector %u", i);
+        if (e) DIFF("reencode equals normalized input", e, ec, xs[i], xn[i]); else CHECKF(0, "vector %u reencode failed 0x%lx", i, GetLastError());
         if (e) LocalFree(e);
         LocalFree(p);
     }
@@ -387,7 +397,9 @@ TEST(tbs_request_decode) {
     if (r) { CHECK(r->cAttribute == 0); LocalFree(r); }
     r = DEC(X509_CERT_REQUEST_TO_BE_SIGNED, v_csr_signed, 0, NULL);
     if (r) { CHECK(r->dwVersion == 0 && r->cAttribute == 0); LocalFree(r); }
-    DEC_FAIL(X509_CERT_REQUEST_TO_BE_SIGNED, v_csr_noattr, 0);
+    /* a bare request TBS decodes without the flag too */
+    r = DEC(X509_CERT_REQUEST_TO_BE_SIGNED, v_csr_noattr, 0, NULL);
+    if (r) { CHECK(r->dwVersion == 0 && r->cAttribute == 0 && r->Subject.cbData == sizeof v_name_cn_test); LocalFree(r); }
     const BYTE *vs[] = { v_csr_noattr, v_csr_attr };
     const DWORD ns[] = { sizeof v_csr_noattr, sizeof v_csr_attr };
     for (unsigned i = 0; i < 2; i++) {
@@ -396,7 +408,7 @@ TEST(tbs_request_decode) {
         CHECK(ok);
         if (!ok) continue;
         DWORD ec; BYTE *e = a_enc(X509_CERT_REQUEST_TO_BE_SIGNED, p, 0, &ec);
-        CHECKF(e && ec == ns[i] && !memcmp(e, vs[i], ns[i]), "vector %u", i);
+        if (e) DIFF("reencode equals normalized input", e, ec, vs[i], ns[i]); else CHECKF(0, "vector %u reencode failed 0x%lx", i, GetLastError());
         if (e) LocalFree(e);
         LocalFree(p);
     }

@@ -20,8 +20,10 @@ static const BYTE be_bmp[] = { 0x00, 'T', 0x00, 0xE9, 0x20, 0xAC };
 static const DWORD u4_in[] = { 'A', 0xE9, 0x1F600 };
 static const BYTE be_u4[] = { 0,0,0,'A', 0,0,0,0xE9, 0,0x01,0xF6,0x00 };
 
-struct st_row { const char *label; DWORD type; const BYTE *in; DWORD cb; BYTE tag; const BYTE *out; DWORD outn; };
-#define R(l, ty, in_, tag_, out_) { l, ty, (const BYTE *)(in_), sizeof(in_) - 1, tag_, (const BYTE *)(out_), sizeof(out_) - 1 }
+/* in/cb: value handed to the encoder; out/outn: DER content; dec/decn: what the decoder hands back (X509_NAME decodes UTF8String to UTF-16 on Windows 10). */
+struct st_row { const char *label; DWORD type; const BYTE *in; DWORD cb; BYTE tag; const BYTE *out; DWORD outn; const BYTE *dec; DWORD decn; };
+#define R(l, ty, in_, tag_, out_) { l, ty, (const BYTE *)(in_), sizeof(in_) - 1, tag_, (const BYTE *)(out_), sizeof(out_) - 1, (const BYTE *)(out_), sizeof(out_) - 1 }
+static const WCHAR w_he[] = { 'h', 0x00E9, 0 };
 static const struct st_row ansi_rows[] = {
     R("numeric",   CERT_RDN_NUMERIC_STRING,   "0123 45", 0x12, "0123 45"),
     R("printable", CERT_RDN_PRINTABLE_STRING, "Ab 1'()+,-./:=?", 0x13, "Ab 1'()+,-./:=?"),
@@ -31,7 +33,8 @@ static const struct st_row ansi_rows[] = {
     R("graphic",   CERT_RDN_GRAPHIC_STRING,   "gr", 0x19, "gr"),
     R("visible",   CERT_RDN_VISIBLE_STRING,   "vis ible", 0x1a, "vis ible"),
     R("general",   CERT_RDN_GENERAL_STRING,   "gen", 0x1b, "gen"),
-    R("utf8",      CERT_RDN_UTF8_STRING,      "h\xc3\xa9", 0x0c, "h\xc3\xa9"),
+    /* CERT_RDN_UTF8_STRING in X509_NAME takes UTF-16 in and gives UTF-16 back; the DER content is UTF-8 */
+    { "utf8", CERT_RDN_UTF8_STRING, (const BYTE *)w_he, 4, 0x0c, (const BYTE *)"h\xc3\xa9", 3, (const BYTE *)w_he, 4 },
     R("octet",     CERT_RDN_OCTET_STRING,     "\x01\x02", 0x04, "\x01\x02"),
     R("empty_printable", CERT_RDN_PRINTABLE_STRING, "", 0x13, ""),
     R("empty_utf8", CERT_RDN_UTF8_STRING,     "", 0x0c, ""),
@@ -49,7 +52,7 @@ TEST(names_ansi_string_type_table) {
         BYTE exp[128]; DWORD en = mk_name(exp, r->tag, r->out, r->outn);
         CERT_RDN_ATTR a; set_attr(&a, r->type, r->in, r->cb);
         CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
-        t_note("row %s", r->label);
+        t_note("row %s", r->label); a_ctx = r->label;
         a_enc_eq(__FILE__, __LINE__, X509_NAME, &ni, 0, exp, en);
     }
 }
@@ -169,8 +172,8 @@ TEST(names_decode_ansi_tag_table) {
             CERT_RDN_ATTR *a = &ni->rgRDN[0].rgRDNAttr[0];
             if (r->tag == 0x04) { if (a->dwValueType != CERT_RDN_OCTET_STRING) t_note("octet tag decoded as type %lu", a->dwValueType); }
             else CHECKF(a->dwValueType == r->type, "type %lu want %lu", a->dwValueType, r->type);
-            CHECK(a->Value.cbData == r->outn);
-            CHECK(r->outn == 0 || (a->Value.pbData && !memcmp(a->Value.pbData, r->out, r->outn)));
+            t_check(a->Value.cbData == r->decn, __FILE__, __LINE__, "decoded cbData", "row %s got %lu want %lu type %lu", r->label, a->Value.cbData, r->decn, a->dwValueType);
+            DIFF("decoded bytes", a->Value.pbData, a->Value.cbData, r->dec, r->decn);
         }
         LocalFree(ni);
     }
@@ -210,16 +213,17 @@ TEST(names_decode_unknown_value_tag_is_encoded_blob) {
     LocalFree(ni);
 }
 
-TEST(names_decode_nocopy_points_into_input) {
+TEST(names_decode_nocopy_is_ignored) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb1, cb2;
     CERT_NAME_INFO *c = DEC(X509_NAME, v_name_cn_test, 0, &cb1);
     CERT_NAME_INFO *nc = DEC(X509_NAME, v_name_cn_test, CRYPT_DECODE_NOCOPY_FLAG, &cb2);
     if (nc) {
         CERT_RDN_ATTR *a = &nc->rgRDN[0].rgRDNAttr[0];
-        CHECK(PTR_IN(a->Value.pbData, v_name_cn_test, sizeof v_name_cn_test));
+        /* X509_NAME ignores NOCOPY: the value is copied and the size is unchanged (probed) */
+        CHECKF(!PTR_IN(a->Value.pbData, v_name_cn_test, sizeof v_name_cn_test), "value %p input %p", a->Value.pbData, v_name_cn_test);
         CHECK(a->Value.cbData == 4 && !memcmp(a->Value.pbData, "Test", 4));
-        if (c) CHECK(cb2 < cb1);
+        if (c) CHECKF(cb2 == cb1, "nocopy size %lu copy size %lu", cb2, cb1);
     }
     if (c) { CHECK(!PTR_IN(c->rgRDN[0].rgRDNAttr[0].Value.pbData, v_name_cn_test, sizeof v_name_cn_test)); LocalFree(c); }
     if (nc) LocalFree(nc);
@@ -310,13 +314,23 @@ static const struct uni_row uni_rows[] = {
     { "general", CERT_RDN_GENERAL_STRING, w_t, 0, 0x1b, (const BYTE *)"Test", 4 },
     { "videotex", CERT_RDN_VIDEOTEX_STRING, w_t, 0, 0x15, (const BYTE *)"Test", 4 },
     { "graphic", CERT_RDN_GRAPHIC_STRING, w_t, 0, 0x19, (const BYTE *)"Test", 4 },
-    /* flag-driven selection when the caller asks for the generic "unicode" type */
+    /* CERT_RDN_UNICODE_STRING is BMPString and stays BMPString whatever the flags say (probed on Windows 10) */
     { "unicode_default_bmp", CERT_RDN_UNICODE_STRING, w_t, 0, 0x1e, B(0,'T',0,'e',0,'s',0,'t'), 8 },
-    { "unicode_utf8_flag", CERT_RDN_UNICODE_STRING, w_t, CERT_RDN_ENABLE_UTF8_UNICODE_FLAG, 0x0c, (const BYTE *)"Test", 4 },
-    { "unicode_utf8_flag_e", CERT_RDN_UNICODE_STRING, w_e, CERT_RDN_ENABLE_UTF8_UNICODE_FLAG, 0x0c, B('h', 0xC3, 0xA9), 3 },
-    { "unicode_t61_flag_latin1", CERT_RDN_UNICODE_STRING, w_e, CERT_RDN_ENABLE_T61_UNICODE_FLAG, 0x14, B('h', 0xE9), 2 },
-    { "unicode_t61_flag_euro_stays_bmp", CERT_RDN_UNICODE_STRING, w_euro, CERT_RDN_ENABLE_T61_UNICODE_FLAG, 0x1e, B(0x20, 0xAC), 2 },
-    { "unicode_force_utf8", CERT_RDN_UNICODE_STRING, w_bmp, CERT_RDN_FORCE_UTF8_UNICODE_FLAG, 0x0c, B('T', 0xC3, 0xA9, 0xE2, 0x82, 0xAC), 6 },
+    { "unicode_type_ignores_utf8_flag", CERT_RDN_UNICODE_STRING, w_e, CERT_RDN_ENABLE_UTF8_UNICODE_FLAG, 0x1e, B(0,'h',0,0xE9), 4 },
+    { "unicode_type_ignores_t61_flag", CERT_RDN_UNICODE_STRING, w_e, CERT_RDN_ENABLE_T61_UNICODE_FLAG, 0x1e, B(0,'h',0,0xE9), 4 },
+    { "unicode_type_ignores_force_utf8", CERT_RDN_UNICODE_STRING, w_bmp, CERT_RDN_FORCE_UTF8_UNICODE_FLAG, 0x1e, B(0,'T',0,0xE9,0x20,0xAC), 6 },
+    /* the flags choose the string type only for the any-type attribute (dwValueType 0); they work in dwFlags or ORed into dwValueType */
+    { "any_ascii_printable", CERT_RDN_ANY_TYPE, w_t, 0, 0x13, (const BYTE *)"Test", 4 },
+    { "any_latin1_is_bmp", CERT_RDN_ANY_TYPE, w_e, 0, 0x1e, B(0,'h',0,0xE9), 4 },
+    { "any_utf8_flag_ascii", CERT_RDN_ANY_TYPE, w_t, CERT_RDN_ENABLE_UTF8_UNICODE_FLAG, 0x13, (const BYTE *)"Test", 4 },
+    { "any_utf8_flag_e", CERT_RDN_ANY_TYPE, w_e, CERT_RDN_ENABLE_UTF8_UNICODE_FLAG, 0x0c, B('h', 0xC3, 0xA9), 3 },
+    { "any_utf8_flag_euro", CERT_RDN_ANY_TYPE, w_bmp, CERT_RDN_ENABLE_UTF8_UNICODE_FLAG, 0x0c, B('T', 0xC3, 0xA9, 0xE2, 0x82, 0xAC), 6 },
+    { "any_force_utf8_ascii", CERT_RDN_ANY_TYPE, w_t, CERT_RDN_FORCE_UTF8_UNICODE_FLAG, 0x0c, (const BYTE *)"Test", 4 },
+    { "any_force_utf8_e", CERT_RDN_ANY_TYPE, w_bmp, CERT_RDN_FORCE_UTF8_UNICODE_FLAG, 0x0c, B('T', 0xC3, 0xA9, 0xE2, 0x82, 0xAC), 6 },
+    { "any_t61_flag_ascii", CERT_RDN_ANY_TYPE, w_t, CERT_RDN_ENABLE_T61_UNICODE_FLAG, 0x13, (const BYTE *)"Test", 4 },
+    { "any_t61_flag_latin1", CERT_RDN_ANY_TYPE, w_e, CERT_RDN_ENABLE_T61_UNICODE_FLAG, 0x14, B('h', 0xE9), 2 },
+    { "any_t61_flag_euro_stays_bmp", CERT_RDN_ANY_TYPE, w_euro, CERT_RDN_ENABLE_T61_UNICODE_FLAG, 0x1e, B(0x20, 0xAC), 2 },
+    { "any_disable_ie4_flag_is_bmp", CERT_RDN_ANY_TYPE, w_e, CERT_RDN_DISABLE_IE4_UTF8_FLAG, 0x1e, B(0,'h',0,0xE9), 4 },
 };
 
 static void uni_attr(CERT_RDN_ATTR *a, DWORD type, const WCHAR *w, DWORD cb) {
@@ -330,15 +344,15 @@ TEST(names_unicode_encode_table) {
         BYTE exp[128]; DWORD en = mk_name(exp, r->tag, r->out, r->outn);
         CERT_RDN_ATTR a; uni_attr(&a, r->type, r->in, 0);      /* cbData 0 => NUL-terminated */
         CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
-        t_note("row %s", r->label);
+        t_note("row %s", r->label); a_ctx = r->label;
         a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, r->flags, exp, en);
         /* explicit byte count gives the same result */
         uni_attr(&a, r->type, r->in, (DWORD)(lstrlenW(r->in) * 2));
         a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, r->flags, exp, en);
-        /* the same flags in dwValueType instead of dwFlags */
+        /* the same flags ORed into dwValueType instead of dwFlags give the same result */
         if (r->flags) {
             uni_attr(&a, r->type | r->flags, r->in, 0);
-            a_enc_try(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, exp, en);
+            a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, exp, en);
         }
     }
 }
@@ -434,19 +448,27 @@ TEST(names_unicode_disable_check_type_allows_invalid) {
     a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, exp2, en2);
 }
 
-TEST(names_unicode_nonchar_types_rejected) {
+TEST(names_unicode_nonchar_types) {
     REQUIRE(U(CryptEncodeObjectEx));
-    CERT_RDN_ATTR a; uni_attr(&a, 0 /* ANY_TYPE */, w_t, 0);
+    /* X509_UNICODE_NAME with dwValueType 0 selects PrintableString for plain ASCII (Windows 10) */
+    CERT_RDN_ATTR a; uni_attr(&a, CERT_RDN_ANY_TYPE, w_t, 0);
     CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
-    DWORD cb = 0; SET_ERR(0);
-    BOOL ok = U(CryptEncodeObjectEx)(ENC, X509_UNICODE_NAME, &ni, 0, NULL, NULL, &cb);
-    DWORD e = GetLastError();
-    CHECK(!ok);
-    t_note("UNICODE_NAME with dwValueType 0 -> err 0x%lx", e);
+    BYTE exp[64]; DWORD en = mk_name(exp, 0x13, (const BYTE *)"Test", 4);
+    a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, exp, en);
+    /* the ANSI X509_NAME has no such selection */
+    a_enc_fail(__FILE__, __LINE__, X509_NAME, &ni, 0, HR_INVALIDARG);
+    /* an octet string value is taken from cbData bytes (here none) */
     uni_attr(&a, CERT_RDN_OCTET_STRING, w_t, 0);
-    SET_ERR(0);
-    ok = U(CryptEncodeObjectEx)(ENC, X509_UNICODE_NAME, &ni, 0, NULL, NULL, &cb);
-    CHECK(!ok); EXPECT_ERR((DWORD)CRYPT_E_NOT_CHAR_STRING);
+    en = mk_name(exp, 0x04, (const BYTE *)"", 0);
+    a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, exp, en);
+    /* an encoded blob is inserted verbatim */
+    static const BYTE nul[] = { 5, 0 };
+    uni_attr(&a, CERT_RDN_ENCODED_BLOB, (const WCHAR *)nul, 2);
+    en = mk_name(exp, 0x05, (const BYTE *)"", 0);
+    a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, exp, en);
+    /* an unknown value type is a CHOICE error */
+    uni_attr(&a, 99, w_t, 0);
+    a_enc_fail(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, HR_ASN1_CHOICE);
 }
 
 TEST(names_unicode_bad_oid_rejected) {
@@ -528,11 +550,12 @@ TEST(name_value_encode_ansi) {
     ENC_EQ(X509_NAME_VALUE, &v, v_name_value_bmp);
     v.dwValueType = CERT_RDN_T61_STRING; v.Value.cbData = 4; v.Value.pbData = (BYTE *)"T\xe9st";
     ENC_EQ(X509_NAME_VALUE, &v, v_name_value_t61_latin1);
-    v.dwValueType = CERT_RDN_UTF8_STRING; v.Value.cbData = 3; v.Value.pbData = (BYTE *)"h\xc3\xa9";
-    ENC_TRY(X509_NAME_VALUE, &v, v_name_value_utf8);
+    /* UTF8String input is UTF-16 in X509_NAME_VALUE too */
+    v.dwValueType = CERT_RDN_UTF8_STRING; v.Value.cbData = 4; v.Value.pbData = (BYTE *)w_e;
+    ENC_EQ(X509_NAME_VALUE, &v, v_name_value_utf8);
     v.dwValueType = CERT_RDN_UNIVERSAL_STRING; v.Value.cbData = 8; v.Value.pbData = (BYTE *)u4_in;
     BYTE exp[16]; exp[0] = 0x1c; exp[1] = 8; memcpy(exp + 2, B(0,0,0,'A', 0,0,0,0xE9), 8);
-    a_enc_try(__FILE__, __LINE__, X509_NAME_VALUE, &v, 0, exp, 10);
+    a_enc_eq(__FILE__, __LINE__, X509_NAME_VALUE, &v, 0, exp, 10);
 }
 
 TEST(name_value_encode_unicode) {
@@ -554,7 +577,7 @@ TEST(name_value_decode_ansi) {
     CERT_NAME_VALUE *v = DEC(X509_NAME_VALUE, v_name_value_printable, 0, NULL);
     if (v) { CHECK(v->dwValueType == CERT_RDN_PRINTABLE_STRING); CHECK(v->Value.cbData == 4 && !memcmp(v->Value.pbData, "Test", 4)); LocalFree(v); }
     v = DEC(X509_NAME_VALUE, v_name_value_utf8, 0, NULL);
-    if (v) { CHECK(v->dwValueType == CERT_RDN_UTF8_STRING); CHECK(v->Value.cbData == 3); LocalFree(v); }
+    if (v) { CHECK(v->dwValueType == CERT_RDN_UTF8_STRING); CHECKF(v->Value.cbData == 4 && !memcmp(v->Value.pbData, w_e, 4), "cbData %lu type %lu", v->Value.cbData, v->dwValueType); LocalFree(v); }
     v = DEC(X509_NAME_VALUE, v_name_value_bmp, 0, NULL);
     if (v) { CHECK(v->dwValueType == CERT_RDN_BMP_STRING); CHECK(v->Value.cbData == 6 && !memcmp(v->Value.pbData, w_bmp, 6)); LocalFree(v); }
     v = DEC(X509_NAME_VALUE, v_name_value_null, 0, NULL);
@@ -576,7 +599,8 @@ TEST(name_value_decode_unicode) {
 TEST(name_value_decode_failures) {
     REQUIRE(U(CryptDecodeObjectEx));
     BYTE trunc[] = { 0x13, 0x04, 'T', 'e' };
-    a_dec_fail(__FILE__, __LINE__, X509_NAME_VALUE, trunc, sizeof trunc, 0, HR_ASN1_EOD);
-    a_dec_fail(__FILE__, __LINE__, X509_UNICODE_NAME_VALUE, trunc, sizeof trunc, 0, HR_ASN1_EOD);
-    a_dec_fail(__FILE__, __LINE__, X509_NAME_VALUE, trunc, 0, 0, 0);
+    /* the name-value decoders fail without setting a last error (probed: stays 0) */
+    a_dec_fail(__FILE__, __LINE__, X509_NAME_VALUE, trunc, sizeof trunc, 0, A_ERR_NONE);
+    a_dec_fail(__FILE__, __LINE__, X509_UNICODE_NAME_VALUE, trunc, sizeof trunc, 0, A_ERR_NONE);
+    a_dec_fail(__FILE__, __LINE__, X509_NAME_VALUE, trunc, 0, 0, A_ERR_NONE);
 }

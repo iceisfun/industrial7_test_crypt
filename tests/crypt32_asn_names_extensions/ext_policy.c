@@ -38,7 +38,7 @@ TEST(policies_decode) {
     if (d) {
         CHECK(d->cPolicyInfo == 2);
         if (d->cPolicyInfo == 2) {
-            CHECK(!strcmp(d->rgPolicyInfo[0].pszPolicyIdentifier, "1.2.3"));
+            CHECKF(!strcmp(d->rgPolicyInfo[0].pszPolicyIdentifier, "1.2.3"), "got \"%s\"", d->rgPolicyInfo[0].pszPolicyIdentifier);
             CHECK(d->rgPolicyInfo[0].cPolicyQualifier == 2);
             if (d->rgPolicyInfo[0].cPolicyQualifier == 2) {
                 CERT_POLICY_QUALIFIER_INFO *q = d->rgPolicyInfo[0].rgPolicyQualifier;
@@ -81,7 +81,10 @@ TEST(policies_encode_invalid_oid) {
     CERT_POLICY_INFO pi = { (LPSTR)"1.2.zz", 0, NULL }; CERT_POLICIES_INFO s = { 1, &pi };
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_CERT_POLICIES, &s, 0, NULL, NULL, &cb);
-    CHECK(!r); t_note("malformed policy OID: err 0x%lx", GetLastError());
+    /* lenient OID parser: the non-numeric arc encodes as 0 */
+    static const BYTE lenient[] = { 0x30, 0x06, 0x30, 0x04, 0x06, 0x02, 0x2a, 0x00 };
+    CHECKF(r, "ret %d cb %lu err 0x%lx", r, cb, GetLastError());
+    ENC_EQ(X509_CERT_POLICIES, &s, lenient);
 }
 TEST(application_policies_alias_probe) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -102,7 +105,7 @@ TEST(policy_mappings) {
     ENC_EQ(X509_POLICY_MAPPINGS, &s, v_pmap_one);
     ENC_EQ(szOID_POLICY_MAPPINGS, &s, v_pmap_one);
     CERT_POLICY_MAPPINGS_INFO *d = DEC(X509_POLICY_MAPPINGS, v_pmap_one, 0, NULL);
-    if (d) { CHECK(d->cPolicyMapping == 1 && !strcmp(d->rgPolicyMapping[0].pszIssuerDomainPolicy, "1.2.3") && !strcmp(d->rgPolicyMapping[0].pszSubjectDomainPolicy, "1.2.4")); LocalFree(d); }
+    if (d) { CHECKF(d->cPolicyMapping == 1 && !strcmp(d->rgPolicyMapping[0].pszIssuerDomainPolicy, "1.2.3") && !strcmp(d->rgPolicyMapping[0].pszSubjectDomainPolicy, "1.2.4"), "count %lu issuer \"%s\" subject \"%s\"", d->cPolicyMapping, d->rgPolicyMapping[0].pszIssuerDomainPolicy, d->rgPolicyMapping[0].pszSubjectDomainPolicy); LocalFree(d); }
     d = DEC(X509_POLICY_MAPPINGS, v_pmap_none, 0, NULL);
     if (d) { CHECK(d->cPolicyMapping == 0); LocalFree(d); }
     ROUNDTRIP(X509_POLICY_MAPPINGS, v_pmap_one);
@@ -153,7 +156,8 @@ static void dp_url(CRL_DIST_POINT *dp, CERT_ALT_NAME_ENTRY *e, const WCHAR *u) {
 TEST(crldp_encode) {
     REQUIRE(U(CryptEncodeObjectEx));
     CRL_DIST_POINTS_INFO s = { 0, NULL };
-    ENC_EQ(X509_CRL_DIST_POINTS, &s, v_cdp_empty);
+    /* an empty distribution point list is rejected by the encoder (E_INVALIDARG) */
+    ENC_FAIL(X509_CRL_DIST_POINTS, &s, HR_INVALIDARG);
     CERT_ALT_NAME_ENTRY e; CRL_DIST_POINT dp; dp_url(&dp, &e, wurl);
     s.cDistPoint = 1; s.rgDistPoint = &dp;
     ENC_EQ(X509_CRL_DIST_POINTS, &s, v_cdp_url);
@@ -290,8 +294,8 @@ TEST(idp_encode) {
     ENC_EQ(X509_ISSUING_DIST_POINT, &s, v_idp_url);
     memset(&s, 0, sizeof s);
     static BYTE rf = 0x80; s.OnlySomeReasonFlags.cbData = 1; s.OnlySomeReasonFlags.pbData = &rf; s.OnlySomeReasonFlags.cUnusedBits = 1;
-    static const BYTE exp[] = { 0x30, 0x04, 0x83, 0x02, 0x01, 0x80 };
-    ENC_EQ(X509_ISSUING_DIST_POINT, &s, exp);
+    /* trailing zero bits are trimmed: unused bits 7 */
+    ENC_EQ(X509_ISSUING_DIST_POINT, &s, v_idp_reasons_enc);
 }
 TEST(idp_decode) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -308,7 +312,7 @@ TEST(idp_decode) {
     ROUNDTRIP(X509_ISSUING_DIST_POINT, v_idp_user);
     ROUNDTRIP(X509_ISSUING_DIST_POINT, v_idp_indirect);
     ROUNDTRIP(X509_ISSUING_DIST_POINT, v_idp_url);
-    ROUNDTRIP(X509_ISSUING_DIST_POINT, v_idp_reasons);
+    ROUNDTRIP_TO(X509_ISSUING_DIST_POINT, v_idp_reasons, v_idp_reasons_enc);
 }
 
 /* ---- name constraints ---------------------------------------------------- */
@@ -342,7 +346,7 @@ TEST(nameconstraints_decode) {
     REQUIRE(U(CryptDecodeObjectEx));
     CERT_NAME_CONSTRAINTS_INFO *d = DEC(X509_NAME_CONSTRAINTS, v_nc_both, 0, NULL);
     if (d) {
-        CHECK(d->cPermittedSubtree == 2 && d->cExcludedSubtree == 1);
+        CHECKF(d->cPermittedSubtree == 2 && d->cExcludedSubtree == 1, "permitted %lu excluded %lu", d->cPermittedSubtree, d->cExcludedSubtree);
         if (d->cPermittedSubtree == 2 && d->cExcludedSubtree == 1) {
             CHECK(d->rgPermittedSubtree[0].Base.dwAltNameChoice == CERT_ALT_NAME_DNS_NAME && !lstrcmpW(d->rgPermittedSubtree[0].Base.pwszDNSName, wdns));
             CHECK(d->rgPermittedSubtree[1].Base.dwAltNameChoice == CERT_ALT_NAME_RFC822_NAME && !lstrcmpW(d->rgPermittedSubtree[1].Base.pwszRfc822Name, wmail));
@@ -413,13 +417,38 @@ TEST(time_decode_table) {
         TM("1949", a_ft(1949, 12, 31, 23, 59, 59), v_time_1949), TM("2007gen", a_ft(2007, 1, 2, 3, 4, 5), v_time_2007_gen),
         TM("nosec", a_ft(2000, 1, 1, 0, 0, 0), v_time_nosec),
         TM("plus0100_adds", a_ft(2000, 1, 1, 1, 0, 0), v_time_off_plus),
-        TM("minus0130_subtracts", a_ft(1999, 12, 31, 22, 30, 0), v_time_off_minus),
+        TM("minus0130_scaled", a_ft(1999, 12, 31, 22, 12, 0), v_time_off_minus),
     };
     for (unsigned i = 0; i < sizeof rows / sizeof *rows; i++) {
         DWORD cb; FILETIME *f = a_dec(__FILE__, __LINE__, X509_CHOICE_OF_TIME, rows[i].der, rows[i].n, 0, &cb);
         t_note("row %s", rows[i].label);
-        if (f) { CHECK(cb >= sizeof *f); CHECK(a_ft_eq(*f, rows[i].ft)); LocalFree(f); }
+        if (f) { CHECK(cb >= sizeof *f); CHECKF(a_ft_eq(*f, rows[i].ft), "row %s got %08lx%08lx want %08lx%08lx", rows[i].label, f->dwHighDateTime, f->dwLowDateTime, rows[i].ft.dwHighDateTime, rows[i].ft.dwLowDateTime); LocalFree(f); }
     }
+}
+/* UTCTime offsets (probed on Windows 10): the hours are exact, but the minutes are scaled by 1.6 (30 minutes shifts by 48 minutes). */
+TEST(time_decode_utc_offset_table) {
+    REQUIRE(U(CryptDecodeObjectEx));
+    static const struct { const char *s; long long secs; } rows[] = {
+        { "+0100", 3600 }, { "-0100", -3600 }, { "+0130", 6480 }, { "-0130", -6480 }, { "+0030", 2880 }, { "-0030", -2880 },
+        { "+0015", 1440 }, { "-0015", -1440 }, { "+0045", 4320 }, { "-0045", -4320 }, { "+1000", 36000 }, { "-1000", -36000 },
+        { "+2359", 88440 }, { "-2359", -88440 }, { "+2400", 86400 }, { "+0160", 9360 },
+    };
+    FILETIME base = a_ft(2000, 1, 1, 0, 0, 0);
+    ULONGLONG b0 = ((ULONGLONG)base.dwHighDateTime << 32) | base.dwLowDateTime;
+    for (unsigned i = 0; i < sizeof rows / sizeof *rows; i++) {
+        BYTE d[40]; char t[40]; sprintf(t, "000101000000%s", rows[i].s);
+        d[0] = 0x17; d[1] = (BYTE)strlen(t); memcpy(d + 2, t, d[1]);
+        FILETIME *f = NULL; DWORD cb = 0; SET_ERR(0);
+        BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CHOICE_OF_TIME, d, 2u + d[1], CRYPT_DECODE_ALLOC_FLAG, NULL, &f, &cb);
+        t_label("offset %s", rows[i].s);
+        CHECKF(r, "decode failed 0x%lx", GetLastError());
+        if (r) {
+            long long delta = (long long)((((ULONGLONG)f->dwHighDateTime << 32) | f->dwLowDateTime) - b0) / 10000000LL;
+            CHECKF(delta == rows[i].secs, "got %lld s want %lld s", delta, rows[i].secs);
+            LocalFree(f);
+        }
+    }
+    t_label(NULL);
 }
 TEST(time_decode_errors) {
     REQUIRE(U(CryptDecodeObjectEx));
