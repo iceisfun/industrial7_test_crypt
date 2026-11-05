@@ -157,9 +157,10 @@ TEST(base_real_revocation_unknown_ignore_all) {
     NEED_ENV();
     expect("rev-chain+ignore-all", C_SRV, NULL, CERT_CHAIN_REVOCATION_CHECK_CHAIN, NULL, 0, CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS, 0, -1, -1);
 }
-TEST(base_real_revocation_unknown_includes_root_when_chain_checked) {
+/* Win10: with CHECK_CHAIN (root included) ignoring the end and CA unknown-revocation flags leaves nothing to report: the policy passes. */
+TEST(base_real_revocation_unknown_ignore_end_and_ca_with_root_checked) {
     NEED_ENV();
-    expect("rev-chain+ignore-end-ca", C_SRV, NULL, CERT_CHAIN_REVOCATION_CHECK_CHAIN, NULL, 0, 0x500, CRYPTERR_NO_REVOCATION_CHECK, 0, 2);
+    expect("rev-chain+ignore-end-ca", C_SRV, NULL, CERT_CHAIN_REVOCATION_CHECK_CHAIN, NULL, 0, 0x500, 0, -1, -1);
 }
 TEST(base_real_revoked_via_crl_in_additional_store) {
     PCCERT_CHAIN_CONTEXT c; PRES p;
@@ -195,28 +196,55 @@ TEST(base_real_unrevoked_with_crl_passes) {
     cp_free(c);
 }
 TEST(base_real_peer_trust_overrides_untrusted_root) {
+    /* Win10: with ENABLE_PEER_TRUST the chain is cut at the peer-trusted leaf (one element, clean status), so the
+       policy passes and IGNORE_PEER_TRUST has nothing left to ignore. */
     HCERTCHAINENGINE e; PCCERT_CHAIN_CONTEXT c; PRES p;
     NEED_ENV();
     e = cp_engine_peer(C_UNTRUSTED);
     if (!e) { t_skip("peer engine unavailable"); return; }
     c = cp_chain_ex(e, C_UNTRUSTED, CERT_CHAIN_ENABLE_PEER_TRUST, NULL, NULL, 0);
     if (!c) { t_skip("chain build failed"); return; }
-    if (!(c->TrustStatus.dwInfoStatus & CERT_TRUST_IS_PEER_TRUSTED)) { t_note("chain not flagged peer trusted (info 0x%lx)", c->TrustStatus.dwInfoStatus); cp_free(c); return; }
+    EXPECT_EQ(c->cChain, 1);
+    EXPECT_EQ(c->rgpChain[0]->cElement, 1);
+    EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
+    CHECK(c->TrustStatus.dwInfoStatus & CERT_TRUST_IS_PEER_TRUSTED);
     p = cp_run(CERT_CHAIN_POLICY_BASE, c, 0, NULL);
-    CHECK(p.ret && p.err == 0);
+    CHECKF(p.ret && p.err == 0 && p.ci == -1 && p.ei == -1, "ret=%d err=0x%lx ci=%ld ei=%ld", p.ret, p.err, p.ci, p.ei);
     p = cp_run(CERT_CHAIN_POLICY_BASE, c, CERT_CHAIN_POLICY_IGNORE_PEER_TRUST_FLAG, NULL);
-    CHECK(p.ret && p.err == CERR_UNTRUSTEDROOT);
+    CHECKF(p.ret && p.err == 0 && p.ci == -1 && p.ei == -1, "ignore: ret=%d err=0x%lx ci=%ld ei=%ld", p.ret, p.err, p.ci, p.ei);
     cp_free(c);
 }
-TEST(base_real_no_peer_trust_without_enable_flag) {
-    HCERTCHAINENGINE e; PCCERT_CHAIN_CONTEXT c;
+TEST(base_real_peer_trust_recorded_without_enable_flag) {
+    /* Win10: without ENABLE_PEER_TRUST the chain is still built to the untrusted root (error status keeps
+       UNTRUSTED_ROOT) but the leaf and the context carry IS_PEER_TRUSTED, and the BASE policy accepts it unless
+       IGNORE_PEER_TRUST is given. */
+    HCERTCHAINENGINE e; PCCERT_CHAIN_CONTEXT c; PRES p;
     NEED_ENV();
     e = cp_engine_peer(C_UNTRUSTED);
     if (!e) { t_skip("peer engine unavailable"); return; }
     c = cp_chain_ex(e, C_UNTRUSTED, 0, NULL, NULL, 0);
     if (!c) { t_skip("chain build failed"); return; }
+    EXPECT_EQ(c->rgpChain[0]->cElement, 2);
+    EXPECT_EQ(c->TrustStatus.dwErrorStatus, CERT_TRUST_IS_UNTRUSTED_ROOT);
+    CHECK(c->TrustStatus.dwInfoStatus & CERT_TRUST_IS_PEER_TRUSTED);
+    CHECK(c->rgpChain[0]->rgpElement[0]->TrustStatus.dwInfoStatus & CERT_TRUST_IS_PEER_TRUSTED);
+    p = cp_run(CERT_CHAIN_POLICY_BASE, c, 0, NULL);
+    CHECKF(p.ret && p.err == 0 && p.ci == -1 && p.ei == -1, "ret=%d err=0x%lx ci=%ld ei=%ld", p.ret, p.err, p.ci, p.ei);
+    p = cp_run(CERT_CHAIN_POLICY_BASE, c, CERT_CHAIN_POLICY_IGNORE_PEER_TRUST_FLAG, NULL);
+    CHECKF(p.ret && p.err == CERR_UNTRUSTEDROOT && p.ci == 0 && p.ei == 1, "ignore: ret=%d err=0x%lx ci=%ld ei=%ld", p.ret, p.err, p.ci, p.ei);
+    cp_free(c);
+}
+TEST(base_real_peer_store_with_other_cert_does_not_trust_leaf) {
+    HCERTCHAINENGINE e; PCCERT_CHAIN_CONTEXT c; PRES p;
+    NEED_ENV();
+    e = cp_engine_peer(C_SRV);
+    if (!e) { t_skip("peer engine unavailable"); return; }
+    c = cp_chain_ex(e, C_UNTRUSTED, CERT_CHAIN_ENABLE_PEER_TRUST, NULL, NULL, 0);
+    if (!c) { t_skip("chain build failed"); return; }
+    EXPECT_EQ(c->rgpChain[0]->cElement, 2);
     CHECK((c->TrustStatus.dwInfoStatus & CERT_TRUST_IS_PEER_TRUSTED) == 0);
-    CHECK(cp_run(CERT_CHAIN_POLICY_BASE, c, 0, NULL).err == CERR_UNTRUSTEDROOT);
+    p = cp_run(CERT_CHAIN_POLICY_BASE, c, 0, NULL);
+    CHECKF(p.ret && p.err == CERR_UNTRUSTEDROOT && p.ci == 0 && p.ei == 1, "ret=%d err=0x%lx ci=%ld ei=%ld", p.ret, p.err, p.ci, p.ei);
     cp_free(c);
 }
 TEST(base_real_ca_certificate_as_end_entity_is_fine_for_base) {
