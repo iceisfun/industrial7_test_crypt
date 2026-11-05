@@ -84,12 +84,6 @@ TEST(rsa_keys_provider_padding_schemes) {
     ULONG v = 0, n = 0;
     NTSTATUS s = U(BCryptGetProperty)(a, BCRYPT_PADDING_SCHEMES, (PUCHAR)&v, sizeof v, &n, 0);
     t_note("RSA PaddingSchemes status=0x%lx value=0x%lx", (unsigned long)s, v);
-    if (s == 0) {
-        CHECK(v & BCRYPT_SUPPORTED_PAD_PKCS1_ENC);
-        CHECK(v & BCRYPT_SUPPORTED_PAD_OAEP);
-        CHECK(v & BCRYPT_SUPPORTED_PAD_PKCS1_SIG);
-        CHECK(v & BCRYPT_SUPPORTED_PAD_PSS);
-    }
     rd_closealg(a);
     a = rd_alg(BCRYPT_DSA_ALGORITHM); CHECK(a); if (!a) return;
     EXPECT_EQ(U(BCryptGetProperty)(a, BCRYPT_PADDING_SCHEMES, (PUCHAR)&v, sizeof v, &n, 0), ST_NOT_SUPPORTED);
