@@ -21,7 +21,7 @@ static HCRYPTMSG open_sv(const svec_t *v) {
 static BOOL verify_with(HCRYPTMSG m, const BYTE *cert, DWORD cb) {
     PCCERT_CONTEXT c = ml_cert(cert, cb);
     BOOL r = c && mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, c->pCertInfo);
-    ml_cert_free(c);
+    { DWORD e_ = GetLastError(); ml_cert_free(c); SetLastError(e_); }
     return r;
 }
 
@@ -222,10 +222,10 @@ TEST(mlsd_cert_param_bytes) {
     ml_free(b);
     SET_ERR(0);
     CHECK(!mGetParam()(m, CMSG_CERT_PARAM, 1, NULL, &n));
-    EXPECT_ERR(CRYPT_E_INVALID_INDEX);
+    EXPECT_ERR(0);   /* Win10 fails without setting an error code */
     SET_ERR(0);
     CHECK(!mGetParam()(m, CMSG_CRL_PARAM, 0, NULL, &n));
-    EXPECT_ERR(CRYPT_E_INVALID_INDEX);
+    EXPECT_ERR(0);   /* Win10 fails without setting an error code */
     mClose()(m);
 }
 TEST(mlsd_bad_indexes) {
@@ -234,9 +234,11 @@ TEST(mlsd_bad_indexes) {
     if (!m) { CHECK(m != NULL); return; }
     static const DWORD pt[] = {CMSG_SIGNER_INFO_PARAM, CMSG_SIGNER_CERT_INFO_PARAM, CMSG_CERT_PARAM};
     for (size_t i = 0; i < sizeof pt / sizeof *pt; i++) {
-        DWORD n = 0; SET_ERR(0);
-        CHECKF(!mGetParam()(m, pt[i], 7, NULL, &n), "param %lu", (unsigned long)pt[i]);
-        EXPECT_ERR(CRYPT_E_INVALID_INDEX);
+        DWORD n = 0, e; t_label("param %lu", (unsigned long)pt[i]);
+        BOOL ok = T_CALL_ERR(&e, mGetParam()(m, pt[i], 7, NULL, &n));
+        CHECK(!ok);
+        /* Win10: CMSG_CERT_PARAM fails without an error code, the signer params set CRYPT_E_INVALID_INDEX */
+        EXPECT_EQ(e, pt[i] == CMSG_CERT_PARAM ? 0 : (DWORD)CRYPT_E_INVALID_INDEX);
     }
     static const DWORD pn[] = {CMSG_SIGNER_HASH_ALGORITHM_PARAM, CMSG_SIGNER_AUTH_ATTR_PARAM, CMSG_SIGNER_UNAUTH_ATTR_PARAM, CMSG_SIGNER_CERT_ID_PARAM};
     for (size_t i = 0; i < sizeof pn / sizeof *pn; i++) {
@@ -320,7 +322,7 @@ TEST(mlsd_tampered_content_attr_vs_noattr_errors) {
             CHECKF(!verify_with(m, V_CERT1, V_CERT1_LEN), "%s", SV[i].name);
             DWORD e = GetLastError();
             if (SV[i].attrs) CHECKF(e == (DWORD)CRYPT_E_HASH_VALUE, "%s err 0x%lx", SV[i].name, (unsigned long)e);
-            else CHECKF(e == (DWORD)NTE_BAD_SIGNATURE, "%s err 0x%lx", SV[i].name, (unsigned long)e);
+            else CHECKF(e == (!strcmp(SV[i].hash, OID_SHA1) ? (DWORD)NTE_BAD_SIGNATURE : ML_INVALID_SIG), "%s err 0x%lx", SV[i].name, (unsigned long)e);
             mClose()(m);
         }
         LocalFree(c);
@@ -347,7 +349,7 @@ TEST(mlsd_tampered_signature_fails) {
                 if (m) {
                     SET_ERR(0);
                     CHECK(!verify_with(m, V_CERT1, V_CERT1_LEN));
-                    EXPECT_ERR(NTE_BAD_SIGNATURE);
+                    EXPECT_ERR(ML_INVALID_SIG);
                     mClose()(m);
                 }
             }
@@ -435,9 +437,7 @@ TEST(mlsd_verify_ex_signer_types) {
     SET_ERR(0);
     CHECKF(mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p), "PUBKEY err 0x%lx", GetLastError());
     p.dwSignerType = CMSG_VERIFY_SIGNER_NULL; p.pvSigner = NULL;
-    SET_ERR(0);
-    BOOL ok = mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p);
-    t_note("VERIFY_SIGNATURE_EX with SIGNER_NULL: ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
+    EXPECT_FAILS(mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p), NTE_BAD_SIGNATURE);
     mClose()(m);
     ml_cert_free(c);
 }
@@ -451,13 +451,12 @@ TEST(mlsd_verify_ex_bad_parameters) {
     p.cbSize = sizeof p; p.dwSignerType = CMSG_VERIFY_SIGNER_CERT; p.pvSigner = (void *)c;
     p.dwSignerIndex = 5; SET_ERR(0);
     CHECK(!mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p));
-    t_note("VERIFY_SIGNATURE_EX signer index 5 of 1: err 0x%lx", (unsigned long)GetLastError());
+    EXPECT_ERR(CRYPT_E_INVALID_INDEX);
     p.dwSignerIndex = 0; p.cbSize = 4; SET_ERR(0);
-    CHECK(!mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p));
-    t_note("VERIFY_SIGNATURE_EX cbSize 4: err 0x%lx", (unsigned long)GetLastError());
+    CHECK(mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p));   /* Win10 does not validate cbSize */
     p.cbSize = sizeof p; p.dwSignerType = 99; SET_ERR(0);
     CHECK(!mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p));
-    t_note("VERIFY_SIGNATURE_EX with signer type 99: err 0x%lx", (unsigned long)GetLastError());
+    EXPECT_ERR(E_INVALIDARG);
     mClose()(m);
     ml_cert_free(c);
 }
@@ -471,7 +470,7 @@ TEST(mlsd_verify_ex_wrong_key) {
     p.cbSize = sizeof p; p.dwSignerType = CMSG_VERIFY_SIGNER_PUBKEY; p.pvSigner = (void *)&c2->pCertInfo->SubjectPublicKeyInfo;
     SET_ERR(0);
     CHECK(!mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p));
-    EXPECT_ERR(NTE_BAD_SIGNATURE);
+    EXPECT_ERR(ML_INVALID_SIG);
     mClose()(m);
     ml_cert_free(c2);
 }
@@ -502,7 +501,7 @@ TEST(mlsd_detached_wrong_content_fails) {
         SET_ERR(0);
         CHECK(!verify_with(m, V_CERT1, V_CERT1_LEN));
         DWORD e = GetLastError();
-        CHECKF(e == (a ? (DWORD)CRYPT_E_HASH_VALUE : (DWORD)NTE_BAD_SIGNATURE), "vec %s err 0x%lx", v->name, (unsigned long)e);
+        CHECKF(e == (a ? (DWORD)CRYPT_E_HASH_VALUE : ML_INVALID_SIG), "vec %s err 0x%lx", v->name, (unsigned long)e);
         mClose()(m);
     }
 }
@@ -512,9 +511,8 @@ TEST(mlsd_detached_no_content_verify) {
     if (!m) { CHECK(m != NULL); return; }
     CHECK(mUpdate()(m, M_SIGNED_DETACHED_NOATTR, M_SIGNED_DETACHED_NOATTR_LEN, TRUE));
     SET_ERR(0);
-    BOOL ok = verify_with(m, V_CERT1, V_CERT1_LEN);
-    t_note("detached verify before content supplied: ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
-    CHECK(1);
+    CHECK(!verify_with(m, V_CERT1, V_CERT1_LEN));
+    EXPECT_ERR(ML_INVALID_SIG);
     mClose()(m);
 }
 
@@ -552,7 +550,7 @@ TEST(mlsd_getandverify_signer_not_in_store) {
     SET_ERR(0);
     BOOL ok = U(CryptMsgGetAndVerifySigner)(m, 1, &st, 0, &signer, NULL);
     CHECK(!ok);
-    EXPECT_ERR(CRYPT_E_NOT_FOUND);
+    EXPECT_ERR(CRYPT_E_NO_TRUSTED_SIGNER);
     U(CertCloseStore)(st, 0);
     mClose()(m);
 }
@@ -577,11 +575,11 @@ TEST(mlsd_getandverify_trusted_flag) {
     /* trusted signer: the certificate must come from the supplied stores, not from the message */
     SET_ERR(0);
     CHECK(!U(CryptMsgGetAndVerifySigner)(m, 0, NULL, CMSG_TRUSTED_SIGNER_FLAG, &signer, NULL));
-    t_note("TRUSTED_SIGNER_FLAG with no stores: err 0x%lx", (unsigned long)GetLastError());
+    EXPECT_ERR(CRYPT_E_NO_TRUSTED_SIGNER);
     HCERTSTORE empty = mem_store(NULL, 0);
     SET_ERR(0);
     CHECK(!U(CryptMsgGetAndVerifySigner)(m, 1, &empty, CMSG_TRUSTED_SIGNER_FLAG, &signer, NULL));
-    EXPECT_ERR(CRYPT_E_NOT_FOUND);
+    EXPECT_ERR(CRYPT_E_NO_TRUSTED_SIGNER);
     HCERTSTORE st = mem_store(V_CERT1, V_CERT1_LEN);
     SET_ERR(0);
     BOOL ok = U(CryptMsgGetAndVerifySigner)(m, 1, &st, CMSG_TRUSTED_SIGNER_FLAG, &signer, NULL);
@@ -604,7 +602,7 @@ TEST(mlsd_getandverify_signer_only_flag) {
         PCCERT_CONTEXT signer = NULL;
         SET_ERR(0);
         CHECK(!U(CryptMsgGetAndVerifySigner)(m, 0, NULL, 0, &signer, NULL));
-        EXPECT_ERR(NTE_BAD_SIGNATURE);
+        EXPECT_ERR(ML_INVALID_SIG);
         SET_ERR(0);
         BOOL ok = U(CryptMsgGetAndVerifySigner)(m, 0, NULL, CMSG_SIGNER_ONLY_FLAG, &signer, NULL);
         CHECKF(ok, "err 0x%lx", GetLastError());

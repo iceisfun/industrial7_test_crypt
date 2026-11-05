@@ -62,7 +62,7 @@ TEST(mlc_encode_signed_msg_rejects_verify_with_real_parameter) {
         CHECK(mUpdate()(m, V_CONTENT, V_CONTENT_LEN, TRUE));
         SET_ERR(0);
         CHECK(!mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, s.cert->pCertInfo));
-        t_note("VERIFY_SIGNATURE on an encode message: err 0x%lx", (unsigned long)GetLastError());
+        EXPECT_ERR(E_INVALIDARG);
         mClose()(m);
     }
     ml_signer_done(&s);
@@ -283,9 +283,7 @@ TEST(mlc_add_cert_garbage_blob) {
     BYTE junk[] = {1,2,3};
     CERT_BLOB b = {sizeof junk, junk};
     SET_ERR(0);
-    BOOL ok = mControl()(m, 0, CMSG_CTRL_ADD_CERT, &b);
-    t_note("ADD_CERT with a non-DER blob: ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
-    CHECK(1);
+    EXPECT_SUCCEEDS(mControl()(m, 0, CMSG_CTRL_ADD_CERT, &b));   /* the blob is stored without validation */
     mClose()(m);
 }
 TEST(mlc_add_cert_wrong_type) {
@@ -294,13 +292,10 @@ TEST(mlc_add_cert_wrong_type) {
     CHECK(m != NULL);
     if (!m) return;
     CERT_BLOB b2 = {V_CERT2_LEN, (BYTE *)V_CERT2};
-    SET_ERR(0);
-    CHECK(!mControl()(m, 0, CMSG_CTRL_ADD_CERT, &b2));
-    EXPECT_ERR(CRYPT_E_INVALID_MSG_TYPE);
+    /* Win10 does not check the message type first: both controls dereference missing signed-data state (access violation) */
+    T_EXPECT_FAULT(mControl()(m, 0, CMSG_CTRL_ADD_CERT, &b2));
     DWORD idx = 0;
-    SET_ERR(0);
-    CHECK(!mControl()(m, 0, CMSG_CTRL_DEL_CERT, &idx));
-    EXPECT_ERR(CRYPT_E_INVALID_MSG_TYPE);
+    T_EXPECT_FAULT(mControl()(m, 0, CMSG_CTRL_DEL_CERT, &idx));
     mClose()(m);
 }
 
@@ -312,17 +307,16 @@ TEST(mlc_add_del_unauth_attr) {
     if (!m) return;
     CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR_PARA a; memset(&a, 0, sizeof a);
     a.cbSize = sizeof a; a.dwSignerIndex = 0; a.blob.cbData = sizeof ATTR_DER; a.blob.pbData = (BYTE *)ATTR_DER;
-    SET_ERR(0);
-    CHECKF(mControl()(m, 0, CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR, &a), "add err 0x%lx", GetLastError());
-    DWORD n = 0; BYTE *u = ml_param(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, &n);
-    CHECK(u != NULL);
-    if (u) {
-        CRYPT_ATTRIBUTES *at = (CRYPT_ATTRIBUTES *)u;
-        CHECK(at->cAttr == 1 && !strcmp(at->rgAttr[0].pszObjId, "1.2.3.4.5.77"));
-        ml_free(u);
-    }
+    EXPECT_SUCCEEDS(mControl()(m, 0, CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR, &a));
+    /* Win10: CMSG_SIGNER_UNAUTH_ATTR_PARAM does not reflect attributes added by control (still ATTRIBUTES_MISSING); SIGNER_INFO does */
+    DWORD n = 0;
+    EXPECT_FAILS(mGetParam()(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &n), CRYPT_E_ATTRIBUTES_MISSING);
     BYTE *si = ml_param(m, CMSG_SIGNER_INFO_PARAM, 0, &n);
-    if (si) { CHECK(((CMSG_SIGNER_INFO *)si)->UnauthAttrs.cAttr == 1); ml_free(si); } else CHECK(si != NULL);
+    if (si) {
+        CMSG_SIGNER_INFO *sii = (CMSG_SIGNER_INFO *)si;
+        CHECK(sii->UnauthAttrs.cAttr == 1 && !strcmp(sii->UnauthAttrs.rgAttr[0].pszObjId, "1.2.3.4.5.77"));
+        ml_free(si);
+    } else CHECK(si != NULL);
     /* an unauthenticated attribute does not invalidate the signature */
     PCCERT_CONTEXT c = ml_cert(V_CERT1, V_CERT1_LEN);
     SET_ERR(0);
@@ -365,14 +359,15 @@ TEST(mlc_unauth_attr_bad_cbsize) {
     if (!m) return;
     CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR_PARA a; memset(&a, 0, sizeof a);
     a.cbSize = 4; a.blob.cbData = sizeof ATTR_DER; a.blob.pbData = (BYTE *)ATTR_DER;
-    SET_ERR(0);
-    CHECK(!mControl()(m, 0, CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR, &a));
-    EXPECT_ERR(E_INVALIDARG);
+    /* Win10 does not validate cbSize of these parameter structures: both calls succeed */
+    EXPECT_SUCCEEDS(mControl()(m, 0, CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR, &a));
+    DWORD n = 0; BYTE *si = ml_param(m, CMSG_SIGNER_INFO_PARAM, 0, &n);
+    CHECK(si && ((CMSG_SIGNER_INFO *)si)->UnauthAttrs.cAttr == 1); ml_free(si);
     CMSG_CTRL_DEL_SIGNER_UNAUTH_ATTR_PARA d; memset(&d, 0, sizeof d);
     d.cbSize = 4;
-    SET_ERR(0);
-    CHECK(!mControl()(m, 0, CMSG_CTRL_DEL_SIGNER_UNAUTH_ATTR, &d));
-    EXPECT_ERR(E_INVALIDARG);
+    EXPECT_SUCCEEDS(mControl()(m, 0, CMSG_CTRL_DEL_SIGNER_UNAUTH_ATTR, &d));
+    si = ml_param(m, CMSG_SIGNER_INFO_PARAM, 0, &n);
+    CHECK(si && ((CMSG_SIGNER_INFO *)si)->UnauthAttrs.cAttr == 0); ml_free(si);
     mClose()(m);
 }
 TEST(mlc_encoded_signer_param_after_attr_add) {
@@ -385,14 +380,11 @@ TEST(mlc_encoded_signer_param_after_attr_add) {
     CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR_PARA a; memset(&a, 0, sizeof a);
     a.cbSize = sizeof a; a.blob.cbData = sizeof ATTR_DER; a.blob.pbData = (BYTE *)ATTR_DER;
     CHECK(mControl()(m, 0, CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR, &a));
-    DWORD n1 = 0; BYTE *after = ml_param(m, CMSG_ENCODED_SIGNER, 0, &n1);
-    CHECK(after != NULL);
-    if (before && after) {
-        CHECK(before[0] == 0x30 && after[0] == 0x30);
-        CHECK(n1 > n0);
-        CHECK(ml_memmem(after, n1, ATTR_DER + 2, 7) != NULL);       /* the attribute type OID is present */
-    }
-    ml_free(before); ml_free(after);
+    /* Win10: once an attribute was added, CMSG_ENCODED_SIGNER is no longer available */
+    DWORD n1 = 0;
+    EXPECT_FAILS(mGetParam()(m, CMSG_ENCODED_SIGNER, 0, NULL, &n1), E_INVALIDARG);
+    if (before) CHECK(before[0] == 0x30);
+    ml_free(before);
     mClose()(m);
 }
 
@@ -449,7 +441,7 @@ TEST(mlc_add_signer_bad_cbsize) {
     si.cbSize = 4;
     SET_ERR(0);
     CHECK(!mControl()(m, 0, CMSG_CTRL_ADD_SIGNER, &si));
-    EXPECT_ERR(E_INVALIDARG);
+    EXPECT_ERR(CRYPT_E_UNKNOWN_ALGO);   /* cbSize is not validated; the empty hash algorithm is what fails */
     mClose()(m);
 }
 
@@ -460,11 +452,10 @@ TEST(mlc_attr_cert_params_empty) {
     CHECK(m != NULL);
     if (!m) return;
     DWORD n = 99;
-    if (ml_param_dword(m, CMSG_ATTR_CERT_COUNT_PARAM, 0, &n)) EXPECT_EQ(n, 0);
-    else t_note("ATTR_CERT_COUNT_PARAM failed: 0x%lx", (unsigned long)GetLastError());
+    CHECK(ml_param_dword(m, CMSG_ATTR_CERT_COUNT_PARAM, 0, &n)); EXPECT_EQ(n, 0);
     n = 0; SET_ERR(0);
     CHECK(!mGetParam()(m, CMSG_ATTR_CERT_PARAM, 0, NULL, &n));
-    EXPECT_ERR(CRYPT_E_INVALID_INDEX);
+    EXPECT_ERR(0);   /* Win10 fails without setting an error code */
     mClose()(m);
 }
 TEST(mlc_add_del_attr_cert) {
@@ -475,20 +466,11 @@ TEST(mlc_add_del_attr_cert) {
     /* a minimal DER SEQUENCE stands in for an attribute certificate: the blob is stored verbatim */
     static const BYTE ac[] = {0x30,0x06,0x02,0x01,0x01,0x02,0x01,0x02};
     CERT_BLOB b = {sizeof ac, (BYTE *)ac};
-    SET_ERR(0);
-    BOOL ok = mControl()(m, 0, CMSG_CTRL_ADD_ATTR_CERT, &b);
-    CHECKF(ok, "add err 0x%lx", GetLastError());
-    if (ok) {
-        DWORD n = 0; CHECK(ml_param_dword(m, CMSG_ATTR_CERT_COUNT_PARAM, 0, &n)); EXPECT_EQ(n, 1);
-        DWORD k = 0; BYTE *c = ml_param(m, CMSG_ATTR_CERT_PARAM, 0, &k);
-        CHECK(c && k == sizeof ac && !memcmp(c, ac, k)); ml_free(c);
-        DWORD idx = 2; SET_ERR(0);
-        CHECK(!mControl()(m, 0, CMSG_CTRL_DEL_ATTR_CERT, &idx));
-        EXPECT_ERR(CRYPT_E_INVALID_INDEX);
-        idx = 0;
-        CHECK(mControl()(m, 0, CMSG_CTRL_DEL_ATTR_CERT, &idx));
-        CHECK(ml_param_dword(m, CMSG_ATTR_CERT_COUNT_PARAM, 0, &n)); EXPECT_EQ(n, 0);
-    }
+    /* Win10 refuses to add an attribute certificate to this decoded signed message */
+    EXPECT_FAILS(mControl()(m, 0, CMSG_CTRL_ADD_ATTR_CERT, &b), CRYPT_E_INVALID_MSG_TYPE);
+    DWORD n = 99; CHECK(ml_param_dword(m, CMSG_ATTR_CERT_COUNT_PARAM, 0, &n)); EXPECT_EQ(n, 0);
+    DWORD idx = 0;
+    EXPECT_FAILS(mControl()(m, 0, CMSG_CTRL_DEL_ATTR_CERT, &idx), CRYPT_E_INVALID_INDEX);
     mClose()(m);
 }
 TEST(mlc_strong_signature_control) {
@@ -500,16 +482,11 @@ TEST(mlc_strong_signature_control) {
     sp.cbSize = sizeof sp;
     sp.dwInfoChoice = CERT_STRONG_SIGN_OID_INFO_CHOICE;
     sp.pszOID = (LPSTR)szOID_CERT_STRONG_SIGN_OS_CURRENT;
-    SET_ERR(0);
-    BOOL ok = mControl()(m, 0, CMSG_CTRL_ENABLE_STRONG_SIGNATURE, &sp);
-    t_note("ENABLE_STRONG_SIGNATURE (OS_CURRENT policy): ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
-    if (ok) {
-        PCCERT_CONTEXT c = ml_cert(V_CERT1, V_CERT1_LEN);
-        SET_ERR(0);
-        BOOL v = c && mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, c->pCertInfo);
-        t_note("verify of a 1024-bit-key signature with the strong-signature policy enabled: ok=%d err=0x%lx", v, (unsigned long)GetLastError());
-        ml_cert_free(c);
-    }
-    CHECK(1);
+    EXPECT_SUCCEEDS(mControl()(m, 0, CMSG_CTRL_ENABLE_STRONG_SIGNATURE, &sp));
+    PCCERT_CONTEXT c = ml_cert(V_CERT1, V_CERT1_LEN);
+    REQUIRE_NOTNULL(c);
+    /* with the strong policy on, the 1024-bit RSA signature is rejected with NTE_BAD_ALGID */
+    EXPECT_FAILS(mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, c->pCertInfo), NTE_BAD_ALGID);
+    ml_cert_free(c);
     mClose()(m);
 }

@@ -434,8 +434,8 @@ TEST(mld_calc_length_bad_args) {
     CHECK(mCalcLen()(ENC, 0, 0, NULL, NULL, 3) == 0);
     EXPECT_ERR(CRYPT_E_INVALID_MSG_TYPE);
     SET_ERR(0);
-    CHECK(mCalcLen()(ENC, 0, CMSG_SIGNED, NULL, NULL, 3) == 0);
-    t_note("CalculateEncodedLength(SIGNED, NULL info) err=0x%lx", (unsigned long)GetLastError());
+    /* Win10 dereferences the NULL encode info (access violation) */
+    T_EXPECT_FAULT(mCalcLen()(ENC, 0, CMSG_SIGNED, NULL, NULL, 3));
 }
 TEST(mld_calc_length_bare_flag) {
     REQ_MSG();
@@ -512,8 +512,11 @@ TEST(mld_decode_data_type_mismatch) {
     DWORD n = 0; SET_ERR(0);
     CHECK(!mGetParam()(m, CMSG_SIGNER_COUNT_PARAM, 0, NULL, &n));
     EXPECT_ERR(CRYPT_E_INVALID_MSG_TYPE);
-    SET_ERR(0);
-    CHECK(!mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, NULL));
-    t_note("VERIFY_SIGNATURE on a data message: err 0x%lx", (unsigned long)GetLastError());
+    /* Win10 reads the (NULL) cert info before looking at the message type; with a real one the type is rejected */
+    T_EXPECT_FAULT(mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, NULL));
+    PCCERT_CONTEXT c = ml_cert(V_CERT1, V_CERT1_LEN);
+    REQUIRE_NOTNULL(c);
+    EXPECT_FAILS(mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, c->pCertInfo), CRYPT_E_INVALID_MSG_TYPE);
+    ml_cert_free(c);
     mClose()(m);
 }

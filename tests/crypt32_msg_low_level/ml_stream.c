@@ -444,9 +444,7 @@ TEST(mlt_decode_stream_getparam_before_data) {
     CHECK(m != NULL);
     if (!m) return;
     DWORD n = 0; SET_ERR(0);
-    BOOL ok = mGetParam()(m, CMSG_TYPE_PARAM, 0, NULL, &n);
-    t_note("streamed decode: TYPE_PARAM before any data: ok=%d err=0x%lx (CRYPT_E_STREAM_MSG_NOT_READY is 0x%lx)", ok, (unsigned long)GetLastError(), (unsigned long)CRYPT_E_STREAM_MSG_NOT_READY);
-    CHECK(1);
+    EXPECT_FAILS(mGetParam()(m, CMSG_TYPE_PARAM, 0, NULL, &n), CRYPT_E_STREAM_MSG_NOT_READY);
     mClose()(m);
     acc_free(&a);
 }

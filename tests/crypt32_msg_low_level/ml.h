@@ -17,6 +17,11 @@
 #endif
 
 #define ENC PKCS_7_ASN_ENCODING
+/* Win10 reports a failed CNG signature check as this NTSTATUS (not NTE_BAD_SIGNATURE) */
+#define ML_INVALID_SIG ((DWORD)0xC000A000)
+#ifndef CRYPT_E_NO_TRUSTED_SIGNER
+#define CRYPT_E_NO_TRUSTED_SIGNER ((HRESULT)0x8009202B)
+#endif
 #define OID_SHA1   "1.3.14.3.2.26"
 #define OID_SHA256 "2.16.840.1.101.3.4.2.1"
 #define OID_MD5    "1.2.840.113549.2.5"

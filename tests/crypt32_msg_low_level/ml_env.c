@@ -44,10 +44,9 @@ static BOOL decrypt(env_t *e, HCRYPTMSG m, DWORD idx) {
 TEST(mle_open_null_info) {
     REQ_MSG();
     if (t_is_wine()) { t_skip("emulator dereferences NULL info"); return; }
-    SET_ERR(0);
-    HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_ENVELOPED, NULL, NULL, NULL);
-    CHECK(m == NULL);
-    EXPECT_ERR(E_INVALIDARG);
+    /* Win10 dereferences the NULL encode info (access violation) instead of failing */
+    HCRYPTMSG volatile m = NULL;
+    T_EXPECT_FAULT(m = mOpenEnc()(ENC, 0, CMSG_ENVELOPED, NULL, NULL, NULL));
     if (m) mClose()(m);
 }
 TEST(mle_open_bad_cbsize) {
@@ -74,8 +73,7 @@ TEST(mle_open_zero_recipients) {
     REQ_ENV(e, OID_3DES);
     e.ei.cRecipients = 0; SET_ERR(0);
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_ENVELOPED, &e.ei, NULL, NULL);
-    t_note("enveloped with zero recipients: %s err=0x%lx", m ? "opened" : "rejected", (unsigned long)GetLastError());
-    CHECK(1);
+    CHECK(m != NULL);   /* Win10 opens an envelope with no recipients */
     if (m) mClose()(m);
     env_done(&e);
 }
@@ -226,8 +224,9 @@ TEST(mle_recipient_params) {
             CERT_INFO *ci = (CERT_INFO *)r;
             CHECK(ci->Issuer.cbData == e.cert->pCertInfo->Issuer.cbData && !memcmp(ci->Issuer.pbData, e.cert->pCertInfo->Issuer.pbData, ci->Issuer.cbData));
             CHECK(ci->SerialNumber.cbData == e.cert->pCertInfo->SerialNumber.cbData && !memcmp(ci->SerialNumber.pbData, e.cert->pCertInfo->SerialNumber.pbData, ci->SerialNumber.cbData));
-            CHECK(ci->SubjectPublicKeyInfo.Algorithm.pszObjId && !strcmp(ci->SubjectPublicKeyInfo.Algorithm.pszObjId, OID_RSA));
-            CHECK(ci->SubjectPublicKeyInfo.PublicKey.cbData == 128);   /* the RSA-encrypted content key */
+            /* Win10 fills only issuer and serial number of the recipient CERT_INFO; the key info stays empty */
+            CHECK(ci->SubjectPublicKeyInfo.Algorithm.pszObjId == NULL);
+            EXPECT_EQ(ci->SubjectPublicKeyInfo.PublicKey.cbData, 0);
             ml_free(r);
         }
         r = ml_param(d, CMSG_CMS_RECIPIENT_INFO_PARAM, 0, &n);
@@ -367,10 +366,7 @@ TEST(mle_decrypt_with_wrong_key) {
         CMSG_CTRL_DECRYPT_PARA p; memset(&p, 0, sizeof p);
         p.cbSize = sizeof p; p.hCryptProv = other; p.dwKeySpec = AT_KEYEXCHANGE;
         SET_ERR(0);
-        BOOL ok = mControl()(m, 0, CMSG_CTRL_DECRYPT, &p);
-        t_note("decrypt with a different private key: ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
-        if (ok) { DWORD n = 0; BYTE *c = ml_param(m, CMSG_CONTENT_PARAM, 0, &n); CHECK(!(c && n == V_CONTENT_LEN && !memcmp(c, V_CONTENT, n))); ml_free(c); }
-        else CHECK(1);
+        EXPECT_FAILS(mControl()(m, 0, CMSG_CTRL_DECRYPT, &p), NTE_BAD_DATA);
     }
     if (m) mClose()(m);
     ml_prov_release(other);
@@ -382,9 +378,7 @@ TEST(mle_content_before_decrypt) {
     CHECK(m != NULL);
     if (m) {
         DWORD n = 0; SET_ERR(0);
-        BOOL ok = mGetParam()(m, CMSG_CONTENT_PARAM, 0, NULL, &n);
-        t_note("enveloped CONTENT_PARAM before decrypt: ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
-        CHECK(1);
+        EXPECT_SUCCEEDS(mGetParam()(m, CMSG_CONTENT_PARAM, 0, NULL, &n));   /* Win10: available before decrypt */
         mClose()(m);
     }
 }

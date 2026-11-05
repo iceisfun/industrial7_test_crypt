@@ -15,7 +15,7 @@ static BOOL has_attr(const CRYPT_ATTRIBUTES *a, const char *oid) {
 static BOOL verify1(HCRYPTMSG m) {
     PCCERT_CONTEXT c = ml_cert(V_CERT1, V_CERT1_LEN);
     BOOL r = c && mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, c->pCertInfo);
-    ml_cert_free(c);
+    { DWORD e_ = GetLastError(); ml_cert_free(c); SetLastError(e_); }
     return r;
 }
 
@@ -23,10 +23,9 @@ static BOOL verify1(HCRYPTMSG m) {
 TEST(mls_open_null_info) {
     REQ_MSG();
     if (t_is_wine()) { t_skip("emulator dereferences NULL info"); return; }
-    SET_ERR(0);
-    HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_SIGNED, NULL, NULL, NULL);
-    CHECK(m == NULL);
-    EXPECT_ERR(E_INVALIDARG);
+    /* Win10 dereferences the NULL encode info (access violation) instead of failing */
+    HCRYPTMSG volatile m = NULL;
+    T_EXPECT_FAULT(m = mOpenEnc()(ENC, 0, CMSG_SIGNED, NULL, NULL, NULL));
     if (m) mClose()(m);
 }
 TEST(mls_open_bad_signed_cbsize) {
@@ -65,10 +64,10 @@ TEST(mls_open_unknown_hash_algorithm) {
 TEST(mls_open_signer_without_certinfo) {
     ml_signer_t s; REQ_SIGN(s);
     if (t_is_wine()) { ml_signer_done(&s); t_skip("emulator dereferences NULL pCertInfo"); return; }
-    s.si[0].pCertInfo = NULL; SET_ERR(0);
-    HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_SIGNED, &s.se, NULL, NULL);
-    t_note("signer with NULL pCertInfo: %s err=0x%lx", m ? "opened" : "rejected", (unsigned long)GetLastError());
-    CHECK(1);
+    s.si[0].pCertInfo = NULL;
+    /* Win10 dereferences the NULL pCertInfo (access violation) instead of failing */
+    HCRYPTMSG volatile m = NULL;
+    T_EXPECT_FAULT(m = mOpenEnc()(ENC, 0, CMSG_SIGNED, &s.se, NULL, NULL));
     if (m) mClose()(m);
     ml_signer_done(&s);
 }
@@ -234,9 +233,8 @@ TEST(mls_sign_content_param_before_update) {
     CHECK(m != NULL);
     if (m) {
         DWORD n = 0; SET_ERR(0);
-        BOOL ok = mGetParam()(m, CMSG_CONTENT_PARAM, 0, NULL, &n);
-        t_note("signed CONTENT_PARAM before the final update: ok=%d err=0x%lx size=%lu", ok, (unsigned long)GetLastError(), (unsigned long)n);
-        CHECK(1);
+        EXPECT_SUCCEEDS(mGetParam()(m, CMSG_CONTENT_PARAM, 0, NULL, &n));
+        EXPECT_EQ(n, 136);
         mClose()(m);
     }
     ml_signer_done(&s);
@@ -548,10 +546,10 @@ TEST(mls_embedded_cert_and_crl_params) {
             CHECK(c0 && k == V_CRL1_LEN && !memcmp(c0, V_CRL1, k)); ml_free(c0);
             SET_ERR(0);
             CHECK(!mGetParam()(d, CMSG_CERT_PARAM, 2, NULL, &k));
-            EXPECT_ERR(CRYPT_E_INVALID_INDEX);
+            EXPECT_ERR(0);   /* Win10 fails without setting an error code */
             SET_ERR(0);
             CHECK(!mGetParam()(d, CMSG_CRL_PARAM, 1, NULL, &k));
-            EXPECT_ERR(CRYPT_E_INVALID_INDEX);
+            EXPECT_ERR(0);   /* Win10 fails without setting an error code */
             mClose()(d);
         }
         ml_free(b);

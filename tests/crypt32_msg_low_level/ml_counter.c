@@ -40,6 +40,29 @@ static BYTE *make_counter(cs_t *c, BYTE **signer, DWORD *signer_cb, DWORD *out_c
     return r;
 }
 
+/* Win10: CryptMsgCountersignEncoded returns an encoded countersignature ATTRIBUTE (OID + SET { SignerInfo }), while the
+   Verify calls take the SignerInfo itself.  Returns the SignerInfo (LocalAlloc'd) or NULL. */
+static BYTE *cs_signerinfo_of(const BYTE *attr, DWORD cb, DWORD *out_cb) {
+    DWORD n = 0; BYTE *r = NULL;
+    if (!U(CryptDecodeObject)(X509_ASN_ENCODING | ENC, PKCS_ATTRIBUTE, attr, cb, 0, NULL, &n)) return NULL;
+    CRYPT_ATTRIBUTE *a = (CRYPT_ATTRIBUTE *)LocalAlloc(LPTR, n + 8);
+    if (a && U(CryptDecodeObject)(X509_ASN_ENCODING | ENC, PKCS_ATTRIBUTE, attr, cb, 0, a, &n) &&
+        a->pszObjId && !strcmp(a->pszObjId, OID_COUNTERSIGN) && a->cValue == 1) {
+        r = (BYTE *)LocalAlloc(LPTR, a->rgValue[0].cbData + 8);
+        if (r) { memcpy(r, a->rgValue[0].pbData, a->rgValue[0].cbData); *out_cb = a->rgValue[0].cbData; }
+    }
+    if (a) LocalFree(a);
+    return r;
+}
+/* like make_counter, but returns the countersigner's SignerInfo */
+static BYTE *make_counter_si(cs_t *c, BYTE **signer, DWORD *signer_cb, DWORD *out_cb) {
+    DWORD acb = 0; BYTE *attr = make_counter(c, signer, signer_cb, &acb), *r;
+    if (!attr) return NULL;
+    r = cs_signerinfo_of(attr, acb, out_cb);
+    LocalFree(attr);
+    return r;
+}
+
 TEST(mlk_encoded_signer_param) {
     REQ_MSG();
     HCRYPTMSG m = ml_decode(M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN, 0, 0);
@@ -64,17 +87,14 @@ TEST(mlk_countersign_encoded_and_verify) {
     cs_t c; REQ_CS();
     if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
-    BYTE *cnt = make_counter(&c, &signer, &scb, &ccb);
+    BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
     if (cnt) {
         CHECK(cnt[0] == 0x30);
-        SET_ERR(0);
-        CHECKF(mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c.cert->pCertInfo), "verify err 0x%lx", GetLastError());
+        EXPECT_SUCCEEDS(mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c.cert->pCertInfo));
         /* the countersignature binds the original signer's signature value */
-        SET_ERR(0);
         PCCERT_CONTEXT c1 = ml_cert(V_CERT1, V_CERT1_LEN);
-        CHECK(!mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c1->pCertInfo));
-        t_note("verify countersignature with the wrong certificate: err 0x%lx", (unsigned long)GetLastError());
+        EXPECT_FAILS(mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c1->pCertInfo), ML_INVALID_SIG);
         ml_cert_free(c1);
     }
     ml_free(signer); LocalFree(cnt);
@@ -127,8 +147,7 @@ TEST(mlk_countersign_encoded_bad_args) {
         CHECK(!mCountersignEnc()(0, signer, scb, 1, &c.si, NULL, &n));
         EXPECT_ERR(E_INVALIDARG);
         SET_ERR(0);
-        CHECK(!mCountersignEnc()(ENC, signer, scb, 0, &c.si, NULL, &n));
-        t_note("CountersignEncoded with 0 countersigners: err 0x%lx", (unsigned long)GetLastError());
+        EXPECT_SUCCEEDS(mCountersignEnc()(ENC, signer, scb, 0, &c.si, NULL, &n));   /* Win10 does not reject a zero count */
         c.si.HashAlgorithm.pszObjId = "1.2.3.4";
         SET_ERR(0);
         CHECK(!mCountersignEnc()(ENC, signer, scb, 1, &c.si, NULL, &n));
@@ -139,9 +158,7 @@ TEST(mlk_countersign_encoded_bad_args) {
         EXPECT_ERR(E_INVALIDARG);
         c.si.cbSize = sizeof c.si;
         BYTE junk[8] = {1,2,3,4,5,6,7,8};
-        SET_ERR(0);
-        CHECK(!mCountersignEnc()(ENC, junk, sizeof junk, 1, &c.si, NULL, &n));
-        t_note("CountersignEncoded over a non-DER signer blob: err 0x%lx", (unsigned long)GetLastError());
+        EXPECT_FAILS(mCountersignEnc()(ENC, junk, sizeof junk, 1, &c.si, NULL, &n), CRYPT_E_ASN1_BADTAG);
         ml_free(signer);
     }
     if (m) mClose()(m);
@@ -151,7 +168,7 @@ TEST(mlk_verify_tampered_signer_info) {
     cs_t c; REQ_CS();
     if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
-    BYTE *cnt = make_counter(&c, &signer, &scb, &ccb);
+    BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
     if (cnt) {
         /* flip a bit inside the original signature value that the countersignature covers */
@@ -163,9 +180,7 @@ TEST(mlk_verify_tampered_signer_info) {
             CHECK(p != NULL);
             if (p) {
                 ((BYTE *)p)[40] ^= 1;
-                SET_ERR(0);
-                CHECK(!mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c.cert->pCertInfo));
-                t_note("countersignature over an altered signature value: err 0x%lx", (unsigned long)GetLastError());
+                EXPECT_FAILS(mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c.cert->pCertInfo), CRYPT_E_HASH_VALUE);
             }
             ml_free(si);
         }
@@ -178,18 +193,14 @@ TEST(mlk_verify_bad_args) {
     cs_t c; REQ_CS();
     if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
-    BYTE *cnt = make_counter(&c, &signer, &scb, &ccb);
+    BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
     if (cnt) {
         SET_ERR(0);
         CHECK(!mVerifyCounter()(0, 0, signer, scb, cnt, ccb, c.cert->pCertInfo));
         EXPECT_ERR(E_INVALIDARG);
-        SET_ERR(0);
-        CHECK(!mVerifyCounter()(0, ENC, signer, scb, cnt, 3, c.cert->pCertInfo));
-        t_note("verify with a truncated countersignature blob: err 0x%lx", (unsigned long)GetLastError());
-        SET_ERR(0);
-        CHECK(!mVerifyCounter()(0, ENC, signer, 5, cnt, ccb, c.cert->pCertInfo));
-        t_note("verify with a truncated signer blob: err 0x%lx", (unsigned long)GetLastError());
+        EXPECT_FAILS(mVerifyCounter()(0, ENC, signer, scb, cnt, 3, c.cert->pCertInfo), CRYPT_E_ASN1_EOD);
+        EXPECT_FAILS(mVerifyCounter()(0, ENC, signer, 5, cnt, ccb, c.cert->pCertInfo), CRYPT_E_ASN1_EOD);
     }
     ml_free(signer); LocalFree(cnt);
     cs_done(&c);
@@ -198,26 +209,17 @@ TEST(mlk_verify_ex_signer_types) {
     cs_t c; REQ_CS();
     if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
-    BYTE *cnt = make_counter(&c, &signer, &scb, &ccb);
+    BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
     if (cnt) {
-        SET_ERR(0);
-        CHECKF(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_CERT, (void *)c.cert, 0, NULL), "CERT err 0x%lx", GetLastError());
-        SET_ERR(0);
-        CHECKF(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_PUBKEY, (void *)&c.cert->pCertInfo->SubjectPublicKeyInfo, 0, NULL), "PUBKEY err 0x%lx", GetLastError());
+        EXPECT_SUCCEEDS(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_CERT, (void *)c.cert, 0, NULL));
+        EXPECT_SUCCEEDS(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_PUBKEY, (void *)&c.cert->pCertInfo->SubjectPublicKeyInfo, 0, NULL));
         PCCERT_CONTEXT c1 = ml_cert(V_CERT1, V_CERT1_LEN);
-        SET_ERR(0);
-        CHECK(!mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_CERT, (void *)c1, 0, NULL));
-        SET_ERR(0);
-        CHECK(!mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_PUBKEY, (void *)&c1->pCertInfo->SubjectPublicKeyInfo, 0, NULL));
-        EXPECT_ERR(NTE_BAD_SIGNATURE);
+        EXPECT_FAILS(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_CERT, (void *)c1, 0, NULL), ML_INVALID_SIG);
+        EXPECT_FAILS(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_PUBKEY, (void *)&c1->pCertInfo->SubjectPublicKeyInfo, 0, NULL), ML_INVALID_SIG);
         ml_cert_free(c1);
-        SET_ERR(0);
-        CHECK(!mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, 99, (void *)c.cert, 0, NULL));
-        t_note("VerifyEx with signer type 99: err 0x%lx", (unsigned long)GetLastError());
-        SET_ERR(0);
-        BOOL ok = mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_CERT, (void *)c.cert, CMSG_VERIFY_COUNTER_SIGN_ENABLE_STRONG_FLAG, NULL);
-        t_note("VerifyEx with ENABLE_STRONG_FLAG: ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
+        EXPECT_FAILS(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, 99, (void *)c.cert, 0, NULL), E_INVALIDARG);
+        EXPECT_SUCCEEDS(mVerifyCounterEx()(0, ENC, signer, scb, cnt, ccb, CMSG_VERIFY_SIGNER_CERT, (void *)c.cert, CMSG_VERIFY_COUNTER_SIGN_ENABLE_STRONG_FLAG, NULL));
     }
     ml_free(signer); LocalFree(cnt);
     cs_done(&c);
@@ -233,15 +235,17 @@ TEST(mlk_countersign_message) {
     BOOL ok = mCountersign()(m, 0, 1, &c.si);
     CHECKF(ok, "err 0x%lx", GetLastError());
     if (ok) {
-        DWORD n = 0; BYTE *u = ml_param(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, &n);
+        /* Win10: CMSG_SIGNER_UNAUTH_ATTR_PARAM stays unavailable after the countersignature was added; SIGNER_INFO shows it */
+        DWORD n = 0;
+        EXPECT_FAILS(mGetParam()(m, CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, NULL, &n), CRYPT_E_ATTRIBUTES_MISSING);
+        BYTE *u = ml_param(m, CMSG_SIGNER_INFO_PARAM, 0, &n);
         CHECK(u != NULL);
         if (u) {
-            CRYPT_ATTRIBUTES *at = (CRYPT_ATTRIBUTES *)u;
+            CRYPT_ATTRIBUTES *at = &((CMSG_SIGNER_INFO *)u)->UnauthAttrs;
             CHECK(at->cAttr == 1 && !strcmp(at->rgAttr[0].pszObjId, OID_COUNTERSIGN));
             if (at->cAttr == 1 && at->rgAttr[0].cValue == 1 && signer) {
                 CRYPT_ATTR_BLOB *v = &at->rgAttr[0].rgValue[0];
-                SET_ERR(0);
-                CHECKF(mVerifyCounter()(0, ENC, signer, scb, v->pbData, v->cbData, c.cert->pCertInfo), "verify err 0x%lx", GetLastError());
+                EXPECT_SUCCEEDS(mVerifyCounter()(0, ENC, signer, scb, v->pbData, v->cbData, c.cert->pCertInfo));
             }
             ml_free(u);
         }
@@ -282,11 +286,11 @@ TEST(mlk_countersign_md5_sha1_algorithms) {
     for (size_t i = 0; i < 3; i++) {
         if (!cs_init(&c, TRUE, h[i])) { cs_done(&c); t_skip("setup"); return; }
         BYTE *signer; DWORD scb = 0, ccb = 0;
-        BYTE *cnt = make_counter(&c, &signer, &scb, &ccb);
+        BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
         CHECKF(cnt != NULL, "hash %s err 0x%lx", h[i], GetLastError());
         if (cnt) {
-            SET_ERR(0);
-            CHECKF(mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c.cert->pCertInfo), "hash %s verify err 0x%lx", h[i], GetLastError());
+            t_label("hash %s", h[i]);
+            EXPECT_SUCCEEDS(mVerifyCounter()(0, ENC, signer, scb, cnt, ccb, c.cert->pCertInfo));
         }
         ml_free(signer); LocalFree(cnt);
         cs_done(&c);

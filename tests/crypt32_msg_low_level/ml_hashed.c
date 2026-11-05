@@ -23,10 +23,9 @@ static BYTE *enc_hashed(const char *oid, DWORD flags, const BYTE *d, DWORD n, DW
 TEST(mlh_open_null_info) {
     REQ_MSG();
     if (t_is_wine()) { t_skip("emulator dereferences NULL info"); return; }
-    SET_ERR(0);
-    HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_HASHED, NULL, NULL, NULL);
-    CHECK(m == NULL);
-    EXPECT_ERR(E_INVALIDARG);
+    /* Win10 dereferences the NULL encode info (access violation) instead of failing */
+    HCRYPTMSG volatile m = NULL;
+    T_EXPECT_FAULT(m = mOpenEnc()(ENC, 0, CMSG_HASHED, NULL, NULL, NULL));
     if (m) mClose()(m);
 }
 TEST(mlh_open_bad_cbsize) {
@@ -56,8 +55,8 @@ TEST(mlh_open_null_oid) {
     CMSG_HASHED_ENCODE_INFO h; hinfo(&h, NULL, 0);
     SET_ERR(0);
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_HASHED, &h, NULL, NULL);
-    t_note("hashed open with NULL hash OID: %s err=0x%lx", m ? "succeeded" : "failed", (unsigned long)GetLastError());
-    CHECK(1);
+    CHECK(m == NULL);
+    EXPECT_ERR(CRYPT_E_UNKNOWN_ALGO);
     if (m) mClose()(m);
 }
 TEST(mlh_open_with_explicit_provider) {
@@ -473,8 +472,6 @@ TEST(mlh_decode_before_final_not_ready) {
     HCRYPTMSG m = mOpenDec()(ENC, 0, 0, 0, NULL, NULL);
     if (!m) { CHECK(m != NULL); return; }
     DWORD n = 0; SET_ERR(0);
-    BOOL ok = mGetParam()(m, CMSG_TYPE_PARAM, 0, NULL, &n);
-    t_note("GetParam(TYPE) on a decode message with no data: ok=%d err 0x%lx", ok, (unsigned long)GetLastError());
-    CHECK(1);
+    EXPECT_SUCCEEDS(mGetParam()(m, CMSG_TYPE_PARAM, 0, NULL, &n));   /* Win10: succeeds even with no data yet */
     mClose()(m);
 }

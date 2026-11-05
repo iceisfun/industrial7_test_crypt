@@ -133,13 +133,103 @@ static const pn_t SIGNED_ONLY[] = {PN(CMSG_SIGNER_COUNT_PARAM), PN(CMSG_SIGNER_I
 static const pn_t ENV_ONLY[] = {PN(CMSG_ENVELOPE_ALGORITHM_PARAM), PN(CMSG_RECIPIENT_COUNT_PARAM), PN(CMSG_RECIPIENT_INFO_PARAM)};
 static const pn_t HASH_ONLY[] = {PN(CMSG_HASH_ALGORITHM_PARAM), PN(CMSG_HASH_DATA_PARAM), PN(CMSG_COMPUTED_HASH_PARAM)};
 
-static void matrix_row(const char *msg, HCRYPTMSG m, const pn_t *tbl, size_t n, BOOL expect_invalid) {
+/* Win10 results of CryptMsgGetParam(type, 0) size queries, per message kind: {message, param, returned, last error}.
+   Params that do not apply fail with CRYPT_E_INVALID_MSG_TYPE; a few quirks are pinned as observed (no error code set,
+   an internal access violation code left in last error). */
+static const struct { const char *msg; DWORD p; int ret; DWORD err; } MX[] = {
+    {"signed", CMSG_SIGNER_COUNT_PARAM, 1, 0x0},
+    {"signed", CMSG_SIGNER_INFO_PARAM, 1, 0x0},
+    {"signed", CMSG_SIGNER_CERT_INFO_PARAM, 1, 0x0},
+    {"signed", CMSG_SIGNER_HASH_ALGORITHM_PARAM, 1, 0x0},
+    {"signed", CMSG_SIGNER_AUTH_ATTR_PARAM, 1, 0x0},
+    {"signed", CMSG_CERT_COUNT_PARAM, 1, 0x0},
+    {"signed", CMSG_CERT_PARAM, 1, 0x0},
+    {"signed", CMSG_CRL_COUNT_PARAM, 1, 0x0},
+    {"signed", CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, 0x8009100f},
+    {"signed", CMSG_CRL_PARAM, 0, 0x0},
+    {"signed", CMSG_ENVELOPE_ALGORITHM_PARAM, 0, 0x80091004},
+    {"signed", CMSG_RECIPIENT_COUNT_PARAM, 0, 0x80091004},
+    {"signed", CMSG_RECIPIENT_INFO_PARAM, 0, 0x80091004},
+    {"signed", CMSG_HASH_ALGORITHM_PARAM, 0, 0xc0000005},
+    {"signed", CMSG_HASH_DATA_PARAM, 0, 0x80091004},
+    {"signed", CMSG_COMPUTED_HASH_PARAM, 1, 0x0},
+    {"hashed", CMSG_SIGNER_COUNT_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_SIGNER_INFO_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_SIGNER_CERT_INFO_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_SIGNER_HASH_ALGORITHM_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_SIGNER_AUTH_ATTR_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_CERT_COUNT_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_CERT_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_CRL_COUNT_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_CRL_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_ENVELOPE_ALGORITHM_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_RECIPIENT_COUNT_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_RECIPIENT_INFO_PARAM, 0, 0x80091004},
+    {"hashed", CMSG_HASH_ALGORITHM_PARAM, 1, 0x0},
+    {"hashed", CMSG_HASH_DATA_PARAM, 1, 0x0},
+    {"hashed", CMSG_COMPUTED_HASH_PARAM, 1, 0x0},
+    {"enveloped", CMSG_SIGNER_COUNT_PARAM, 0, 0x80091004},
+    {"enveloped", CMSG_SIGNER_INFO_PARAM, 0, 0x80091004},
+    {"enveloped", CMSG_SIGNER_CERT_INFO_PARAM, 0, 0x80091004},
+    {"enveloped", CMSG_SIGNER_HASH_ALGORITHM_PARAM, 0, 0x80091004},
+    {"enveloped", CMSG_SIGNER_AUTH_ATTR_PARAM, 0, 0x80091004},
+    {"enveloped", CMSG_CERT_COUNT_PARAM, 1, 0x0},
+    {"enveloped", CMSG_CERT_PARAM, 0, 0x0},
+    {"enveloped", CMSG_CRL_COUNT_PARAM, 1, 0x0},
+    {"enveloped", CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, 0x80091004},
+    {"enveloped", CMSG_CRL_PARAM, 0, 0x0},
+    {"enveloped", CMSG_ENVELOPE_ALGORITHM_PARAM, 1, 0x0},
+    {"enveloped", CMSG_RECIPIENT_COUNT_PARAM, 1, 0x0},
+    {"enveloped", CMSG_RECIPIENT_INFO_PARAM, 1, 0x0},
+    {"enveloped", CMSG_HASH_ALGORITHM_PARAM, 1, 0x0},
+    {"enveloped", CMSG_HASH_DATA_PARAM, 0, 0x80091004},
+    {"enveloped", CMSG_COMPUTED_HASH_PARAM, 0, 0x80091004},
+    {"data", CMSG_SIGNER_COUNT_PARAM, 0, 0x80091004},
+    {"data", CMSG_SIGNER_INFO_PARAM, 0, 0x80091004},
+    {"data", CMSG_SIGNER_CERT_INFO_PARAM, 0, 0x80091004},
+    {"data", CMSG_SIGNER_HASH_ALGORITHM_PARAM, 0, 0x80091004},
+    {"data", CMSG_SIGNER_AUTH_ATTR_PARAM, 0, 0x80091004},
+    {"data", CMSG_CERT_COUNT_PARAM, 0, 0x80091004},
+    {"data", CMSG_CERT_PARAM, 0, 0x80091004},
+    {"data", CMSG_CRL_COUNT_PARAM, 0, 0x80091004},
+    {"data", CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, 0x80091004},
+    {"data", CMSG_CRL_PARAM, 0, 0x80091004},
+    {"data", CMSG_ENVELOPE_ALGORITHM_PARAM, 0, 0x80091004},
+    {"data", CMSG_RECIPIENT_COUNT_PARAM, 0, 0x80091004},
+    {"data", CMSG_RECIPIENT_INFO_PARAM, 0, 0x80091004},
+    {"data", CMSG_HASH_ALGORITHM_PARAM, 1, 0x0},
+    {"data", CMSG_HASH_DATA_PARAM, 0, 0x80091004},
+    {"data", CMSG_COMPUTED_HASH_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_SIGNER_COUNT_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_SIGNER_INFO_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_SIGNER_CERT_INFO_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_SIGNER_HASH_ALGORITHM_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_SIGNER_AUTH_ATTR_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_CERT_COUNT_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_CERT_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_CRL_COUNT_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_SIGNER_UNAUTH_ATTR_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_CRL_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_ENVELOPE_ALGORITHM_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_RECIPIENT_COUNT_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_RECIPIENT_INFO_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_HASH_ALGORITHM_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_HASH_DATA_PARAM, 0, 0x80091004},
+    {"enc-signed", CMSG_COMPUTED_HASH_PARAM, 1, 0x0},
+};
+static void matrix_row(const char *msg, HCRYPTMSG m, const pn_t *tbl, size_t n, BOOL unused) {
+    (void)unused;
     for (size_t i = 0; i < n; i++) {
-        DWORD sz = 0; SET_ERR(0);
-        BOOL ok = mGetParam()(m, tbl[i].p, 0, NULL, &sz);
-        if (expect_invalid) { CHECKF(!ok, "%s / %s", msg, tbl[i].name); EXPECT_ERR(CRYPT_E_INVALID_MSG_TYPE); }
-        else CHECKF(ok, "%s / %s err 0x%lx", msg, tbl[i].name, GetLastError());
+        size_t k;
+        for (k = 0; k < sizeof MX / sizeof *MX; k++) if (!strcmp(MX[k].msg, msg) && MX[k].p == tbl[i].p) break;
+        t_label("%s / %s", msg, tbl[i].name);
+        if (k == sizeof MX / sizeof *MX) { CHECK(0 && "no pinned row"); continue; }
+        DWORD sz = 0, e; BOOL ok = T_CALL_ERR(&e, mGetParam()(m, tbl[i].p, 0, NULL, &sz));
+        EXPECT_EQ(ok != 0, MX[k].ret);
+        if (!MX[k].ret) EXPECT_EQ(e, MX[k].err);
     }
+    t_label(NULL);
 }
 TEST(mlp_matrix_decoded_signed) {
     REQ_MSG();
@@ -203,14 +293,13 @@ TEST(mlp_encoded_message_param) {
     HCRYPTMSG m = ml_decode(M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN, 0, 0);
     CHECK(m != NULL);
     if (!m) return;
-    DWORD n = 0; SET_ERR(0);
-    BOOL ok = mGetParam()(m, CMSG_ENCODED_MESSAGE, 0, NULL, &n);
-    t_note("ENCODED_MESSAGE on a decoded signed message: ok=%d size=%lu (input %d) err=0x%lx", ok, (unsigned long)n, (int)M_SIGNED_NOATTR_LEN, (unsigned long)GetLastError());
-    if (ok) {
-        BYTE *b = ml_param(m, CMSG_ENCODED_MESSAGE, 0, &n);
-        if (b) { t_note("ENCODED_MESSAGE %s the original input", (n == M_SIGNED_NOATTR_LEN && !memcmp(b, M_SIGNED_NOATTR, n)) ? "equals" : "differs from"); ml_free(b); }
-    }
-    CHECK(1);
+    /* Win10 returns the original input bytes */
+    DWORD n = 0;
+    EXPECT_SUCCEEDS(mGetParam()(m, CMSG_ENCODED_MESSAGE, 0, NULL, &n));
+    EXPECT_EQ(n, M_SIGNED_NOATTR_LEN);
+    BYTE *b = ml_param(m, CMSG_ENCODED_MESSAGE, 0, &n);
+    CHECK(b && n == M_SIGNED_NOATTR_LEN && !memcmp(b, M_SIGNED_NOATTR, n));
+    ml_free(b);
     mClose()(m);
 }
 TEST(mlp_bare_content_of_decoded_hashed) {
@@ -229,12 +318,15 @@ TEST(mlp_unknown_param_numbers_on_decoded) {
     HCRYPTMSG m = ml_decode(M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN, 0, 0);
     CHECK(m != NULL);
     if (!m) return;
-    static const DWORD p[] = {0, 16, 23, 24, 25, 27, 40, 41, 100, 0xFFFFFFFF};
+    static const DWORD p[] = {0, 16, 23, 24, 25, 40, 41, 100, 0xFFFFFFFF};
     for (size_t i = 0; i < sizeof p / sizeof *p; i++) {
-        DWORD n = 0; SET_ERR(0);
-        BOOL ok = mGetParam()(m, p[i], 0, NULL, &n);
-        t_note("signed decode msg param %lu: ok=%d err=0x%lx", (unsigned long)p[i], ok, (unsigned long)GetLastError());
-        CHECKF(!ok, "param %lu", (unsigned long)p[i]);
+        DWORD n = 0;
+        t_label("param %lu", (unsigned long)p[i]);
+        EXPECT_FAILS(mGetParam()(m, p[i], 0, NULL, &n), CRYPT_E_INVALID_MSG_TYPE);
+    }
+    t_label(NULL);
+    { /* 27 is CMSG_ENCRYPTED_DIGEST (the signature value): exists on a decoded signed message */
+        DWORD n = 0; EXPECT_SUCCEEDS(mGetParam()(m, 27, 0, NULL, &n)); EXPECT_EQ(n, 128);
     }
     mClose()(m);
 }
@@ -244,16 +336,15 @@ TEST(mlp_contents_octets_flag_data) {
     REQ_MSG();
     static const BYTE T3[3] = {'a','b','c'};
     HCRYPTMSG m = mOpenEnc()(ENC, CMSG_CONTENTS_OCTETS_FLAG, CMSG_DATA, NULL, NULL, NULL);
-    t_note("CMSG_CONTENTS_OCTETS_FLAG on a data message: %s err=0x%lx", m ? "accepted" : "rejected", (unsigned long)GetLastError());
+    /* Win10 accepts the flag on a data message and ignores it: the output is the full 20-byte ContentInfo */
+    CHECK(m != NULL);
     if (m) {
-        if (mUpdate()(m, T3, 3, TRUE)) {
-            DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
-            t_note("  output %lu bytes, first 0x%02x", (unsigned long)n, b ? b[0] : 0);
-            ml_free(b);
-        }
+        CHECK(mUpdate()(m, T3, 3, TRUE));
+        DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
+        CHECK(b && n == 20 && b[0] == 0x30);
+        ml_free(b);
         mClose()(m);
     }
-    CHECK(1);
 }
 TEST(mlp_length_only_and_max_length_flags) {
     REQ_MSG();
@@ -262,15 +353,17 @@ TEST(mlp_length_only_and_max_length_flags) {
     for (size_t i = 0; i < 3; i++) {
         SET_ERR(0);
         HCRYPTMSG m = mOpenEnc()(ENC, f[i], CMSG_DATA, NULL, NULL, NULL);
-        t_note("data message with flags 0x%lx: %s err=0x%lx", (unsigned long)f[i], m ? "accepted" : "rejected", (unsigned long)GetLastError());
+        t_label("flags 0x%lx", (unsigned long)f[i]);
+        /* Win10 accepts both flags on a data message; the content is still the 20-byte ContentInfo */
+        CHECK(m != NULL);
         if (m) {
-            BOOL u = mUpdate()(m, T3, 3, TRUE);
-            DWORD n = 0; BOOL g = u && mGetParam()(m, CMSG_CONTENT_PARAM, 0, NULL, &n);
-            t_note("  update=%d content size query=%d size=%lu", u, g, (unsigned long)n);
+            CHECK(mUpdate()(m, T3, 3, TRUE));
+            DWORD n = 0; CHECK(mGetParam()(m, CMSG_CONTENT_PARAM, 0, NULL, &n));
+            EXPECT_EQ(n, 20);
             mClose()(m);
         }
     }
-    CHECK(1);
+    t_label(NULL);
 }
 TEST(mlp_calc_length_signed_and_enveloped) {
     REQ_MSG();
