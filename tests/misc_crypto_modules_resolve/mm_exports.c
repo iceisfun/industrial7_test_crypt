@@ -50,10 +50,9 @@ static void negatives(const char *dll, const mm_exp *e, unsigned n) {
     HMODULE m; if (!load_or_skip(dll, &m)) return;
     SET_ERR(0);
     CHECK(GetProcAddress(m, "NoSuchExport_cryptt") == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
-    SET_ERR(0);
-    if (!t_is_wine()) { CHECK(GetProcAddress(m, (LPCSTR)(ULONG_PTR)(n + 1)) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND); }
-    SET_ERR(0);
-    CHECK(GetProcAddress(m, (LPCSTR)(ULONG_PTR)0xFFFF) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
+    /* an ordinal outside the export table fails with ERROR_INVALID_ORDINAL (probed on Win10) */
+    if (!t_is_wine()) EXPECT_GPA_FAIL(m, (LPCSTR)(ULONG_PTR)(n + 1));
+    EXPECT_GPA_FAIL(m, (LPCSTR)(ULONG_PTR)0xFFFF);
     char buf[128]; lstrcpynA(buf, e[0].name, sizeof buf);
     for (char *c = buf; *c; c++) { if (*c >= 'A' && *c <= 'Z') *c += 32; else if (*c >= 'a' && *c <= 'z') *c -= 32; }
     if (strcmp(buf, e[0].name)) {
@@ -194,8 +193,9 @@ TEST(mm_cryptext_class_object_bogus_clsid) {
     static const GUID bogus = {0xdeadbeef,0xcafe,0xf00d,{0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef}};
     static const GUID iid_cf = {0x00000001,0x0000,0x0000,{0xC0,0,0,0,0,0,0,0x46}};
     void *p = (void *)7;
-    EXPECT_EQ((unsigned)f(&bogus, &iid_cf, &p), 0x80040111u);    /* CLASS_E_CLASSNOTAVAILABLE */
-    CHECK(p == NULL);
+    /* observed on Win10: the cryptext entry accepts any CLSID, returns S_OK and leaves *ppv untouched */
+    EXPECT_EQ((unsigned)f(&bogus, &iid_cf, &p), 0u);
+    CHECK(p == (void *)7);
 }
 TEST(mm_cryptext_class_object_null_ppv) {
     if (t_is_wine()) { t_skip("emulator export is a stub"); return; }

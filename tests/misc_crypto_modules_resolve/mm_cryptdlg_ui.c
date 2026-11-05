@@ -558,7 +558,7 @@ TEST(mm_ui_format_eku_with_usages) {
         CHECK(wcschr(s, L'\n') == NULL);
         CHECK(wcschr(t, L'\n') != NULL);     /* multi-line variant */
         CHECK(wcsstr(t, L", ") == NULL);
-        CHECK(lstrlenW(s) == lstrlenW(t));   /* ", " and "\n" differ by one character */
+        EXPECT_EQ(lstrlenW(s), lstrlenW(t) + 1);   /* ", " is one character longer than "\n" */
         t_note("EKU text: %ls", s);
     }
     LocalFree(s); LocalFree(t);
@@ -572,11 +572,10 @@ TEST(mm_ui_format_eku_without_usages) {
     EXPECT_EQ(f(&s, c, 0, 0), 1);
     CHECK(s != NULL && s[0] != 0);
     if (s) { t_note("no EKU text: %ls", s); CHECK(wcschr(s, L'\n') == NULL); LocalFree(s); }
-    /* property-only lookup finds nothing on a bare certificate: same text class */
-    WCHAR *p = NULL;
-    EXPECT_EQ(f(&p, c, 1, 0), 1);
-    CHECK(p != NULL && p[0] != 0);
-    LocalFree(p);
+    /* property-only lookup finds nothing on a bare certificate: returns 0 and leaves the output untouched */
+    WCHAR *p = (WCHAR *)7;
+    EXPECT_EQ(f(&p, c, 1, 0), 0);
+    CHECK(p == (WCHAR *)7);
     freecert(c);
 }
 TEST(mm_ui_format_eku_property_only_ignores_extension) {
@@ -585,8 +584,10 @@ TEST(mm_ui_format_eku_property_only_ignores_extension) {
     PCCERT_CONTEXT c = CERT_C(); if (!c) { CHECK(0); return; }
     WCHAR *ext = NULL, *prop = NULL;
     EXPECT_EQ(f(&ext, c, 0, 0), 1);
-    EXPECT_EQ(f(&prop, c, 1, 0), 1);       /* property only: the extension is not consulted */
-    if (ext && prop) CHECK(lstrcmpW(ext, prop) != 0);
+    prop = (WCHAR *)7;
+    EXPECT_EQ(f(&prop, c, 1, 0), 0);       /* property only: the extension is not consulted, nothing is returned */
+    CHECK(prop == (WCHAR *)7); prop = NULL;
+    CHECK(ext != NULL && ext[0] != 0);
     LocalFree(ext); LocalFree(prop);
     freecert(c);
 }
@@ -652,7 +653,7 @@ TEST(mm_ui_serialized_blob_null_arguments) {
     CertSelectionGetSerializedBlob_pfn f = (CertSelectionGetSerializedBlob_pfn)t_proc_in("cryptui.dll", "CertSelectionGetSerializedBlob");
     REQUIRE(f);
     SELIN in = {0}; void *out = (void *)7; ULONG cb = 9;
-    EXPECT_EQ(f(NULL, &out, &cb), 0x80070057);
+    EXPECT_EQ((unsigned)f(NULL, &out, &cb), 0x80070057u);
     EXPECT_EQ(f(&in, NULL, &cb), 0x80070057);
     EXPECT_EQ(f(&in, &out, NULL), 0x80070057);
     CHECK(out == (void *)7 && cb == 9);
@@ -685,14 +686,18 @@ TEST(mm_ui_serialized_blob_memory_store) {
     EXPECT_EQ(f(&in, &out, &cb), 0);
     CHECK(out != NULL && cb > 0);
     if (out && cb) {
+        /* the blob is the selection-UI container, not a serialized store: that provider rejects it with
+         * CRYPT_E_FILE_ERROR (probed on Win10). Both certificate encodings must be inside it verbatim. */
         CRYPT_DATA_BLOB blob = { cb, (BYTE *)out };
+        SetLastError(0);
         HCERTSTORE rd = U(CertOpenStore)(CERT_STORE_PROV_SERIALIZED, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0, 0, &blob);
-        CHECK(rd != NULL);
-        if (rd) {
-            int n = 0; PCCERT_CONTEXT e = NULL;
-            while ((e = U(CertEnumCertificatesInStore)(rd, e)) != NULL) n++;
-            EXPECT_EQ(n, 2);
-            U(CertCloseStore)(rd, 0);
+        CHECK(rd == NULL); EXPECT_ERR(0x80092003);
+        if (rd) U(CertCloseStore)(rd, 0);
+        const unsigned char *ps[2] = { g_cert_a, g_cert_b }; size_t ns[2] = { sizeof g_cert_a, sizeof g_cert_b };
+        for (int k = 0; k < 2; k++) {
+            int found = 0;
+            for (size_t o = 0; o + ns[k] <= cb; o++) if (!memcmp((unsigned char *)out + o, ps[k], ns[k])) { found = 1; break; }
+            CHECKF(found, "certificate %d present in blob", k);
         }
         LocalFree(out);
     }
@@ -708,3 +713,4 @@ TEST(mm_ui_resolve_only_dialog_and_wizard_entry_points) {
     if (!t_module("cryptui.dll") || t_is_wine()) { t_skip("cryptui.dll absent or emulated"); return; }
     for (unsigned i = 0; i < sizeof n / sizeof n[0]; i++) CHECKF(t_proc_in("cryptui.dll", n[i]) != NULL, "%s", n[i]);
 }
+

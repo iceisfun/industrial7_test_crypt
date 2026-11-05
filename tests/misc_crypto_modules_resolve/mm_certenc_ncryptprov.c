@@ -71,7 +71,8 @@ TEST(mm_certenc_factory_for_every_class) {
         IClassFactory *f = get_factory(gco, i);
         if (!f) continue;
         ULONG r = f->lpVtbl->Release(f);
-        CHECKF(r == 0, "%s release count", kClasses[i].name);
+        /* the factory is shared: the final Release leaves one reference (observed on Win10) */
+        CHECKF(r == 1, "%s release count %lu", kClasses[i].name, (unsigned long)r);
     }
     EQ32(cun(), S_OK);
 }
@@ -123,20 +124,22 @@ TEST(mm_certenc_factory_refcounting) {
     CHECK(b == a + 1);
     CHECK(f->lpVtbl->Release(f) == a);
     CHECK(f->lpVtbl->Release(f) == a - 1);
-    CHECK(f->lpVtbl->Release(f) == 0);
+    CHECK(f->lpVtbl->Release(f) == 1);     /* shared factory: one reference remains */
+    EQ32(a, 3);
 }
 TEST(mm_certenc_lockserver_controls_unload) {
     NEED_CE();
     IClassFactory *f = get_factory(gco, 0); REQUIRE(f);
-    EQ32(cun(), S_OK);
+    EQ32(cun(), S_FALSE);                  /* the held factory keeps the module in use */
     EQ32(f->lpVtbl->LockServer(f, TRUE), S_OK);
-    EQ32(cun(), S_FALSE);
     EQ32(f->lpVtbl->LockServer(f, TRUE), S_OK);
     EQ32(f->lpVtbl->LockServer(f, FALSE), S_OK);
-    EQ32(cun(), S_FALSE);                  /* still one lock */
-    EQ32(f->lpVtbl->LockServer(f, FALSE), S_OK);
-    EQ32(cun(), S_OK);
     f->lpVtbl->Release(f);
+    EQ32(cun(), S_FALSE);                  /* still one lock after the factory is gone */
+    IClassFactory *g = get_factory(gco, 1); REQUIRE(g);
+    EQ32(g->lpVtbl->LockServer(g, FALSE), S_OK);   /* the lock count is per server, not per factory */
+    g->lpVtbl->Release(g);
+    EQ32(cun(), S_OK);
 }
 TEST(mm_certenc_create_instance_keeps_module_alive) {
     NEED_CE();
@@ -150,8 +153,10 @@ TEST(mm_certenc_create_instance_keeps_module_alive) {
             CHECK(cun() == S_FALSE);       /* a live object holds the module */
             o->lpVtbl->Release(o);
         }
-        CHECKF(cun() == S_OK, "%s unloadable after release", kClasses[i].name);
+        /* a held class factory also keeps the module in use (observed on Win10) */
+        CHECKF(cun() == S_FALSE, "%s factory still holds the module", kClasses[i].name);
         f->lpVtbl->Release(f);
+        CHECKF(cun() == S_OK, "%s unloadable after release", kClasses[i].name);
     }
 }
 TEST(mm_certenc_create_instance_dispatch) {
@@ -190,8 +195,9 @@ TEST(mm_certenc_create_instance_bad_interface) {
     void *p = (void *)7;
     EQ32(f->lpVtbl->CreateInstance(f, NULL, &kBogus, &p), E_NOINTERFACE);
     CHECK(p == NULL);
-    EQ32(cun(), S_OK);                     /* the failed object was released */
+    EQ32(cun(), S_FALSE);                  /* the held factory keeps the module in use */
     f->lpVtbl->Release(f);
+    EQ32(cun(), S_OK);                     /* the failed object was released */
 }
 TEST(mm_certenc_create_instance_null_out) {
     NEED_CE();
@@ -220,8 +226,9 @@ TEST(mm_certenc_instances_are_distinct) {
     if (a) a->lpVtbl->Release(a);
     CHECK(cun() == S_FALSE);
     if (b) b->lpVtbl->Release(b);
-    EQ32(cun(), S_OK);
+    EQ32(cun(), S_FALSE);                  /* the factory itself still holds the module */
     f->lpVtbl->Release(f);
+    EQ32(cun(), S_OK);
 }
 TEST(mm_certenc_factories_distinct_per_class) {
     NEED_CE();
@@ -363,3 +370,4 @@ TEST(mm_ncrypt_and_ncryptprov_tables_differ_in_origin) {
     if (!a || !b) { t_skip("module absent"); return; }
     CHECK(a != b);                          /* ncrypt's export is a stub, the provider's is the real one */
 }
+
