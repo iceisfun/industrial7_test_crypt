@@ -776,3 +776,21 @@ TEST(sip_pe_full_flow_through_crypt32_dispatch) {
     cb = 0; CHECK(!d.pfGet(&si, &enc, 0, &cb, NULL));
     free(buf);
 }
+
+TEST(sip_pe_calls_through_mssip32_forwarders) {
+    FARPROC c = t_proc_in("mssip32.dll", "CryptSIPCreateIndirectData"), v = t_proc_in("mssip32.dll", "CryptSIPVerifyIndirectData");
+    FARPROC p = t_proc_in("mssip32.dll", "CryptSIPPutSignedDataMsg"), g = t_proc_in("mssip32.dll", "CryptSIPGetSignedDataMsg");
+    FARPROC r = t_proc_in("mssip32.dll", "CryptSIPRemoveSignedDataMsg");
+    if (!c || !v || !p || !g || !r) { t_skip("mssip32.dll exports not available"); return; }
+    PF f; SIP_SUBJECTINFO si; DWORD cb = 0, idx = 5, enc = 0; u8 blob[16], got[32]; mk(&f, "ms.exe", 0); pattern(blob, 16, 8);
+    sipt_subject(&si, &G_PE, NULL, f.w, OID_SHA1, DEFAULT_FLAGS);
+    CHECK(((pCryptSIPCreateIndirectData)c)(&si, &cb, NULL) == TRUE && cb > 0);
+    u8 *buf = calloc(1, cb); SIP_INDIRECT_DATA *id = (SIP_INDIRECT_DATA *)buf;
+    CHECK(((pCryptSIPCreateIndirectData)c)(&si, &cb, id) == TRUE);
+    CHECK(id->Digest.cbData == 20 && !memcmp(id->Digest.pbData, kat_pe0_sha1, 20));
+    CHECK(((pCryptSIPPutSignedDataMsg)p)(&si, ENC, &idx, 16, blob) == TRUE && idx == 0);
+    cb = sizeof got; CHECK(((pCryptSIPGetSignedDataMsg)g)(&si, &enc, 0, &cb, got) == TRUE && cb == 16 && !memcmp(got, blob, 16));
+    CHECK(((pCryptSIPVerifyIndirectData)v)(&si, id) == TRUE);
+    CHECK(((pCryptSIPRemoveSignedDataMsg)r)(&si, 0) == TRUE);
+    free(buf);
+}

@@ -377,21 +377,23 @@ TEST(sip_iscatalog_truncated_catalog) {
     ifile("trunc.cat", m, n - 1, p, sizeof p, w);
     CHECK(WT(IsCatalogFile)(NULL, w) == FALSE);
 }
-TEST(sip_iscatalog_opens_with_delete_sharing) {
+TEST(sip_iscatalog_sharing_modes) {
     REQUIRE(WT(IsCatalogFile));
     u8 m[1024]; size_t n = sipt_make_ctl(m, sizeof m, OID_CATALOG_LIST);
     char p[MAX_PATH]; WCHAR w[MAX_PATH];
     if (!n) { t_skip("cannot build CTL message"); return; }
     ifile("shared.cat", m, n, p, sizeof p, w);
-    /* a writer that allows read+delete sharing: IsCatalogFile asks for read access, share read|delete */
-    HANDLE hw = CreateFileA(p, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    /* an existing reader that only shares READ does not conflict with a read-only open */
+    HANDLE hr = CreateFileA(p, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     CHECK(WT(IsCatalogFile)(NULL, w) == TRUE);
-    CloseHandle(hw);
-    hw = CreateFileA(p, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    CloseHandle(hr);
+    /* an existing writer needs FILE_SHARE_WRITE from the opener, which IsCatalogFile (read|delete) does not give */
+    HANDLE hw = CreateFileA(p, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
     SET_ERR(0);
-    CHECK(WT(IsCatalogFile)(NULL, w) == FALSE);              /* write sharing not granted by the opener */
+    CHECK(WT(IsCatalogFile)(NULL, w) == FALSE);
     EXPECT_ERR(ERROR_SHARING_VIOLATION);
     CloseHandle(hw);
+    CHECK(WT(IsCatalogFile)(NULL, w) == TRUE);
 }
 
 /* ---- ComputeFirstPageHash ---- */
