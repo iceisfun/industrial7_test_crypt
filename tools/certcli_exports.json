@@ -1,0 +1,1206 @@
+[
+{
+"name": "CSPrintAssert",
+"ordinal": 201,
+"rva": 442510,
+"forwarder": "CERTCA.#701",
+"ref": null
+},
+{
+"name": "CSPrintError",
+"ordinal": 202,
+"rva": 442535,
+"forwarder": "CERTCA.#702",
+"ref": null
+},
+{
+"name": "DbgPrintf",
+"ordinal": 203,
+"rva": 442835,
+"forwarder": "CERTCA.#703",
+"ref": null
+},
+{
+"name": "DbgPrintfInit",
+"ordinal": 204,
+"rva": 442861,
+"forwarder": "CERTCA.#704",
+"ref": null
+},
+{
+"name": "DbgIsSSActive",
+"ordinal": 205,
+"rva": 442754,
+"forwarder": "CERTCA.#705",
+"ref": null
+},
+{
+"name": "myHResultToString_old",
+"ordinal": 206,
+"rva": 444053,
+"forwarder": "CERTCA.#706",
+"ref": null
+},
+{
+"name": "myGetErrorMessageText",
+"ordinal": 207,
+"rva": 443720,
+"forwarder": "CERTCA.#707",
+"ref": null
+},
+{
+"name": "myHResultToStringRaw_old",
+"ordinal": 208,
+"rva": 444019,
+"forwarder": "CERTCA.#708",
+"ref": null
+},
+{
+"name": "CAAccessCheck",
+"ordinal": 209,
+"rva": 444406,
+"forwarder": "CERTCA.CAAccessCheck",
+"ref": null
+},
+{
+"name": null,
+"ordinal": 210,
+"rva": 46416,
+"forwarder": null,
+"ref": "certcli.dll!0xb550"
+},
+{
+"name": "CAAccessCheckEx",
+"ordinal": 211,
+"rva": 444443,
+"forwarder": "CERTCA.CAAccessCheckEx",
+"ref": null
+},
+{
+"name": "CAAddCACertificateType",
+"ordinal": 212,
+"rva": 444489,
+"forwarder": "CERTCA.CAAddCACertificateType",
+"ref": null
+},
+{
+"name": "myFreeColumnDisplayNames",
+"ordinal": 213,
+"rva": 443579,
+"forwarder": "CERTCA.#802",
+"ref": null
+},
+{
+"name": "myRobustLdapBind",
+"ordinal": 214,
+"rva": 448787,
+"forwarder": "CERTCA.#803",
+"ref": null
+},
+{
+"name": "myIsDelayLoadHResult",
+"ordinal": 215,
+"rva": 444086,
+"forwarder": "CERTCA.#804",
+"ref": null
+},
+{
+"name": "myHExceptionCode",
+"ordinal": 216,
+"rva": 443920,
+"forwarder": "CERTCA.#805",
+"ref": null
+},
+{
+"name": "myJetHResult",
+"ordinal": 217,
+"rva": 444111,
+"forwarder": "CERTCA.#806",
+"ref": null
+},
+{
+"name": "myModifyVirtualRootsAndFileShares",
+"ordinal": 218,
+"rva": 444188,
+"forwarder": "CERTCA.#807",
+"ref": null
+},
+{
+"name": null,
+"ordinal": 219,
+"rva": 53712,
+"forwarder": null,
+"ref": "certcli.dll!0xd1d0"
+},
+{
+"name": null,
+"ordinal": 220,
+"rva": 53856,
+"forwarder": null,
+"ref": "certcli.dll!0xd260"
+},
+{
+"name": null,
+"ordinal": 221,
+"rva": 54000,
+"forwarder": null,
+"ref": "certcli.dll!0xd2f0"
+},
+{
+"name": "CAAddCACertificateTypeEx",
+"ordinal": 222,
+"rva": 444544,
+"forwarder": "CERTCA.CAAddCACertificateTypeEx",
+"ref": null
+},
+{
+"name": "DecodeFileW",
+"ordinal": 223,
+"rva": 442908,
+"forwarder": "CERTCA.#808",
+"ref": null
+},
+{
+"name": "CACertTypeAccessCheck",
+"ordinal": 224,
+"rva": 444598,
+"forwarder": "CERTCA.CACertTypeAccessCheck",
+"ref": null
+},
+{
+"name": "EncodeToFileW",
+"ordinal": 225,
+"rva": 442994,
+"forwarder": "CERTCA.#809",
+"ref": null
+},
+{
+"name": "CACertTypeAccessCheckEx",
+"ordinal": 226,
+"rva": 444651,
+"forwarder": "CERTCA.CACertTypeAccessCheckEx",
+"ref": null
+},
+{
+"name": "CACertTypeAuthzAccessCheck",
+"ordinal": 227,
+"rva": 444709,
+"forwarder": "CERTCA.CACertTypeAuthzAccessCheck",
+"ref": null
+},
+{
+"name": "CACertTypeGetSecurity",
+"ordinal": 228,
+"rva": 444765,
+"forwarder": "CERTCA.CACertTypeGetSecurity",
+"ref": null
+},
+{
+"name": "CACertTypeQuery",
+"ordinal": 229,
+"rva": 444810,
+"forwarder": "CERTCA.CACertTypeQuery",
+"ref": null
+},
+{
+"name": "CACertTypeRegisterQuery",
+"ordinal": 230,
+"rva": 444857,
+"forwarder": "CERTCA.CACertTypeRegisterQuery",
+"ref": null
+},
+{
+"name": "CACertTypeSetSecurity",
+"ordinal": 231,
+"rva": 444910,
+"forwarder": "CERTCA.CACertTypeSetSecurity",
+"ref": null
+},
+{
+"name": "CACertTypeUnregisterQuery",
+"ordinal": 232,
+"rva": 444965,
+"forwarder": "CERTCA.CACertTypeUnregisterQuery",
+"ref": null
+},
+{
+"name": "CACloneCertType",
+"ordinal": 233,
+"rva": 445014,
+"forwarder": "CERTCA.CACloneCertType",
+"ref": null
+},
+{
+"name": "CACloseCA",
+"ordinal": 234,
+"rva": 445047,
+"forwarder": "CERTCA.CACloseCA",
+"ref": null
+},
+{
+"name": "CACloseCertType",
+"ordinal": 235,
+"rva": 445080,
+"forwarder": "CERTCA.CACloseCertType",
+"ref": null
+},
+{
+"name": "CACountCAs",
+"ordinal": 236,
+"rva": 445114,
+"forwarder": "CERTCA.CACountCAs",
+"ref": null
+},
+{
+"name": "CACountCertTypes",
+"ordinal": 237,
+"rva": 445149,
+"forwarder": "CERTCA.CACountCertTypes",
+"ref": null
+},
+{
+"name": "CACreateAutoEnrollmentObjectEx",
+"ordinal": 238,
+"rva": 445204,
+"forwarder": "CERTCA.CACreateAutoEnrollmentObjectEx",
+"ref": null
+},
+{
+"name": "CACreateCertType",
+"ordinal": 239,
+"rva": 445259,
+"forwarder": "CERTCA.CACreateCertType",
+"ref": null
+},
+{
+"name": "myAddShare",
+"ordinal": 240,
+"rva": 443274,
+"forwarder": "CERTCA.#810",
+"ref": null
+},
+{
+"name": null,
+"ordinal": 241,
+"rva": 73200,
+"forwarder": null,
+"ref": "certcli.dll!0x11df0"
+},
+{
+"name": "DbgLogStringInit",
+"ordinal": 242,
+"rva": 442813,
+"forwarder": "CERTCA.#811",
+"ref": null
+},
+{
+"name": "CACreateLocalAutoEnrollmentObject",
+"ordinal": 243,
+"rva": 445317,
+"forwarder": "CERTCA.CACreateLocalAutoEnrollmentObject",
+"ref": null
+},
+{
+"name": "CACreateNewCA",
+"ordinal": 244,
+"rva": 445372,
+"forwarder": "CERTCA.CACreateNewCA",
+"ref": null
+},
+{
+"name": "WszToMultiByteIntegerBuf",
+"ordinal": 245,
+"rva": 443251,
+"forwarder": "CERTCA.#812",
+"ref": null
+},
+{
+"name": "WszToMultiByteInteger",
+"ordinal": 246,
+"rva": 443214,
+"forwarder": "CERTCA.#813",
+"ref": null
+},
+{
+"name": "myGetErrorMessageText1",
+"ordinal": 247,
+"rva": 443686,
+"forwarder": "CERTCA.#814",
+"ref": null
+},
+{
+"name": "myGetErrorMessageTextEx",
+"ordinal": 248,
+"rva": 443756,
+"forwarder": "CERTCA.#815",
+"ref": null
+},
+{
+"name": "myCAPropGetDisplayName",
+"ordinal": 249,
+"rva": 443309,
+"forwarder": "CERTCA.#816",
+"ref": null
+},
+{
+"name": "myCAPropInfoUnmarshal",
+"ordinal": 250,
+"rva": 443374,
+"forwarder": "CERTCA.#817",
+"ref": null
+},
+{
+"name": "myCAPropInfoLookup",
+"ordinal": 251,
+"rva": 443340,
+"forwarder": "CERTCA.#818",
+"ref": null
+},
+{
+"name": "myRobustLdapBindEx",
+"ordinal": 252,
+"rva": 448818,
+"forwarder": "CERTCA.#819",
+"ref": null
+},
+{
+"name": "caTranslateFileTimePeriodToPeriodUnits",
+"ordinal": 253,
+"rva": 448701,
+"forwarder": "CERTCA.#820",
+"ref": null
+},
+{
+"name": "myCryptBinaryToString",
+"ordinal": 254,
+"rva": 443408,
+"forwarder": "CERTCA.#602",
+"ref": null
+},
+{
+"name": "myCryptBinaryToStringA",
+"ordinal": 255,
+"rva": 443443,
+"forwarder": "CERTCA.#604",
+"ref": null
+},
+{
+"name": "myCryptStringToBinary",
+"ordinal": 256,
+"rva": 443477,
+"forwarder": "CERTCA.#601",
+"ref": null
+},
+{
+"name": "myCryptStringToBinaryA",
+"ordinal": 257,
+"rva": 443512,
+"forwarder": "CERTCA.#603",
+"ref": null
+},
+{
+"name": "myOIDHashOIDToString",
+"ordinal": 258,
+"rva": 444221,
+"forwarder": "CERTCA.#821",
+"ref": null
+},
+{
+"name": "myLogExceptionInit",
+"ordinal": 259,
+"rva": 444142,
+"forwarder": "CERTCA.#822",
+"ref": null
+},
+{
+"name": "myHExceptionCodePrint",
+"ordinal": 260,
+"rva": 443954,
+"forwarder": "CERTCA.#823",
+"ref": null
+},
+{
+"name": "DbgPrintfW",
+"ordinal": 261,
+"rva": 442884,
+"forwarder": "CERTCA.#824",
+"ref": null
+},
+{
+"name": "IsASPEnabledInIIS",
+"ordinal": 262,
+"rva": 443024,
+"forwarder": "CERTCA.#825",
+"ref": null
+},
+{
+"name": "EnableASPInIIS",
+"ordinal": 263,
+"rva": 442935,
+"forwarder": "CERTCA.#826",
+"ref": null
+},
+{
+"name": "IsISAPIExtensionEnabled",
+"ordinal": 264,
+"rva": 443094,
+"forwarder": "CERTCA.#827",
+"ref": null
+},
+{
+"name": "EnableISAPIExtension",
+"ordinal": 265,
+"rva": 442968,
+"forwarder": "CERTCA.#828",
+"ref": null
+},
+{
+"name": "myGetSidFromDomain",
+"ordinal": 266,
+"rva": 443847,
+"forwarder": "CERTCA.#829",
+"ref": null
+},
+{
+"name": "IsASPEnabledInIIS_New",
+"ordinal": 267,
+"rva": 443058,
+"forwarder": "CERTCA.#830",
+"ref": null
+},
+{
+"name": "CADCSetCertTypePropertyEx",
+"ordinal": 268,
+"rva": 445419,
+"forwarder": "CERTCA.CADCSetCertTypePropertyEx",
+"ref": null
+},
+{
+"name": "CADeleteCA",
+"ordinal": 269,
+"rva": 445463,
+"forwarder": "CERTCA.CADeleteCA",
+"ref": null
+},
+{
+"name": "CADeleteCAEx",
+"ordinal": 270,
+"rva": 445494,
+"forwarder": "CERTCA.CADeleteCAEx",
+"ref": null
+},
+{
+"name": "CADeleteCertType",
+"ordinal": 271,
+"rva": 445531,
+"forwarder": "CERTCA.CADeleteCertType",
+"ref": null
+},
+{
+"name": "CADeleteCertTypeEx",
+"ordinal": 272,
+"rva": 445574,
+"forwarder": "CERTCA.CADeleteCertTypeEx",
+"ref": null
+},
+{
+"name": "CADeleteLocalAutoEnrollmentObject",
+"ordinal": 273,
+"rva": 445634,
+"forwarder": "CERTCA.CADeleteLocalAutoEnrollmentObject",
+"ref": null
+},
+{
+"name": "CAEnumCertTypes",
+"ordinal": 274,
+"rva": 445691,
+"forwarder": "CERTCA.CAEnumCertTypes",
+"ref": null
+},
+{
+"name": "CAEnumCertTypesEx",
+"ordinal": 275,
+"rva": 445732,
+"forwarder": "CERTCA.CAEnumCertTypesEx",
+"ref": null
+},
+{
+"name": "CAEnumCertTypesForCA",
+"ordinal": 276,
+"rva": 445778,
+"forwarder": "CERTCA.CAEnumCertTypesForCA",
+"ref": null
+},
+{
+"name": "CAEnumCertTypesForCAEx",
+"ordinal": 277,
+"rva": 445829,
+"forwarder": "CERTCA.CAEnumCertTypesForCAEx",
+"ref": null
+},
+{
+"name": "CAEnumFirstCA",
+"ordinal": 278,
+"rva": 445873,
+"forwarder": "CERTCA.CAEnumFirstCA",
+"ref": null
+},
+{
+"name": "CAEnumNextCA",
+"ordinal": 279,
+"rva": 445907,
+"forwarder": "CERTCA.CAEnumNextCA",
+"ref": null
+},
+{
+"name": "CAEnumNextCertType",
+"ordinal": 280,
+"rva": 445946,
+"forwarder": "CERTCA.CAEnumNextCertType",
+"ref": null
+},
+{
+"name": "CAFindByCertType",
+"ordinal": 281,
+"rva": 445989,
+"forwarder": "CERTCA.CAFindByCertType",
+"ref": null
+},
+{
+"name": "CAFindByIssuerDN",
+"ordinal": 282,
+"rva": 446030,
+"forwarder": "CERTCA.CAFindByIssuerDN",
+"ref": null
+},
+{
+"name": "CAFindByName",
+"ordinal": 283,
+"rva": 446067,
+"forwarder": "CERTCA.CAFindByName",
+"ref": null
+},
+{
+"name": "CAFindCertTypeByName",
+"ordinal": 284,
+"rva": 446108,
+"forwarder": "CERTCA.CAFindCertTypeByName",
+"ref": null
+},
+{
+"name": "CAFreeCAProperty",
+"ordinal": 285,
+"rva": 446153,
+"forwarder": "CERTCA.CAFreeCAProperty",
+"ref": null
+},
+{
+"name": "CAFreeCertTypeExtensions",
+"ordinal": 286,
+"rva": 446202,
+"forwarder": "CERTCA.CAFreeCertTypeExtensions",
+"ref": null
+},
+{
+"name": "CAFreeCertTypeProperty",
+"ordinal": 287,
+"rva": 446257,
+"forwarder": "CERTCA.CAFreeCertTypeProperty",
+"ref": null
+},
+{
+"name": "CAGetCACertificate",
+"ordinal": 288,
+"rva": 446336,
+"forwarder": "CERTCA.CAGetCACertificate",
+"ref": null
+},
+{
+"name": "CAGetCAExpiration",
+"ordinal": 289,
+"rva": 446380,
+"forwarder": "CERTCA.CAGetCAExpiration",
+"ref": null
+},
+{
+"name": "CAGetCAFlags",
+"ordinal": 290,
+"rva": 446418,
+"forwarder": "CERTCA.CAGetCAFlags",
+"ref": null
+},
+{
+"name": "CAGetCAProperty",
+"ordinal": 291,
+"rva": 446454,
+"forwarder": "CERTCA.CAGetCAProperty",
+"ref": null
+},
+{
+"name": "CAGetCASecurity",
+"ordinal": 292,
+"rva": 446493,
+"forwarder": "CERTCA.CAGetCASecurity",
+"ref": null
+},
+{
+"name": "CAGetCertTypeExpiration",
+"ordinal": 293,
+"rva": 446578,
+"forwarder": "CERTCA.CAGetCertTypeExpiration",
+"ref": null
+},
+{
+"name": "CAGetCertTypeExtensions",
+"ordinal": 294,
+"rva": 446633,
+"forwarder": "CERTCA.CAGetCertTypeExtensions",
+"ref": null
+},
+{
+"name": "CAGetCertTypeExtensionsEx",
+"ordinal": 295,
+"rva": 446690,
+"forwarder": "CERTCA.CAGetCertTypeExtensionsEx",
+"ref": null
+},
+{
+"name": "CAGetCertTypeFlags",
+"ordinal": 296,
+"rva": 446742,
+"forwarder": "CERTCA.CAGetCertTypeFlags",
+"ref": null
+},
+{
+"name": "CAGetCertTypeFlagsEx",
+"ordinal": 297,
+"rva": 446789,
+"forwarder": "CERTCA.CAGetCertTypeFlagsEx",
+"ref": null
+},
+{
+"name": "CAGetCertTypeKeySpec",
+"ordinal": 298,
+"rva": 446838,
+"forwarder": "CERTCA.CAGetCertTypeKeySpec",
+"ref": null
+},
+{
+"name": "CAGetCertTypeProperty",
+"ordinal": 299,
+"rva": 446888,
+"forwarder": "CERTCA.CAGetCertTypeProperty",
+"ref": null
+},
+{
+"name": "CAGetCertTypePropertyEx",
+"ordinal": 300,
+"rva": 446941,
+"forwarder": "CERTCA.CAGetCertTypePropertyEx",
+"ref": null
+},
+{
+"name": "CAGetDN",
+"ordinal": 301,
+"rva": 446980,
+"forwarder": "CERTCA.CAGetDN",
+"ref": null
+},
+{
+"name": "CAInstallDefaultCertType",
+"ordinal": 302,
+"rva": 447020,
+"forwarder": "CERTCA.CAInstallDefaultCertType",
+"ref": null
+},
+{
+"name": "CAInstallDefaultCertTypeEx",
+"ordinal": 303,
+"rva": 447079,
+"forwarder": "CERTCA.CAInstallDefaultCertTypeEx",
+"ref": null
+},
+{
+"name": "CAIsCertTypeCurrent",
+"ordinal": 304,
+"rva": 447133,
+"forwarder": "CERTCA.CAIsCertTypeCurrent",
+"ref": null
+},
+{
+"name": "CAIsCertTypeCurrentEx",
+"ordinal": 305,
+"rva": 447182,
+"forwarder": "CERTCA.CAIsCertTypeCurrentEx",
+"ref": null
+},
+{
+"name": "CAOIDAdd",
+"ordinal": 306,
+"rva": 447272,
+"forwarder": "CERTCA.CAOIDAdd",
+"ref": null
+},
+{
+"name": "CAOIDAddEx",
+"ordinal": 307,
+"rva": 447299,
+"forwarder": "CERTCA.CAOIDAddEx",
+"ref": null
+},
+{
+"name": "CAOIDCreateNew",
+"ordinal": 308,
+"rva": 447332,
+"forwarder": "CERTCA.CAOIDCreateNew",
+"ref": null
+},
+{
+"name": "CAOIDCreateNewEx",
+"ordinal": 309,
+"rva": 447371,
+"forwarder": "CERTCA.CAOIDCreateNewEx",
+"ref": null
+},
+{
+"name": "CAOIDDelete",
+"ordinal": 310,
+"rva": 447407,
+"forwarder": "CERTCA.CAOIDDelete",
+"ref": null
+},
+{
+"name": "CAOIDDeleteEx",
+"ordinal": 311,
+"rva": 447440,
+"forwarder": "CERTCA.CAOIDDeleteEx",
+"ref": null
+},
+{
+"name": "CAOIDFreeLdapURL",
+"ordinal": 312,
+"rva": 447478,
+"forwarder": "CERTCA.CAOIDFreeLdapURL",
+"ref": null
+},
+{
+"name": "CAOIDFreeProperty",
+"ordinal": 313,
+"rva": 447520,
+"forwarder": "CERTCA.CAOIDFreeProperty",
+"ref": null
+},
+{
+"name": "CAOIDGetLdapURL",
+"ordinal": 314,
+"rva": 447561,
+"forwarder": "CERTCA.CAOIDGetLdapURL",
+"ref": null
+},
+{
+"name": "CAOIDGetProperty",
+"ordinal": 315,
+"rva": 447601,
+"forwarder": "CERTCA.CAOIDGetProperty",
+"ref": null
+},
+{
+"name": "CAOIDGetPropertyEx",
+"ordinal": 316,
+"rva": 447644,
+"forwarder": "CERTCA.CAOIDGetPropertyEx",
+"ref": null
+},
+{
+"name": "CAOIDSetProperty",
+"ordinal": 317,
+"rva": 447687,
+"forwarder": "CERTCA.CAOIDSetProperty",
+"ref": null
+},
+{
+"name": "CAOIDSetPropertyEx",
+"ordinal": 318,
+"rva": 447730,
+"forwarder": "CERTCA.CAOIDSetPropertyEx",
+"ref": null
+},
+{
+"name": "CARemoveCACertificateType",
+"ordinal": 319,
+"rva": 447782,
+"forwarder": "CERTCA.CARemoveCACertificateType",
+"ref": null
+},
+{
+"name": "CARemoveCACertificateTypeEx",
+"ordinal": 320,
+"rva": 447843,
+"forwarder": "CERTCA.CARemoveCACertificateTypeEx",
+"ref": null
+},
+{
+"name": "CASetCACertificate",
+"ordinal": 321,
+"rva": 447897,
+"forwarder": "CERTCA.CASetCACertificate",
+"ref": null
+},
+{
+"name": "CASetCAExpiration",
+"ordinal": 322,
+"rva": 447941,
+"forwarder": "CERTCA.CASetCAExpiration",
+"ref": null
+},
+{
+"name": "CASetCAFlags",
+"ordinal": 323,
+"rva": 447979,
+"forwarder": "CERTCA.CASetCAFlags",
+"ref": null
+},
+{
+"name": "CASetCAProperty",
+"ordinal": 324,
+"rva": 448015,
+"forwarder": "CERTCA.CASetCAProperty",
+"ref": null
+},
+{
+"name": "CASetCASecurity",
+"ordinal": 325,
+"rva": 448054,
+"forwarder": "CERTCA.CASetCASecurity",
+"ref": null
+},
+{
+"name": "CASetCertTypeExpiration",
+"ordinal": 326,
+"rva": 448101,
+"forwarder": "CERTCA.CASetCertTypeExpiration",
+"ref": null
+},
+{
+"name": "CASetCertTypeExtension",
+"ordinal": 327,
+"rva": 448155,
+"forwarder": "CERTCA.CASetCertTypeExtension",
+"ref": null
+},
+{
+"name": "CASetCertTypeFlags",
+"ordinal": 328,
+"rva": 448204,
+"forwarder": "CERTCA.CASetCertTypeFlags",
+"ref": null
+},
+{
+"name": "CASetCertTypeFlagsEx",
+"ordinal": 329,
+"rva": 448251,
+"forwarder": "CERTCA.CASetCertTypeFlagsEx",
+"ref": null
+},
+{
+"name": "CASetCertTypeKeySpec",
+"ordinal": 330,
+"rva": 448300,
+"forwarder": "CERTCA.CASetCertTypeKeySpec",
+"ref": null
+},
+{
+"name": "CASetCertTypeProperty",
+"ordinal": 331,
+"rva": 448350,
+"forwarder": "CERTCA.CASetCertTypeProperty",
+"ref": null
+},
+{
+"name": "CASetCertTypePropertyEx",
+"ordinal": 332,
+"rva": 448403,
+"forwarder": "CERTCA.CASetCertTypePropertyEx",
+"ref": null
+},
+{
+"name": "CAUpdateCA",
+"ordinal": 333,
+"rva": 448445,
+"forwarder": "CERTCA.CAUpdateCA",
+"ref": null
+},
+{
+"name": "CAUpdateCAEx",
+"ordinal": 334,
+"rva": 448476,
+"forwarder": "CERTCA.CAUpdateCAEx",
+"ref": null
+},
+{
+"name": "CAUpdateCertType",
+"ordinal": 335,
+"rva": 448513,
+"forwarder": "CERTCA.CAUpdateCertType",
+"ref": null
+},
+{
+"name": "CAUpdateCertTypeEx",
+"ordinal": 336,
+"rva": 448556,
+"forwarder": "CERTCA.CAUpdateCertTypeEx",
+"ref": null
+},
+{
+"name": "DllCanUnloadNow",
+"ordinal": 337,
+"rva": 8080,
+"forwarder": null,
+"ref": "certcli.dll!0x1f90"
+},
+{
+"name": "DllGetClassObject",
+"ordinal": 338,
+"rva": 8144,
+"forwarder": null,
+"ref": "certcli.dll!0x1fd0"
+},
+{
+"name": "DllMain",
+"ordinal": 339,
+"rva": 7664,
+"forwarder": null,
+"ref": "certcli.dll!0x1df0"
+},
+{
+"name": "DllRegisterServer",
+"ordinal": 340,
+"rva": 8272,
+"forwarder": null,
+"ref": "certcli.dll!0x2050"
+},
+{
+"name": "DllUnregisterServer",
+"ordinal": 341,
+"rva": 8272,
+"forwarder": null,
+"ref": "certcli.dll!0x2050"
+},
+{
+"name": "myDoesDSExist@209",
+"ordinal": 342,
+"rva": 448731,
+"forwarder": "CERTCA.#801",
+"ref": null
+},
+{
+"name": "mySanitizeName",
+"ordinal": 349,
+"rva": 444281,
+"forwarder": "CERTCA.#831",
+"ref": null
+},
+{
+"name": "mySanitizedNameToDSName",
+"ordinal": 350,
+"rva": 444317,
+"forwarder": "CERTCA.#832",
+"ref": null
+},
+{
+"name": "mySanitizedNameToShortName",
+"ordinal": 351,
+"rva": 444356,
+"forwarder": "CERTCA.#833",
+"ref": null
+},
+{
+"name": "myRevertSanitizeName",
+"ordinal": 352,
+"rva": 444254,
+"forwarder": "CERTCA.#834",
+"ref": null
+},
+{
+"name": "myGenerateGuidString",
+"ordinal": 353,
+"rva": 443651,
+"forwarder": "CERTCA.#835",
+"ref": null
+},
+{
+"name": "myGenerateGuidSerialNumber",
+"ordinal": 354,
+"rva": 443618,
+"forwarder": "CERTCA.#836",
+"ref": null
+},
+{
+"name": "mylstrcmpiL",
+"ordinal": 355,
+"rva": 444380,
+"forwarder": "CERTCA.#837",
+"ref": null
+},
+{
+"name": "myHGetLastError",
+"ordinal": 356,
+"rva": 443982,
+"forwarder": "CERTCA.#838",
+"ref": null
+},
+{
+"name": "CSPrintErrorLineFile",
+"ordinal": 357,
+"rva": 442602,
+"forwarder": "CERTCA.#839",
+"ref": null
+},
+{
+"name": "CSPrintErrorLineFile2",
+"ordinal": 358,
+"rva": 442569,
+"forwarder": "CERTCA.#840",
+"ref": null
+},
+{
+"name": "CSPrintErrorLineFileData",
+"ordinal": 359,
+"rva": 442677,
+"forwarder": "CERTCA.#841",
+"ref": null
+},
+{
+"name": "CSPrintErrorLineFileData2",
+"ordinal": 360,
+"rva": 442640,
+"forwarder": "CERTCA.#842",
+"ref": null
+},
+{
+"name": "CAGetAccessRights",
+"ordinal": 361,
+"rva": 446305,
+"forwarder": "CERTCA.#843",
+"ref": null
+},
+{
+"name": "CAIsValid",
+"ordinal": 362,
+"rva": 447251,
+"forwarder": "CERTCA.#844",
+"ref": null
+},
+{
+"name": "CAGetCertTypeAccessRights",
+"ordinal": 363,
+"rva": 446542,
+"forwarder": "CERTCA.#845",
+"ref": null
+},
+{
+"name": "CAIsCertTypeValid",
+"ordinal": 364,
+"rva": 447229,
+"forwarder": "CERTCA.#846",
+"ref": null
+},
+{
+"name": null,
+"ordinal": 365,
+"rva": 73184,
+"forwarder": null,
+"ref": "certcli.dll!0x11de0"
+},
+{
+"name": "DbgLogStringInit2",
+"ordinal": 366,
+"rva": 442784,
+"forwarder": "CERTCA.#847",
+"ref": null
+},
+{
+"name": null,
+"ordinal": 367,
+"rva": 99680,
+"forwarder": null,
+"ref": "certcli.dll!0x18560"
+},
+{
+"name": "RemoveISAPIExtension",
+"ordinal": 368,
+"rva": 443127,
+"forwarder": "CERTCA.#848",
+"ref": null
+},
+{
+"name": "RemoveVDir",
+"ordinal": 369,
+"rva": 443150,
+"forwarder": "CERTCA.#849",
+"ref": null
+},
+{
+"name": "SplitConfigString",
+"ordinal": 370,
+"rva": 443180,
+"forwarder": "CERTCA.#850",
+"ref": null
+},
+{
+"name": "AddOrRemoveOCSPISAPIExtension",
+"ordinal": 371,
+"rva": 442454,
+"forwarder": "CERTCA.#851",
+"ref": null
+},
+{
+"name": "myGetTargetMachineDomainDnsName",
+"ordinal": 373,
+"rva": 443891,
+"forwarder": "CERTCA.#852",
+"ref": null
+},
+{
+"name": null,
+"ordinal": 374,
+"rva": 70912,
+"forwarder": null,
+"ref": "certcli.dll!0x11500"
+},
+{
+"name": "myNetLogonUser",
+"ordinal": 375,
+"rva": 448758,
+"forwarder": "CERTCA.#853",
+"ref": null
+},
+{
+"name": "CertcliGetDetailedCertcliVersionString",
+"ordinal": 390,
+"rva": 442728,
+"forwarder": "CERTCA.#858",
+"ref": null
+},
+{
+"name": "myGetHashAlgorithmOIDInfoFromSignatureAlgorithm",
+"ordinal": 391,
+"rva": 443816,
+"forwarder": "CERTCA.#854",
+"ref": null
+},
+{
+"name": "myEnablePrivilege",
+"ordinal": 392,
+"rva": 443542,
+"forwarder": "CERTCA.#855",
+"ref": null
+},
+{
+"name": "CAGetConfigStringFromUIPicker",
+"ordinal": 491,
+"rva": 46656,
+"forwarder": null,
+"ref": "certcli.dll!0xb640"
+}
+]

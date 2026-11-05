@@ -1,0 +1,247 @@
+[
+{
+"name": "I_InvokeCommand",
+"ordinal": 1,
+"rva": 8320,
+"forwarder": null,
+"ref": "cryptext.dll!0x2080"
+},
+{
+"name": "CryptExtAddCER",
+"ordinal": 2,
+"rva": 21024,
+"forwarder": null,
+"ref": "cryptext.dll!0x5220"
+},
+{
+"name": "CryptExtAddCERMachineOnlyAndHwndW",
+"ordinal": 3,
+"rva": 21168,
+"forwarder": null,
+"ref": "cryptext.dll!0x52b0"
+},
+{
+"name": "CryptExtAddCERW",
+"ordinal": 4,
+"rva": 20752,
+"forwarder": null,
+"ref": "cryptext.dll!0x5110"
+},
+{
+"name": "CryptExtAddCRL",
+"ordinal": 5,
+"rva": 23088,
+"forwarder": null,
+"ref": "cryptext.dll!0x5a30"
+},
+{
+"name": "CryptExtAddCRLW",
+"ordinal": 6,
+"rva": 22816,
+"forwarder": null,
+"ref": "cryptext.dll!0x5920"
+},
+{
+"name": "CryptExtAddCTL",
+"ordinal": 7,
+"rva": 22272,
+"forwarder": null,
+"ref": "cryptext.dll!0x5700"
+},
+{
+"name": "CryptExtAddCTLW",
+"ordinal": 8,
+"rva": 22000,
+"forwarder": null,
+"ref": "cryptext.dll!0x55f0"
+},
+{
+"name": "CryptExtAddP7R",
+"ordinal": 9,
+"rva": 25280,
+"forwarder": null,
+"ref": "cryptext.dll!0x62c0"
+},
+{
+"name": "CryptExtAddP7RW",
+"ordinal": 10,
+"rva": 24560,
+"forwarder": null,
+"ref": "cryptext.dll!0x5ff0"
+},
+{
+"name": "CryptExtAddPFX",
+"ordinal": 11,
+"rva": 20608,
+"forwarder": null,
+"ref": "cryptext.dll!0x5080"
+},
+{
+"name": "CryptExtAddPFXMachineOnlyAndHwndW",
+"ordinal": 12,
+"rva": 20016,
+"forwarder": null,
+"ref": "cryptext.dll!0x4e30"
+},
+{
+"name": "CryptExtAddPFXW",
+"ordinal": 13,
+"rva": 20368,
+"forwarder": null,
+"ref": "cryptext.dll!0x4f90"
+},
+{
+"name": "CryptExtAddSPC",
+"ordinal": 14,
+"rva": 23872,
+"forwarder": null,
+"ref": "cryptext.dll!0x5d40"
+},
+{
+"name": "CryptExtAddSPCW",
+"ordinal": 15,
+"rva": 23632,
+"forwarder": null,
+"ref": "cryptext.dll!0x5c50"
+},
+{
+"name": "CryptExtOpenCAT",
+"ordinal": 16,
+"rva": 19872,
+"forwarder": null,
+"ref": "cryptext.dll!0x4da0"
+},
+{
+"name": "CryptExtOpenCATW",
+"ordinal": 17,
+"rva": 19648,
+"forwarder": null,
+"ref": "cryptext.dll!0x4cc0"
+},
+{
+"name": "CryptExtOpenCER",
+"ordinal": 18,
+"rva": 19424,
+"forwarder": null,
+"ref": "cryptext.dll!0x4be0"
+},
+{
+"name": "CryptExtOpenCERW",
+"ordinal": 19,
+"rva": 19152,
+"forwarder": null,
+"ref": "cryptext.dll!0x4ad0"
+},
+{
+"name": "CryptExtOpenCRL",
+"ordinal": 20,
+"rva": 22672,
+"forwarder": null,
+"ref": "cryptext.dll!0x5890"
+},
+{
+"name": "CryptExtOpenCRLW",
+"ordinal": 21,
+"rva": 22416,
+"forwarder": null,
+"ref": "cryptext.dll!0x5790"
+},
+{
+"name": "CryptExtOpenCTL",
+"ordinal": 22,
+"rva": 21856,
+"forwarder": null,
+"ref": "cryptext.dll!0x5560"
+},
+{
+"name": "CryptExtOpenCTLW",
+"ordinal": 23,
+"rva": 21648,
+"forwarder": null,
+"ref": "cryptext.dll!0x5490"
+},
+{
+"name": "CryptExtOpenP7R",
+"ordinal": 24,
+"rva": 24032,
+"forwarder": null,
+"ref": "cryptext.dll!0x5de0"
+},
+{
+"name": "CryptExtOpenP7RW",
+"ordinal": 25,
+"rva": 24016,
+"forwarder": null,
+"ref": "cryptext.dll!0x5dd0"
+},
+{
+"name": "CryptExtOpenPFX",
+"ordinal": 26,
+"rva": 27024,
+"forwarder": null,
+"ref": "cryptext.dll!0x6990"
+},
+{
+"name": "CryptExtOpenPFXW",
+"ordinal": 27,
+"rva": 26848,
+"forwarder": null,
+"ref": "cryptext.dll!0x68e0"
+},
+{
+"name": "CryptExtOpenPKCS7",
+"ordinal": 28,
+"rva": 23488,
+"forwarder": null,
+"ref": "cryptext.dll!0x5bc0"
+},
+{
+"name": "CryptExtOpenPKCS7W",
+"ordinal": 29,
+"rva": 23232,
+"forwarder": null,
+"ref": "cryptext.dll!0x5ac0"
+},
+{
+"name": "CryptExtOpenSTR",
+"ordinal": 30,
+"rva": 25632,
+"forwarder": null,
+"ref": "cryptext.dll!0x6420"
+},
+{
+"name": "CryptExtOpenSTRW",
+"ordinal": 31,
+"rva": 25424,
+"forwarder": null,
+"ref": "cryptext.dll!0x6350"
+},
+{
+"name": "DllCanUnloadNow",
+"ordinal": 32,
+"rva": 4656,
+"forwarder": null,
+"ref": "cryptext.dll!0x1230"
+},
+{
+"name": "DllGetClassObject",
+"ordinal": 33,
+"rva": 4688,
+"forwarder": null,
+"ref": "cryptext.dll!0x1250"
+},
+{
+"name": "DllRegisterServer",
+"ordinal": 34,
+"rva": 4720,
+"forwarder": null,
+"ref": "cryptext.dll!0x1270"
+},
+{
+"name": "DllUnregisterServer",
+"ordinal": 35,
+"rva": 4832,
+"forwarder": null,
+"ref": "cryptext.dll!0x12e0"
+}
+]

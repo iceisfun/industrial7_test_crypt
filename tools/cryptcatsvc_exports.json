@@ -1,0 +1,30 @@
+[
+{
+"name": "CatDbOfflineRebuildDatabasesRundll32W",
+"ordinal": 1,
+"rva": 37936,
+"forwarder": null,
+"ref": "cryptcatsvc.dll!0x9430"
+},
+{
+"name": "CryptCATAdminCatalogDatabase",
+"ordinal": 2,
+"rva": 37952,
+"forwarder": null,
+"ref": "cryptcatsvc.dll!0x9440"
+},
+{
+"name": "CryptsvcDllCtrl",
+"ordinal": 3,
+"rva": 7648,
+"forwarder": null,
+"ref": "cryptcatsvc.dll!0x1de0"
+},
+{
+"name": "CatDbOfflineRebuildDatabasesW",
+"ordinal": 4,
+"rva": 37968,
+"forwarder": null,
+"ref": "cryptcatsvc.dll!0x9450"
+}
+]

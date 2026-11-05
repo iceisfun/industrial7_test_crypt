@@ -1,0 +1,485 @@
+[
+{
+"name": "FidoCreateCredential",
+"ordinal": 1,
+"rva": 159712,
+"forwarder": null,
+"ref": "cryptngc.dll!0x26fe0"
+},
+{
+"name": "FidoGetCredential",
+"ordinal": 2,
+"rva": 159712,
+"forwarder": null,
+"ref": "cryptngc.dll!0x26fe0"
+},
+{
+"name": "FidoSignWithCredential",
+"ordinal": 3,
+"rva": 159712,
+"forwarder": null,
+"ref": "cryptngc.dll!0x26fe0"
+},
+{
+"name": "NgcAddBioProtector",
+"ordinal": 4,
+"rva": 209712,
+"forwarder": null,
+"ref": "cryptngc.dll!0x33330"
+},
+{
+"name": "NgcAddCompanionDeviceProtector",
+"ordinal": 5,
+"rva": 210160,
+"forwarder": null,
+"ref": "cryptngc.dll!0x334f0"
+},
+{
+"name": "NgcAddPrebootProtector",
+"ordinal": 6,
+"rva": 210592,
+"forwarder": null,
+"ref": "cryptngc.dll!0x336a0"
+},
+{
+"name": "NgcCancelPendingUIRequest",
+"ordinal": 7,
+"rva": 211072,
+"forwarder": null,
+"ref": "cryptngc.dll!0x33880"
+},
+{
+"name": "NgcChangePin",
+"ordinal": 8,
+"rva": 211472,
+"forwarder": null,
+"ref": "cryptngc.dll!0x33a10"
+},
+{
+"name": "NgcChangePinSilent",
+"ordinal": 9,
+"rva": 211904,
+"forwarder": null,
+"ref": "cryptngc.dll!0x33bc0"
+},
+{
+"name": "NgcCreateContainer",
+"ordinal": 10,
+"rva": 212368,
+"forwarder": null,
+"ref": "cryptngc.dll!0x33d90"
+},
+{
+"name": "NgcCreateContainerSilent",
+"ordinal": 11,
+"rva": 213568,
+"forwarder": null,
+"ref": "cryptngc.dll!0x34240"
+},
+{
+"name": "NgcCreateTicketForSmartCardKeyOperation",
+"ordinal": 12,
+"rva": 250304,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3d1c0"
+},
+{
+"name": "NgcCreateTicketForSmartCardVpn",
+"ordinal": 13,
+"rva": 250496,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3d280"
+},
+{
+"name": "NgcCreateUserIdKey",
+"ordinal": 14,
+"rva": 238080,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3a200"
+},
+{
+"name": "NgcCreateUserIdKeyEx",
+"ordinal": 15,
+"rva": 238624,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3a420"
+},
+{
+"name": "NgcCreateUserIdKeyHandle",
+"ordinal": 16,
+"rva": 239184,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3a650"
+},
+{
+"name": "NgcDecryptWithSymmetricPopKey",
+"ordinal": 17,
+"rva": 33824,
+"forwarder": null,
+"ref": "cryptngc.dll!0x8420"
+},
+{
+"name": "NgcDecryptWithUserIdKey",
+"ordinal": 18,
+"rva": 249792,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3cfc0"
+},
+{
+"name": "NgcDecryptWithUserIdKeySilent",
+"ordinal": 19,
+"rva": 249856,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3d000"
+},
+{
+"name": "NgcDeleteContainer",
+"ordinal": 20,
+"rva": 214176,
+"forwarder": null,
+"ref": "cryptngc.dll!0x344a0"
+},
+{
+"name": "NgcDeleteContainerEx",
+"ordinal": 21,
+"rva": 214192,
+"forwarder": null,
+"ref": "cryptngc.dll!0x344b0"
+},
+{
+"name": "NgcDeleteSymmetricPopKeyTransportKey",
+"ordinal": 22,
+"rva": 190960,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2e9f0"
+},
+{
+"name": "NgcDeleteUserIdKey",
+"ordinal": 23,
+"rva": 239600,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3a7f0"
+},
+{
+"name": "NgcEncryptWithAsymmetricKey",
+"ordinal": 24,
+"rva": 249920,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3d040"
+},
+{
+"name": "NgcEncryptWithSymmetricPopKey",
+"ordinal": 25,
+"rva": 222032,
+"forwarder": null,
+"ref": "cryptngc.dll!0x36350"
+},
+{
+"name": "NgcEnumContainers",
+"ordinal": 26,
+"rva": 45696,
+"forwarder": null,
+"ref": "cryptngc.dll!0xb280"
+},
+{
+"name": "NgcEnumUserIdKeys",
+"ordinal": 27,
+"rva": 239952,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3a950"
+},
+{
+"name": "NgcFreeEnumState",
+"ordinal": 28,
+"rva": 240304,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3aab0"
+},
+{
+"name": "NgcGetDefaultDecryptionKeyName",
+"ordinal": 29,
+"rva": 240352,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3aae0"
+},
+{
+"name": "NgcGetEventInterface",
+"ordinal": 30,
+"rva": 78208,
+"forwarder": null,
+"ref": "cryptngc.dll!0x13180"
+},
+{
+"name": "NgcGetKeyAttestationForContainerService",
+"ordinal": 31,
+"rva": 171232,
+"forwarder": null,
+"ref": "cryptngc.dll!0x29ce0"
+},
+{
+"name": "NgcGetKeyAttestationForUserIdKey",
+"ordinal": 32,
+"rva": 171968,
+"forwarder": null,
+"ref": "cryptngc.dll!0x29fc0"
+},
+{
+"name": "NgcGetKeyAttestationForUserIdKey2",
+"ordinal": 33,
+"rva": 172048,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2a010"
+},
+{
+"name": "NgcGetKeyImplType",
+"ordinal": 34,
+"rva": 240672,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3ac20"
+},
+{
+"name": "NgcGetLogonDecryptionKeyName",
+"ordinal": 35,
+"rva": 241056,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3ada0"
+},
+{
+"name": "NgcGetLogonDecryptionKeyNameForFirstLogonAfterUpgradeFromThreshold",
+"ordinal": 36,
+"rva": 241408,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3af00"
+},
+{
+"name": "NgcGetPkcs7ChainBlobFromCertificateBlob",
+"ordinal": 37,
+"rva": 172768,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2a2e0"
+},
+{
+"name": "NgcGetPolicy",
+"ordinal": 38,
+"rva": 215184,
+"forwarder": null,
+"ref": "cryptngc.dll!0x34890"
+},
+{
+"name": "NgcGetPregenKeyState",
+"ordinal": 39,
+"rva": 241760,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b060"
+},
+{
+"name": "NgcGetPregenUserKey",
+"ordinal": 40,
+"rva": 242080,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b1a0"
+},
+{
+"name": "NgcGetSymmetricPopKeyTransportKey",
+"ordinal": 41,
+"rva": 191280,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2eb30"
+},
+{
+"name": "NgcGetSymmetricPopKeyTransportKeyName",
+"ordinal": 42,
+"rva": 191792,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2ed30"
+},
+{
+"name": "NgcGetUserIdKeyCertificate",
+"ordinal": 43,
+"rva": 242496,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b340"
+},
+{
+"name": "NgcGetUserIdKeyContainerStatus",
+"ordinal": 44,
+"rva": 242848,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b4a0"
+},
+{
+"name": "NgcGetUserIdKeyName",
+"ordinal": 45,
+"rva": 243232,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b620"
+},
+{
+"name": "NgcGetUserIdKeyPublicKey",
+"ordinal": 46,
+"rva": 243344,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b690"
+},
+{
+"name": "NgcImportSymmetricPopKey",
+"ordinal": 47,
+"rva": 222448,
+"forwarder": null,
+"ref": "cryptngc.dll!0x364f0"
+},
+{
+"name": "NgcIsAnyContainerInVsm",
+"ordinal": 48,
+"rva": 215648,
+"forwarder": null,
+"ref": "cryptngc.dll!0x34a60"
+},
+{
+"name": "NgcIsPinRemovable",
+"ordinal": 49,
+"rva": 215824,
+"forwarder": null,
+"ref": "cryptngc.dll!0x34b10"
+},
+{
+"name": "NgcNotifyVscProvisioned",
+"ordinal": 50,
+"rva": 194096,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2f630"
+},
+{
+"name": "NgcOpenUserIdKey",
+"ordinal": 51,
+"rva": 243664,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b7d0"
+},
+{
+"name": "NgcPackAuthBuffer",
+"ordinal": 52,
+"rva": 182608,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2c950"
+},
+{
+"name": "NgcPackPasswordChangeAuthBuffer",
+"ordinal": 53,
+"rva": 183504,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2ccd0"
+},
+{
+"name": "NgcQueryEffectiveCertPolicy",
+"ordinal": 54,
+"rva": 194496,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2f7c0"
+},
+{
+"name": "NgcQueryEnabled",
+"ordinal": 55,
+"rva": 64720,
+"forwarder": null,
+"ref": "cryptngc.dll!0xfcd0"
+},
+{
+"name": "NgcQueryHardwarePolicy",
+"ordinal": 56,
+"rva": 216624,
+"forwarder": null,
+"ref": "cryptngc.dll!0x34e30"
+},
+{
+"name": "NgcRemoveBioProtector",
+"ordinal": 57,
+"rva": 216704,
+"forwarder": null,
+"ref": "cryptngc.dll!0x34e80"
+},
+{
+"name": "NgcRemoveCompanionDeviceProtector",
+"ordinal": 58,
+"rva": 217120,
+"forwarder": null,
+"ref": "cryptngc.dll!0x35020"
+},
+{
+"name": "NgcRemovePrebootProtector",
+"ordinal": 59,
+"rva": 217536,
+"forwarder": null,
+"ref": "cryptngc.dll!0x351c0"
+},
+{
+"name": "NgcRenewKeyAttestation",
+"ordinal": 60,
+"rva": 173104,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2a430"
+},
+{
+"name": "NgcSignWithSymmetricPopKey",
+"ordinal": 61,
+"rva": 54880,
+"forwarder": null,
+"ref": "cryptngc.dll!0xd660"
+},
+{
+"name": "NgcSignWithUserIdKey",
+"ordinal": 62,
+"rva": 243760,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b830"
+},
+{
+"name": "NgcSignWithUserIdKeyAndPadding",
+"ordinal": 63,
+"rva": 243840,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b880"
+},
+{
+"name": "NgcSignWithUserIdKeyEx",
+"ordinal": 64,
+"rva": 244016,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b930"
+},
+{
+"name": "NgcSignWithUserIdKeySilent",
+"ordinal": 65,
+"rva": 244176,
+"forwarder": null,
+"ref": "cryptngc.dll!0x3b9d0"
+},
+{
+"name": "NgcUnpackAuthBuffer",
+"ordinal": 66,
+"rva": 183680,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2cd80"
+},
+{
+"name": "NgcUnpackCredData",
+"ordinal": 67,
+"rva": 183904,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2ce60"
+},
+{
+"name": "NgcUnpackPasswordChangeAuthBuffer",
+"ordinal": 68,
+"rva": 184064,
+"forwarder": null,
+"ref": "cryptngc.dll!0x2cf00"
+},
+{
+"name": "NgcVerifyWithSymmetricPopKey",
+"ordinal": 69,
+"rva": 32944,
+"forwarder": null,
+"ref": "cryptngc.dll!0x80b0"
+}
+]

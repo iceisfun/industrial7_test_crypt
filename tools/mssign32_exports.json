@@ -1,0 +1,254 @@
+[
+{
+"name": "DllRegisterServer",
+"ordinal": 1,
+"rva": 8416,
+"forwarder": null,
+"ref": "mssign32.dll!0x20e0"
+},
+{
+"name": "DllUnregisterServer",
+"ordinal": 2,
+"rva": 8416,
+"forwarder": null,
+"ref": "mssign32.dll!0x20e0"
+},
+{
+"name": "FreeCryptProvFromCert",
+"ordinal": 3,
+"rva": 4112,
+"forwarder": null,
+"ref": "mssign32.dll!0x1010"
+},
+{
+"name": "FreeCryptProvFromCertEx",
+"ordinal": 4,
+"rva": 4224,
+"forwarder": null,
+"ref": "mssign32.dll!0x1080"
+},
+{
+"name": "GetCryptProvFromCert",
+"ordinal": 5,
+"rva": 4304,
+"forwarder": null,
+"ref": "mssign32.dll!0x10d0"
+},
+{
+"name": "GetCryptProvFromCertEx",
+"ordinal": 6,
+"rva": 4528,
+"forwarder": null,
+"ref": "mssign32.dll!0x11b0"
+},
+{
+"name": "PvkFreeCryptProv",
+"ordinal": 7,
+"rva": 5232,
+"forwarder": null,
+"ref": "mssign32.dll!0x1470"
+},
+{
+"name": "PvkGetCryptProv",
+"ordinal": 8,
+"rva": 4752,
+"forwarder": null,
+"ref": "mssign32.dll!0x1290"
+},
+{
+"name": "PvkPrivateKeyAcquireContext",
+"ordinal": 9,
+"rva": 5296,
+"forwarder": null,
+"ref": "mssign32.dll!0x14b0"
+},
+{
+"name": "PvkPrivateKeyAcquireContextA",
+"ordinal": 10,
+"rva": 5456,
+"forwarder": null,
+"ref": "mssign32.dll!0x1550"
+},
+{
+"name": "PvkPrivateKeyAcquireContextFromMemory",
+"ordinal": 11,
+"rva": 5616,
+"forwarder": null,
+"ref": "mssign32.dll!0x15f0"
+},
+{
+"name": "PvkPrivateKeyAcquireContextFromMemoryA",
+"ordinal": 12,
+"rva": 5728,
+"forwarder": null,
+"ref": "mssign32.dll!0x1660"
+},
+{
+"name": "PvkPrivateKeyLoad",
+"ordinal": 13,
+"rva": 5840,
+"forwarder": null,
+"ref": "mssign32.dll!0x16d0"
+},
+{
+"name": "PvkPrivateKeyLoadA",
+"ordinal": 14,
+"rva": 5968,
+"forwarder": null,
+"ref": "mssign32.dll!0x1750"
+},
+{
+"name": "PvkPrivateKeyLoadFromMemory",
+"ordinal": 15,
+"rva": 6096,
+"forwarder": null,
+"ref": "mssign32.dll!0x17d0"
+},
+{
+"name": "PvkPrivateKeyLoadFromMemoryA",
+"ordinal": 16,
+"rva": 6192,
+"forwarder": null,
+"ref": "mssign32.dll!0x1830"
+},
+{
+"name": "PvkPrivateKeyReleaseContext",
+"ordinal": 17,
+"rva": 6288,
+"forwarder": null,
+"ref": "mssign32.dll!0x1890"
+},
+{
+"name": "PvkPrivateKeyReleaseContextA",
+"ordinal": 18,
+"rva": 6432,
+"forwarder": null,
+"ref": "mssign32.dll!0x1920"
+},
+{
+"name": "PvkPrivateKeySave",
+"ordinal": 19,
+"rva": 6576,
+"forwarder": null,
+"ref": "mssign32.dll!0x19b0"
+},
+{
+"name": "PvkPrivateKeySaveA",
+"ordinal": 20,
+"rva": 6640,
+"forwarder": null,
+"ref": "mssign32.dll!0x19f0"
+},
+{
+"name": "PvkPrivateKeySaveToMemory",
+"ordinal": 21,
+"rva": 6704,
+"forwarder": null,
+"ref": "mssign32.dll!0x1a30"
+},
+{
+"name": "PvkPrivateKeySaveToMemoryA",
+"ordinal": 22,
+"rva": 6896,
+"forwarder": null,
+"ref": "mssign32.dll!0x1af0"
+},
+{
+"name": "SignError",
+"ordinal": 23,
+"rva": 7088,
+"forwarder": null,
+"ref": "mssign32.dll!0x1bb0"
+},
+{
+"name": "SignerAddTimeStampResponse",
+"ordinal": 24,
+"rva": 7152,
+"forwarder": null,
+"ref": "mssign32.dll!0x1bf0"
+},
+{
+"name": "SignerAddTimeStampResponseEx",
+"ordinal": 25,
+"rva": 7200,
+"forwarder": null,
+"ref": "mssign32.dll!0x1c20"
+},
+{
+"name": "SignerCreateTimeStampRequest",
+"ordinal": 26,
+"rva": 7216,
+"forwarder": null,
+"ref": "mssign32.dll!0x1c30"
+},
+{
+"name": "SignerFreeSignerContext",
+"ordinal": 27,
+"rva": 7408,
+"forwarder": null,
+"ref": "mssign32.dll!0x1cf0"
+},
+{
+"name": "SignerSign",
+"ordinal": 28,
+"rva": 7488,
+"forwarder": null,
+"ref": "mssign32.dll!0x1d40"
+},
+{
+"name": "SignerSignEx",
+"ordinal": 29,
+"rva": 7568,
+"forwarder": null,
+"ref": "mssign32.dll!0x1d90"
+},
+{
+"name": "SignerSignEx2",
+"ordinal": 30,
+"rva": 7680,
+"forwarder": null,
+"ref": "mssign32.dll!0x1e00"
+},
+{
+"name": "SignerSignEx3",
+"ordinal": 31,
+"rva": 7824,
+"forwarder": null,
+"ref": "mssign32.dll!0x1e90"
+},
+{
+"name": "SignerTimeStamp",
+"ordinal": 32,
+"rva": 7968,
+"forwarder": null,
+"ref": "mssign32.dll!0x1f20"
+},
+{
+"name": "SignerTimeStampEx",
+"ordinal": 33,
+"rva": 8032,
+"forwarder": null,
+"ref": "mssign32.dll!0x1f60"
+},
+{
+"name": "SignerTimeStampEx2",
+"ordinal": 34,
+"rva": 8096,
+"forwarder": null,
+"ref": "mssign32.dll!0x1fa0"
+},
+{
+"name": "SignerTimeStampEx3",
+"ordinal": 35,
+"rva": 8192,
+"forwarder": null,
+"ref": "mssign32.dll!0x2000"
+},
+{
+"name": "SpcGetCertFromKey",
+"ordinal": 36,
+"rva": 8400,
+"forwarder": null,
+"ref": "mssign32.dll!0x20d0"
+}
+]

@@ -1,0 +1,23 @@
+[
+{
+"name": "CertPropServiceMain",
+"ordinal": 1,
+"rva": 15040,
+"forwarder": null,
+"ref": "certprop.dll!0x3ac0"
+},
+{
+"name": "ScPolicyServiceMain",
+"ordinal": 2,
+"rva": 65808,
+"forwarder": null,
+"ref": "certprop.dll!0x10110"
+},
+{
+"name": "SvchostPushServiceGlobals",
+"ordinal": 3,
+"rva": 18816,
+"forwarder": null,
+"ref": "certprop.dll!0x4980"
+}
+]

@@ -1,0 +1,37 @@
+[
+{
+"name": "CAPISysPrep_Generalize",
+"ordinal": 1,
+"rva": 8304,
+"forwarder": null,
+"ref": "capisp.dll!0x2070"
+},
+{
+"name": "CryptoSysPrep_Clean",
+"ordinal": 2,
+"rva": 11888,
+"forwarder": null,
+"ref": "capisp.dll!0x2e70"
+},
+{
+"name": "CryptoSysPrep_Specialize",
+"ordinal": 3,
+"rva": 10032,
+"forwarder": null,
+"ref": "capisp.dll!0x2730"
+},
+{
+"name": "CryptoSysPrep_Specialize_Clone",
+"ordinal": 4,
+"rva": 10048,
+"forwarder": null,
+"ref": "capisp.dll!0x2740"
+},
+{
+"name": "CryptoSysPrep_Specialize_Offline",
+"ordinal": 5,
+"rva": 10064,
+"forwarder": null,
+"ref": "capisp.dll!0x2750"
+}
+]

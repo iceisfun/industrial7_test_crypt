@@ -1,0 +1,408 @@
+[
+{
+"name": "BCryptAddContextFunction",
+"ordinal": 1,
+"rva": 86624,
+"forwarder": null,
+"ref": "bcrypt.dll!0x15260"
+},
+{
+"name": "BCryptAddContextFunctionProvider",
+"ordinal": 2,
+"rva": 87504,
+"forwarder": null,
+"ref": "bcrypt.dll!0x155d0"
+},
+{
+"name": "BCryptCloseAlgorithmProvider",
+"ordinal": 3,
+"rva": 11680,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2da0"
+},
+{
+"name": "BCryptConfigureContext",
+"ordinal": 4,
+"rva": 88432,
+"forwarder": null,
+"ref": "bcrypt.dll!0x15970"
+},
+{
+"name": "BCryptConfigureContextFunction",
+"ordinal": 5,
+"rva": 89280,
+"forwarder": null,
+"ref": "bcrypt.dll!0x15cc0"
+},
+{
+"name": "BCryptCreateContext",
+"ordinal": 6,
+"rva": 90160,
+"forwarder": null,
+"ref": "bcrypt.dll!0x16030"
+},
+{
+"name": "BCryptCreateHash",
+"ordinal": 7,
+"rva": 14512,
+"forwarder": null,
+"ref": "bcrypt.dll!0x38b0"
+},
+{
+"name": "BCryptCreateMultiHash",
+"ordinal": 8,
+"rva": 56464,
+"forwarder": null,
+"ref": "bcrypt.dll!0xdc90"
+},
+{
+"name": "BCryptDecrypt",
+"ordinal": 9,
+"rva": 6576,
+"forwarder": null,
+"ref": "bcrypt.dll!0x19b0"
+},
+{
+"name": "BCryptDeleteContext",
+"ordinal": 10,
+"rva": 91008,
+"forwarder": null,
+"ref": "bcrypt.dll!0x16380"
+},
+{
+"name": "BCryptDeriveKey",
+"ordinal": 11,
+"rva": 8960,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2300"
+},
+{
+"name": "BCryptDeriveKeyCapi",
+"ordinal": 12,
+"rva": 13264,
+"forwarder": null,
+"ref": "bcrypt.dll!0x33d0"
+},
+{
+"name": "BCryptDeriveKeyPBKDF2",
+"ordinal": 13,
+"rva": 28992,
+"forwarder": null,
+"ref": "bcrypt.dll!0x7140"
+},
+{
+"name": "BCryptDestroyHash",
+"ordinal": 14,
+"rva": 13952,
+"forwarder": null,
+"ref": "bcrypt.dll!0x3680"
+},
+{
+"name": "BCryptDestroyKey",
+"ordinal": 15,
+"rva": 27216,
+"forwarder": null,
+"ref": "bcrypt.dll!0x6a50"
+},
+{
+"name": "BCryptDestroySecret",
+"ordinal": 16,
+"rva": 9872,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2690"
+},
+{
+"name": "BCryptDuplicateHash",
+"ordinal": 17,
+"rva": 5984,
+"forwarder": null,
+"ref": "bcrypt.dll!0x1760"
+},
+{
+"name": "BCryptDuplicateKey",
+"ordinal": 18,
+"rva": 57008,
+"forwarder": null,
+"ref": "bcrypt.dll!0xdeb0"
+},
+{
+"name": "BCryptEncrypt",
+"ordinal": 19,
+"rva": 5552,
+"forwarder": null,
+"ref": "bcrypt.dll!0x15b0"
+},
+{
+"name": "BCryptEnumAlgorithms",
+"ordinal": 20,
+"rva": 57584,
+"forwarder": null,
+"ref": "bcrypt.dll!0xe0f0"
+},
+{
+"name": "BCryptEnumContextFunctionProviders",
+"ordinal": 21,
+"rva": 31792,
+"forwarder": null,
+"ref": "bcrypt.dll!0x7c30"
+},
+{
+"name": "BCryptEnumContextFunctions",
+"ordinal": 22,
+"rva": 30000,
+"forwarder": null,
+"ref": "bcrypt.dll!0x7530"
+},
+{
+"name": "BCryptEnumContexts",
+"ordinal": 23,
+"rva": 91840,
+"forwarder": null,
+"ref": "bcrypt.dll!0x166c0"
+},
+{
+"name": "BCryptEnumProviders",
+"ordinal": 24,
+"rva": 58672,
+"forwarder": null,
+"ref": "bcrypt.dll!0xe530"
+},
+{
+"name": "BCryptEnumRegisteredProviders",
+"ordinal": 25,
+"rva": 92576,
+"forwarder": null,
+"ref": "bcrypt.dll!0x169a0"
+},
+{
+"name": "BCryptExportKey",
+"ordinal": 26,
+"rva": 4640,
+"forwarder": null,
+"ref": "bcrypt.dll!0x1220"
+},
+{
+"name": "BCryptFinalizeKeyPair",
+"ordinal": 27,
+"rva": 10080,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2760"
+},
+{
+"name": "BCryptFinishHash",
+"ordinal": 28,
+"rva": 14176,
+"forwarder": null,
+"ref": "bcrypt.dll!0x3760"
+},
+{
+"name": "BCryptFreeBuffer",
+"ordinal": 29,
+"rva": 13168,
+"forwarder": null,
+"ref": "bcrypt.dll!0x3370"
+},
+{
+"name": "BCryptGenRandom",
+"ordinal": 30,
+"rva": 12400,
+"forwarder": null,
+"ref": "bcrypt.dll!0x3070"
+},
+{
+"name": "BCryptGenerateKeyPair",
+"ordinal": 31,
+"rva": 9552,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2550"
+},
+{
+"name": "BCryptGenerateSymmetricKey",
+"ordinal": 32,
+"rva": 15344,
+"forwarder": null,
+"ref": "bcrypt.dll!0x3bf0"
+},
+{
+"name": "BCryptGetFipsAlgorithmMode",
+"ordinal": 33,
+"rva": 25872,
+"forwarder": null,
+"ref": "bcrypt.dll!0x6510"
+},
+{
+"name": "BCryptGetProperty",
+"ordinal": 34,
+"rva": 16016,
+"forwarder": null,
+"ref": "bcrypt.dll!0x3e90"
+},
+{
+"name": "BCryptHash",
+"ordinal": 35,
+"rva": 13792,
+"forwarder": null,
+"ref": "bcrypt.dll!0x35e0"
+},
+{
+"name": "BCryptHashData",
+"ordinal": 36,
+"rva": 14352,
+"forwarder": null,
+"ref": "bcrypt.dll!0x3810"
+},
+{
+"name": "BCryptImportKey",
+"ordinal": 37,
+"rva": 11280,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2c10"
+},
+{
+"name": "BCryptImportKeyPair",
+"ordinal": 38,
+"rva": 4112,
+"forwarder": null,
+"ref": "bcrypt.dll!0x1010"
+},
+{
+"name": "BCryptKeyDerivation",
+"ordinal": 39,
+"rva": 6336,
+"forwarder": null,
+"ref": "bcrypt.dll!0x18c0"
+},
+{
+"name": "BCryptOpenAlgorithmProvider",
+"ordinal": 40,
+"rva": 20960,
+"forwarder": null,
+"ref": "bcrypt.dll!0x51e0"
+},
+{
+"name": "BCryptProcessMultiOperations",
+"ordinal": 41,
+"rva": 59536,
+"forwarder": null,
+"ref": "bcrypt.dll!0xe890"
+},
+{
+"name": "BCryptQueryContextConfiguration",
+"ordinal": 42,
+"rva": 93168,
+"forwarder": null,
+"ref": "bcrypt.dll!0x16bf0"
+},
+{
+"name": "BCryptQueryContextFunctionConfiguration",
+"ordinal": 43,
+"rva": 94080,
+"forwarder": null,
+"ref": "bcrypt.dll!0x16f80"
+},
+{
+"name": "BCryptQueryContextFunctionProperty",
+"ordinal": 44,
+"rva": 95104,
+"forwarder": null,
+"ref": "bcrypt.dll!0x17380"
+},
+{
+"name": "BCryptQueryProviderRegistration",
+"ordinal": 45,
+"rva": 30544,
+"forwarder": null,
+"ref": "bcrypt.dll!0x7750"
+},
+{
+"name": "BCryptRegisterConfigChangeNotify",
+"ordinal": 46,
+"rva": 32560,
+"forwarder": null,
+"ref": "bcrypt.dll!0x7f30"
+},
+{
+"name": "BCryptRegisterProvider",
+"ordinal": 47,
+"rva": 96208,
+"forwarder": null,
+"ref": "bcrypt.dll!0x177d0"
+},
+{
+"name": "BCryptRemoveContextFunction",
+"ordinal": 48,
+"rva": 97184,
+"forwarder": null,
+"ref": "bcrypt.dll!0x17ba0"
+},
+{
+"name": "BCryptRemoveContextFunctionProvider",
+"ordinal": 49,
+"rva": 98064,
+"forwarder": null,
+"ref": "bcrypt.dll!0x17f10"
+},
+{
+"name": "BCryptResolveProviders",
+"ordinal": 50,
+"rva": 19680,
+"forwarder": null,
+"ref": "bcrypt.dll!0x4ce0"
+},
+{
+"name": "BCryptSecretAgreement",
+"ordinal": 51,
+"rva": 9232,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2410"
+},
+{
+"name": "BCryptSetAuditingInterface",
+"ordinal": 52,
+"rva": 33120,
+"forwarder": null,
+"ref": "bcrypt.dll!0x8160"
+},
+{
+"name": "BCryptSetContextFunctionProperty",
+"ordinal": 53,
+"rva": 98976,
+"forwarder": null,
+"ref": "bcrypt.dll!0x182a0"
+},
+{
+"name": "BCryptSetProperty",
+"ordinal": 54,
+"rva": 12064,
+"forwarder": null,
+"ref": "bcrypt.dll!0x2f20"
+},
+{
+"name": "BCryptSignHash",
+"ordinal": 55,
+"rva": 27904,
+"forwarder": null,
+"ref": "bcrypt.dll!0x6d00"
+},
+{
+"name": "BCryptUnregisterConfigChangeNotify",
+"ordinal": 56,
+"rva": 99920,
+"forwarder": null,
+"ref": "bcrypt.dll!0x18650"
+},
+{
+"name": "BCryptUnregisterProvider",
+"ordinal": 57,
+"rva": 100128,
+"forwarder": null,
+"ref": "bcrypt.dll!0x18720"
+},
+{
+"name": "BCryptVerifySignature",
+"ordinal": 58,
+"rva": 10224,
+"forwarder": null,
+"ref": "bcrypt.dll!0x27f0"
+}
+]

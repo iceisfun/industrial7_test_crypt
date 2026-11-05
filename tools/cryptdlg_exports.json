@@ -1,0 +1,149 @@
+[
+{
+"name": "CertConfigureTrustA",
+"ordinal": 1,
+"rva": 5104,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x13f0"
+},
+{
+"name": "CertConfigureTrustW",
+"ordinal": 2,
+"rva": 5104,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x13f0"
+},
+{
+"name": "CertTrustCertPolicy",
+"ordinal": 3,
+"rva": 5104,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x13f0"
+},
+{
+"name": "CertTrustCleanup",
+"ordinal": 4,
+"rva": 17536,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x4480"
+},
+{
+"name": "CertTrustFinalPolicy",
+"ordinal": 5,
+"rva": 15472,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x3c70"
+},
+{
+"name": "CertTrustInit",
+"ordinal": 6,
+"rva": 17424,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x4410"
+},
+{
+"name": "DecodeAttrSequence",
+"ordinal": 7,
+"rva": 6912,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1b00"
+},
+{
+"name": "DecodeRecipientID",
+"ordinal": 8,
+"rva": 8176,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1ff0"
+},
+{
+"name": "EncodeAttrSequence",
+"ordinal": 9,
+"rva": 6448,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1930"
+},
+{
+"name": "EncodeRecipientID",
+"ordinal": 10,
+"rva": 7840,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1ea0"
+},
+{
+"name": "FormatPKIXEmailProtection",
+"ordinal": 11,
+"rva": 6256,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1870"
+},
+{
+"name": "FormatVerisignExtension",
+"ordinal": 12,
+"rva": 6176,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1820"
+},
+{
+"name": "CertModifyCertificatesToTrust",
+"ordinal": 13,
+"rva": 17552,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x4490"
+},
+{
+"name": "CertSelectCertificateA",
+"ordinal": 14,
+"rva": 5056,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x13c0"
+},
+{
+"name": "CertSelectCertificateW",
+"ordinal": 15,
+"rva": 5072,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x13d0"
+},
+{
+"name": "CertViewPropertiesA",
+"ordinal": 16,
+"rva": 12320,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x3020"
+},
+{
+"name": "CertViewPropertiesW",
+"ordinal": 17,
+"rva": 12336,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x3030"
+},
+{
+"name": "DllRegisterServer",
+"ordinal": 18,
+"rva": 8608,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x21a0"
+},
+{
+"name": "DllUnregisterServer",
+"ordinal": 19,
+"rva": 9168,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x23d0"
+},
+{
+"name": "GetFriendlyNameOfCertA",
+"ordinal": 20,
+"rva": 5680,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1630"
+},
+{
+"name": "GetFriendlyNameOfCertW",
+"ordinal": 21,
+"rva": 5920,
+"forwarder": null,
+"ref": "cryptdlg.dll!0x1720"
+}
+]

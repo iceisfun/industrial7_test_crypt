@@ -1,0 +1,1045 @@
+[
+{
+"name": "BCryptAddContextFunction",
+"ordinal": 1,
+"rva": 124606,
+"forwarder": "BCRYPT.BCryptAddContextFunction",
+"ref": null
+},
+{
+"name": "BCryptAddContextFunctionProvider",
+"ordinal": 2,
+"rva": 124671,
+"forwarder": "BCRYPT.BCryptAddContextFunctionProvider",
+"ref": null
+},
+{
+"name": "BCryptCloseAlgorithmProvider",
+"ordinal": 3,
+"rva": 124740,
+"forwarder": "BCRYPT.BCryptCloseAlgorithmProvider",
+"ref": null
+},
+{
+"name": "BCryptConfigureContext",
+"ordinal": 4,
+"rva": 124799,
+"forwarder": "BCRYPT.BCryptConfigureContext",
+"ref": null
+},
+{
+"name": "BCryptConfigureContextFunction",
+"ordinal": 5,
+"rva": 124860,
+"forwarder": "BCRYPT.BCryptConfigureContextFunction",
+"ref": null
+},
+{
+"name": "BCryptCreateContext",
+"ordinal": 6,
+"rva": 124918,
+"forwarder": "BCRYPT.BCryptCreateContext",
+"ref": null
+},
+{
+"name": "BCryptCreateHash",
+"ordinal": 7,
+"rva": 124962,
+"forwarder": "BCRYPT.BCryptCreateHash",
+"ref": null
+},
+{
+"name": "BCryptDecrypt",
+"ordinal": 8,
+"rva": 125000,
+"forwarder": "BCRYPT.BCryptDecrypt",
+"ref": null
+},
+{
+"name": "BCryptDeleteContext",
+"ordinal": 9,
+"rva": 125041,
+"forwarder": "BCRYPT.BCryptDeleteContext",
+"ref": null
+},
+{
+"name": "BCryptDeriveKey",
+"ordinal": 10,
+"rva": 125084,
+"forwarder": "BCRYPT.BCryptDeriveKey",
+"ref": null
+},
+{
+"name": "BCryptDeriveKeyCapi",
+"ordinal": 11,
+"rva": 125127,
+"forwarder": "BCRYPT.BCryptDeriveKeyCapi",
+"ref": null
+},
+{
+"name": "BCryptDeriveKeyPBKDF2",
+"ordinal": 12,
+"rva": 125176,
+"forwarder": "BCRYPT.BCryptDeriveKeyPBKDF2",
+"ref": null
+},
+{
+"name": "BCryptDestroyHash",
+"ordinal": 13,
+"rva": 125223,
+"forwarder": "BCRYPT.BCryptDestroyHash",
+"ref": null
+},
+{
+"name": "BCryptDestroyKey",
+"ordinal": 14,
+"rva": 125265,
+"forwarder": "BCRYPT.BCryptDestroyKey",
+"ref": null
+},
+{
+"name": "BCryptDestroySecret",
+"ordinal": 15,
+"rva": 125309,
+"forwarder": "BCRYPT.BCryptDestroySecret",
+"ref": null
+},
+{
+"name": "BCryptDuplicateHash",
+"ordinal": 16,
+"rva": 125356,
+"forwarder": "BCRYPT.BCryptDuplicateHash",
+"ref": null
+},
+{
+"name": "BCryptDuplicateKey",
+"ordinal": 17,
+"rva": 125402,
+"forwarder": "BCRYPT.BCryptDuplicateKey",
+"ref": null
+},
+{
+"name": "BCryptEncrypt",
+"ordinal": 18,
+"rva": 125442,
+"forwarder": "BCRYPT.BCryptEncrypt",
+"ref": null
+},
+{
+"name": "BCryptEnumAlgorithms",
+"ordinal": 19,
+"rva": 125484,
+"forwarder": "BCRYPT.BCryptEnumAlgorithms",
+"ref": null
+},
+{
+"name": "BCryptEnumContextFunctionProviders",
+"ordinal": 20,
+"rva": 125547,
+"forwarder": "BCRYPT.BCryptEnumContextFunctionProviders",
+"ref": null
+},
+{
+"name": "BCryptEnumContextFunctions",
+"ordinal": 21,
+"rva": 125616,
+"forwarder": "BCRYPT.BCryptEnumContextFunctions",
+"ref": null
+},
+{
+"name": "BCryptEnumContexts",
+"ordinal": 22,
+"rva": 125669,
+"forwarder": "BCRYPT.BCryptEnumContexts",
+"ref": null
+},
+{
+"name": "BCryptEnumProviders",
+"ordinal": 23,
+"rva": 125715,
+"forwarder": "BCRYPT.BCryptEnumProviders",
+"ref": null
+},
+{
+"name": "BCryptEnumRegisteredProviders",
+"ordinal": 24,
+"rva": 125772,
+"forwarder": "BCRYPT.BCryptEnumRegisteredProviders",
+"ref": null
+},
+{
+"name": "BCryptExportKey",
+"ordinal": 25,
+"rva": 125825,
+"forwarder": "BCRYPT.BCryptExportKey",
+"ref": null
+},
+{
+"name": "BCryptFinalizeKeyPair",
+"ordinal": 26,
+"rva": 125870,
+"forwarder": "BCRYPT.BCryptFinalizeKeyPair",
+"ref": null
+},
+{
+"name": "BCryptFinishHash",
+"ordinal": 27,
+"rva": 125916,
+"forwarder": "BCRYPT.BCryptFinishHash",
+"ref": null
+},
+{
+"name": "BCryptFreeBuffer",
+"ordinal": 28,
+"rva": 125957,
+"forwarder": "BCRYPT.BCryptFreeBuffer",
+"ref": null
+},
+{
+"name": "BCryptGenRandom",
+"ordinal": 29,
+"rva": 125997,
+"forwarder": "BCRYPT.BCryptGenRandom",
+"ref": null
+},
+{
+"name": "BCryptGenerateKeyPair",
+"ordinal": 30,
+"rva": 126042,
+"forwarder": "BCRYPT.BCryptGenerateKeyPair",
+"ref": null
+},
+{
+"name": "BCryptGenerateSymmetricKey",
+"ordinal": 31,
+"rva": 126098,
+"forwarder": "BCRYPT.BCryptGenerateSymmetricKey",
+"ref": null
+},
+{
+"name": "BCryptGetFipsAlgorithmMode",
+"ordinal": 32,
+"rva": 126159,
+"forwarder": "BCRYPT.BCryptGetFipsAlgorithmMode",
+"ref": null
+},
+{
+"name": "BCryptGetProperty",
+"ordinal": 33,
+"rva": 126211,
+"forwarder": "BCRYPT.BCryptGetProperty",
+"ref": null
+},
+{
+"name": "BCryptHash",
+"ordinal": 34,
+"rva": 126247,
+"forwarder": "BCRYPT.BCryptHash",
+"ref": null
+},
+{
+"name": "BCryptHashData",
+"ordinal": 35,
+"rva": 126280,
+"forwarder": "BCRYPT.BCryptHashData",
+"ref": null
+},
+{
+"name": "BCryptImportKey",
+"ordinal": 36,
+"rva": 126318,
+"forwarder": "BCRYPT.BCryptImportKey",
+"ref": null
+},
+{
+"name": "BCryptImportKeyPair",
+"ordinal": 37,
+"rva": 126361,
+"forwarder": "BCRYPT.BCryptImportKeyPair",
+"ref": null
+},
+{
+"name": "BCryptKeyDerivation",
+"ordinal": 38,
+"rva": 126408,
+"forwarder": "BCRYPT.BCryptKeyDerivation",
+"ref": null
+},
+{
+"name": "BCryptOpenAlgorithmProvider",
+"ordinal": 39,
+"rva": 126463,
+"forwarder": "BCRYPT.BCryptOpenAlgorithmProvider",
+"ref": null
+},
+{
+"name": "BCryptQueryContextConfiguration",
+"ordinal": 40,
+"rva": 126530,
+"forwarder": "BCRYPT.BCryptQueryContextConfiguration",
+"ref": null
+},
+{
+"name": "BCryptQueryContextFunctionConfiguration",
+"ordinal": 41,
+"rva": 126609,
+"forwarder": "BCRYPT.BCryptQueryContextFunctionConfiguration",
+"ref": null
+},
+{
+"name": "BCryptQueryContextFunctionProperty",
+"ordinal": 42,
+"rva": 126691,
+"forwarder": "BCRYPT.BCryptQueryContextFunctionProperty",
+"ref": null
+},
+{
+"name": "BCryptQueryProviderRegistration",
+"ordinal": 43,
+"rva": 126765,
+"forwarder": "BCRYPT.BCryptQueryProviderRegistration",
+"ref": null
+},
+{
+"name": "BCryptRegisterConfigChangeNotify",
+"ordinal": 44,
+"rva": 126837,
+"forwarder": "BCRYPT.BCryptRegisterConfigChangeNotify",
+"ref": null
+},
+{
+"name": "BCryptRegisterProvider",
+"ordinal": 45,
+"rva": 126900,
+"forwarder": "BCRYPT.BCryptRegisterProvider",
+"ref": null
+},
+{
+"name": "BCryptRemoveContextFunction",
+"ordinal": 46,
+"rva": 126958,
+"forwarder": "BCRYPT.BCryptRemoveContextFunction",
+"ref": null
+},
+{
+"name": "BCryptRemoveContextFunctionProvider",
+"ordinal": 47,
+"rva": 127029,
+"forwarder": "BCRYPT.BCryptRemoveContextFunctionProvider",
+"ref": null
+},
+{
+"name": "BCryptResolveProviders",
+"ordinal": 48,
+"rva": 127095,
+"forwarder": "BCRYPT.BCryptResolveProviders",
+"ref": null
+},
+{
+"name": "BCryptSecretAgreement",
+"ordinal": 49,
+"rva": 127147,
+"forwarder": "BCRYPT.BCryptSecretAgreement",
+"ref": null
+},
+{
+"name": "BCryptSetAuditingInterface",
+"ordinal": 50,
+"rva": 127203,
+"forwarder": "BCRYPT.BCryptSetAuditingInterface",
+"ref": null
+},
+{
+"name": "BCryptSetContextFunctionProperty",
+"ordinal": 51,
+"rva": 127270,
+"forwarder": "BCRYPT.BCryptSetContextFunctionProperty",
+"ref": null
+},
+{
+"name": "BCryptSetProperty",
+"ordinal": 52,
+"rva": 127328,
+"forwarder": "BCRYPT.BCryptSetProperty",
+"ref": null
+},
+{
+"name": "BCryptSignHash",
+"ordinal": 53,
+"rva": 127368,
+"forwarder": "BCRYPT.BCryptSignHash",
+"ref": null
+},
+{
+"name": "BCryptUnregisterConfigChangeNotify",
+"ordinal": 54,
+"rva": 127425,
+"forwarder": "BCRYPT.BCryptUnregisterConfigChangeNotify",
+"ref": null
+},
+{
+"name": "BCryptUnregisterProvider",
+"ordinal": 55,
+"rva": 127492,
+"forwarder": "BCRYPT.BCryptUnregisterProvider",
+"ref": null
+},
+{
+"name": "BCryptVerifySignature",
+"ordinal": 56,
+"rva": 127546,
+"forwarder": "BCRYPT.BCryptVerifySignature",
+"ref": null
+},
+{
+"name": "GetIsolationServerInterface",
+"ordinal": 57,
+"rva": 61120,
+"forwarder": null,
+"ref": "ncrypt.dll!0xeec0"
+},
+{
+"name": "GetKeyStorageInterface",
+"ordinal": 58,
+"rva": 61120,
+"forwarder": null,
+"ref": "ncrypt.dll!0xeec0"
+},
+{
+"name": "GetSChannelInterface",
+"ordinal": 59,
+"rva": 61120,
+"forwarder": null,
+"ref": "ncrypt.dll!0xeec0"
+},
+{
+"name": "NCryptCloseKeyProtector",
+"ordinal": 60,
+"rva": 71280,
+"forwarder": null,
+"ref": "ncrypt.dll!0x11670"
+},
+{
+"name": "NCryptCloseProtectionDescriptor",
+"ordinal": 61,
+"rva": 79344,
+"forwarder": null,
+"ref": "ncrypt.dll!0x135f0"
+},
+{
+"name": "NCryptCreateClaim",
+"ordinal": 62,
+"rva": 61696,
+"forwarder": null,
+"ref": "ncrypt.dll!0xf100"
+},
+{
+"name": "NCryptCreatePersistedKey",
+"ordinal": 63,
+"rva": 13984,
+"forwarder": null,
+"ref": "ncrypt.dll!0x36a0"
+},
+{
+"name": "NCryptCreateProtectionDescriptor",
+"ordinal": 64,
+"rva": 79488,
+"forwarder": null,
+"ref": "ncrypt.dll!0x13680"
+},
+{
+"name": "NCryptDecrypt",
+"ordinal": 65,
+"rva": 62192,
+"forwarder": null,
+"ref": "ncrypt.dll!0xf2f0"
+},
+{
+"name": "NCryptDeleteKey",
+"ordinal": 66,
+"rva": 23056,
+"forwarder": null,
+"ref": "ncrypt.dll!0x5a10"
+},
+{
+"name": "NCryptDeriveKey",
+"ordinal": 67,
+"rva": 8256,
+"forwarder": null,
+"ref": "ncrypt.dll!0x2040"
+},
+{
+"name": "NCryptDuplicateKeyProtectorHandle",
+"ordinal": 68,
+"rva": 71552,
+"forwarder": null,
+"ref": "ncrypt.dll!0x11780"
+},
+{
+"name": "NCryptEncrypt",
+"ordinal": 69,
+"rva": 18016,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4660"
+},
+{
+"name": "NCryptEnumAlgorithms",
+"ordinal": 70,
+"rva": 62640,
+"forwarder": null,
+"ref": "ncrypt.dll!0xf4b0"
+},
+{
+"name": "NCryptEnumKeys",
+"ordinal": 71,
+"rva": 19696,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4cf0"
+},
+{
+"name": "NCryptEnumStorageProviders",
+"ordinal": 72,
+"rva": 63152,
+"forwarder": null,
+"ref": "ncrypt.dll!0xf6b0"
+},
+{
+"name": "NCryptExportKey",
+"ordinal": 73,
+"rva": 15392,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3c20"
+},
+{
+"name": "NCryptFinalizeKey",
+"ordinal": 74,
+"rva": 14336,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3800"
+},
+{
+"name": "NCryptFreeBuffer",
+"ordinal": 75,
+"rva": 21952,
+"forwarder": null,
+"ref": "ncrypt.dll!0x55c0"
+},
+{
+"name": "NCryptFreeObject",
+"ordinal": 76,
+"rva": 11824,
+"forwarder": null,
+"ref": "ncrypt.dll!0x2e30"
+},
+{
+"name": "NCryptGetProperty",
+"ordinal": 77,
+"rva": 10704,
+"forwarder": null,
+"ref": "ncrypt.dll!0x29d0"
+},
+{
+"name": "NCryptGetProtectionDescriptorInfo",
+"ordinal": 78,
+"rva": 80128,
+"forwarder": null,
+"ref": "ncrypt.dll!0x13900"
+},
+{
+"name": "NCryptImportKey",
+"ordinal": 79,
+"rva": 6288,
+"forwarder": null,
+"ref": "ncrypt.dll!0x1890"
+},
+{
+"name": "NCryptIsAlgSupported",
+"ordinal": 80,
+"rva": 19264,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4b40"
+},
+{
+"name": "NCryptIsKeyHandle",
+"ordinal": 81,
+"rva": 23504,
+"forwarder": null,
+"ref": "ncrypt.dll!0x5bd0"
+},
+{
+"name": "NCryptKeyDerivation",
+"ordinal": 82,
+"rva": 63696,
+"forwarder": null,
+"ref": "ncrypt.dll!0xf8d0"
+},
+{
+"name": "NCryptNotifyChangeKey",
+"ordinal": 83,
+"rva": 64192,
+"forwarder": null,
+"ref": "ncrypt.dll!0xfac0"
+},
+{
+"name": "NCryptOpenKey",
+"ordinal": 84,
+"rva": 18816,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4980"
+},
+{
+"name": "NCryptOpenKeyProtector",
+"ordinal": 85,
+"rva": 71744,
+"forwarder": null,
+"ref": "ncrypt.dll!0x11840"
+},
+{
+"name": "NCryptOpenStorageProvider",
+"ordinal": 86,
+"rva": 13056,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3300"
+},
+{
+"name": "NCryptProtectKey",
+"ordinal": 87,
+"rva": 72416,
+"forwarder": null,
+"ref": "ncrypt.dll!0x11ae0"
+},
+{
+"name": "NCryptProtectSecret",
+"ordinal": 88,
+"rva": 80304,
+"forwarder": null,
+"ref": "ncrypt.dll!0x139b0"
+},
+{
+"name": "NCryptQueryProtectionDescriptorName",
+"ordinal": 89,
+"rva": 82560,
+"forwarder": null,
+"ref": "ncrypt.dll!0x14280"
+},
+{
+"name": "NCryptRegisterProtectionDescriptorName",
+"ordinal": 90,
+"rva": 82944,
+"forwarder": null,
+"ref": "ncrypt.dll!0x14400"
+},
+{
+"name": "NCryptSecretAgreement",
+"ordinal": 91,
+"rva": 15824,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3dd0"
+},
+{
+"name": "NCryptSetAuditingInterface",
+"ordinal": 92,
+"rva": 23264,
+"forwarder": null,
+"ref": "ncrypt.dll!0x5ae0"
+},
+{
+"name": "NCryptSetProperty",
+"ordinal": 93,
+"rva": 14560,
+"forwarder": null,
+"ref": "ncrypt.dll!0x38e0"
+},
+{
+"name": "NCryptSignHash",
+"ordinal": 94,
+"rva": 18496,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4840"
+},
+{
+"name": "NCryptStreamClose",
+"ordinal": 95,
+"rva": 84880,
+"forwarder": null,
+"ref": "ncrypt.dll!0x14b90"
+},
+{
+"name": "NCryptStreamOpenToProtect",
+"ordinal": 96,
+"rva": 84960,
+"forwarder": null,
+"ref": "ncrypt.dll!0x14be0"
+},
+{
+"name": "NCryptStreamOpenToUnprotect",
+"ordinal": 97,
+"rva": 85760,
+"forwarder": null,
+"ref": "ncrypt.dll!0x14f00"
+},
+{
+"name": "NCryptStreamOpenToUnprotectEx",
+"ordinal": 98,
+"rva": 86032,
+"forwarder": null,
+"ref": "ncrypt.dll!0x15010"
+},
+{
+"name": "NCryptStreamUpdate",
+"ordinal": 99,
+"rva": 86272,
+"forwarder": null,
+"ref": "ncrypt.dll!0x15100"
+},
+{
+"name": "NCryptTranslateHandle",
+"ordinal": 100,
+"rva": 64912,
+"forwarder": null,
+"ref": "ncrypt.dll!0xfd90"
+},
+{
+"name": "NCryptUnprotectKey",
+"ordinal": 101,
+"rva": 72752,
+"forwarder": null,
+"ref": "ncrypt.dll!0x11c30"
+},
+{
+"name": "NCryptUnprotectSecret",
+"ordinal": 102,
+"rva": 81328,
+"forwarder": null,
+"ref": "ncrypt.dll!0x13db0"
+},
+{
+"name": "NCryptVerifyClaim",
+"ordinal": 103,
+"rva": 66448,
+"forwarder": null,
+"ref": "ncrypt.dll!0x10390"
+},
+{
+"name": "NCryptVerifySignature",
+"ordinal": 104,
+"rva": 66896,
+"forwarder": null,
+"ref": "ncrypt.dll!0x10550"
+},
+{
+"name": "SslChangeNotify",
+"ordinal": 105,
+"rva": 51296,
+"forwarder": null,
+"ref": "ncrypt.dll!0xc860"
+},
+{
+"name": "SslComputeClientAuthHash",
+"ordinal": 106,
+"rva": 51312,
+"forwarder": null,
+"ref": "ncrypt.dll!0xc870"
+},
+{
+"name": "SslComputeEapKeyBlock",
+"ordinal": 107,
+"rva": 51536,
+"forwarder": null,
+"ref": "ncrypt.dll!0xc950"
+},
+{
+"name": "SslComputeFinishedHash",
+"ordinal": 108,
+"rva": 4528,
+"forwarder": null,
+"ref": "ncrypt.dll!0x11b0"
+},
+{
+"name": "SslComputeSessionHash",
+"ordinal": 109,
+"rva": 8832,
+"forwarder": null,
+"ref": "ncrypt.dll!0x2280"
+},
+{
+"name": "SslCreateClientAuthHash",
+"ordinal": 110,
+"rva": 15104,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3b00"
+},
+{
+"name": "SslCreateEphemeralKey",
+"ordinal": 111,
+"rva": 13680,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3570"
+},
+{
+"name": "SslCreateHandshakeHash",
+"ordinal": 112,
+"rva": 5232,
+"forwarder": null,
+"ref": "ncrypt.dll!0x1470"
+},
+{
+"name": "SslDecrementProviderReferenceCount",
+"ordinal": 113,
+"rva": 11616,
+"forwarder": null,
+"ref": "ncrypt.dll!0x2d60"
+},
+{
+"name": "SslDecryptPacket",
+"ordinal": 114,
+"rva": 5536,
+"forwarder": null,
+"ref": "ncrypt.dll!0x15a0"
+},
+{
+"name": "SslDuplicateTranscriptHash",
+"ordinal": 115,
+"rva": 51728,
+"forwarder": null,
+"ref": "ncrypt.dll!0xca10"
+},
+{
+"name": "SslEncryptPacket",
+"ordinal": 116,
+"rva": 5792,
+"forwarder": null,
+"ref": "ncrypt.dll!0x16a0"
+},
+{
+"name": "SslEnumCipherSuites",
+"ordinal": 117,
+"rva": 52144,
+"forwarder": null,
+"ref": "ncrypt.dll!0xcbb0"
+},
+{
+"name": "SslEnumCipherSuitesEx",
+"ordinal": 118,
+"rva": 20288,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4f40"
+},
+{
+"name": "SslEnumEccCurves",
+"ordinal": 119,
+"rva": 19472,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4c10"
+},
+{
+"name": "SslEnumProtocolProviders",
+"ordinal": 120,
+"rva": 22432,
+"forwarder": null,
+"ref": "ncrypt.dll!0x57a0"
+},
+{
+"name": "SslExpandBinderKey",
+"ordinal": 121,
+"rva": 52704,
+"forwarder": null,
+"ref": "ncrypt.dll!0xcde0"
+},
+{
+"name": "SslExpandExporterMasterKey",
+"ordinal": 122,
+"rva": 53120,
+"forwarder": null,
+"ref": "ncrypt.dll!0xcf80"
+},
+{
+"name": "SslExpandPreSharedKey",
+"ordinal": 123,
+"rva": 53568,
+"forwarder": null,
+"ref": "ncrypt.dll!0xd140"
+},
+{
+"name": "SslExpandResumptionMasterKey",
+"ordinal": 124,
+"rva": 54016,
+"forwarder": null,
+"ref": "ncrypt.dll!0xd300"
+},
+{
+"name": "SslExpandTrafficKeys",
+"ordinal": 125,
+"rva": 54464,
+"forwarder": null,
+"ref": "ncrypt.dll!0xd4c0"
+},
+{
+"name": "SslExpandWriteKey",
+"ordinal": 126,
+"rva": 55120,
+"forwarder": null,
+"ref": "ncrypt.dll!0xd750"
+},
+{
+"name": "SslExportKey",
+"ordinal": 127,
+"rva": 4112,
+"forwarder": null,
+"ref": "ncrypt.dll!0x1010"
+},
+{
+"name": "SslExportKeyingMaterial",
+"ordinal": 128,
+"rva": 55536,
+"forwarder": null,
+"ref": "ncrypt.dll!0xd8f0"
+},
+{
+"name": "SslExtractEarlyKey",
+"ordinal": 129,
+"rva": 55792,
+"forwarder": null,
+"ref": "ncrypt.dll!0xd9f0"
+},
+{
+"name": "SslExtractHandshakeKey",
+"ordinal": 130,
+"rva": 56256,
+"forwarder": null,
+"ref": "ncrypt.dll!0xdbc0"
+},
+{
+"name": "SslExtractMasterKey",
+"ordinal": 131,
+"rva": 56736,
+"forwarder": null,
+"ref": "ncrypt.dll!0xdda0"
+},
+{
+"name": "SslFreeBuffer",
+"ordinal": 132,
+"rva": 22128,
+"forwarder": null,
+"ref": "ncrypt.dll!0x5670"
+},
+{
+"name": "SslFreeObject",
+"ordinal": 133,
+"rva": 11232,
+"forwarder": null,
+"ref": "ncrypt.dll!0x2be0"
+},
+{
+"name": "SslGenerateMasterKey",
+"ordinal": 134,
+"rva": 7760,
+"forwarder": null,
+"ref": "ncrypt.dll!0x1e50"
+},
+{
+"name": "SslGeneratePreMasterKey",
+"ordinal": 135,
+"rva": 57152,
+"forwarder": null,
+"ref": "ncrypt.dll!0xdf40"
+},
+{
+"name": "SslGenerateSessionKeys",
+"ordinal": 136,
+"rva": 4768,
+"forwarder": null,
+"ref": "ncrypt.dll!0x12a0"
+},
+{
+"name": "SslGetCipherSuitePRFHashAlgorithm",
+"ordinal": 137,
+"rva": 13552,
+"forwarder": null,
+"ref": "ncrypt.dll!0x34f0"
+},
+{
+"name": "SslGetKeyProperty",
+"ordinal": 138,
+"rva": 57616,
+"forwarder": null,
+"ref": "ncrypt.dll!0xe110"
+},
+{
+"name": "SslGetProviderProperty",
+"ordinal": 139,
+"rva": 57824,
+"forwarder": null,
+"ref": "ncrypt.dll!0xe1e0"
+},
+{
+"name": "SslHashHandshake",
+"ordinal": 140,
+"rva": 4336,
+"forwarder": null,
+"ref": "ncrypt.dll!0x10f0"
+},
+{
+"name": "SslImportKey",
+"ordinal": 141,
+"rva": 8512,
+"forwarder": null,
+"ref": "ncrypt.dll!0x2140"
+},
+{
+"name": "SslImportMasterKey",
+"ordinal": 142,
+"rva": 58368,
+"forwarder": null,
+"ref": "ncrypt.dll!0xe400"
+},
+{
+"name": "SslIncrementProviderReferenceCount",
+"ordinal": 143,
+"rva": 16192,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3f40"
+},
+{
+"name": "SslLookupCipherLengths",
+"ordinal": 144,
+"rva": 6048,
+"forwarder": null,
+"ref": "ncrypt.dll!0x17a0"
+},
+{
+"name": "SslLookupCipherSuiteInfo",
+"ordinal": 145,
+"rva": 15680,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3d40"
+},
+{
+"name": "SslOpenPrivateKey",
+"ordinal": 146,
+"rva": 58816,
+"forwarder": null,
+"ref": "ncrypt.dll!0xe5c0"
+},
+{
+"name": "SslOpenProvider",
+"ordinal": 147,
+"rva": 12624,
+"forwarder": null,
+"ref": "ncrypt.dll!0x3150"
+},
+{
+"name": "SslSignHash",
+"ordinal": 148,
+"rva": 18256,
+"forwarder": null,
+"ref": "ncrypt.dll!0x4750"
+},
+{
+"name": "SslVerifySignature",
+"ordinal": 149,
+"rva": 59184,
+"forwarder": null,
+"ref": "ncrypt.dll!0xe730"
+}
+]

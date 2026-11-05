@@ -1,0 +1,457 @@
+[
+{
+"name": "CheckSignatureInFile",
+"ordinal": 1,
+"rva": 22992,
+"forwarder": null,
+"ref": "cryptsp.dll!0x59d0"
+},
+{
+"name": "CryptAcquireContextA",
+"ordinal": 2,
+"rva": 10416,
+"forwarder": null,
+"ref": "cryptsp.dll!0x28b0"
+},
+{
+"name": "CryptAcquireContextW",
+"ordinal": 3,
+"rva": 9296,
+"forwarder": null,
+"ref": "cryptsp.dll!0x2450"
+},
+{
+"name": "CryptContextAddRef",
+"ordinal": 4,
+"rva": 14624,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3920"
+},
+{
+"name": "CryptCreateHash",
+"ordinal": 5,
+"rva": 7168,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1c00"
+},
+{
+"name": "CryptDecrypt",
+"ordinal": 6,
+"rva": 16160,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3f20"
+},
+{
+"name": "CryptDeriveKey",
+"ordinal": 7,
+"rva": 15680,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3d40"
+},
+{
+"name": "CryptDestroyHash",
+"ordinal": 8,
+"rva": 7712,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1e20"
+},
+{
+"name": "CryptDestroyKey",
+"ordinal": 9,
+"rva": 6832,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1ab0"
+},
+{
+"name": "CryptDuplicateHash",
+"ordinal": 10,
+"rva": 24032,
+"forwarder": null,
+"ref": "cryptsp.dll!0x5de0"
+},
+{
+"name": "CryptDuplicateKey",
+"ordinal": 11,
+"rva": 24560,
+"forwarder": null,
+"ref": "cryptsp.dll!0x5ff0"
+},
+{
+"name": "CryptEncrypt",
+"ordinal": 12,
+"rva": 25072,
+"forwarder": null,
+"ref": "cryptsp.dll!0x61f0"
+},
+{
+"name": "CryptEnumProviderTypesA",
+"ordinal": 13,
+"rva": 25488,
+"forwarder": null,
+"ref": "cryptsp.dll!0x6390"
+},
+{
+"name": "CryptEnumProviderTypesW",
+"ordinal": 14,
+"rva": 26576,
+"forwarder": null,
+"ref": "cryptsp.dll!0x67d0"
+},
+{
+"name": "CryptEnumProvidersA",
+"ordinal": 15,
+"rva": 27120,
+"forwarder": null,
+"ref": "cryptsp.dll!0x69f0"
+},
+{
+"name": "CryptEnumProvidersW",
+"ordinal": 16,
+"rva": 28048,
+"forwarder": null,
+"ref": "cryptsp.dll!0x6d90"
+},
+{
+"name": "CryptExportKey",
+"ordinal": 17,
+"rva": 5856,
+"forwarder": null,
+"ref": "cryptsp.dll!0x16e0"
+},
+{
+"name": "CryptGenKey",
+"ordinal": 18,
+"rva": 4112,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1010"
+},
+{
+"name": "CryptGenRandom",
+"ordinal": 19,
+"rva": 5744,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1670"
+},
+{
+"name": "CryptGetDefaultProviderA",
+"ordinal": 20,
+"rva": 9728,
+"forwarder": null,
+"ref": "cryptsp.dll!0x2600"
+},
+{
+"name": "CryptGetDefaultProviderW",
+"ordinal": 21,
+"rva": 8816,
+"forwarder": null,
+"ref": "cryptsp.dll!0x2270"
+},
+{
+"name": "CryptGetHashParam",
+"ordinal": 22,
+"rva": 7968,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1f20"
+},
+{
+"name": "CryptGetKeyParam",
+"ordinal": 23,
+"rva": 5472,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1560"
+},
+{
+"name": "CryptGetProvParam",
+"ordinal": 24,
+"rva": 28576,
+"forwarder": null,
+"ref": "cryptsp.dll!0x6fa0"
+},
+{
+"name": "CryptGetUserKey",
+"ordinal": 25,
+"rva": 16768,
+"forwarder": null,
+"ref": "cryptsp.dll!0x4180"
+},
+{
+"name": "CryptHashData",
+"ordinal": 26,
+"rva": 8240,
+"forwarder": null,
+"ref": "cryptsp.dll!0x2030"
+},
+{
+"name": "CryptHashSessionKey",
+"ordinal": 27,
+"rva": 28816,
+"forwarder": null,
+"ref": "cryptsp.dll!0x7090"
+},
+{
+"name": "CryptImportKey",
+"ordinal": 28,
+"rva": 6208,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1840"
+},
+{
+"name": "CryptReleaseContext",
+"ordinal": 29,
+"rva": 14000,
+"forwarder": null,
+"ref": "cryptsp.dll!0x36b0"
+},
+{
+"name": "CryptSetHashParam",
+"ordinal": 30,
+"rva": 4848,
+"forwarder": null,
+"ref": "cryptsp.dll!0x12f0"
+},
+{
+"name": "CryptSetKeyParam",
+"ordinal": 31,
+"rva": 29152,
+"forwarder": null,
+"ref": "cryptsp.dll!0x71e0"
+},
+{
+"name": "CryptSetProvParam",
+"ordinal": 32,
+"rva": 29456,
+"forwarder": null,
+"ref": "cryptsp.dll!0x7310"
+},
+{
+"name": "CryptSetProviderA",
+"ordinal": 33,
+"rva": 29792,
+"forwarder": null,
+"ref": "cryptsp.dll!0x7460"
+},
+{
+"name": "CryptSetProviderExA",
+"ordinal": 34,
+"rva": 30192,
+"forwarder": null,
+"ref": "cryptsp.dll!0x75f0"
+},
+{
+"name": "CryptSetProviderExW",
+"ordinal": 35,
+"rva": 31632,
+"forwarder": null,
+"ref": "cryptsp.dll!0x7b90"
+},
+{
+"name": "CryptSetProviderW",
+"ordinal": 36,
+"rva": 31872,
+"forwarder": null,
+"ref": "cryptsp.dll!0x7c80"
+},
+{
+"name": "CryptSignHashA",
+"ordinal": 37,
+"rva": 32080,
+"forwarder": null,
+"ref": "cryptsp.dll!0x7d50"
+},
+{
+"name": "CryptSignHashW",
+"ordinal": 38,
+"rva": 32352,
+"forwarder": null,
+"ref": "cryptsp.dll!0x7e60"
+},
+{
+"name": "CryptVerifySignatureA",
+"ordinal": 39,
+"rva": 4592,
+"forwarder": null,
+"ref": "cryptsp.dll!0x11f0"
+},
+{
+"name": "CryptVerifySignatureW",
+"ordinal": 40,
+"rva": 5120,
+"forwarder": null,
+"ref": "cryptsp.dll!0x1400"
+},
+{
+"name": "SystemFunction006",
+"ordinal": 41,
+"rva": 16512,
+"forwarder": null,
+"ref": "cryptsp.dll!0x4080"
+},
+{
+"name": "SystemFunction007",
+"ordinal": 42,
+"rva": 14976,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3a80"
+},
+{
+"name": "SystemFunction008",
+"ordinal": 43,
+"rva": 42080,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa460"
+},
+{
+"name": "SystemFunction009",
+"ordinal": 44,
+"rva": 42288,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa530"
+},
+{
+"name": "SystemFunction010",
+"ordinal": 45,
+"rva": 42304,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa540"
+},
+{
+"name": "SystemFunction011",
+"ordinal": 46,
+"rva": 42416,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa5b0"
+},
+{
+"name": "SystemFunction012",
+"ordinal": 47,
+"rva": 42480,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa5f0"
+},
+{
+"name": "SystemFunction013",
+"ordinal": 48,
+"rva": 42576,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa650"
+},
+{
+"name": "SystemFunction014",
+"ordinal": 49,
+"rva": 42672,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa6b0"
+},
+{
+"name": "SystemFunction015",
+"ordinal": 50,
+"rva": 42688,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa6c0"
+},
+{
+"name": "SystemFunction016",
+"ordinal": 51,
+"rva": 42704,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa6d0"
+},
+{
+"name": "SystemFunction018",
+"ordinal": 52,
+"rva": 42800,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa730"
+},
+{
+"name": "SystemFunction020",
+"ordinal": 53,
+"rva": 42672,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa6b0"
+},
+{
+"name": "SystemFunction021",
+"ordinal": 54,
+"rva": 42688,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa6c0"
+},
+{
+"name": "SystemFunction022",
+"ordinal": 55,
+"rva": 42672,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa6b0"
+},
+{
+"name": "SystemFunction023",
+"ordinal": 56,
+"rva": 42688,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa6c0"
+},
+{
+"name": "SystemFunction024",
+"ordinal": 57,
+"rva": 15504,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3c90"
+},
+{
+"name": "SystemFunction025",
+"ordinal": 58,
+"rva": 42816,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa740"
+},
+{
+"name": "SystemFunction026",
+"ordinal": 59,
+"rva": 15504,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3c90"
+},
+{
+"name": "SystemFunction027",
+"ordinal": 60,
+"rva": 14800,
+"forwarder": null,
+"ref": "cryptsp.dll!0x39d0"
+},
+{
+"name": "SystemFunction030",
+"ordinal": 61,
+"rva": 15456,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3c60"
+},
+{
+"name": "SystemFunction031",
+"ordinal": 62,
+"rva": 15456,
+"forwarder": null,
+"ref": "cryptsp.dll!0x3c60"
+},
+{
+"name": "SystemFunction032",
+"ordinal": 63,
+"rva": 42944,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa7c0"
+},
+{
+"name": "SystemFunction033",
+"ordinal": 64,
+"rva": 42944,
+"forwarder": null,
+"ref": "cryptsp.dll!0xa7c0"
+},
+{
+"name": "SystemFunction035",
+"ordinal": 65,
+"rva": 22992,
+"forwarder": null,
+"ref": "cryptsp.dll!0x59d0"
+}
+]

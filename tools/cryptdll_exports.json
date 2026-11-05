@@ -1,0 +1,142 @@
+[
+{
+"name": "CDBuildIntegrityVect",
+"ordinal": 1,
+"rva": 4832,
+"forwarder": null,
+"ref": "cryptdll.dll!0x12e0"
+},
+{
+"name": "CDBuildVect",
+"ordinal": 2,
+"rva": 4768,
+"forwarder": null,
+"ref": "cryptdll.dll!0x12a0"
+},
+{
+"name": "CDFindCommonCSystem",
+"ordinal": 3,
+"rva": 5648,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1610"
+},
+{
+"name": "CDFindCommonCSystemWithKey",
+"ordinal": 4,
+"rva": 5776,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1690"
+},
+{
+"name": "CDGenerateRandomBits",
+"ordinal": 5,
+"rva": 5952,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1740"
+},
+{
+"name": "CDGetIntegrityVect",
+"ordinal": 6,
+"rva": 4944,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1350"
+},
+{
+"name": "CDLocateCSystem",
+"ordinal": 7,
+"rva": 5584,
+"forwarder": null,
+"ref": "cryptdll.dll!0x15d0"
+},
+{
+"name": "CDLocateCheckSum",
+"ordinal": 8,
+"rva": 6320,
+"forwarder": null,
+"ref": "cryptdll.dll!0x18b0"
+},
+{
+"name": "CDLocateRng",
+"ordinal": 9,
+"rva": 6080,
+"forwarder": null,
+"ref": "cryptdll.dll!0x17c0"
+},
+{
+"name": "CDRegisterCSystem",
+"ordinal": 10,
+"rva": 4640,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1220"
+},
+{
+"name": "CDRegisterCheckSum",
+"ordinal": 11,
+"rva": 6224,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1850"
+},
+{
+"name": "CDRegisterRng",
+"ordinal": 12,
+"rva": 6000,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1770"
+},
+{
+"name": "HMACwithSHA",
+"ordinal": 13,
+"rva": 6384,
+"forwarder": null,
+"ref": "cryptdll.dll!0x18f0"
+},
+{
+"name": "KRBFXCF2",
+"ordinal": 14,
+"rva": 6880,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1ae0"
+},
+{
+"name": "MD5Final",
+"ordinal": 15,
+"rva": 54883,
+"forwarder": "NTDLL.MD5Final",
+"ref": null
+},
+{
+"name": "MD5Init",
+"ordinal": 16,
+"rva": 54906,
+"forwarder": "NTDLL.MD5Init",
+"ref": null
+},
+{
+"name": "MD5Update",
+"ordinal": 17,
+"rva": 54930,
+"forwarder": "NTDLL.MD5Update",
+"ref": null
+},
+{
+"name": "PBKDF2",
+"ordinal": 18,
+"rva": 6736,
+"forwarder": null,
+"ref": "cryptdll.dll!0x1a50"
+},
+{
+"name": "aesCTSDecryptMsg",
+"ordinal": 19,
+"rva": 10912,
+"forwarder": null,
+"ref": "cryptdll.dll!0x2aa0"
+},
+{
+"name": "aesCTSEncryptMsg",
+"ordinal": 20,
+"rva": 10656,
+"forwarder": null,
+"ref": "cryptdll.dll!0x29a0"
+}
+]

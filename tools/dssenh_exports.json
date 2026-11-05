@@ -1,0 +1,191 @@
+[
+{
+"name": "CPAcquireContext",
+"ordinal": 1,
+"rva": 6896,
+"forwarder": null,
+"ref": "dssenh.dll!0x1af0"
+},
+{
+"name": "CPCreateHash",
+"ordinal": 2,
+"rva": 4112,
+"forwarder": null,
+"ref": "dssenh.dll!0x1010"
+},
+{
+"name": "CPDecrypt",
+"ordinal": 3,
+"rva": 46480,
+"forwarder": null,
+"ref": "dssenh.dll!0xb590"
+},
+{
+"name": "CPDeriveKey",
+"ordinal": 4,
+"rva": 48048,
+"forwarder": null,
+"ref": "dssenh.dll!0xbbb0"
+},
+{
+"name": "CPDestroyHash",
+"ordinal": 5,
+"rva": 6432,
+"forwarder": null,
+"ref": "dssenh.dll!0x1920"
+},
+{
+"name": "CPDestroyKey",
+"ordinal": 6,
+"rva": 48576,
+"forwarder": null,
+"ref": "dssenh.dll!0xbdc0"
+},
+{
+"name": "CPDuplicateHash",
+"ordinal": 7,
+"rva": 47216,
+"forwarder": null,
+"ref": "dssenh.dll!0xb870"
+},
+{
+"name": "CPDuplicateKey",
+"ordinal": 8,
+"rva": 48672,
+"forwarder": null,
+"ref": "dssenh.dll!0xbe20"
+},
+{
+"name": "CPEncrypt",
+"ordinal": 9,
+"rva": 46832,
+"forwarder": null,
+"ref": "dssenh.dll!0xb6f0"
+},
+{
+"name": "CPExportKey",
+"ordinal": 10,
+"rva": 48928,
+"forwarder": null,
+"ref": "dssenh.dll!0xbf20"
+},
+{
+"name": "CPGenKey",
+"ordinal": 11,
+"rva": 49632,
+"forwarder": null,
+"ref": "dssenh.dll!0xc1e0"
+},
+{
+"name": "CPGenRandom",
+"ordinal": 12,
+"rva": 58880,
+"forwarder": null,
+"ref": "dssenh.dll!0xe600"
+},
+{
+"name": "CPGetHashParam",
+"ordinal": 13,
+"rva": 5024,
+"forwarder": null,
+"ref": "dssenh.dll!0x13a0"
+},
+{
+"name": "CPGetKeyParam",
+"ordinal": 14,
+"rva": 51312,
+"forwarder": null,
+"ref": "dssenh.dll!0xc870"
+},
+{
+"name": "CPGetProvParam",
+"ordinal": 15,
+"rva": 56816,
+"forwarder": null,
+"ref": "dssenh.dll!0xddf0"
+},
+{
+"name": "CPGetUserKey",
+"ordinal": 16,
+"rva": 51456,
+"forwarder": null,
+"ref": "dssenh.dll!0xc900"
+},
+{
+"name": "CPHashData",
+"ordinal": 17,
+"rva": 6064,
+"forwarder": null,
+"ref": "dssenh.dll!0x17b0"
+},
+{
+"name": "CPHashSessionKey",
+"ordinal": 18,
+"rva": 47488,
+"forwarder": null,
+"ref": "dssenh.dll!0xb980"
+},
+{
+"name": "CPImportKey",
+"ordinal": 19,
+"rva": 51904,
+"forwarder": null,
+"ref": "dssenh.dll!0xcac0"
+},
+{
+"name": "CPReleaseContext",
+"ordinal": 20,
+"rva": 5504,
+"forwarder": null,
+"ref": "dssenh.dll!0x1580"
+},
+{
+"name": "CPSetHashParam",
+"ordinal": 21,
+"rva": 47936,
+"forwarder": null,
+"ref": "dssenh.dll!0xbb40"
+},
+{
+"name": "CPSetKeyParam",
+"ordinal": 22,
+"rva": 54448,
+"forwarder": null,
+"ref": "dssenh.dll!0xd4b0"
+},
+{
+"name": "CPSetProvParam",
+"ordinal": 23,
+"rva": 58416,
+"forwarder": null,
+"ref": "dssenh.dll!0xe430"
+},
+{
+"name": "CPSignHash",
+"ordinal": 24,
+"rva": 56144,
+"forwarder": null,
+"ref": "dssenh.dll!0xdb50"
+},
+{
+"name": "CPVerifySignature",
+"ordinal": 25,
+"rva": 56512,
+"forwarder": null,
+"ref": "dssenh.dll!0xdcc0"
+},
+{
+"name": "DllRegisterServer",
+"ordinal": 26,
+"rva": 58976,
+"forwarder": null,
+"ref": "dssenh.dll!0xe660"
+},
+{
+"name": "DllUnregisterServer",
+"ordinal": 27,
+"rva": 59152,
+"forwarder": null,
+"ref": "dssenh.dll!0xe710"
+}
+]

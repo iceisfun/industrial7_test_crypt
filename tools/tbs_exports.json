@@ -1,0 +1,149 @@
+[
+{
+"name": "Tbsi_Create_Attestation_From_Log",
+"ordinal": 1,
+"rva": 59008,
+"forwarder": null,
+"ref": "tbs.dll!0xe680"
+},
+{
+"name": "Tbsi_Get_TCG_Logs",
+"ordinal": 2,
+"rva": 49120,
+"forwarder": null,
+"ref": "tbs.dll!0xbfe0"
+},
+{
+"name": "GetDeviceID",
+"ordinal": 3,
+"rva": 60816,
+"forwarder": null,
+"ref": "tbs.dll!0xed90"
+},
+{
+"name": "GetDeviceIDString",
+"ordinal": 4,
+"rva": 18624,
+"forwarder": null,
+"ref": "tbs.dll!0x48c0"
+},
+{
+"name": "GetDeviceIDWithTimeout",
+"ordinal": 5,
+"rva": 19248,
+"forwarder": null,
+"ref": "tbs.dll!0x4b30"
+},
+{
+"name": "Tbsi_Context_Create",
+"ordinal": 6,
+"rva": 10912,
+"forwarder": null,
+"ref": "tbs.dll!0x2aa0"
+},
+{
+"name": "Tbsi_Create_Windows_Key",
+"ordinal": 7,
+"rva": 54720,
+"forwarder": null,
+"ref": "tbs.dll!0xd5c0"
+},
+{
+"name": "Tbsi_FilterLog",
+"ordinal": 8,
+"rva": 61344,
+"forwarder": null,
+"ref": "tbs.dll!0xefa0"
+},
+{
+"name": "Tbsi_GetDeviceInfo",
+"ordinal": 9,
+"rva": 11552,
+"forwarder": null,
+"ref": "tbs.dll!0x2d20"
+},
+{
+"name": "Tbsi_Get_OwnerAuth",
+"ordinal": 10,
+"rva": 54896,
+"forwarder": null,
+"ref": "tbs.dll!0xd670"
+},
+{
+"name": "Tbsi_Get_TCG_Log",
+"ordinal": 11,
+"rva": 56848,
+"forwarder": null,
+"ref": "tbs.dll!0xde10"
+},
+{
+"name": "Tbsi_Get_TCG_Log_Ex",
+"ordinal": 12,
+"rva": 4512,
+"forwarder": null,
+"ref": "tbs.dll!0x11a0"
+},
+{
+"name": "Tbsi_Physical_Presence_Command",
+"ordinal": 13,
+"rva": 6464,
+"forwarder": null,
+"ref": "tbs.dll!0x1940"
+},
+{
+"name": "Tbsi_Revoke_Attestation",
+"ordinal": 14,
+"rva": 56912,
+"forwarder": null,
+"ref": "tbs.dll!0xde50"
+},
+{
+"name": "Tbsi_ShaHash",
+"ordinal": 15,
+"rva": 62048,
+"forwarder": null,
+"ref": "tbs.dll!0xf260"
+},
+{
+"name": "Tbsip_Cancel_Commands",
+"ordinal": 16,
+"rva": 57056,
+"forwarder": null,
+"ref": "tbs.dll!0xdee0"
+},
+{
+"name": "Tbsip_Context_Close",
+"ordinal": 17,
+"rva": 23664,
+"forwarder": null,
+"ref": "tbs.dll!0x5c70"
+},
+{
+"name": "Tbsip_Submit_Command",
+"ordinal": 18,
+"rva": 6832,
+"forwarder": null,
+"ref": "tbs.dll!0x1ab0"
+},
+{
+"name": "Tbsip_Submit_Command_NonBlocking",
+"ordinal": 19,
+"rva": 4448,
+"forwarder": null,
+"ref": "tbs.dll!0x1160"
+},
+{
+"name": "Tbsip_TestInterruptInformation",
+"ordinal": 20,
+"rva": 57120,
+"forwarder": null,
+"ref": "tbs.dll!0xdf20"
+},
+{
+"name": "Tbsip_TestMorBit",
+"ordinal": 21,
+"rva": 57312,
+"forwarder": null,
+"ref": "tbs.dll!0xdfe0"
+}
+]

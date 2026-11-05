@@ -1,0 +1,23 @@
+[
+{
+"name": "GetKeyStorageInterface",
+"ordinal": 1,
+"rva": 31552,
+"forwarder": null,
+"ref": "ncryptprov.dll!0x7b40"
+},
+{
+"name": "SKCacheFlush",
+"ordinal": 2,
+"rva": 32976,
+"forwarder": null,
+"ref": "ncryptprov.dll!0x80d0"
+},
+{
+"name": "SetAuditingInterface",
+"ordinal": 3,
+"rva": 82352,
+"forwarder": null,
+"ref": "ncryptprov.dll!0x141b0"
+}
+]

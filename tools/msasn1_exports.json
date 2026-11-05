@@ -1,0 +1,1066 @@
+[
+{
+"name": "ASN1BERDecBitString",
+"ordinal": 1,
+"rva": 31904,
+"forwarder": null,
+"ref": "msasn1.dll!0x7ca0"
+},
+{
+"name": "ASN1BERDecBitString2",
+"ordinal": 2,
+"rva": 18880,
+"forwarder": null,
+"ref": "msasn1.dll!0x49c0"
+},
+{
+"name": "ASN1BERDecBool",
+"ordinal": 3,
+"rva": 19392,
+"forwarder": null,
+"ref": "msasn1.dll!0x4bc0"
+},
+{
+"name": "ASN1BERDecChar16String",
+"ordinal": 4,
+"rva": 7328,
+"forwarder": null,
+"ref": "msasn1.dll!0x1ca0"
+},
+{
+"name": "ASN1BERDecChar32String",
+"ordinal": 5,
+"rva": 31920,
+"forwarder": null,
+"ref": "msasn1.dll!0x7cb0"
+},
+{
+"name": "ASN1BERDecCharString",
+"ordinal": 6,
+"rva": 12736,
+"forwarder": null,
+"ref": "msasn1.dll!0x31c0"
+},
+{
+"name": "ASN1BERDecCheck",
+"ordinal": 7,
+"rva": 6496,
+"forwarder": null,
+"ref": "msasn1.dll!0x1960"
+},
+{
+"name": "ASN1BERDecDouble",
+"ordinal": 8,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1BERDecEndOfContents",
+"ordinal": 9,
+"rva": 4704,
+"forwarder": null,
+"ref": "msasn1.dll!0x1260"
+},
+{
+"name": "ASN1BERDecEoid",
+"ordinal": 10,
+"rva": 13168,
+"forwarder": null,
+"ref": "msasn1.dll!0x3370"
+},
+{
+"name": "ASN1BERDecExplicitTag",
+"ordinal": 11,
+"rva": 11312,
+"forwarder": null,
+"ref": "msasn1.dll!0x2c30"
+},
+{
+"name": "ASN1BERDecFlush",
+"ordinal": 12,
+"rva": 32576,
+"forwarder": null,
+"ref": "msasn1.dll!0x7f40"
+},
+{
+"name": "ASN1BERDecGeneralizedTime",
+"ordinal": 13,
+"rva": 6560,
+"forwarder": null,
+"ref": "msasn1.dll!0x19a0"
+},
+{
+"name": "ASN1BERDecLength",
+"ordinal": 14,
+"rva": 10704,
+"forwarder": null,
+"ref": "msasn1.dll!0x29d0"
+},
+{
+"name": "ASN1BERDecMultibyteString",
+"ordinal": 15,
+"rva": 32624,
+"forwarder": null,
+"ref": "msasn1.dll!0x7f70"
+},
+{
+"name": "ASN1BERDecNotEndOfContents",
+"ordinal": 16,
+"rva": 19680,
+"forwarder": null,
+"ref": "msasn1.dll!0x4ce0"
+},
+{
+"name": "ASN1BERDecNull",
+"ordinal": 17,
+"rva": 4624,
+"forwarder": null,
+"ref": "msasn1.dll!0x1210"
+},
+{
+"name": "ASN1BERDecObjectIdentifier",
+"ordinal": 18,
+"rva": 4128,
+"forwarder": null,
+"ref": "msasn1.dll!0x1020"
+},
+{
+"name": "ASN1BERDecObjectIdentifier2",
+"ordinal": 19,
+"rva": 10016,
+"forwarder": null,
+"ref": "msasn1.dll!0x2720"
+},
+{
+"name": "ASN1BERDecOctetString",
+"ordinal": 20,
+"rva": 4576,
+"forwarder": null,
+"ref": "msasn1.dll!0x11e0"
+},
+{
+"name": "ASN1BERDecOctetString2",
+"ordinal": 21,
+"rva": 5936,
+"forwarder": null,
+"ref": "msasn1.dll!0x1730"
+},
+{
+"name": "ASN1BERDecOpenType",
+"ordinal": 22,
+"rva": 5248,
+"forwarder": null,
+"ref": "msasn1.dll!0x1480"
+},
+{
+"name": "ASN1BERDecOpenType2",
+"ordinal": 23,
+"rva": 10544,
+"forwarder": null,
+"ref": "msasn1.dll!0x2930"
+},
+{
+"name": "ASN1BERDecPeekTag",
+"ordinal": 24,
+"rva": 11168,
+"forwarder": null,
+"ref": "msasn1.dll!0x2ba0"
+},
+{
+"name": "ASN1BERDecS16Val",
+"ordinal": 25,
+"rva": 32640,
+"forwarder": null,
+"ref": "msasn1.dll!0x7f80"
+},
+{
+"name": "ASN1BERDecS32Val",
+"ordinal": 26,
+"rva": 19728,
+"forwarder": null,
+"ref": "msasn1.dll!0x4d10"
+},
+{
+"name": "ASN1BERDecS8Val",
+"ordinal": 27,
+"rva": 32800,
+"forwarder": null,
+"ref": "msasn1.dll!0x8020"
+},
+{
+"name": "ASN1BERDecSXVal",
+"ordinal": 28,
+"rva": 5472,
+"forwarder": null,
+"ref": "msasn1.dll!0x1560"
+},
+{
+"name": "ASN1BERDecSkip",
+"ordinal": 29,
+"rva": 32928,
+"forwarder": null,
+"ref": "msasn1.dll!0x80a0"
+},
+{
+"name": "ASN1BERDecTag",
+"ordinal": 30,
+"rva": 10992,
+"forwarder": null,
+"ref": "msasn1.dll!0x2af0"
+},
+{
+"name": "ASN1BERDecU16Val",
+"ordinal": 31,
+"rva": 33216,
+"forwarder": null,
+"ref": "msasn1.dll!0x81c0"
+},
+{
+"name": "ASN1BERDecU32Val",
+"ordinal": 32,
+"rva": 10368,
+"forwarder": null,
+"ref": "msasn1.dll!0x2880"
+},
+{
+"name": "ASN1BERDecU8Val",
+"ordinal": 33,
+"rva": 33424,
+"forwarder": null,
+"ref": "msasn1.dll!0x8290"
+},
+{
+"name": "ASN1BERDecUTCTime",
+"ordinal": 34,
+"rva": 8256,
+"forwarder": null,
+"ref": "msasn1.dll!0x2040"
+},
+{
+"name": "ASN1BERDecUTF8String",
+"ordinal": 35,
+"rva": 4912,
+"forwarder": null,
+"ref": "msasn1.dll!0x1330"
+},
+{
+"name": "ASN1BERDecZeroChar16String",
+"ordinal": 36,
+"rva": 33584,
+"forwarder": null,
+"ref": "msasn1.dll!0x8330"
+},
+{
+"name": "ASN1BERDecZeroChar32String",
+"ordinal": 37,
+"rva": 33584,
+"forwarder": null,
+"ref": "msasn1.dll!0x8330"
+},
+{
+"name": "ASN1BERDecZeroCharString",
+"ordinal": 38,
+"rva": 8848,
+"forwarder": null,
+"ref": "msasn1.dll!0x2290"
+},
+{
+"name": "ASN1BERDecZeroMultibyteString",
+"ordinal": 39,
+"rva": 33616,
+"forwarder": null,
+"ref": "msasn1.dll!0x8350"
+},
+{
+"name": "ASN1BERDotVal2Eoid",
+"ordinal": 40,
+"rva": 21168,
+"forwarder": null,
+"ref": "msasn1.dll!0x52b0"
+},
+{
+"name": "ASN1BEREncBitString",
+"ordinal": 41,
+"rva": 14864,
+"forwarder": null,
+"ref": "msasn1.dll!0x3a10"
+},
+{
+"name": "ASN1BEREncBool",
+"ordinal": 42,
+"rva": 15184,
+"forwarder": null,
+"ref": "msasn1.dll!0x3b50"
+},
+{
+"name": "ASN1BEREncChar16String",
+"ordinal": 43,
+"rva": 14096,
+"forwarder": null,
+"ref": "msasn1.dll!0x3710"
+},
+{
+"name": "ASN1BEREncChar32String",
+"ordinal": 44,
+"rva": 33632,
+"forwarder": null,
+"ref": "msasn1.dll!0x8360"
+},
+{
+"name": "ASN1BEREncCharString",
+"ordinal": 45,
+"rva": 15296,
+"forwarder": null,
+"ref": "msasn1.dll!0x3bc0"
+},
+{
+"name": "ASN1BEREncCheck",
+"ordinal": 46,
+"rva": 37136,
+"forwarder": null,
+"ref": "msasn1.dll!0x9110"
+},
+{
+"name": "ASN1BEREncDouble",
+"ordinal": 47,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1BEREncEndOfContents",
+"ordinal": 48,
+"rva": 16720,
+"forwarder": null,
+"ref": "msasn1.dll!0x4150"
+},
+{
+"name": "ASN1BEREncEoid",
+"ordinal": 49,
+"rva": 16416,
+"forwarder": null,
+"ref": "msasn1.dll!0x4020"
+},
+{
+"name": "ASN1BEREncExplicitTag",
+"ordinal": 50,
+"rva": 16944,
+"forwarder": null,
+"ref": "msasn1.dll!0x4230"
+},
+{
+"name": "ASN1BEREncFlush",
+"ordinal": 51,
+"rva": 20832,
+"forwarder": null,
+"ref": "msasn1.dll!0x5160"
+},
+{
+"name": "ASN1BEREncGeneralizedTime",
+"ordinal": 52,
+"rva": 33808,
+"forwarder": null,
+"ref": "msasn1.dll!0x8410"
+},
+{
+"name": "ASN1BEREncLength",
+"ordinal": 53,
+"rva": 16608,
+"forwarder": null,
+"ref": "msasn1.dll!0x40e0"
+},
+{
+"name": "ASN1BEREncMultibyteString",
+"ordinal": 54,
+"rva": 33824,
+"forwarder": null,
+"ref": "msasn1.dll!0x8420"
+},
+{
+"name": "ASN1BEREncNull",
+"ordinal": 55,
+"rva": 33856,
+"forwarder": null,
+"ref": "msasn1.dll!0x8440"
+},
+{
+"name": "ASN1BEREncObjectIdentifier",
+"ordinal": 56,
+"rva": 13824,
+"forwarder": null,
+"ref": "msasn1.dll!0x3600"
+},
+{
+"name": "ASN1BEREncObjectIdentifier2",
+"ordinal": 57,
+"rva": 14352,
+"forwarder": null,
+"ref": "msasn1.dll!0x3810"
+},
+{
+"name": "ASN1BEREncOctetString",
+"ordinal": 58,
+"rva": 15296,
+"forwarder": null,
+"ref": "msasn1.dll!0x3bc0"
+},
+{
+"name": "ASN1BEREncOpenType",
+"ordinal": 59,
+"rva": 16528,
+"forwarder": null,
+"ref": "msasn1.dll!0x4090"
+},
+{
+"name": "ASN1BEREncRemoveZeroBits",
+"ordinal": 60,
+"rva": 13696,
+"forwarder": null,
+"ref": "msasn1.dll!0x3580"
+},
+{
+"name": "ASN1BEREncRemoveZeroBits2",
+"ordinal": 61,
+"rva": 18688,
+"forwarder": null,
+"ref": "msasn1.dll!0x4900"
+},
+{
+"name": "ASN1BEREncS32",
+"ordinal": 62,
+"rva": 14736,
+"forwarder": null,
+"ref": "msasn1.dll!0x3990"
+},
+{
+"name": "ASN1BEREncSX",
+"ordinal": 63,
+"rva": 14208,
+"forwarder": null,
+"ref": "msasn1.dll!0x3780"
+},
+{
+"name": "ASN1BEREncTag",
+"ordinal": 64,
+"rva": 17040,
+"forwarder": null,
+"ref": "msasn1.dll!0x4290"
+},
+{
+"name": "ASN1BEREncU32",
+"ordinal": 65,
+"rva": 13568,
+"forwarder": null,
+"ref": "msasn1.dll!0x3500"
+},
+{
+"name": "ASN1BEREncUTCTime",
+"ordinal": 66,
+"rva": 33904,
+"forwarder": null,
+"ref": "msasn1.dll!0x8470"
+},
+{
+"name": "ASN1BEREncUTF8String",
+"ordinal": 67,
+"rva": 36816,
+"forwarder": null,
+"ref": "msasn1.dll!0x8fd0"
+},
+{
+"name": "ASN1BEREncZeroMultibyteString",
+"ordinal": 68,
+"rva": 33920,
+"forwarder": null,
+"ref": "msasn1.dll!0x8480"
+},
+{
+"name": "ASN1BEREoid2DotVal",
+"ordinal": 69,
+"rva": 7632,
+"forwarder": null,
+"ref": "msasn1.dll!0x1dd0"
+},
+{
+"name": "ASN1BEREoid_free",
+"ordinal": 70,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1CEREncBeginBlk",
+"ordinal": 71,
+"rva": 37152,
+"forwarder": null,
+"ref": "msasn1.dll!0x9120"
+},
+{
+"name": "ASN1CEREncBitString",
+"ordinal": 72,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1CEREncChar16String",
+"ordinal": 73,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1CEREncChar32String",
+"ordinal": 74,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1CEREncCharString",
+"ordinal": 75,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1CEREncEndBlk",
+"ordinal": 76,
+"rva": 37168,
+"forwarder": null,
+"ref": "msasn1.dll!0x9130"
+},
+{
+"name": "ASN1CEREncFlushBlkElement",
+"ordinal": 77,
+"rva": 37184,
+"forwarder": null,
+"ref": "msasn1.dll!0x9140"
+},
+{
+"name": "ASN1CEREncGeneralizedTime",
+"ordinal": 78,
+"rva": 33808,
+"forwarder": null,
+"ref": "msasn1.dll!0x8410"
+},
+{
+"name": "ASN1CEREncMultibyteString",
+"ordinal": 79,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1CEREncNewBlkElement",
+"ordinal": 80,
+"rva": 37200,
+"forwarder": null,
+"ref": "msasn1.dll!0x9150"
+},
+{
+"name": "ASN1CEREncOctetString",
+"ordinal": 81,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1CEREncUTCTime",
+"ordinal": 82,
+"rva": 33904,
+"forwarder": null,
+"ref": "msasn1.dll!0x8470"
+},
+{
+"name": "ASN1CEREncZeroMultibyteString",
+"ordinal": 83,
+"rva": 35888,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c30"
+},
+{
+"name": "ASN1DEREncBeginBlk",
+"ordinal": 84,
+"rva": 21008,
+"forwarder": null,
+"ref": "msasn1.dll!0x5210"
+},
+{
+"name": "ASN1DEREncBitString",
+"ordinal": 85,
+"rva": 14336,
+"forwarder": null,
+"ref": "msasn1.dll!0x3800"
+},
+{
+"name": "ASN1DEREncChar16String",
+"ordinal": 86,
+"rva": 37216,
+"forwarder": null,
+"ref": "msasn1.dll!0x9160"
+},
+{
+"name": "ASN1DEREncChar32String",
+"ordinal": 87,
+"rva": 37232,
+"forwarder": null,
+"ref": "msasn1.dll!0x9170"
+},
+{
+"name": "ASN1DEREncCharString",
+"ordinal": 88,
+"rva": 15280,
+"forwarder": null,
+"ref": "msasn1.dll!0x3bb0"
+},
+{
+"name": "ASN1DEREncEndBlk",
+"ordinal": 89,
+"rva": 15632,
+"forwarder": null,
+"ref": "msasn1.dll!0x3d10"
+},
+{
+"name": "ASN1DEREncFlushBlkElement",
+"ordinal": 90,
+"rva": 20304,
+"forwarder": null,
+"ref": "msasn1.dll!0x4f50"
+},
+{
+"name": "ASN1DEREncGeneralizedTime",
+"ordinal": 91,
+"rva": 34016,
+"forwarder": null,
+"ref": "msasn1.dll!0x84e0"
+},
+{
+"name": "ASN1DEREncMultibyteString",
+"ordinal": 92,
+"rva": 33824,
+"forwarder": null,
+"ref": "msasn1.dll!0x8420"
+},
+{
+"name": "ASN1DEREncNewBlkElement",
+"ordinal": 93,
+"rva": 15408,
+"forwarder": null,
+"ref": "msasn1.dll!0x3c30"
+},
+{
+"name": "ASN1DEREncOctetString",
+"ordinal": 94,
+"rva": 15280,
+"forwarder": null,
+"ref": "msasn1.dll!0x3bb0"
+},
+{
+"name": "ASN1DEREncUTCTime",
+"ordinal": 95,
+"rva": 15056,
+"forwarder": null,
+"ref": "msasn1.dll!0x3ad0"
+},
+{
+"name": "ASN1DEREncUTF8String",
+"ordinal": 96,
+"rva": 37248,
+"forwarder": null,
+"ref": "msasn1.dll!0x9180"
+},
+{
+"name": "ASN1DEREncZeroMultibyteString",
+"ordinal": 97,
+"rva": 37264,
+"forwarder": null,
+"ref": "msasn1.dll!0x9190"
+},
+{
+"name": "ASN1DecAlloc",
+"ordinal": 98,
+"rva": 4112,
+"forwarder": null,
+"ref": "msasn1.dll!0x1010"
+},
+{
+"name": "ASN1DecRealloc",
+"ordinal": 99,
+"rva": 20176,
+"forwarder": null,
+"ref": "msasn1.dll!0x4ed0"
+},
+{
+"name": "ASN1DecSetError",
+"ordinal": 100,
+"rva": 12496,
+"forwarder": null,
+"ref": "msasn1.dll!0x30d0"
+},
+{
+"name": "ASN1EncSetError",
+"ordinal": 101,
+"rva": 36608,
+"forwarder": null,
+"ref": "msasn1.dll!0x8f00"
+},
+{
+"name": "ASN1Free",
+"ordinal": 102,
+"rva": 21840,
+"forwarder": null,
+"ref": "msasn1.dll!0x5550"
+},
+{
+"name": "ASN1_CloseDecoder",
+"ordinal": 103,
+"rva": 12656,
+"forwarder": null,
+"ref": "msasn1.dll!0x3170"
+},
+{
+"name": "ASN1_CloseEncoder",
+"ordinal": 104,
+"rva": 17536,
+"forwarder": null,
+"ref": "msasn1.dll!0x4480"
+},
+{
+"name": "ASN1_CloseEncoder2",
+"ordinal": 105,
+"rva": 37488,
+"forwarder": null,
+"ref": "msasn1.dll!0x9270"
+},
+{
+"name": "ASN1_CloseModule",
+"ordinal": 106,
+"rva": 21840,
+"forwarder": null,
+"ref": "msasn1.dll!0x5550"
+},
+{
+"name": "ASN1_CreateDecoder",
+"ordinal": 107,
+"rva": 21872,
+"forwarder": null,
+"ref": "msasn1.dll!0x5570"
+},
+{
+"name": "ASN1_CreateDecoderEx",
+"ordinal": 108,
+"rva": 21920,
+"forwarder": null,
+"ref": "msasn1.dll!0x55a0"
+},
+{
+"name": "ASN1_CreateEncoder",
+"ordinal": 109,
+"rva": 16144,
+"forwarder": null,
+"ref": "msasn1.dll!0x3f10"
+},
+{
+"name": "ASN1_CreateModule",
+"ordinal": 110,
+"rva": 22144,
+"forwarder": null,
+"ref": "msasn1.dll!0x5680"
+},
+{
+"name": "ASN1_Decode",
+"ordinal": 111,
+"rva": 12000,
+"forwarder": null,
+"ref": "msasn1.dll!0x2ee0"
+},
+{
+"name": "ASN1_Encode",
+"ordinal": 112,
+"rva": 20576,
+"forwarder": null,
+"ref": "msasn1.dll!0x5060"
+},
+{
+"name": "ASN1_FreeDecoded",
+"ordinal": 113,
+"rva": 12544,
+"forwarder": null,
+"ref": "msasn1.dll!0x3100"
+},
+{
+"name": "ASN1_FreeEncoded",
+"ordinal": 114,
+"rva": 21808,
+"forwarder": null,
+"ref": "msasn1.dll!0x5530"
+},
+{
+"name": "ASN1_GetDecoderOption",
+"ordinal": 115,
+"rva": 37552,
+"forwarder": null,
+"ref": "msasn1.dll!0x92b0"
+},
+{
+"name": "ASN1_GetEncoderOption",
+"ordinal": 116,
+"rva": 37616,
+"forwarder": null,
+"ref": "msasn1.dll!0x92f0"
+},
+{
+"name": "ASN1_SetDecoderOption",
+"ordinal": 117,
+"rva": 37696,
+"forwarder": null,
+"ref": "msasn1.dll!0x9340"
+},
+{
+"name": "ASN1_SetEncoderOption",
+"ordinal": 118,
+"rva": 20928,
+"forwarder": null,
+"ref": "msasn1.dll!0x51c0"
+},
+{
+"name": "ASN1bitstring_cmp",
+"ordinal": 119,
+"rva": 18496,
+"forwarder": null,
+"ref": "msasn1.dll!0x4840"
+},
+{
+"name": "ASN1bitstring_free",
+"ordinal": 120,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1char16string_cmp",
+"ordinal": 121,
+"rva": 34560,
+"forwarder": null,
+"ref": "msasn1.dll!0x8700"
+},
+{
+"name": "ASN1char16string_free",
+"ordinal": 122,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1char32string_cmp",
+"ordinal": 123,
+"rva": 34656,
+"forwarder": null,
+"ref": "msasn1.dll!0x8760"
+},
+{
+"name": "ASN1char32string_free",
+"ordinal": 124,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1charstring_cmp",
+"ordinal": 125,
+"rva": 34752,
+"forwarder": null,
+"ref": "msasn1.dll!0x87c0"
+},
+{
+"name": "ASN1charstring_free",
+"ordinal": 126,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1generalizedtime_cmp",
+"ordinal": 127,
+"rva": 34848,
+"forwarder": null,
+"ref": "msasn1.dll!0x8820"
+},
+{
+"name": "ASN1intx2int32",
+"ordinal": 128,
+"rva": 35920,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c50"
+},
+{
+"name": "ASN1intx2uint32",
+"ordinal": 129,
+"rva": 36112,
+"forwarder": null,
+"ref": "msasn1.dll!0x8d10"
+},
+{
+"name": "ASN1intx_add",
+"ordinal": 130,
+"rva": 35904,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c40"
+},
+{
+"name": "ASN1intx_cmp",
+"ordinal": 131,
+"rva": 34992,
+"forwarder": null,
+"ref": "msasn1.dll!0x88b0"
+},
+{
+"name": "ASN1intx_free",
+"ordinal": 132,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1intx_setuint32",
+"ordinal": 133,
+"rva": 36272,
+"forwarder": null,
+"ref": "msasn1.dll!0x8db0"
+},
+{
+"name": "ASN1intx_sub",
+"ordinal": 134,
+"rva": 35904,
+"forwarder": null,
+"ref": "msasn1.dll!0x8c40"
+},
+{
+"name": "ASN1intx_uoctets",
+"ordinal": 135,
+"rva": 36464,
+"forwarder": null,
+"ref": "msasn1.dll!0x8e70"
+},
+{
+"name": "ASN1intxisuint32",
+"ordinal": 136,
+"rva": 36512,
+"forwarder": null,
+"ref": "msasn1.dll!0x8ea0"
+},
+{
+"name": "ASN1objectidentifier2_cmp",
+"ordinal": 137,
+"rva": 35200,
+"forwarder": null,
+"ref": "msasn1.dll!0x8980"
+},
+{
+"name": "ASN1objectidentifier_cmp",
+"ordinal": 138,
+"rva": 35312,
+"forwarder": null,
+"ref": "msasn1.dll!0x89f0"
+},
+{
+"name": "ASN1objectidentifier_free",
+"ordinal": 139,
+"rva": 22592,
+"forwarder": null,
+"ref": "msasn1.dll!0x5840"
+},
+{
+"name": "ASN1octetstring_cmp",
+"ordinal": 140,
+"rva": 35408,
+"forwarder": null,
+"ref": "msasn1.dll!0x8a50"
+},
+{
+"name": "ASN1octetstring_free",
+"ordinal": 141,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1open_cmp",
+"ordinal": 142,
+"rva": 35488,
+"forwarder": null,
+"ref": "msasn1.dll!0x8aa0"
+},
+{
+"name": "ASN1open_free",
+"ordinal": 143,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1uint32_uoctets",
+"ordinal": 144,
+"rva": 36560,
+"forwarder": null,
+"ref": "msasn1.dll!0x8ed0"
+},
+{
+"name": "ASN1utctime_cmp",
+"ordinal": 145,
+"rva": 35552,
+"forwarder": null,
+"ref": "msasn1.dll!0x8ae0"
+},
+{
+"name": "ASN1utf8string_free",
+"ordinal": 146,
+"rva": 20896,
+"forwarder": null,
+"ref": "msasn1.dll!0x51a0"
+},
+{
+"name": "ASN1ztchar16string_cmp",
+"ordinal": 147,
+"rva": 35680,
+"forwarder": null,
+"ref": "msasn1.dll!0x8b60"
+},
+{
+"name": "ASN1ztchar16string_free",
+"ordinal": 148,
+"rva": 21840,
+"forwarder": null,
+"ref": "msasn1.dll!0x5550"
+},
+{
+"name": "ASN1ztchar32string_cmp",
+"ordinal": 149,
+"rva": 35744,
+"forwarder": null,
+"ref": "msasn1.dll!0x8ba0"
+},
+{
+"name": "ASN1ztchar32string_free",
+"ordinal": 150,
+"rva": 21840,
+"forwarder": null,
+"ref": "msasn1.dll!0x5550"
+},
+{
+"name": "ASN1ztcharstring_cmp",
+"ordinal": 151,
+"rva": 35824,
+"forwarder": null,
+"ref": "msasn1.dll!0x8bf0"
+},
+{
+"name": "ASN1ztcharstring_free",
+"ordinal": 152,
+"rva": 21840,
+"forwarder": null,
+"ref": "msasn1.dll!0x5550"
+}
+]

@@ -1,0 +1,16 @@
+[
+{
+"name": "KeyIsoServiceMain",
+"ordinal": 1,
+"rva": 17648,
+"forwarder": null,
+"ref": "keyiso.dll!0x44f0"
+},
+{
+"name": "KeyIsoSetAuditingInterface",
+"ordinal": 2,
+"rva": 89140,
+"forwarder": "NCRYPTPROV.SetAuditingInterface",
+"ref": null
+}
+]

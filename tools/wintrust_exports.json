@@ -1,0 +1,1115 @@
+[
+{
+"name": "ComputeFirstPageHash",
+"ordinal": 1,
+"rva": 165344,
+"forwarder": null,
+"ref": "wintrust.dll!0x285e0"
+},
+{
+"name": "CryptCATVerifyMember",
+"ordinal": 2,
+"rva": 171808,
+"forwarder": null,
+"ref": "wintrust.dll!0x29f20"
+},
+{
+"name": "CryptSIPGetInfo",
+"ordinal": 3,
+"rva": 197824,
+"forwarder": null,
+"ref": "wintrust.dll!0x304c0"
+},
+{
+"name": "CryptSIPGetRegWorkingFlags",
+"ordinal": 4,
+"rva": 197808,
+"forwarder": null,
+"ref": "wintrust.dll!0x304b0"
+},
+{
+"name": "GenericChainCertificateTrust",
+"ordinal": 5,
+"rva": 216112,
+"forwarder": null,
+"ref": "wintrust.dll!0x34c30"
+},
+{
+"name": "GenericChainFinalProv",
+"ordinal": 6,
+"rva": 216944,
+"forwarder": null,
+"ref": "wintrust.dll!0x34f70"
+},
+{
+"name": "HTTPSCertificateTrust",
+"ordinal": 7,
+"rva": 45376,
+"forwarder": null,
+"ref": "wintrust.dll!0xb140"
+},
+{
+"name": "SoftpubDefCertInit",
+"ordinal": 8,
+"rva": 218960,
+"forwarder": null,
+"ref": "wintrust.dll!0x35750"
+},
+{
+"name": "SoftpubFreeDefUsageCallData",
+"ordinal": 9,
+"rva": 219216,
+"forwarder": null,
+"ref": "wintrust.dll!0x35850"
+},
+{
+"name": "SoftpubLoadDefUsageCallData",
+"ordinal": 10,
+"rva": 219296,
+"forwarder": null,
+"ref": "wintrust.dll!0x358a0"
+},
+{
+"name": "WTHelperCertFindIssuerCertificate",
+"ordinal": 11,
+"rva": 140880,
+"forwarder": null,
+"ref": "wintrust.dll!0x22650"
+},
+{
+"name": "AddPersonalTrustDBPages",
+"ordinal": 12,
+"rva": 219632,
+"forwarder": null,
+"ref": "wintrust.dll!0x359f0"
+},
+{
+"name": "CatalogCompactHashDatabase",
+"ordinal": 13,
+"rva": 62592,
+"forwarder": null,
+"ref": "wintrust.dll!0xf480"
+},
+{
+"name": "ConfigCiFinalPolicy",
+"ordinal": 14,
+"rva": 226576,
+"forwarder": null,
+"ref": "wintrust.dll!0x37510"
+},
+{
+"name": "ConfigCiPackageFamilyNameCheck",
+"ordinal": 15,
+"rva": 227616,
+"forwarder": null,
+"ref": "wintrust.dll!0x37920"
+},
+{
+"name": "CryptCATAdminAcquireContext",
+"ordinal": 16,
+"rva": 5136,
+"forwarder": null,
+"ref": "wintrust.dll!0x1410"
+},
+{
+"name": "CryptCATAdminAcquireContext2",
+"ordinal": 17,
+"rva": 175248,
+"forwarder": null,
+"ref": "wintrust.dll!0x2ac90"
+},
+{
+"name": "CryptCATAdminAddCatalog",
+"ordinal": 18,
+"rva": 175472,
+"forwarder": null,
+"ref": "wintrust.dll!0x2ad70"
+},
+{
+"name": "CryptCATAdminCalcHashFromFileHandle",
+"ordinal": 19,
+"rva": 176320,
+"forwarder": null,
+"ref": "wintrust.dll!0x2b0c0"
+},
+{
+"name": "CryptCATAdminCalcHashFromFileHandle2",
+"ordinal": 20,
+"rva": 176416,
+"forwarder": null,
+"ref": "wintrust.dll!0x2b120"
+},
+{
+"name": "CryptCATAdminCalcHashFromFileHandle3",
+"ordinal": 21,
+"rva": 176544,
+"forwarder": null,
+"ref": "wintrust.dll!0x2b1a0"
+},
+{
+"name": "CryptCATAdminEnumCatalogFromHash",
+"ordinal": 22,
+"rva": 13456,
+"forwarder": null,
+"ref": "wintrust.dll!0x3490"
+},
+{
+"name": "CryptCATAdminPauseServiceForBackup",
+"ordinal": 23,
+"rva": 176656,
+"forwarder": null,
+"ref": "wintrust.dll!0x2b210"
+},
+{
+"name": "CryptCATAdminReleaseCatalogContext",
+"ordinal": 24,
+"rva": 5296,
+"forwarder": null,
+"ref": "wintrust.dll!0x14b0"
+},
+{
+"name": "CryptCATAdminReleaseContext",
+"ordinal": 25,
+"rva": 4592,
+"forwarder": null,
+"ref": "wintrust.dll!0x11f0"
+},
+{
+"name": "CryptCATAdminRemoveCatalog",
+"ordinal": 26,
+"rva": 176736,
+"forwarder": null,
+"ref": "wintrust.dll!0x2b260"
+},
+{
+"name": "CryptCATAdminResolveCatalogPath",
+"ordinal": 27,
+"rva": 176816,
+"forwarder": null,
+"ref": "wintrust.dll!0x2b2b0"
+},
+{
+"name": "CryptCATAllocSortedMemberInfo",
+"ordinal": 28,
+"rva": 33600,
+"forwarder": null,
+"ref": "wintrust.dll!0x8340"
+},
+{
+"name": "CryptCATCDFClose",
+"ordinal": 29,
+"rva": 184176,
+"forwarder": null,
+"ref": "wintrust.dll!0x2cf70"
+},
+{
+"name": "CryptCATCDFEnumAttributes",
+"ordinal": 30,
+"rva": 184352,
+"forwarder": null,
+"ref": "wintrust.dll!0x2d020"
+},
+{
+"name": "CryptCATCDFEnumAttributesWithCDFTag",
+"ordinal": 31,
+"rva": 184384,
+"forwarder": null,
+"ref": "wintrust.dll!0x2d040"
+},
+{
+"name": "CryptCATCDFEnumCatAttributes",
+"ordinal": 32,
+"rva": 184464,
+"forwarder": null,
+"ref": "wintrust.dll!0x2d090"
+},
+{
+"name": "CryptCATCDFEnumMembers",
+"ordinal": 33,
+"rva": 184896,
+"forwarder": null,
+"ref": "wintrust.dll!0x2d240"
+},
+{
+"name": "CryptCATCDFEnumMembersByCDFTag",
+"ordinal": 34,
+"rva": 185008,
+"forwarder": null,
+"ref": "wintrust.dll!0x2d2b0"
+},
+{
+"name": "CryptCATCDFEnumMembersByCDFTagEx",
+"ordinal": 35,
+"rva": 185088,
+"forwarder": null,
+"ref": "wintrust.dll!0x2d300"
+},
+{
+"name": "CryptCATCDFOpen",
+"ordinal": 36,
+"rva": 185168,
+"forwarder": null,
+"ref": "wintrust.dll!0x2d350"
+},
+{
+"name": "CryptCATCatalogInfoFromContext",
+"ordinal": 37,
+"rva": 4384,
+"forwarder": null,
+"ref": "wintrust.dll!0x1120"
+},
+{
+"name": "CryptCATClose",
+"ordinal": 38,
+"rva": 12624,
+"forwarder": null,
+"ref": "wintrust.dll!0x3150"
+},
+{
+"name": "CryptCATEnumerateAttr",
+"ordinal": 39,
+"rva": 48352,
+"forwarder": null,
+"ref": "wintrust.dll!0xbce0"
+},
+{
+"name": "CryptCATEnumerateCatAttr",
+"ordinal": 40,
+"rva": 48448,
+"forwarder": null,
+"ref": "wintrust.dll!0xbd40"
+},
+{
+"name": "CryptCATEnumerateMember",
+"ordinal": 41,
+"rva": 171888,
+"forwarder": null,
+"ref": "wintrust.dll!0x29f70"
+},
+{
+"name": "CryptCATFreeSortedMemberInfo",
+"ordinal": 42,
+"rva": 172128,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a060"
+},
+{
+"name": "CryptCATGetAttrInfo",
+"ordinal": 43,
+"rva": 172192,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a0a0"
+},
+{
+"name": "CryptCATGetCatAttrInfo",
+"ordinal": 44,
+"rva": 172368,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a150"
+},
+{
+"name": "CryptCATGetMemberInfo",
+"ordinal": 45,
+"rva": 172512,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a1e0"
+},
+{
+"name": "CryptCATHandleFromStore",
+"ordinal": 46,
+"rva": 62128,
+"forwarder": null,
+"ref": "wintrust.dll!0xf2b0"
+},
+{
+"name": "CryptCATOpen",
+"ordinal": 47,
+"rva": 172720,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a2b0"
+},
+{
+"name": "CryptCATPersistStore",
+"ordinal": 48,
+"rva": 173072,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a410"
+},
+{
+"name": "CryptCATPutAttrInfo",
+"ordinal": 49,
+"rva": 173136,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a450"
+},
+{
+"name": "CryptCATPutCatAttrInfo",
+"ordinal": 50,
+"rva": 173616,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a630"
+},
+{
+"name": "CryptCATPutMemberInfo",
+"ordinal": 51,
+"rva": 174288,
+"forwarder": null,
+"ref": "wintrust.dll!0x2a8d0"
+},
+{
+"name": "CryptCATStoreFromHandle",
+"ordinal": 52,
+"rva": 62128,
+"forwarder": null,
+"ref": "wintrust.dll!0xf2b0"
+},
+{
+"name": "CryptSIPCreateIndirectData",
+"ordinal": 53,
+"rva": 32128,
+"forwarder": null,
+"ref": "wintrust.dll!0x7d80"
+},
+{
+"name": "CryptSIPGetCaps",
+"ordinal": 54,
+"rva": 31984,
+"forwarder": null,
+"ref": "wintrust.dll!0x7cf0"
+},
+{
+"name": "CryptSIPGetSealedDigest",
+"ordinal": 55,
+"rva": 197936,
+"forwarder": null,
+"ref": "wintrust.dll!0x30530"
+},
+{
+"name": "CryptSIPGetSignedDataMsg",
+"ordinal": 56,
+"rva": 198160,
+"forwarder": null,
+"ref": "wintrust.dll!0x30610"
+},
+{
+"name": "CryptSIPPutSignedDataMsg",
+"ordinal": 57,
+"rva": 198448,
+"forwarder": null,
+"ref": "wintrust.dll!0x30730"
+},
+{
+"name": "CryptSIPRemoveSignedDataMsg",
+"ordinal": 58,
+"rva": 198672,
+"forwarder": null,
+"ref": "wintrust.dll!0x30810"
+},
+{
+"name": "CryptSIPVerifyIndirectData",
+"ordinal": 59,
+"rva": 198832,
+"forwarder": null,
+"ref": "wintrust.dll!0x308b0"
+},
+{
+"name": "DllRegisterServer",
+"ordinal": 60,
+"rva": 141696,
+"forwarder": null,
+"ref": "wintrust.dll!0x22980"
+},
+{
+"name": "DllUnregisterServer",
+"ordinal": 61,
+"rva": 141776,
+"forwarder": null,
+"ref": "wintrust.dll!0x229d0"
+},
+{
+"name": "DriverCleanupPolicy",
+"ordinal": 62,
+"rva": 59760,
+"forwarder": null,
+"ref": "wintrust.dll!0xe970"
+},
+{
+"name": "DriverFinalPolicy",
+"ordinal": 63,
+"rva": 47232,
+"forwarder": null,
+"ref": "wintrust.dll!0xb880"
+},
+{
+"name": "DriverInitializePolicy",
+"ordinal": 64,
+"rva": 6784,
+"forwarder": null,
+"ref": "wintrust.dll!0x1a80"
+},
+{
+"name": "FindCertsByIssuer",
+"ordinal": 65,
+"rva": 236528,
+"forwarder": null,
+"ref": "wintrust.dll!0x39bf0"
+},
+{
+"name": "GetAuthenticodeSha256Hash",
+"ordinal": 66,
+"rva": 228416,
+"forwarder": null,
+"ref": "wintrust.dll!0x37c40"
+},
+{
+"name": "HTTPSFinalProv",
+"ordinal": 67,
+"rva": 56960,
+"forwarder": null,
+"ref": "wintrust.dll!0xde80"
+},
+{
+"name": "IsCatalogFile",
+"ordinal": 68,
+"rva": 192880,
+"forwarder": null,
+"ref": "wintrust.dll!0x2f170"
+},
+{
+"name": "MsCatConstructHashTag",
+"ordinal": 69,
+"rva": 194064,
+"forwarder": null,
+"ref": "wintrust.dll!0x2f610"
+},
+{
+"name": "MsCatFreeHashTag",
+"ordinal": 70,
+"rva": 193728,
+"forwarder": null,
+"ref": "wintrust.dll!0x2f4c0"
+},
+{
+"name": "OfficeCleanupPolicy",
+"ordinal": 71,
+"rva": 237568,
+"forwarder": null,
+"ref": "wintrust.dll!0x3a000"
+},
+{
+"name": "OfficeInitializePolicy",
+"ordinal": 72,
+"rva": 237568,
+"forwarder": null,
+"ref": "wintrust.dll!0x3a000"
+},
+{
+"name": "OpenPersonalTrustDBDialog",
+"ordinal": 73,
+"rva": 219680,
+"forwarder": null,
+"ref": "wintrust.dll!0x35a20"
+},
+{
+"name": "OpenPersonalTrustDBDialogEx",
+"ordinal": 74,
+"rva": 219696,
+"forwarder": null,
+"ref": "wintrust.dll!0x35a30"
+},
+{
+"name": "SoftpubAuthenticode",
+"ordinal": 75,
+"rva": 48672,
+"forwarder": null,
+"ref": "wintrust.dll!0xbe20"
+},
+{
+"name": "SoftpubCheckCert",
+"ordinal": 76,
+"rva": 61344,
+"forwarder": null,
+"ref": "wintrust.dll!0xefa0"
+},
+{
+"name": "SoftpubCleanup",
+"ordinal": 77,
+"rva": 62384,
+"forwarder": null,
+"ref": "wintrust.dll!0xf3b0"
+},
+{
+"name": "SoftpubDllRegisterServer",
+"ordinal": 78,
+"rva": 239600,
+"forwarder": null,
+"ref": "wintrust.dll!0x3a7f0"
+},
+{
+"name": "SoftpubDllUnregisterServer",
+"ordinal": 79,
+"rva": 240224,
+"forwarder": null,
+"ref": "wintrust.dll!0x3aa60"
+},
+{
+"name": "SoftpubDumpStructure",
+"ordinal": 80,
+"rva": 243280,
+"forwarder": null,
+"ref": "wintrust.dll!0x3b650"
+},
+{
+"name": "SoftpubInitialize",
+"ordinal": 81,
+"rva": 50384,
+"forwarder": null,
+"ref": "wintrust.dll!0xc4d0"
+},
+{
+"name": "SoftpubLoadMessage",
+"ordinal": 82,
+"rva": 34672,
+"forwarder": null,
+"ref": "wintrust.dll!0x8770"
+},
+{
+"name": "SoftpubLoadSignature",
+"ordinal": 83,
+"rva": 52416,
+"forwarder": null,
+"ref": "wintrust.dll!0xccc0"
+},
+{
+"name": "SrpCheckSmartlockerEAandProcessToken",
+"ordinal": 84,
+"rva": 253376,
+"forwarder": null,
+"ref": "wintrust.dll!0x3ddc0"
+},
+{
+"name": "TrustDecode",
+"ordinal": 85,
+"rva": 156880,
+"forwarder": null,
+"ref": "wintrust.dll!0x264d0"
+},
+{
+"name": "TrustFindIssuerCertificate",
+"ordinal": 86,
+"rva": 157120,
+"forwarder": null,
+"ref": "wintrust.dll!0x265c0"
+},
+{
+"name": "TrustFreeDecode",
+"ordinal": 87,
+"rva": 157664,
+"forwarder": null,
+"ref": "wintrust.dll!0x267e0"
+},
+{
+"name": "TrustIsCertificateSelfSigned",
+"ordinal": 88,
+"rva": 157712,
+"forwarder": null,
+"ref": "wintrust.dll!0x26810"
+},
+{
+"name": "TrustOpenStores",
+"ordinal": 89,
+"rva": 157856,
+"forwarder": null,
+"ref": "wintrust.dll!0x268a0"
+},
+{
+"name": "WTConvertCertCtxToChainInfo",
+"ordinal": 90,
+"rva": 228976,
+"forwarder": null,
+"ref": "wintrust.dll!0x37e70"
+},
+{
+"name": "WTGetBioSignatureInfo",
+"ordinal": 91,
+"rva": 170144,
+"forwarder": null,
+"ref": "wintrust.dll!0x298a0"
+},
+{
+"name": "WTGetPluginSignatureInfo",
+"ordinal": 92,
+"rva": 170592,
+"forwarder": null,
+"ref": "wintrust.dll!0x29a60"
+},
+{
+"name": "WTGetSignatureInfo",
+"ordinal": 93,
+"rva": 42336,
+"forwarder": null,
+"ref": "wintrust.dll!0xa560"
+},
+{
+"name": "WTHelperCertCheckValidSignature",
+"ordinal": 94,
+"rva": 160864,
+"forwarder": null,
+"ref": "wintrust.dll!0x27460"
+},
+{
+"name": "WTHelperCertIsSelfSigned",
+"ordinal": 95,
+"rva": 140944,
+"forwarder": null,
+"ref": "wintrust.dll!0x22690"
+},
+{
+"name": "WTHelperCheckCertUsage",
+"ordinal": 96,
+"rva": 160912,
+"forwarder": null,
+"ref": "wintrust.dll!0x27490"
+},
+{
+"name": "WTHelperGetAgencyInfo",
+"ordinal": 97,
+"rva": 161280,
+"forwarder": null,
+"ref": "wintrust.dll!0x27600"
+},
+{
+"name": "WTHelperGetFileHandle",
+"ordinal": 98,
+"rva": 161536,
+"forwarder": null,
+"ref": "wintrust.dll!0x27700"
+},
+{
+"name": "WTHelperGetFileHash",
+"ordinal": 99,
+"rva": 160288,
+"forwarder": null,
+"ref": "wintrust.dll!0x27220"
+},
+{
+"name": "WTHelperGetFileName",
+"ordinal": 100,
+"rva": 39376,
+"forwarder": null,
+"ref": "wintrust.dll!0x99d0"
+},
+{
+"name": "WTHelperGetKnownUsages",
+"ordinal": 101,
+"rva": 161584,
+"forwarder": null,
+"ref": "wintrust.dll!0x27730"
+},
+{
+"name": "WTHelperGetProvCertFromChain",
+"ordinal": 102,
+"rva": 5552,
+"forwarder": null,
+"ref": "wintrust.dll!0x15b0"
+},
+{
+"name": "WTHelperGetProvPrivateDataFromChain",
+"ordinal": 103,
+"rva": 161760,
+"forwarder": null,
+"ref": "wintrust.dll!0x277e0"
+},
+{
+"name": "WTHelperGetProvSignerFromChain",
+"ordinal": 104,
+"rva": 60320,
+"forwarder": null,
+"ref": "wintrust.dll!0xeba0"
+},
+{
+"name": "WTHelperIsChainedToMicrosoft",
+"ordinal": 105,
+"rva": 161856,
+"forwarder": null,
+"ref": "wintrust.dll!0x27840"
+},
+{
+"name": "WTHelperIsChainedToMicrosoftFromStateData",
+"ordinal": 106,
+"rva": 162288,
+"forwarder": null,
+"ref": "wintrust.dll!0x279f0"
+},
+{
+"name": "WTHelperIsInRootStore",
+"ordinal": 107,
+"rva": 162512,
+"forwarder": null,
+"ref": "wintrust.dll!0x27ad0"
+},
+{
+"name": "WTHelperOpenKnownStores",
+"ordinal": 108,
+"rva": 162784,
+"forwarder": null,
+"ref": "wintrust.dll!0x27be0"
+},
+{
+"name": "WTHelperProvDataFromStateData",
+"ordinal": 109,
+"rva": 62128,
+"forwarder": null,
+"ref": "wintrust.dll!0xf2b0"
+},
+{
+"name": "WTIsFirstConfigCiResultPreferred",
+"ordinal": 110,
+"rva": 229120,
+"forwarder": null,
+"ref": "wintrust.dll!0x37f00"
+},
+{
+"name": "WTLogConfigCiScriptEvent",
+"ordinal": 111,
+"rva": 229216,
+"forwarder": null,
+"ref": "wintrust.dll!0x37f60"
+},
+{
+"name": "WTLogConfigCiSignerEvent",
+"ordinal": 112,
+"rva": 230064,
+"forwarder": null,
+"ref": "wintrust.dll!0x382b0"
+},
+{
+"name": "WTValidateBioSignaturePolicy",
+"ordinal": 113,
+"rva": 171120,
+"forwarder": null,
+"ref": "wintrust.dll!0x29c70"
+},
+{
+"name": "WVTAsn1CatMemberInfo2Decode",
+"ordinal": 114,
+"rva": 58944,
+"forwarder": null,
+"ref": "wintrust.dll!0xe640"
+},
+{
+"name": "WVTAsn1CatMemberInfo2Encode",
+"ordinal": 115,
+"rva": 144480,
+"forwarder": null,
+"ref": "wintrust.dll!0x23460"
+},
+{
+"name": "WVTAsn1CatMemberInfoDecode",
+"ordinal": 116,
+"rva": 144656,
+"forwarder": null,
+"ref": "wintrust.dll!0x23510"
+},
+{
+"name": "WVTAsn1CatMemberInfoEncode",
+"ordinal": 117,
+"rva": 144880,
+"forwarder": null,
+"ref": "wintrust.dll!0x235f0"
+},
+{
+"name": "WVTAsn1CatNameValueDecode",
+"ordinal": 118,
+"rva": 51952,
+"forwarder": null,
+"ref": "wintrust.dll!0xcaf0"
+},
+{
+"name": "WVTAsn1CatNameValueEncode",
+"ordinal": 119,
+"rva": 144976,
+"forwarder": null,
+"ref": "wintrust.dll!0x23650"
+},
+{
+"name": "WVTAsn1IntentToSealAttributeDecode",
+"ordinal": 120,
+"rva": 145088,
+"forwarder": null,
+"ref": "wintrust.dll!0x236c0"
+},
+{
+"name": "WVTAsn1IntentToSealAttributeEncode",
+"ordinal": 121,
+"rva": 145264,
+"forwarder": null,
+"ref": "wintrust.dll!0x23770"
+},
+{
+"name": "WVTAsn1SealingSignatureAttributeDecode",
+"ordinal": 122,
+"rva": 145328,
+"forwarder": null,
+"ref": "wintrust.dll!0x237b0"
+},
+{
+"name": "WVTAsn1SealingSignatureAttributeEncode",
+"ordinal": 123,
+"rva": 145552,
+"forwarder": null,
+"ref": "wintrust.dll!0x23890"
+},
+{
+"name": "WVTAsn1SealingTimestampAttributeDecode",
+"ordinal": 124,
+"rva": 145744,
+"forwarder": null,
+"ref": "wintrust.dll!0x23950"
+},
+{
+"name": "WVTAsn1SealingTimestampAttributeEncode",
+"ordinal": 125,
+"rva": 145968,
+"forwarder": null,
+"ref": "wintrust.dll!0x23a30"
+},
+{
+"name": "WVTAsn1SpcFinancialCriteriaInfoDecode",
+"ordinal": 126,
+"rva": 146064,
+"forwarder": null,
+"ref": "wintrust.dll!0x23a90"
+},
+{
+"name": "WVTAsn1SpcFinancialCriteriaInfoEncode",
+"ordinal": 127,
+"rva": 146256,
+"forwarder": null,
+"ref": "wintrust.dll!0x23b50"
+},
+{
+"name": "WVTAsn1SpcIndirectDataContentDecode",
+"ordinal": 128,
+"rva": 146320,
+"forwarder": null,
+"ref": "wintrust.dll!0x23b90"
+},
+{
+"name": "WVTAsn1SpcIndirectDataContentEncode",
+"ordinal": 129,
+"rva": 146752,
+"forwarder": null,
+"ref": "wintrust.dll!0x23d40"
+},
+{
+"name": "WVTAsn1SpcLinkDecode",
+"ordinal": 130,
+"rva": 146992,
+"forwarder": null,
+"ref": "wintrust.dll!0x23e30"
+},
+{
+"name": "WVTAsn1SpcLinkEncode",
+"ordinal": 131,
+"rva": 57552,
+"forwarder": null,
+"ref": "wintrust.dll!0xe0d0"
+},
+{
+"name": "WVTAsn1SpcMinimalCriteriaInfoDecode",
+"ordinal": 132,
+"rva": 147216,
+"forwarder": null,
+"ref": "wintrust.dll!0x23f10"
+},
+{
+"name": "WVTAsn1SpcMinimalCriteriaInfoEncode",
+"ordinal": 133,
+"rva": 147408,
+"forwarder": null,
+"ref": "wintrust.dll!0x23fd0"
+},
+{
+"name": "WVTAsn1SpcPeImageDataDecode",
+"ordinal": 134,
+"rva": 147472,
+"forwarder": null,
+"ref": "wintrust.dll!0x24010"
+},
+{
+"name": "WVTAsn1SpcPeImageDataEncode",
+"ordinal": 135,
+"rva": 67728,
+"forwarder": null,
+"ref": "wintrust.dll!0x10890"
+},
+{
+"name": "WVTAsn1SpcSigInfoDecode",
+"ordinal": 136,
+"rva": 147792,
+"forwarder": null,
+"ref": "wintrust.dll!0x24150"
+},
+{
+"name": "WVTAsn1SpcSigInfoEncode",
+"ordinal": 137,
+"rva": 147984,
+"forwarder": null,
+"ref": "wintrust.dll!0x24210"
+},
+{
+"name": "WVTAsn1SpcSpAgencyInfoDecode",
+"ordinal": 138,
+"rva": 148096,
+"forwarder": null,
+"ref": "wintrust.dll!0x24280"
+},
+{
+"name": "WVTAsn1SpcSpAgencyInfoEncode",
+"ordinal": 139,
+"rva": 149008,
+"forwarder": null,
+"ref": "wintrust.dll!0x24610"
+},
+{
+"name": "WVTAsn1SpcSpOpusInfoDecode",
+"ordinal": 140,
+"rva": 149440,
+"forwarder": null,
+"ref": "wintrust.dll!0x247c0"
+},
+{
+"name": "WVTAsn1SpcSpOpusInfoEncode",
+"ordinal": 141,
+"rva": 149776,
+"forwarder": null,
+"ref": "wintrust.dll!0x24910"
+},
+{
+"name": "WVTAsn1SpcStatementTypeDecode",
+"ordinal": 142,
+"rva": 150000,
+"forwarder": null,
+"ref": "wintrust.dll!0x249f0"
+},
+{
+"name": "WVTAsn1SpcStatementTypeEncode",
+"ordinal": 143,
+"rva": 150304,
+"forwarder": null,
+"ref": "wintrust.dll!0x24b20"
+},
+{
+"name": "WinVerifyTrust",
+"ordinal": 144,
+"rva": 7840,
+"forwarder": null,
+"ref": "wintrust.dll!0x1ea0"
+},
+{
+"name": "WinVerifyTrustEx",
+"ordinal": 145,
+"rva": 160528,
+"forwarder": null,
+"ref": "wintrust.dll!0x27310"
+},
+{
+"name": "WintrustAddActionID",
+"ordinal": 146,
+"rva": 150496,
+"forwarder": null,
+"ref": "wintrust.dll!0x24be0"
+},
+{
+"name": "WintrustAddDefaultForUsage",
+"ordinal": 147,
+"rva": 158208,
+"forwarder": null,
+"ref": "wintrust.dll!0x26a00"
+},
+{
+"name": "WintrustCertificateTrust",
+"ordinal": 148,
+"rva": 44384,
+"forwarder": null,
+"ref": "wintrust.dll!0xad60"
+},
+{
+"name": "WintrustGetDefaultForUsage",
+"ordinal": 149,
+"rva": 159056,
+"forwarder": null,
+"ref": "wintrust.dll!0x26d50"
+},
+{
+"name": "WintrustGetRegPolicyFlags",
+"ordinal": 150,
+"rva": 153920,
+"forwarder": null,
+"ref": "wintrust.dll!0x25940"
+},
+{
+"name": "WintrustLoadFunctionPointers",
+"ordinal": 151,
+"rva": 7328,
+"forwarder": null,
+"ref": "wintrust.dll!0x1ca0"
+},
+{
+"name": "WintrustRemoveActionID",
+"ordinal": 152,
+"rva": 151040,
+"forwarder": null,
+"ref": "wintrust.dll!0x24e00"
+},
+{
+"name": "WintrustSetDefaultIncludePEPageHashes",
+"ordinal": 153,
+"rva": 204288,
+"forwarder": null,
+"ref": "wintrust.dll!0x31e00"
+},
+{
+"name": "WintrustSetRegPolicyFlags",
+"ordinal": 154,
+"rva": 154112,
+"forwarder": null,
+"ref": "wintrust.dll!0x25a00"
+},
+{
+"name": "WintrustUserWriteabilityCheck",
+"ordinal": 155,
+"rva": 230656,
+"forwarder": null,
+"ref": "wintrust.dll!0x38500"
+},
+{
+"name": "mscat32DllRegisterServer",
+"ordinal": 156,
+"rva": 62384,
+"forwarder": null,
+"ref": "wintrust.dll!0xf3b0"
+},
+{
+"name": "mscat32DllUnregisterServer",
+"ordinal": 157,
+"rva": 62384,
+"forwarder": null,
+"ref": "wintrust.dll!0xf3b0"
+},
+{
+"name": "mssip32DllRegisterServer",
+"ordinal": 158,
+"rva": 199104,
+"forwarder": null,
+"ref": "wintrust.dll!0x309c0"
+},
+{
+"name": "mssip32DllUnregisterServer",
+"ordinal": 159,
+"rva": 199696,
+"forwarder": null,
+"ref": "wintrust.dll!0x30c10"
+}
+]

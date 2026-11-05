@@ -1,0 +1,30 @@
+[
+{
+"name": "DllCanUnloadNow",
+"ordinal": 1,
+"rva": 25008,
+"forwarder": null,
+"ref": "certenc.dll!0x61b0"
+},
+{
+"name": "DllGetClassObject",
+"ordinal": 2,
+"rva": 25040,
+"forwarder": null,
+"ref": "certenc.dll!0x61d0"
+},
+{
+"name": "DllRegisterServer",
+"ordinal": 3,
+"rva": 25088,
+"forwarder": null,
+"ref": "certenc.dll!0x6200"
+},
+{
+"name": "DllUnregisterServer",
+"ordinal": 4,
+"rva": 25120,
+"forwarder": null,
+"ref": "certenc.dll!0x6220"
+}
+]

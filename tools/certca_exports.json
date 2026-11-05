@@ -1,0 +1,1255 @@
+[
+{
+"name": "CAFindByName",
+"ordinal": 401,
+"rva": 134896,
+"forwarder": null,
+"ref": "certca.dll!0x20ef0"
+},
+{
+"name": "CAFindByCertType",
+"ordinal": 402,
+"rva": 134256,
+"forwarder": null,
+"ref": "certca.dll!0x20c70"
+},
+{
+"name": "CAFindByIssuerDN",
+"ordinal": 403,
+"rva": 134544,
+"forwarder": null,
+"ref": "certca.dll!0x20d90"
+},
+{
+"name": "CAEnumFirstCA",
+"ordinal": 404,
+"rva": 133984,
+"forwarder": null,
+"ref": "certca.dll!0x20b60"
+},
+{
+"name": "CAEnumNextCA",
+"ordinal": 405,
+"rva": 134096,
+"forwarder": null,
+"ref": "certca.dll!0x20bd0"
+},
+{
+"name": "CACreateNewCA",
+"ordinal": 406,
+"rva": 133360,
+"forwarder": null,
+"ref": "certca.dll!0x208f0"
+},
+{
+"name": "CAUpdateCA",
+"ordinal": 407,
+"rva": 138384,
+"forwarder": null,
+"ref": "certca.dll!0x21c90"
+},
+{
+"name": "CAUpdateCAEx",
+"ordinal": 408,
+"rva": 138416,
+"forwarder": null,
+"ref": "certca.dll!0x21cb0"
+},
+{
+"name": "CADeleteCA",
+"ordinal": 409,
+"rva": 133520,
+"forwarder": null,
+"ref": "certca.dll!0x20990"
+},
+{
+"name": "CADeleteCAEx",
+"ordinal": 410,
+"rva": 133552,
+"forwarder": null,
+"ref": "certca.dll!0x209b0"
+},
+{
+"name": "CACountCAs",
+"ordinal": 411,
+"rva": 133264,
+"forwarder": null,
+"ref": "certca.dll!0x20890"
+},
+{
+"name": "CACloseCA",
+"ordinal": 412,
+"rva": 133200,
+"forwarder": null,
+"ref": "certca.dll!0x20850"
+},
+{
+"name": "CAGetCAProperty",
+"ordinal": 413,
+"rva": 135808,
+"forwarder": null,
+"ref": "certca.dll!0x21280"
+},
+{
+"name": "CAFreeCAProperty",
+"ordinal": 414,
+"rva": 135376,
+"forwarder": null,
+"ref": "certca.dll!0x210d0"
+},
+{
+"name": "CASetCAProperty",
+"ordinal": 415,
+"rva": 137824,
+"forwarder": null,
+"ref": "certca.dll!0x21a60"
+},
+{
+"name": "CAGetCACertificate",
+"ordinal": 416,
+"rva": 135616,
+"forwarder": null,
+"ref": "certca.dll!0x211c0"
+},
+{
+"name": "CASetCACertificate",
+"ordinal": 417,
+"rva": 137680,
+"forwarder": null,
+"ref": "certca.dll!0x219d0"
+},
+{
+"name": "CAGetCAExpiration",
+"ordinal": 418,
+"rva": 135664,
+"forwarder": null,
+"ref": "certca.dll!0x211f0"
+},
+{
+"name": "CASetCAExpiration",
+"ordinal": 419,
+"rva": 137728,
+"forwarder": null,
+"ref": "certca.dll!0x21a00"
+},
+{
+"name": "CAGetCASecurity",
+"ordinal": 420,
+"rva": 135952,
+"forwarder": null,
+"ref": "certca.dll!0x21310"
+},
+{
+"name": "CASetCASecurity",
+"ordinal": 421,
+"rva": 137904,
+"forwarder": null,
+"ref": "certca.dll!0x21ab0"
+},
+{
+"name": "CAAccessCheck",
+"ordinal": 422,
+"rva": 129648,
+"forwarder": null,
+"ref": "certca.dll!0x1fa70"
+},
+{
+"name": "CAAccessCheckEx",
+"ordinal": 423,
+"rva": 129712,
+"forwarder": null,
+"ref": "certca.dll!0x1fab0"
+},
+{
+"name": "CAEnumCertTypesForCA",
+"ordinal": 424,
+"rva": 133856,
+"forwarder": null,
+"ref": "certca.dll!0x20ae0"
+},
+{
+"name": "CAEnumCertTypesForCAEx",
+"ordinal": 425,
+"rva": 133888,
+"forwarder": null,
+"ref": "certca.dll!0x20b00"
+},
+{
+"name": "CAAddCACertificateType",
+"ordinal": 426,
+"rva": 129776,
+"forwarder": null,
+"ref": "certca.dll!0x1faf0"
+},
+{
+"name": "CAAddCACertificateTypeEx",
+"ordinal": 427,
+"rva": 129792,
+"forwarder": null,
+"ref": "certca.dll!0x1fb00"
+},
+{
+"name": "CARemoveCACertificateType",
+"ordinal": 428,
+"rva": 137424,
+"forwarder": null,
+"ref": "certca.dll!0x218d0"
+},
+{
+"name": "CARemoveCACertificateTypeEx",
+"ordinal": 429,
+"rva": 137440,
+"forwarder": null,
+"ref": "certca.dll!0x218e0"
+},
+{
+"name": "CAGetCAFlags",
+"ordinal": 430,
+"rva": 135760,
+"forwarder": null,
+"ref": "certca.dll!0x21250"
+},
+{
+"name": "CASetCAFlags",
+"ordinal": 431,
+"rva": 137776,
+"forwarder": null,
+"ref": "certca.dll!0x21a30"
+},
+{
+"name": "CAGetDN",
+"ordinal": 432,
+"rva": 136608,
+"forwarder": null,
+"ref": "certca.dll!0x215a0"
+},
+{
+"name": "CAEnumCertTypes",
+"ordinal": 433,
+"rva": 133744,
+"forwarder": null,
+"ref": "certca.dll!0x20a70"
+},
+{
+"name": "CAEnumCertTypesEx",
+"ordinal": 434,
+"rva": 8320,
+"forwarder": null,
+"ref": "certca.dll!0x2080"
+},
+{
+"name": "CAFindCertTypeByName",
+"ordinal": 435,
+"rva": 135200,
+"forwarder": null,
+"ref": "certca.dll!0x21020"
+},
+{
+"name": "CACreateCertType",
+"ordinal": 436,
+"rva": 133328,
+"forwarder": null,
+"ref": "certca.dll!0x208d0"
+},
+{
+"name": "CAUpdateCertType",
+"ordinal": 437,
+"rva": 138496,
+"forwarder": null,
+"ref": "certca.dll!0x21d00"
+},
+{
+"name": "CAUpdateCertTypeEx",
+"ordinal": 438,
+"rva": 138528,
+"forwarder": null,
+"ref": "certca.dll!0x21d20"
+},
+{
+"name": "CADeleteCertType",
+"ordinal": 439,
+"rva": 133632,
+"forwarder": null,
+"ref": "certca.dll!0x20a00"
+},
+{
+"name": "CADeleteCertTypeEx",
+"ordinal": 440,
+"rva": 133664,
+"forwarder": null,
+"ref": "certca.dll!0x20a20"
+},
+{
+"name": "CACloneCertType",
+"ordinal": 441,
+"rva": 130208,
+"forwarder": null,
+"ref": "certca.dll!0x1fca0"
+},
+{
+"name": "CAEnumNextCertType",
+"ordinal": 442,
+"rva": 134192,
+"forwarder": null,
+"ref": "certca.dll!0x20c30"
+},
+{
+"name": "CACountCertTypes",
+"ordinal": 443,
+"rva": 133296,
+"forwarder": null,
+"ref": "certca.dll!0x208b0"
+},
+{
+"name": "CACloseCertType",
+"ordinal": 444,
+"rva": 133232,
+"forwarder": null,
+"ref": "certca.dll!0x20870"
+},
+{
+"name": "CAGetCertTypeProperty",
+"ordinal": 445,
+"rva": 136384,
+"forwarder": null,
+"ref": "certca.dll!0x214c0"
+},
+{
+"name": "CAGetCertTypePropertyEx",
+"ordinal": 446,
+"rva": 136496,
+"forwarder": null,
+"ref": "certca.dll!0x21530"
+},
+{
+"name": "CASetCertTypeProperty",
+"ordinal": 447,
+"rva": 138288,
+"forwarder": null,
+"ref": "certca.dll!0x21c30"
+},
+{
+"name": "CASetCertTypePropertyEx",
+"ordinal": 448,
+"rva": 138368,
+"forwarder": null,
+"ref": "certca.dll!0x21c80"
+},
+{
+"name": "CADCSetCertTypePropertyEx",
+"ordinal": 449,
+"rva": 133424,
+"forwarder": null,
+"ref": "certca.dll!0x20930"
+},
+{
+"name": "CAFreeCertTypeProperty",
+"ordinal": 450,
+"rva": 135488,
+"forwarder": null,
+"ref": "certca.dll!0x21140"
+},
+{
+"name": "CAGetCertTypeExtensions",
+"ordinal": 451,
+"rva": 136160,
+"forwarder": null,
+"ref": "certca.dll!0x213e0"
+},
+{
+"name": "CAGetCertTypeExtensionsEx",
+"ordinal": 452,
+"rva": 136192,
+"forwarder": null,
+"ref": "certca.dll!0x21400"
+},
+{
+"name": "CAFreeCertTypeExtensions",
+"ordinal": 453,
+"rva": 135440,
+"forwarder": null,
+"ref": "certca.dll!0x21110"
+},
+{
+"name": "CASetCertTypeExtension",
+"ordinal": 454,
+"rva": 138032,
+"forwarder": null,
+"ref": "certca.dll!0x21b30"
+},
+{
+"name": "CAGetCertTypeKeySpec",
+"ordinal": 455,
+"rva": 136336,
+"forwarder": null,
+"ref": "certca.dll!0x21490"
+},
+{
+"name": "CASetCertTypeKeySpec",
+"ordinal": 456,
+"rva": 138224,
+"forwarder": null,
+"ref": "certca.dll!0x21bf0"
+},
+{
+"name": "CAGetCertTypeExpiration",
+"ordinal": 457,
+"rva": 136096,
+"forwarder": null,
+"ref": "certca.dll!0x213a0"
+},
+{
+"name": "CASetCertTypeExpiration",
+"ordinal": 458,
+"rva": 137952,
+"forwarder": null,
+"ref": "certca.dll!0x21ae0"
+},
+{
+"name": "CAGetCertTypeFlags",
+"ordinal": 459,
+"rva": 136240,
+"forwarder": null,
+"ref": "certca.dll!0x21430"
+},
+{
+"name": "CAGetCertTypeFlagsEx",
+"ordinal": 460,
+"rva": 136272,
+"forwarder": null,
+"ref": "certca.dll!0x21450"
+},
+{
+"name": "CASetCertTypeFlags",
+"ordinal": 461,
+"rva": 138112,
+"forwarder": null,
+"ref": "certca.dll!0x21b80"
+},
+{
+"name": "CASetCertTypeFlagsEx",
+"ordinal": 462,
+"rva": 138144,
+"forwarder": null,
+"ref": "certca.dll!0x21ba0"
+},
+{
+"name": "CAInstallDefaultCertType",
+"ordinal": 463,
+"rva": 136640,
+"forwarder": null,
+"ref": "certca.dll!0x215c0"
+},
+{
+"name": "CAInstallDefaultCertTypeEx",
+"ordinal": 464,
+"rva": 136656,
+"forwarder": null,
+"ref": "certca.dll!0x215d0"
+},
+{
+"name": "CAIsCertTypeCurrent",
+"ordinal": 465,
+"rva": 136704,
+"forwarder": null,
+"ref": "certca.dll!0x21600"
+},
+{
+"name": "CAIsCertTypeCurrentEx",
+"ordinal": 466,
+"rva": 136736,
+"forwarder": null,
+"ref": "certca.dll!0x21620"
+},
+{
+"name": "CACertTypeGetSecurity",
+"ordinal": 467,
+"rva": 130112,
+"forwarder": null,
+"ref": "certca.dll!0x1fc40"
+},
+{
+"name": "CACertTypeSetSecurity",
+"ordinal": 468,
+"rva": 130160,
+"forwarder": null,
+"ref": "certca.dll!0x1fc70"
+},
+{
+"name": "CACertTypeAccessCheck",
+"ordinal": 469,
+"rva": 130032,
+"forwarder": null,
+"ref": "certca.dll!0x1fbf0"
+},
+{
+"name": "CACertTypeAccessCheckEx",
+"ordinal": 470,
+"rva": 130064,
+"forwarder": null,
+"ref": "certca.dll!0x1fc10"
+},
+{
+"name": "CACertTypeAuthzAccessCheck",
+"ordinal": 471,
+"rva": 130080,
+"forwarder": null,
+"ref": "certca.dll!0x1fc20"
+},
+{
+"name": "CAOIDCreateNew",
+"ordinal": 472,
+"rva": 128064,
+"forwarder": null,
+"ref": "certca.dll!0x1f440"
+},
+{
+"name": "CAOIDCreateNewEx",
+"ordinal": 473,
+"rva": 128096,
+"forwarder": null,
+"ref": "certca.dll!0x1f460"
+},
+{
+"name": "CAOIDSetProperty",
+"ordinal": 474,
+"rva": 128864,
+"forwarder": null,
+"ref": "certca.dll!0x1f760"
+},
+{
+"name": "CAOIDSetPropertyEx",
+"ordinal": 475,
+"rva": 128912,
+"forwarder": null,
+"ref": "certca.dll!0x1f790"
+},
+{
+"name": "CAOIDAdd",
+"ordinal": 476,
+"rva": 127968,
+"forwarder": null,
+"ref": "certca.dll!0x1f3e0"
+},
+{
+"name": "CAOIDAddEx",
+"ordinal": 477,
+"rva": 128000,
+"forwarder": null,
+"ref": "certca.dll!0x1f400"
+},
+{
+"name": "CAOIDDelete",
+"ordinal": 478,
+"rva": 128144,
+"forwarder": null,
+"ref": "certca.dll!0x1f490"
+},
+{
+"name": "CAOIDDeleteEx",
+"ordinal": 479,
+"rva": 128176,
+"forwarder": null,
+"ref": "certca.dll!0x1f4b0"
+},
+{
+"name": "CAOIDGetProperty",
+"ordinal": 480,
+"rva": 128752,
+"forwarder": null,
+"ref": "certca.dll!0x1f6f0"
+},
+{
+"name": "CAOIDGetPropertyEx",
+"ordinal": 481,
+"rva": 128800,
+"forwarder": null,
+"ref": "certca.dll!0x1f720"
+},
+{
+"name": "CAOIDFreeProperty",
+"ordinal": 482,
+"rva": 128240,
+"forwarder": null,
+"ref": "certca.dll!0x1f4f0"
+},
+{
+"name": "CAOIDGetLdapURL",
+"ordinal": 483,
+"rva": 128288,
+"forwarder": null,
+"ref": "certca.dll!0x1f520"
+},
+{
+"name": "CAOIDFreeLdapURL",
+"ordinal": 484,
+"rva": 128240,
+"forwarder": null,
+"ref": "certca.dll!0x1f4f0"
+},
+{
+"name": "CACertTypeRegisterQuery",
+"ordinal": 485,
+"rva": 138880,
+"forwarder": null,
+"ref": "certca.dll!0x21e80"
+},
+{
+"name": "CACertTypeQuery",
+"ordinal": 486,
+"rva": 138848,
+"forwarder": null,
+"ref": "certca.dll!0x21e60"
+},
+{
+"name": "CACertTypeUnregisterQuery",
+"ordinal": 487,
+"rva": 139744,
+"forwarder": null,
+"ref": "certca.dll!0x221e0"
+},
+{
+"name": "CACreateLocalAutoEnrollmentObject",
+"ordinal": 488,
+"rva": 141536,
+"forwarder": null,
+"ref": "certca.dll!0x228e0"
+},
+{
+"name": "CADeleteLocalAutoEnrollmentObject",
+"ordinal": 489,
+"rva": 141792,
+"forwarder": null,
+"ref": "certca.dll!0x229e0"
+},
+{
+"name": "CACreateAutoEnrollmentObjectEx",
+"ordinal": 490,
+"rva": 141296,
+"forwarder": null,
+"ref": "certca.dll!0x227f0"
+},
+{
+"name": "CAEnumCertTypesEx2",
+"ordinal": 491,
+"rva": 133808,
+"forwarder": null,
+"ref": "certca.dll!0x20ab0"
+},
+{
+"name": "CAFindCertTypeByName2",
+"ordinal": 492,
+"rva": 135248,
+"forwarder": null,
+"ref": "certca.dll!0x21050"
+},
+{
+"name": null,
+"ordinal": 601,
+"rva": 27872,
+"forwarder": null,
+"ref": "certca.dll!0x6ce0"
+},
+{
+"name": null,
+"ordinal": 602,
+"rva": 27392,
+"forwarder": null,
+"ref": "certca.dll!0x6b00"
+},
+{
+"name": null,
+"ordinal": 603,
+"rva": 28192,
+"forwarder": null,
+"ref": "certca.dll!0x6e20"
+},
+{
+"name": null,
+"ordinal": 604,
+"rva": 27632,
+"forwarder": null,
+"ref": "certca.dll!0x6bf0"
+},
+{
+"name": null,
+"ordinal": 701,
+"rva": 94160,
+"forwarder": null,
+"ref": "certca.dll!0x16fd0"
+},
+{
+"name": null,
+"ordinal": 702,
+"rva": 94416,
+"forwarder": null,
+"ref": "certca.dll!0x170d0"
+},
+{
+"name": null,
+"ordinal": 703,
+"rva": 97792,
+"forwarder": null,
+"ref": "certca.dll!0x17e00"
+},
+{
+"name": null,
+"ordinal": 704,
+"rva": 5312,
+"forwarder": null,
+"ref": "certca.dll!0x14c0"
+},
+{
+"name": null,
+"ordinal": 705,
+"rva": 6448,
+"forwarder": null,
+"ref": "certca.dll!0x1930"
+},
+{
+"name": null,
+"ordinal": 706,
+"rva": 111776,
+"forwarder": null,
+"ref": "certca.dll!0x1b4a0"
+},
+{
+"name": null,
+"ordinal": 707,
+"rva": 105424,
+"forwarder": null,
+"ref": "certca.dll!0x19bd0"
+},
+{
+"name": null,
+"ordinal": 708,
+"rva": 111728,
+"forwarder": null,
+"ref": "certca.dll!0x1b470"
+},
+{
+"name": null,
+"ordinal": 801,
+"rva": 9184,
+"forwarder": null,
+"ref": "certca.dll!0x23e0"
+},
+{
+"name": null,
+"ordinal": 802,
+"rva": 4816,
+"forwarder": null,
+"ref": "certca.dll!0x12d0"
+},
+{
+"name": null,
+"ordinal": 803,
+"rva": 102256,
+"forwarder": null,
+"ref": "certca.dll!0x18f70"
+},
+{
+"name": null,
+"ordinal": 804,
+"rva": 8160,
+"forwarder": null,
+"ref": "certca.dll!0x1fe0"
+},
+{
+"name": null,
+"ordinal": 805,
+"rva": 109184,
+"forwarder": null,
+"ref": "certca.dll!0x1aa80"
+},
+{
+"name": null,
+"ordinal": 806,
+"rva": 111824,
+"forwarder": null,
+"ref": "certca.dll!0x1b4d0"
+},
+{
+"name": null,
+"ordinal": 807,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 808,
+"rva": 99712,
+"forwarder": null,
+"ref": "certca.dll!0x18580"
+},
+{
+"name": null,
+"ordinal": 809,
+"rva": 100352,
+"forwarder": null,
+"ref": "certca.dll!0x18800"
+},
+{
+"name": null,
+"ordinal": 810,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 811,
+"rva": 97072,
+"forwarder": null,
+"ref": "certca.dll!0x17b30"
+},
+{
+"name": null,
+"ordinal": 812,
+"rva": 101472,
+"forwarder": null,
+"ref": "certca.dll!0x18c60"
+},
+{
+"name": null,
+"ordinal": 813,
+"rva": 101264,
+"forwarder": null,
+"ref": "certca.dll!0x18b90"
+},
+{
+"name": null,
+"ordinal": 814,
+"rva": 105360,
+"forwarder": null,
+"ref": "certca.dll!0x19b90"
+},
+{
+"name": null,
+"ordinal": 815,
+"rva": 105456,
+"forwarder": null,
+"ref": "certca.dll!0x19bf0"
+},
+{
+"name": null,
+"ordinal": 816,
+"rva": 26304,
+"forwarder": null,
+"ref": "certca.dll!0x66c0"
+},
+{
+"name": null,
+"ordinal": 817,
+"rva": 28512,
+"forwarder": null,
+"ref": "certca.dll!0x6f60"
+},
+{
+"name": null,
+"ordinal": 818,
+"rva": 26448,
+"forwarder": null,
+"ref": "certca.dll!0x6750"
+},
+{
+"name": null,
+"ordinal": 819,
+"rva": 102320,
+"forwarder": null,
+"ref": "certca.dll!0x18fb0"
+},
+{
+"name": null,
+"ordinal": 820,
+"rva": 26688,
+"forwarder": null,
+"ref": "certca.dll!0x6840"
+},
+{
+"name": null,
+"ordinal": 821,
+"rva": 127072,
+"forwarder": null,
+"ref": "certca.dll!0x1f060"
+},
+{
+"name": null,
+"ordinal": 822,
+"rva": 111904,
+"forwarder": null,
+"ref": "certca.dll!0x1b520"
+},
+{
+"name": null,
+"ordinal": 823,
+"rva": 109232,
+"forwarder": null,
+"ref": "certca.dll!0x1aab0"
+},
+{
+"name": null,
+"ordinal": 824,
+"rva": 99360,
+"forwarder": null,
+"ref": "certca.dll!0x18420"
+},
+{
+"name": null,
+"ordinal": 825,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 826,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 827,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 828,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 829,
+"rva": 115904,
+"forwarder": null,
+"ref": "certca.dll!0x1c4c0"
+},
+{
+"name": null,
+"ordinal": 830,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 831,
+"rva": 44976,
+"forwarder": null,
+"ref": "certca.dll!0xafb0"
+},
+{
+"name": null,
+"ordinal": 832,
+"rva": 45392,
+"forwarder": null,
+"ref": "certca.dll!0xb150"
+},
+{
+"name": null,
+"ordinal": 833,
+"rva": 45456,
+"forwarder": null,
+"ref": "certca.dll!0xb190"
+},
+{
+"name": null,
+"ordinal": 834,
+"rva": 44752,
+"forwarder": null,
+"ref": "certca.dll!0xaed0"
+},
+{
+"name": null,
+"ordinal": 835,
+"rva": 40128,
+"forwarder": null,
+"ref": "certca.dll!0x9cc0"
+},
+{
+"name": null,
+"ordinal": 836,
+"rva": 40064,
+"forwarder": null,
+"ref": "certca.dll!0x9c80"
+},
+{
+"name": null,
+"ordinal": 837,
+"rva": 48224,
+"forwarder": null,
+"ref": "certca.dll!0xbc60"
+},
+{
+"name": null,
+"ordinal": 838,
+"rva": 26640,
+"forwarder": null,
+"ref": "certca.dll!0x6810"
+},
+{
+"name": null,
+"ordinal": 839,
+"rva": 5072,
+"forwarder": null,
+"ref": "certca.dll!0x13d0"
+},
+{
+"name": null,
+"ordinal": 840,
+"rva": 94928,
+"forwarder": null,
+"ref": "certca.dll!0x172d0"
+},
+{
+"name": null,
+"ordinal": 841,
+"rva": 94960,
+"forwarder": null,
+"ref": "certca.dll!0x172f0"
+},
+{
+"name": null,
+"ordinal": 842,
+"rva": 6544,
+"forwarder": null,
+"ref": "certca.dll!0x1990"
+},
+{
+"name": null,
+"ordinal": 843,
+"rva": 135536,
+"forwarder": null,
+"ref": "certca.dll!0x21170"
+},
+{
+"name": null,
+"ordinal": 844,
+"rva": 137392,
+"forwarder": null,
+"ref": "certca.dll!0x218b0"
+},
+{
+"name": null,
+"ordinal": 845,
+"rva": 136000,
+"forwarder": null,
+"ref": "certca.dll!0x21340"
+},
+{
+"name": null,
+"ordinal": 846,
+"rva": 137344,
+"forwarder": null,
+"ref": "certca.dll!0x21880"
+},
+{
+"name": null,
+"ordinal": 847,
+"rva": 97024,
+"forwarder": null,
+"ref": "certca.dll!0x17b00"
+},
+{
+"name": null,
+"ordinal": 848,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 849,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 850,
+"rva": 29648,
+"forwarder": null,
+"ref": "certca.dll!0x73d0"
+},
+{
+"name": null,
+"ordinal": 851,
+"rva": 29664,
+"forwarder": null,
+"ref": "certca.dll!0x73e0"
+},
+{
+"name": null,
+"ordinal": 852,
+"rva": 116496,
+"forwarder": null,
+"ref": "certca.dll!0x1c710"
+},
+{
+"name": null,
+"ordinal": 853,
+"rva": 142192,
+"forwarder": null,
+"ref": "certca.dll!0x22b70"
+},
+{
+"name": null,
+"ordinal": 854,
+"rva": 34208,
+"forwarder": null,
+"ref": "certca.dll!0x85a0"
+},
+{
+"name": null,
+"ordinal": 855,
+"rva": 36176,
+"forwarder": null,
+"ref": "certca.dll!0x8d50"
+},
+{
+"name": null,
+"ordinal": 856,
+"rva": 29920,
+"forwarder": null,
+"ref": "certca.dll!0x74e0"
+},
+{
+"name": null,
+"ordinal": 857,
+"rva": 26560,
+"forwarder": null,
+"ref": "certca.dll!0x67c0"
+},
+{
+"name": null,
+"ordinal": 858,
+"rva": 29856,
+"forwarder": null,
+"ref": "certca.dll!0x74a0"
+},
+{
+"name": null,
+"ordinal": 859,
+"rva": 94912,
+"forwarder": null,
+"ref": "certca.dll!0x172c0"
+},
+{
+"name": "CCFindCertificateBuildFilter",
+"ordinal": 860,
+"rva": 27312,
+"forwarder": null,
+"ref": "certca.dll!0x6ab0"
+},
+{
+"name": "CCFindCertificateFreeFilter",
+"ordinal": 861,
+"rva": 27328,
+"forwarder": null,
+"ref": "certca.dll!0x6ac0"
+},
+{
+"name": "CCFindCertificateFromFilter",
+"ordinal": 862,
+"rva": 27344,
+"forwarder": null,
+"ref": "certca.dll!0x6ad0"
+},
+{
+"name": "CCGetCertNameList",
+"ordinal": 863,
+"rva": 27376,
+"forwarder": null,
+"ref": "certca.dll!0x6af0"
+},
+{
+"name": "CCFreeStringArray",
+"ordinal": 864,
+"rva": 27360,
+"forwarder": null,
+"ref": "certca.dll!0x6ae0"
+},
+{
+"name": null,
+"ordinal": 865,
+"rva": 32512,
+"forwarder": null,
+"ref": "certca.dll!0x7f00"
+},
+{
+"name": null,
+"ordinal": 866,
+"rva": 35120,
+"forwarder": null,
+"ref": "certca.dll!0x8930"
+},
+{
+"name": null,
+"ordinal": 867,
+"rva": 33856,
+"forwarder": null,
+"ref": "certca.dll!0x8440"
+},
+{
+"name": null,
+"ordinal": 868,
+"rva": 39456,
+"forwarder": null,
+"ref": "certca.dll!0x9a20"
+},
+{
+"name": null,
+"ordinal": 869,
+"rva": 29200,
+"forwarder": null,
+"ref": "certca.dll!0x7210"
+},
+{
+"name": null,
+"ordinal": 870,
+"rva": 46352,
+"forwarder": null,
+"ref": "certca.dll!0xb510"
+},
+{
+"name": null,
+"ordinal": 871,
+"rva": 46912,
+"forwarder": null,
+"ref": "certca.dll!0xb740"
+},
+{
+"name": null,
+"ordinal": 872,
+"rva": 57840,
+"forwarder": null,
+"ref": "certca.dll!0xe1f0"
+},
+{
+"name": null,
+"ordinal": 873,
+"rva": 109632,
+"forwarder": null,
+"ref": "certca.dll!0x1ac40"
+},
+{
+"name": null,
+"ordinal": 874,
+"rva": 111696,
+"forwarder": null,
+"ref": "certca.dll!0x1b450"
+},
+{
+"name": null,
+"ordinal": 875,
+"rva": 46384,
+"forwarder": null,
+"ref": "certca.dll!0xb530"
+}
+]

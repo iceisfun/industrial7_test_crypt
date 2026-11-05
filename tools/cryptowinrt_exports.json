@@ -1,0 +1,23 @@
+[
+{
+"name": "DllCanUnloadNow",
+"ordinal": 1,
+"rva": 23760,
+"forwarder": null,
+"ref": "cryptowinrt.dll!0x5cd0"
+},
+{
+"name": "DllGetActivationFactory",
+"ordinal": 2,
+"rva": 34192,
+"forwarder": null,
+"ref": "cryptowinrt.dll!0x8590"
+},
+{
+"name": "DllGetClassObject",
+"ordinal": 3,
+"rva": 62816,
+"forwarder": null,
+"ref": "cryptowinrt.dll!0xf560"
+}
+]

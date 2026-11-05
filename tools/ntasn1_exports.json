@@ -1,0 +1,422 @@
+[
+{
+"name": null,
+"ordinal": 1,
+"rva": 77568,
+"forwarder": null,
+"ref": "ntasn1.dll!0x12f00"
+},
+{
+"name": null,
+"ordinal": 2,
+"rva": 5840,
+"forwarder": null,
+"ref": "ntasn1.dll!0x16d0"
+},
+{
+"name": null,
+"ordinal": 3,
+"rva": 4320,
+"forwarder": null,
+"ref": "ntasn1.dll!0x10e0"
+},
+{
+"name": null,
+"ordinal": 4,
+"rva": 6608,
+"forwarder": null,
+"ref": "ntasn1.dll!0x19d0"
+},
+{
+"name": null,
+"ordinal": 5,
+"rva": 15168,
+"forwarder": null,
+"ref": "ntasn1.dll!0x3b40"
+},
+{
+"name": null,
+"ordinal": 6,
+"rva": 4112,
+"forwarder": null,
+"ref": "ntasn1.dll!0x1010"
+},
+{
+"name": null,
+"ordinal": 7,
+"rva": 78448,
+"forwarder": null,
+"ref": "ntasn1.dll!0x13270"
+},
+{
+"name": null,
+"ordinal": 8,
+"rva": 33920,
+"forwarder": null,
+"ref": "ntasn1.dll!0x8480"
+},
+{
+"name": null,
+"ordinal": 9,
+"rva": 33120,
+"forwarder": null,
+"ref": "ntasn1.dll!0x8160"
+},
+{
+"name": null,
+"ordinal": 10,
+"rva": 7040,
+"forwarder": null,
+"ref": "ntasn1.dll!0x1b80"
+},
+{
+"name": null,
+"ordinal": 11,
+"rva": 77136,
+"forwarder": null,
+"ref": "ntasn1.dll!0x12d50"
+},
+{
+"name": null,
+"ordinal": 12,
+"rva": 77456,
+"forwarder": null,
+"ref": "ntasn1.dll!0x12e90"
+},
+{
+"name": null,
+"ordinal": 14,
+"rva": 65712,
+"forwarder": null,
+"ref": "ntasn1.dll!0x100b0"
+},
+{
+"name": null,
+"ordinal": 15,
+"rva": 69328,
+"forwarder": null,
+"ref": "ntasn1.dll!0x10ed0"
+},
+{
+"name": null,
+"ordinal": 16,
+"rva": 10576,
+"forwarder": null,
+"ref": "ntasn1.dll!0x2950"
+},
+{
+"name": null,
+"ordinal": 17,
+"rva": 70320,
+"forwarder": null,
+"ref": "ntasn1.dll!0x112b0"
+},
+{
+"name": null,
+"ordinal": 18,
+"rva": 12816,
+"forwarder": null,
+"ref": "ntasn1.dll!0x3210"
+},
+{
+"name": null,
+"ordinal": 19,
+"rva": 12656,
+"forwarder": null,
+"ref": "ntasn1.dll!0x3170"
+},
+{
+"name": null,
+"ordinal": 20,
+"rva": 66080,
+"forwarder": null,
+"ref": "ntasn1.dll!0x10220"
+},
+{
+"name": null,
+"ordinal": 21,
+"rva": 63136,
+"forwarder": null,
+"ref": "ntasn1.dll!0xf6a0"
+},
+{
+"name": null,
+"ordinal": 22,
+"rva": 67744,
+"forwarder": null,
+"ref": "ntasn1.dll!0x108a0"
+},
+{
+"name": null,
+"ordinal": 23,
+"rva": 63424,
+"forwarder": null,
+"ref": "ntasn1.dll!0xf7c0"
+},
+{
+"name": null,
+"ordinal": 24,
+"rva": 62720,
+"forwarder": null,
+"ref": "ntasn1.dll!0xf500"
+},
+{
+"name": null,
+"ordinal": 25,
+"rva": 64048,
+"forwarder": null,
+"ref": "ntasn1.dll!0xfa30"
+},
+{
+"name": null,
+"ordinal": 26,
+"rva": 64512,
+"forwarder": null,
+"ref": "ntasn1.dll!0xfc00"
+},
+{
+"name": null,
+"ordinal": 27,
+"rva": 72416,
+"forwarder": null,
+"ref": "ntasn1.dll!0x11ae0"
+},
+{
+"name": null,
+"ordinal": 28,
+"rva": 65008,
+"forwarder": null,
+"ref": "ntasn1.dll!0xfdf0"
+},
+{
+"name": null,
+"ordinal": 29,
+"rva": 65088,
+"forwarder": null,
+"ref": "ntasn1.dll!0xfe40"
+},
+{
+"name": null,
+"ordinal": 30,
+"rva": 69888,
+"forwarder": null,
+"ref": "ntasn1.dll!0x11100"
+},
+{
+"name": null,
+"ordinal": 31,
+"rva": 66240,
+"forwarder": null,
+"ref": "ntasn1.dll!0x102c0"
+},
+{
+"name": null,
+"ordinal": 32,
+"rva": 68128,
+"forwarder": null,
+"ref": "ntasn1.dll!0x10a20"
+},
+{
+"name": null,
+"ordinal": 33,
+"rva": 65456,
+"forwarder": null,
+"ref": "ntasn1.dll!0xffb0"
+},
+{
+"name": null,
+"ordinal": 34,
+"rva": 68832,
+"forwarder": null,
+"ref": "ntasn1.dll!0x10ce0"
+},
+{
+"name": null,
+"ordinal": 35,
+"rva": 65584,
+"forwarder": null,
+"ref": "ntasn1.dll!0x10030"
+},
+{
+"name": null,
+"ordinal": 36,
+"rva": 55056,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd710"
+},
+{
+"name": null,
+"ordinal": 37,
+"rva": 57424,
+"forwarder": null,
+"ref": "ntasn1.dll!0xe050"
+},
+{
+"name": null,
+"ordinal": 38,
+"rva": 56064,
+"forwarder": null,
+"ref": "ntasn1.dll!0xdb00"
+},
+{
+"name": null,
+"ordinal": 39,
+"rva": 57088,
+"forwarder": null,
+"ref": "ntasn1.dll!0xdf00"
+},
+{
+"name": null,
+"ordinal": 40,
+"rva": 52752,
+"forwarder": null,
+"ref": "ntasn1.dll!0xce10"
+},
+{
+"name": null,
+"ordinal": 41,
+"rva": 56704,
+"forwarder": null,
+"ref": "ntasn1.dll!0xdd80"
+},
+{
+"name": null,
+"ordinal": 42,
+"rva": 54800,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd610"
+},
+{
+"name": null,
+"ordinal": 43,
+"rva": 55296,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd800"
+},
+{
+"name": null,
+"ordinal": 44,
+"rva": 55568,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd910"
+},
+{
+"name": null,
+"ordinal": 45,
+"rva": 51088,
+"forwarder": null,
+"ref": "ntasn1.dll!0xc790"
+},
+{
+"name": null,
+"ordinal": 46,
+"rva": 51248,
+"forwarder": null,
+"ref": "ntasn1.dll!0xc830"
+},
+{
+"name": null,
+"ordinal": 47,
+"rva": 51632,
+"forwarder": null,
+"ref": "ntasn1.dll!0xc9b0"
+},
+{
+"name": null,
+"ordinal": 48,
+"rva": 71872,
+"forwarder": null,
+"ref": "ntasn1.dll!0x118c0"
+},
+{
+"name": null,
+"ordinal": 49,
+"rva": 51984,
+"forwarder": null,
+"ref": "ntasn1.dll!0xcb10"
+},
+{
+"name": null,
+"ordinal": 50,
+"rva": 52288,
+"forwarder": null,
+"ref": "ntasn1.dll!0xcc40"
+},
+{
+"name": null,
+"ordinal": 51,
+"rva": 58048,
+"forwarder": null,
+"ref": "ntasn1.dll!0xe2c0"
+},
+{
+"name": null,
+"ordinal": 52,
+"rva": 55872,
+"forwarder": null,
+"ref": "ntasn1.dll!0xda40"
+},
+{
+"name": null,
+"ordinal": 53,
+"rva": 50784,
+"forwarder": null,
+"ref": "ntasn1.dll!0xc660"
+},
+{
+"name": null,
+"ordinal": 54,
+"rva": 55664,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd970"
+},
+{
+"name": null,
+"ordinal": 55,
+"rva": 53488,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd0f0"
+},
+{
+"name": null,
+"ordinal": 56,
+"rva": 53920,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd2a0"
+},
+{
+"name": null,
+"ordinal": 57,
+"rva": 54352,
+"forwarder": null,
+"ref": "ntasn1.dll!0xd450"
+},
+{
+"name": null,
+"ordinal": 58,
+"rva": 58464,
+"forwarder": null,
+"ref": "ntasn1.dll!0xe460"
+},
+{
+"name": null,
+"ordinal": 59,
+"rva": 59392,
+"forwarder": null,
+"ref": "ntasn1.dll!0xe800"
+},
+{
+"name": null,
+"ordinal": 60,
+"rva": 49968,
+"forwarder": null,
+"ref": "ntasn1.dll!0xc330"
+},
+{
+"name": null,
+"ordinal": 61,
+"rva": 49136,
+"forwarder": null,
+"ref": "ntasn1.dll!0xbff0"
+}
+]
