@@ -30,7 +30,7 @@ TEST(dxpk_export_private_denied_by_default) {
 TEST(dxpk_export_policy_allow_flag_enables_private) {
     KP_BEGIN(p); WCHAR n[96]; k_name(n, 96, L"exallow"); NCRYPT_KEY_HANDLE k = 0; REQUIRE(U(NCryptExportKey));
     EXPECT_S(U(NCryptCreatePersistedKey)(p, &k, BCRYPT_RSA_ALGORITHM, n, 0, 0), 0);
-    DWORD bits = 1024, pol = NCRYPT_ALLOW_EXPORT_FLAG;
+    DWORD bits = 1024, pol = NCRYPT_ALLOW_PLAINTEXT_EXPORT_FLAG;
     EXPECT_S(U(NCryptSetProperty)(k, NCRYPT_LENGTH_PROPERTY, (PBYTE)&bits, 4, 0), 0);
     EXPECT_S(U(NCryptSetProperty)(k, NCRYPT_EXPORT_POLICY_PROPERTY, (PBYTE)&pol, 4, NCRYPT_PERSIST_FLAG), 0);
     EXPECT_S(U(NCryptFinalizeKey)(k, 0), 0);
@@ -38,7 +38,7 @@ TEST(dxpk_export_policy_allow_flag_enables_private) {
     EXPECT_S(exp_blob(k, BCRYPT_RSAFULLPRIVATE_BLOB, 0, &cb), 0);
     CHECK(cb > 200);
     DWORD v = 0, rc; EXPECT_S(U(NCryptGetProperty)(k, NCRYPT_EXPORT_POLICY_PROPERTY, (PBYTE)&v, 4, &rc, 0), 0);
-    EXPECT_EQ(v & NCRYPT_ALLOW_EXPORT_FLAG, NCRYPT_ALLOW_EXPORT_FLAG);
+    EXPECT_EQ(v, NCRYPT_ALLOW_PLAINTEXT_EXPORT_FLAG);
     /* policy survives close/reopen */
     k_free(k); k = 0;
     EXPECT_S(U(NCryptOpenKey)(p, &k, n, 0, 0), 0);
@@ -68,11 +68,13 @@ TEST(dxpk_export_plaintext_flag_note) {
     U(NCryptSetProperty)(k, NCRYPT_LENGTH_PROPERTY, (PBYTE)&bits, 4, 0);
     U(NCryptSetProperty)(k, NCRYPT_EXPORT_POLICY_PROPERTY, (PBYTE)&pol, 4, NCRYPT_PERSIST_FLAG);
     EXPECT_S(U(NCryptFinalizeKey)(k, 0), 0);
+    /* observed on Win10: with ALLOW_EXPORT only, plaintext private blobs are NTE_NOT_SUPPORTED; only the encrypted opaque transport blob exports */
     DWORD cb; SECURITY_STATUS s = exp_blob(k, BCRYPT_RSAFULLPRIVATE_BLOB, 0, &cb);
-    EXPECT_S(s, 0);
-    /* allow-export without plaintext flag: plaintext (unencrypted PKCS8) export is the interesting one */
+    EXPECT_S(s, NTE_NOT_SUPPORTED);
     s = exp_blob(k, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, 0, &cb);
-    t_note("PKCS8 export with ALLOW_EXPORT only -> 0x%08lx", S(s));
+    EXPECT_S(s, NTE_NOT_SUPPORTED);
+    s = exp_blob(k, NCRYPT_OPAQUETRANSPORT_BLOB, 0, &cb);
+    EXPECT_S(s, 0);
     k_del(p, n, 0); k_free(p);
 }
 TEST(dxpk_export_size_protocol_public) {
@@ -81,7 +83,10 @@ TEST(dxpk_export_size_protocol_public) {
     DWORD need = 0, cb = 0; BYTE buf[2048];
     EXPECT_S(U(NCryptExportKey)(k, 0, BCRYPT_RSAPUBLIC_BLOB, NULL, NULL, 0, &need, 0), 0);
     CHECK(need > 0);
-    EXPECT_S(U(NCryptExportKey)(k, 0, BCRYPT_RSAPUBLIC_BLOB, NULL, buf, need - 1, &cb, 0), NTE_BUFFER_TOO_SMALL);
+    EXPECT_S(U(NCryptExportKey)(k, 0, BCRYPT_RSAPUBLIC_BLOB, NULL, buf, 10, &cb, 0), NTE_BUFFER_TOO_SMALL);
+    EXPECT_EQ(cb, need);
+    /* observed on Win10: a public-blob buffer one byte short is accepted */
+    cb = 0; EXPECT_S(U(NCryptExportKey)(k, 0, BCRYPT_RSAPUBLIC_BLOB, NULL, buf, need - 1, &cb, 0), 0);
     EXPECT_EQ(cb, need);
     EXPECT_S(U(NCryptExportKey)(k, 0, BCRYPT_RSAPUBLIC_BLOB, NULL, buf, need, &cb, 0), 0);
     EXPECT_EQ(cb, need);
@@ -225,9 +230,12 @@ TEST(dxpk_sd_set_invalid_descriptor) {
 TEST(dxpk_sd_support_property) {
     KP_BEGIN(p); WCHAR n[96]; k_name(n, 96, L"sdsup"); NCRYPT_KEY_HANDLE k = 0;
     EXPECT_S(k_make(p, n, BCRYPT_RSA_ALGORITHM, 1024, 0, 0, &k), 0);
+    /* observed on Win10: supported-SD property exists on the provider handle (value 1), not on a key handle */
     DWORD v = 0, cb = 0; SECURITY_STATUS s = U(NCryptGetProperty)(k, NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY, (PBYTE)&v, 4, &cb, 0);
+    EXPECT_S(s, NTE_NOT_SUPPORTED);
+    s = U(NCryptGetProperty)(p, NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY, (PBYTE)&v, 4, &cb, 0);
     EXPECT_S(s, 0);
-    if (!s) { EXPECT_EQ(cb, 4); t_note("security descr support = %lu", v); }
+    if (!s) { EXPECT_EQ(cb, 4); EXPECT_EQ(v, 1); }
     k_del(p, n, 0); k_free(p);
 }
 TEST(dxpk_property_unknown_name) {

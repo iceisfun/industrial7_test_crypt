@@ -8,7 +8,7 @@
 #include <wchar.h>
 
 #define S(x) ((DWORD)(x))
-#define EXPECT_S(a, b) t_check(S(a) == S(b), __FILE__, __LINE__, #a " == " #b, "got 0x%08lx want 0x%08lx", S(a), S(b))
+#define EXPECT_S(a, b) do { DWORD a_ = S(a), b_ = S(b); t_check(a_ == b_, __FILE__, __LINE__, #a " == " #b, "got 0x%08lx want 0x%08lx", a_, b_); } while (0)
 #define KPFX L"cryptt_"
 #define KSP MS_KEY_STORAGE_PROVIDER
 #define PN L"cryptt_%lu_%ls"

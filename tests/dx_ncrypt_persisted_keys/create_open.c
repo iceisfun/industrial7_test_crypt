@@ -175,8 +175,8 @@ TEST(dxpk_create_bad_algid) {
     for (int i = 0; i < 4; i++) {
         k = 0;
         SECURITY_STATUS s = U(NCryptCreatePersistedKey)(p, &k, algs[i], n, 0, 0);
-        CHECKF(s != 0, "alg %d accepted", i);
-        t_note("create alg[%d] -> 0x%08lx", i, S(s));
+        /* observed on Win10: unknown, empty and hash algorithms -> NTE_NOT_SUPPORTED; AES is accepted at create time */
+        EXPECT_S(s, i == 3 ? 0 : NTE_NOT_SUPPORTED);
         if (!s) k_free(k);
     }
     CHECK(!k_has_name(p, 0, n, NULL));
@@ -281,8 +281,10 @@ TEST(dxpk_default_properties) {
     DWORD v = 0, cb = 0;
     EXPECT_S(U(NCryptGetProperty)(k, NCRYPT_LENGTH_PROPERTY, (PBYTE)&v, 4, &cb, 0), 0);
     EXPECT_EQ(v, 1024); EXPECT_EQ(cb, 4);
-    v = 0; EXPECT_S(U(NCryptGetProperty)(k, NCRYPT_IMPL_TYPE_PROPERTY, (PBYTE)&v, 4, &cb, 0), 0);
-    EXPECT_EQ(v, NCRYPT_IMPL_SOFTWARE_FLAG);
+    /* observed on Win10: the key handle does not expose the impl-type property; the provider handle does */
+    v = 0; EXPECT_S(U(NCryptGetProperty)(k, NCRYPT_IMPL_TYPE_PROPERTY, (PBYTE)&v, 4, &cb, 0), NTE_NOT_SUPPORTED);
+    v = 0; cb = 0; EXPECT_S(U(NCryptGetProperty)(p, NCRYPT_IMPL_TYPE_PROPERTY, (PBYTE)&v, 4, &cb, 0), 0);
+    EXPECT_EQ(v, NCRYPT_IMPL_SOFTWARE_FLAG); EXPECT_EQ(cb, 4);
     v = 99; EXPECT_S(U(NCryptGetProperty)(k, NCRYPT_KEY_TYPE_PROPERTY, (PBYTE)&v, 4, &cb, 0), 0);
     EXPECT_EQ(v, 0);
     WCHAR g[64] = {0};
