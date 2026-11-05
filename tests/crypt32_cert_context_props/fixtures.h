@@ -13,6 +13,8 @@ extern const FX fx_future;
 extern const FX fx_inter;
 extern const FX fx_leaf;
 extern const FX fx_leaf2;
+extern const FX fx_leafexp;
+extern const FX fx_leaffut;
 extern const FX fx_leafi;
 extern const FX fx_negserial;
 extern const FX fx_nestbad;

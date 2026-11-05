@@ -125,6 +125,8 @@ C['nestbad2'] = cert('nestbad2','/C=US/O=cryptt/CN=ends after issuer','rsa','202
 # impostor: same subject DN as root, different key; leaf2 issued by impostor (issuer DN == root subject DN)
 C['root2'] = cert('root2','/C=US/O=cryptt/CN=Test Root CA','rsa','20200101000000Z','20491231235959Z','sha256',exts=rootexts,serial='0x0100')
 C['leaf2'] = cert('leaf2','/C=US/O=cryptt/CN=forged leaf','rsa','20210101000000Z','20400101000000Z','sha256',issuer='root2',serial='0x44')
+C['leafexp'] = cert('leafexp','/C=US/O=cryptt/CN=expired leaf','rsa','20050101000000Z','20060101000000Z','sha256',issuer='root',serial='0x50')
+C['leaffut'] = cert('leaffut','/C=US/O=cryptt/CN=future leaf','rsa','20460101000000Z','20470101000000Z','sha256',issuer='root',serial='0x51')
 C['rsa1024'] = cert('rsa1024','/CN=rsa1024 self','rsa1024','20210101000000Z','20400101000000Z','sha256',serial='0x45')
 C['negserial'] = cert('negserial','/CN=high bit serial','rsa','20210101000000Z','20400101000000Z','sha256',serial='0x00ff80aa55')
 C['utf8'] = cert('utf8','/C=DE/O=cryptt/CN=Gr\u00fc\u00dfe cryptt/emailAddress=a@cryptt.test','rsa','20210101000000Z','20400101000000Z','sha256',serial='0x46')
