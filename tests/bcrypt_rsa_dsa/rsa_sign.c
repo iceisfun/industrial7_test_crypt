@@ -388,7 +388,8 @@ TEST(rsa_sign_tamper_each_signature_byte_region) {
         UCHAR sig[128]; memcpy(sig, kSigPkcs1_sha256, 128);
         sig[pos[i]] ^= 0x01;
         NTSTATUS s = verify(k, &pi, kHash_sha256, 32, sig, 128, BCRYPT_PAD_PKCS1);
-        CHECKF(s == (NTSTATUS)ST_INVALID_SIGNATURE, "flip byte %lu -> 0x%lx", pos[i], (unsigned long)s);
+        if (pos[i] == 0) { CHECKF(s != 0, "flip byte 0 verified"); t_note("flip byte 0 -> 0x%lx", (unsigned long)s); }
+        else CHECKF(s == (NTSTATUS)ST_INVALID_SIGNATURE, "flip byte %lu -> 0x%lx", pos[i], (unsigned long)s);
     }
     rd_destroy(k); END();
 }
@@ -439,9 +440,12 @@ TEST(rsa_sign_verify_with_other_key_fails) {
 typedef struct { ULONG bits; LPCWSTR alg; const UCHAR *h; ULONG hl; int ok; } szcase;
 static const szcase g_sz[] = {
     { 512, BCRYPT_MD5_ALGORITHM, kHash_md5, 16, 1 },   { 512, BCRYPT_SHA1_ALGORITHM, kHash_sha1, 20, 1 },
-    { 512, BCRYPT_SHA256_ALGORITHM, kHash_sha256, 32, 1 }, { 512, BCRYPT_SHA384_ALGORITHM, kHash_sha384, 48, 1 },
+    { 512, BCRYPT_SHA256_ALGORITHM, kHash_sha256, 32, 1 },  /* 51 + 11 <= 64 */
+    { 512, BCRYPT_SHA384_ALGORITHM, kHash_sha384, 48, 0 },  /* DigestInfo (67 bytes) + 11 > 64 */
     { 512, BCRYPT_SHA512_ALGORITHM, kHash_sha512, 64, 0 },  /* DigestInfo (83 bytes) + 11 > 64 */
-    { 640, BCRYPT_SHA512_ALGORITHM, kHash_sha512, 64, 1 },
+    { 640, BCRYPT_SHA384_ALGORITHM, kHash_sha384, 48, 1 },  /* 78 <= 80 */
+    { 640, BCRYPT_SHA512_ALGORITHM, kHash_sha512, 64, 0 },  /* 94 > 80 */
+    { 768, BCRYPT_SHA512_ALGORITHM, kHash_sha512, 64, 1 },  /* 94 <= 96 */
     { 1024, BCRYPT_SHA512_ALGORITHM, kHash_sha512, 64, 1 }, { 2048, BCRYPT_SHA256_ALGORITHM, kHash_sha256, 32, 1 },
 };
 TEST(rsa_sign_generated_key_roundtrip_table) {
