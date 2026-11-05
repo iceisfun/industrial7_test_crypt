@@ -78,3 +78,18 @@ BOOL cn_geturl(LPCSTR oid, LPVOID para, DWORD flags, BYTE *buf, DWORD cap, DWORD
 
 const WCHAR *CN_URLS_A_ISSUER[2] = { L"http://ca.example.test/ca1.cer", L"ldap://ldap.example.test/CN=CA?cACertificate?base" };
 const WCHAR *CN_URLS_A_CDP[3] = { L"http://crl.example.test/a.crl", L"ldap://ldap.example.test/CN=CA?certificateRevocationList?base", L"http://crl2.example.test/b.crl" };
+
+int cn_file_scheme_works(void) {
+    static int cached = -1;
+    if (cached >= 0) return cached;
+    char path[MAX_PATH]; WCHAR url[1200];
+    cached = 0;
+    if (!cn_mkfile("probe.cer", v_cert_b, sizeof v_cert_b, path, sizeof path)) return 0;
+    cn_url_w(path, url, 1200);
+    LPVOID obj = NULL;
+    if (cn_retrieve_w(url, CONTEXT_OID_CERTIFICATE, 0, 0, &obj, NULL) && obj) {
+        U(CertFreeCertificateContext)((PCCERT_CONTEXT)obj);
+        cached = 1;
+    }
+    return cached;
+}

@@ -344,21 +344,21 @@ TEST(cnobj_attribute_flags_on_cert) {
 TEST(cnobj_crl_ctl_issuer_notfound) {
     REQUIRE(U(CryptGetObjectUrl));
     PCCRL_CONTEXT crl = U(CertCreateCRLContext)(X509_ASN_ENCODING, v_crl_a, sizeof v_crl_a);
-    PCCTL_CONTEXT ctl = U(CertCreateCTLContext)(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, v_ctl_signed, sizeof v_ctl_signed);
-    CHECK(crl != NULL); CHECK(ctl != NULL);
-    if (crl) {
-        expect_notfound(URL_OID_CRL_ISSUER, (LPVOID)crl, 0);
-        expect_notfound(URL_OID_CRL_FRESHEST_CRL, (LPVOID)crl, 0);
-        expect_notfound(URL_OID_CRL_ISSUER, (LPVOID)crl, CRYPT_GET_URL_FROM_EXTENSION);
-        expect_notfound(URL_OID_CRL_ISSUER, (LPVOID)crl, CRYPT_GET_URL_FROM_PROPERTY);
-        U(CertFreeCRLContext)(crl);
-    }
-    if (ctl) {
-        expect_notfound(URL_OID_CTL_ISSUER, (LPVOID)ctl, 0);
-        expect_notfound(URL_OID_CTL_NEXT_UPDATE, (LPVOID)ctl, 0);
-        expect_notfound(URL_OID_CTL_ISSUER, (LPVOID)ctl, CRYPT_GET_URL_FROM_PROPERTY);
-        U(CertFreeCTLContext)(ctl);
-    }
+    PCCERT_CONTEXT a = MKC(v_cert_a);
+    REQUIRE_NOTNULL(crl); REQUIRE_NOTNULL(a);
+    /* URL_OID_CRL_ISSUER takes the CRL context itself; URL_OID_CRL_FRESHEST_CRL takes a cert/CRL pair.
+       Passing the other form faults inside cryptnet on Win10, so each oid gets its own parameter type. */
+    expect_notfound(URL_OID_CRL_ISSUER, (LPVOID)crl, 0);
+    expect_notfound(URL_OID_CRL_ISSUER, (LPVOID)crl, CRYPT_GET_URL_FROM_EXTENSION);
+    expect_notfound(URL_OID_CRL_ISSUER, (LPVOID)crl, CRYPT_GET_URL_FROM_PROPERTY);
+    CERT_CRL_CONTEXT_PAIR pair = { a, crl };
+    expect_notfound(URL_OID_CRL_FRESHEST_CRL, (LPVOID)&pair, 0);
+    expect_notfound(URL_OID_CRL_FRESHEST_CRL, (LPVOID)&pair, CRYPT_GET_URL_FROM_EXTENSION);
+    /* URL_OID_CTL_ISSUER / URL_OID_CTL_NEXT_UPDATE are not exercised: on Win10 every parameter form tried
+       (CTL context, signer certificate, cert/CRL pair, usage, NULL) raised an access violation. */
+    t_note("CTL url oids 3 and 4 fault on Win10 for every tried parameter form; not called");
+    U(CertFreeCRLContext)(crl);
+    U(CertFreeCertificateContext)(a);
 }
 TEST(cnobj_unknown_oid) {
     REQUIRE(U(CryptGetObjectUrl));

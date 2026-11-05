@@ -85,8 +85,6 @@ TEST(cnhost_vectors) {
         { L"http://www.example.test", L"www.example.test" },
         { L"http://www.example.test/", L"www.example.test" },
         { L"https://a.b.example.test:8443/x/y?z=1#f", L"a.b.example.test" },
-        { L"ldap://dc1.example.test/CN=CA?cACertificate?base", L"dc1.example.test" },
-        { L"ldap://dc1.example.test:389/CN=CA", L"dc1.example.test" },
         { L"http://xn--bcher-kva.example/x", L"xn--bcher-kva.example" },
         { L"http://localhost/x", L"localhost" },
         { L"http://127.0.0.1:8080/x", L"127.0.0.1" },
@@ -98,6 +96,17 @@ TEST(cnhost_vectors) {
         BOOL ok = host(rows[i].url, 260, buf);
         CHECKF(ok, "%ls err=0x%lx", rows[i].url, GetLastError());
         if (ok) CHECKF(!wcscmp(buf, rows[i].host), "%ls -> %ls", rows[i].url, buf);
+    }
+}
+TEST(cnhost_ldap_rejected) {
+    REQUIRE(PIN(I_CryptNetGetHostNameFromUrl));
+    NO_WINE("host-name helper differs in the emulator");
+    /* Win10: the helper handles http/https/ftp style URLs only; ldap and ldaps fail with E_FAIL */
+    static const WCHAR *urls[] = { L"ldap://dc1.example.test/CN=CA?cACertificate?base", L"ldap://dc1.example.test:389/CN=CA",
+        L"ldap://dc1.example.test", L"ldap://dc1.example.test/", L"LDAP://dc1.example.test/x", L"ldaps://dc1.example.test/x", L"ldap:///CN=CA" };
+    for (size_t i = 0; i < sizeof urls / sizeof *urls; i++) {
+        WCHAR buf[260]; wmemset(buf, 0x7777, 260); SET_ERR(0);
+        EXPECT_FAILS(host(urls[i], 260, buf), 0x80004005UL);
     }
 }
 TEST(cnhost_leading_spaces) {
@@ -176,10 +185,14 @@ TEST(cnhost_case_and_ip) {
 }
 
 /* ---- I_CryptConvertIriToAsciiOrUnicode(+WithFlags) --------------------------- */
-static int iri(int toUni, const WCHAR *in, DWORD *cch, WCHAR *out) { return PIN(I_CryptConvertIriToAsciiOrUnicode)(toUni, in, cch, out); }
+/* Win10: the first argument of I_CryptConvertIriToAsciiOrUnicode is "to ASCII" (non-zero -> punycode host,
+   zero -> Unicode host), and in the WithFlags form bit 0x20000 asks for ASCII, bit 0x2000000 for Unicode.
+   The helpers below keep the test-side "toUni" wording and translate. */
+static int iri(int toUni, const WCHAR *in, DWORD *cch, WCHAR *out) { return PIN(I_CryptConvertIriToAsciiOrUnicode)(toUni ? 0 : 1, in, cch, out); }
 static int iriF(DWORD fl, const WCHAR *in, DWORD *cch, WCHAR *out) { return PIN(I_CryptConvertIriToAsciiOrUnicodeWithFlags)(fl, in, cch, out); }
-#define F_UNICODE 0x20000
-#define F_ASCII   0x2000000
+#define F_UNICODE 0x2000000
+#define F_ASCII   0x20000
+#define ERR_BUFFER_TOO_SMALL 0x80090028UL
 #define F_ESCAPE  0x40000
 #define F_UNESC   0x4000000
 
@@ -271,12 +284,12 @@ TEST(cniri_buffer_protocol) {
     /* size query */
     n = 0; SET_ERR(0);
     CHECK(iri(0, in, &n, NULL) == 0);
-    EXPECT_ERR(NTE_BAD_LEN);
+    EXPECT_ERR(ERR_BUFFER_TOO_SMALL);
     EXPECT_EQ(n, 25);
     /* too small by one */
     wmemset(out, 0x7777, 64); n = 24; SET_ERR(0);
     CHECK(iri(0, in, &n, out) == 0);
-    EXPECT_ERR(NTE_BAD_LEN);
+    EXPECT_ERR(ERR_BUFFER_TOO_SMALL);
     EXPECT_EQ(n, 25);
     CHECK(out[0] == 0x7777);
     /* exact */
@@ -288,7 +301,7 @@ TEST(cniri_buffer_protocol) {
     for (DWORD cap = 0; cap < 25; cap++) {
         n = cap; SET_ERR(0);
         CHECKF(iri(0, in, &n, out) == 0, "cap %lu", cap);
-        EXPECT_ERR(NTE_BAD_LEN);
+        EXPECT_ERR(ERR_BUFFER_TOO_SMALL);
         CHECKF(n == 25, "cap %lu -> %lu", cap, n);
     }
 }
@@ -298,7 +311,7 @@ TEST(cniri_buffer_protocol_unicode) {
     WCHAR out[64]; DWORD n = 0; SET_ERR(0);
     /* "http://xn--bcher-kva.example/" is 29 characters; the Unicode form is 22 */
     CHECK(iri(1, PUNY_BUCHER, &n, NULL) == 0);
-    EXPECT_ERR(NTE_BAD_LEN);
+    EXPECT_ERR(ERR_BUFFER_TOO_SMALL);
     t_note("unicode size query for the puny URL asks for %lu characters", n);
     n = 64;
     CHECK(iri(1, PUNY_BUCHER, &n, out) == 1);
@@ -308,7 +321,7 @@ TEST(cniri_buffer_protocol_unicode) {
     n = (DWORD)wcslen(IRI_BUCHER);
     SET_ERR(0);
     CHECK(iri(1, PUNY_BUCHER, &n, out) == 0);
-    EXPECT_ERR(NTE_BAD_LEN);
+    EXPECT_ERR(ERR_BUFFER_TOO_SMALL);
 }
 TEST(cniri_ascii_needs_expanded_room) {
     REQUIRE(PIN(I_CryptConvertIriToAsciiOrUnicode));
@@ -316,7 +329,7 @@ TEST(cniri_ascii_needs_expanded_room) {
     /* the punycode form is longer than the IRI */
     WCHAR out[64]; DWORD n = (DWORD)wcslen(IRI_BUCHER) + 1; SET_ERR(0);
     CHECK(iri(0, IRI_BUCHER, &n, out) == 0);
-    EXPECT_ERR(NTE_BAD_LEN);
+    EXPECT_ERR(ERR_BUFFER_TOO_SMALL);
     EXPECT_EQ(n, wcslen(PUNY_BUCHER) + 1);
     n = (DWORD)wcslen(PUNY_BUCHER) + 1;
     CHECK(iri(0, IRI_BUCHER, &n, out) == 1);
@@ -334,26 +347,28 @@ TEST(cniri_no_scheme_gets_host_only) {
     NO_WINE("IRI helper differs in the emulator");
     WCHAR out[300]; DWORD n = 300; SET_ERR(0);
     int r = iri(0, L"b\x00fc" L"cher.example/x", &n, out);
-    t_note("scheme-less IRI: r=%d err=0x%lx out=%ls n=%lu", r, r ? 0 : GetLastError(), r ? out : L"-", n);
-    if (r == 1) CHECK(!wcscmp(out, L"xn--bcher-kva.example/x"));
+    CHECKF(r == 1, "err=0x%lx", GetLastError());
+    if (r == 1) CHECKF(!wcscmp(out, L"xn--bcher-kva.example/x"), "got %ls", out);
 }
 TEST(cniri_escape_flag) {
     REQUIRE(PIN(I_CryptConvertIriToAsciiOrUnicodeWithFlags));
     NO_WINE("IRI helper differs in the emulator");
     WCHAR out[300]; DWORD n = 300; SET_ERR(0);
     int r = iriF(F_ASCII | F_ESCAPE, L"http://www.example.test/a b", &n, out);
-    t_note("escape flag: r=%d err=0x%lx out=%ls n=%lu", r, r ? 0 : GetLastError(), r ? out : L"-", n);
-    if (r == 1) { CHECK(!wcschr(out, L' ')); CHECK(wcsstr(out, L"a%20b") != NULL); }
+    CHECKF(r == 1, "err=0x%lx", GetLastError());
+    if (r == 1) CHECKF(!wcscmp(out, L"http://www.example.test/a%20b"), "got %ls", out);
 }
 TEST(cniri_unescape_flag) {
     REQUIRE(PIN(I_CryptConvertIriToAsciiOrUnicodeWithFlags));
     NO_WINE("IRI helper differs in the emulator");
     WCHAR out[300]; DWORD n = 300; SET_ERR(0);
     int r = iriF(F_ASCII | F_UNESC, L"http://www.example.test/a%20b", &n, out);
-    t_note("unescape flag: r=%d err=0x%lx out=%ls", r, r ? 0 : GetLastError(), r ? out : L"-");
+    CHECKF(r == 1, "err=0x%lx", GetLastError());
+    if (r == 1) CHECKF(!wcscmp(out, L"http://www.example.test/a b"), "got %ls", out);
     n = 300; SET_ERR(0);
     r = iriF(F_ASCII | F_UNESC, L"http://b%C3%BCcher.example/", &n, out);
-    t_note("unescape+idn: r=%d err=0x%lx out=%ls", r, r ? 0 : GetLastError(), r ? out : L"-");
+    CHECKF(r == 1, "idn err=0x%lx", GetLastError());
+    if (r == 1) CHECKF(!wcscmp(out, PUNY_BUCHER), "idn got %ls", out);
 }
 TEST(cniri_ldap_url) {
     REQUIRE(PIN(I_CryptConvertIriToAsciiOrUnicode));
@@ -361,7 +376,7 @@ TEST(cniri_ldap_url) {
     WCHAR out[300]; DWORD n = 300; SET_ERR(0);
     int r = iri(0, L"ldap://ldap.example.test/CN=CA?cACertificate?base", &n, out);
     CHECKF(r == 1, "err=0x%lx", GetLastError());
-    t_note("ldap url -> %ls", r ? out : L"-");
+    if (r == 1) CHECKF(!wcscmp(out, L"ldap://ldap.example.test/CN=CA?cACertificate?base"), "got %ls", out);
 }
 TEST(cniri_repeatable) {
     REQUIRE(PIN(I_CryptConvertIriToAsciiOrUnicode));
@@ -513,8 +528,10 @@ TEST(cnnet_get_connectivity) {
     NO_WINE("connectivity helper differs in the emulator");
     int r1 = PIN(I_CryptNetGetConnectivity)();
     int r2 = PIN(I_CryptNetGetConnectivity)();
-    t_note("connectivity: %d then %d", r1, r2);
-    CHECK(r1 == 0 || r1 == 1);
+    int r3 = PIN(I_CryptNetGetConnectivity)();
+    /* the oracle guest has no route out; Win10 reports 2 there, stably */
+    t_note("connectivity: %d then %d then %d", r1, r2, r3);
+    EXPECT_EQ(r1, 2); EXPECT_EQ(r2, 2); EXPECT_EQ(r3, 2);
 }
 TEST(cnnet_resolve_only) {
     /* signatures are not public: only check that the entry points exist and are distinct */

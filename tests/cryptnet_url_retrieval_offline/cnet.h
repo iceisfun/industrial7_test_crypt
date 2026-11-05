@@ -33,4 +33,9 @@ int cn_check_urlarray(const CRYPT_URL_ARRAY *a, DWORD cb, int n, const WCHAR * c
 /* run CryptGetObjectUrl(oid, para, flags, ...) with size query then fetch; buf must be freed by caller (LocalFree-free: static buffer). */
 BOOL cn_geturl(LPCSTR oid, LPVOID para, DWORD flags, BYTE *buf, DWORD cap, DWORD *cb);
 extern const WCHAR *CN_URLS_A_ISSUER[2]; extern const WCHAR *CN_URLS_A_CDP[3];
+/* Win10 22H2 does not retrieve file: URLs at all (every spelling, object type and flag set fails with
+   ERROR_NOT_SUPPORTED, see cnrfile_scheme_unsupported). Tests that need a successful file retrieval skip
+   through this probe when the scheme is not served, and run where it is. */
+int cn_file_scheme_works(void);
+#define REQUIRE_FILE_SCHEME() do { if (!cn_file_scheme_works()) { t_skip("file: URL retrieval is not supported on this platform (pinned in cnrfile_scheme_unsupported)"); return; } } while (0)
 #endif

@@ -30,26 +30,31 @@ static void one_cert(const ob *v, int timeout, int ansi) {
     }
 }
 TEST(cnrfile_cert_w_sync) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     static const ob v[] = { OB(v_cert_a), OB(v_cert_b), OB(v_cert_c), OB(v_cert_d), OB(v_cert_e) };
     for (size_t i = 0; i < 5; i++) one_cert(&v[i], 0, 0);
 }
 TEST(cnrfile_cert_a_sync) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlA));
     static const ob v[] = { OB(v_cert_a), OB(v_cert_b), OB(v_cert_c) };
     for (size_t i = 0; i < 3; i++) one_cert(&v[i], 0, 1);
 }
 TEST(cnrfile_cert_w_timeout) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     static const ob v[] = { OB(v_cert_a), OB(v_cert_d) };
     for (size_t i = 0; i < 2; i++) one_cert(&v[i], 5000, 0);
 }
 TEST(cnrfile_cert_a_timeout) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlA));
     static const ob v[] = { OB(v_cert_b), OB(v_cert_e) };
     for (size_t i = 0; i < 2; i++) one_cert(&v[i], 5000, 1);
 }
 TEST(cnrfile_leading_spaces_trimmed) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200], sp[1300];
     CHECK(cn_mkfile("sp.cer", v_cert_b, sizeof v_cert_b, path, sizeof path));
@@ -86,6 +91,7 @@ TEST(cnrfile_ppv_cleared_on_entry) {
 
 /* ---- CRL / CTL / PKCS7 / any --------------------------------------------- */
 TEST(cnrfile_crl_context) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("a.crl", v_crl_a, sizeof v_crl_a, path, sizeof path));
@@ -103,6 +109,7 @@ TEST(cnrfile_crl_context) {
     }
 }
 TEST(cnrfile_crl_context_a) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlA));
     char path[MAX_PATH], u[1200];
     CHECK(cn_mkfile("a2.crl", v_crl_a, sizeof v_crl_a, path, sizeof path));
@@ -113,6 +120,7 @@ TEST(cnrfile_crl_context_a) {
     if (ok) U(CertFreeCRLContext)(obj);
 }
 TEST(cnrfile_ctl_context) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("l.stl", v_ctl_signed, sizeof v_ctl_signed, path, sizeof path));
@@ -128,6 +136,7 @@ TEST(cnrfile_ctl_context) {
     }
 }
 TEST(cnrfile_pkcs7_store) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("ab.p7b", v_p7_ab, sizeof v_p7_ab, path, sizeof path));
@@ -149,6 +158,7 @@ TEST(cnrfile_pkcs7_store) {
     if (ok) { EXPECT_EQ(cn_count_certs(obj), 1); U(CertCloseStore)(obj, 0); }
 }
 TEST(cnrfile_capi2_any_store) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     struct { const char *n; const unsigned char *p; size_t len; int certs, crls, ctls; } rows[] = {
         { "cert", v_cert_a, sizeof v_cert_a, 1, 0, 0 },
@@ -172,6 +182,7 @@ TEST(cnrfile_capi2_any_store) {
     }
 }
 TEST(cnrfile_cert_multiple_objects) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("m.cer", v_cert_a, sizeof v_cert_a, path, sizeof path));
@@ -192,6 +203,7 @@ TEST(cnrfile_cert_multiple_objects) {
     if (ok) { EXPECT_EQ(cn_count_certs(obj), 2); U(CertCloseStore)(obj, 0); }
 }
 TEST(cnrfile_crl_multiple_objects) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("m.crl", v_crl_a, sizeof v_crl_a, path, sizeof path));
@@ -215,6 +227,7 @@ TEST(cnrfile_cert_from_p7_single) {
 
 /* ---- raw blob array ------------------------------------------------------- */
 TEST(cnrfile_raw_blob) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     static const ob v[] = { OB(v_cert_a), OB(v_crl_a), OB(v_ctl_signed), OB(v_p7_ab) };
     for (size_t i = 0; i < 4; i++) {
@@ -238,6 +251,7 @@ TEST(cnrfile_raw_blob) {
     }
 }
 TEST(cnrfile_raw_blob_any_bytes) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     /* the raw form does not parse the content */
     BYTE junk[300]; for (int i = 0; i < 300; i++) junk[i] = (BYTE)(i * 7 + 3);
@@ -256,6 +270,7 @@ TEST(cnrfile_raw_blob_any_bytes) {
     }
 }
 TEST(cnrfile_raw_blob_sizes) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     static const DWORD sizes[] = { 1, 2, 15, 16, 17, 255, 256, 4095, 4096, 4097, 65535, 65536, 200000 };
     BYTE *big = HeapAlloc(GetProcessHeap(), 0, 200000);
@@ -277,6 +292,7 @@ TEST(cnrfile_raw_blob_sizes) {
     HeapFree(GetProcessHeap(), 0, big);
 }
 TEST(cnrfile_raw_blob_a_variant) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlA));
     char path[MAX_PATH], u[1200];
     CHECK(cn_mkfile("rawa.bin", v_cert_b, sizeof v_cert_b, path, sizeof path));
@@ -291,6 +307,7 @@ TEST(cnrfile_raw_blob_a_variant) {
     }
 }
 TEST(cnrfile_raw_blob_timeout_path) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("rawt.bin", v_crl_a, sizeof v_crl_a, path, sizeof path));
@@ -554,6 +571,7 @@ TEST(cnrfile_verify_sig_with_multiple) {
     U(CertFreeCertificateContext)(issuer);
 }
 TEST(cnrfile_verify_signature_good_issuer) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("vs.crl", v_crl_a, sizeof v_crl_a, path, sizeof path));
@@ -584,6 +602,7 @@ TEST(cnrfile_verify_signature_wrong_issuer) {
 
 /* ---- benign flags with a local file ------------------------------------------ */
 TEST(cnrfile_flags_ignored_by_file_scheme) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("fi.cer", v_cert_a, sizeof v_cert_a, path, sizeof path));
@@ -609,6 +628,7 @@ TEST(cnrfile_flags_ignored_by_file_scheme) {
     }
 }
 TEST(cnrfile_offline_check_repeat) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("oc.cer", v_cert_b, sizeof v_cert_b, path, sizeof path));
@@ -673,6 +693,7 @@ TEST(cnrfile_net_urls_cache_only_miss_a) {
 
 /* ---- aux info ---------------------------------------------------------------- */
 TEST(cnrfile_aux_info_last_sync) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("ax_info.cer", v_cert_a, sizeof v_cert_a, path, sizeof path));
@@ -704,6 +725,7 @@ TEST(cnrfile_aux_info_max_bytes) {
     if (ok) U(CertFreeCertificateContext)(obj);
 }
 TEST(cnrfile_aux_info_small_cbsize) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("ax_small.cer", v_cert_a, sizeof v_cert_a, path, sizeof path));
@@ -749,6 +771,7 @@ TEST(cnrfile_install_uninstall_cycle) {
     }
 }
 TEST(cnrfile_retrieve_with_cancel_installed) {
+    REQUIRE_FILE_SCHEME();
     if (t_is_wine()) { t_skip("cancel-retrieval exports are unimplemented in the emulator"); return; }
     REQUIRE(U(CryptInstallCancelRetrieval));
     REQUIRE(U(CryptRetrieveObjectByUrlW));
@@ -766,6 +789,7 @@ TEST(cnrfile_retrieve_with_cancel_installed) {
 }
 static BOOL WINAPI cancel_yes(DWORD flags, void *arg) { InterlockedIncrement(&g_cancel_calls); return TRUE; }
 TEST(cnrfile_cancel_returning_true_file) {
+    REQUIRE_FILE_SCHEME();
     if (t_is_wine()) { t_skip("cancel-retrieval exports are unimplemented in the emulator"); return; }
     REQUIRE(U(CryptInstallCancelRetrieval));
     REQUIRE(U(CryptRetrieveObjectByUrlW));
@@ -826,6 +850,7 @@ static DWORD WINAPI retr_thread(LPVOID p) {
     return 0;
 }
 TEST(cnrfile_parallel_threads) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH];
     CHECK(cn_mkfile("thr.cer", v_cert_a, sizeof v_cert_a, path, sizeof path));
@@ -852,6 +877,7 @@ CHILD(cnrfile_child) {
     return good ? 0 : 12;
 }
 TEST(cnrfile_other_process) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH], args[MAX_PATH + 4];
     CHECK(cn_mkfile("child.cer", v_cert_b, sizeof v_cert_b, path, sizeof path));
@@ -859,6 +885,7 @@ TEST(cnrfile_other_process) {
     EXPECT_EQ(t_run_child("cnrfile_child", args, 30000), 0);
 }
 TEST(cnrfile_context_outlives_file) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("gone.cer", v_cert_a, sizeof v_cert_a, path, sizeof path));
@@ -879,6 +906,7 @@ TEST(cnrfile_context_outlives_file) {
     CHECK(!ok);
 }
 TEST(cnrfile_percent_encoded_path) {
+    REQUIRE_FILE_SCHEME();
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     char path[MAX_PATH]; WCHAR u[1200];
     CHECK(cn_mkfile("with space.cer", v_cert_b, sizeof v_cert_b, path, sizeof path));
@@ -936,4 +964,52 @@ TEST(cnrfile_flag_errors_precede_url_lookup) {
             CHECKF(e == rows[j].err, "url %zu flags 0x%lx: error 0x%lx want 0x%lx", i, rows[j].f, e, rows[j].err);
             CHECK(obj == NULL);
         }
+}
+
+/* ---- Win10 22H2: the file: scheme is not served ---------------------------------------------------- */
+#define ERR_NOT_SUPPORTED_50 50UL
+static void expect_unsupported(const WCHAR *url, LPCSTR oid, DWORD flags, DWORD timeout, const char *what) {
+    LPVOID obj = SENTINEL; SET_ERR(0);
+    BOOL ok = cn_retrieve_w(url, oid, flags, timeout, &obj, NULL);
+    CHECKF(!ok, "%s unexpectedly succeeded", what);
+    if (ok) return;
+    CHECKF(GetLastError() == ERR_NOT_SUPPORTED_50, "%s err=0x%lx want 0x32", what, GetLastError());
+    CHECKF(obj == NULL, "%s object %p after failure", what, obj);
+}
+TEST(cnrfile_scheme_unsupported) {
+    REQUIRE(U(CryptRetrieveObjectByUrlW));
+    REQUIRE(U(CryptRetrieveObjectByUrlA));
+    if (cn_file_scheme_works()) { t_skip("file: URL retrieval works on this platform; the success tests cover it"); return; }
+    char path[MAX_PATH]; WCHAR u[1200], v[1300]; char au[1200];
+    REQUIRE(cn_mkfile("un.cer", v_cert_b, sizeof v_cert_b, path, sizeof path));
+    cn_url_w(path, u, 1200); cn_url_a(path, au, 1200);
+    static const struct { const char *n; LPCSTR oid; } oids[] = {
+        { "cert", CONTEXT_OID_CERTIFICATE }, { "crl", CONTEXT_OID_CRL }, { "ctl", CONTEXT_OID_CTL },
+        { "pkcs7", CONTEXT_OID_PKCS7 }, { "capi2", CONTEXT_OID_CAPI2_ANY }, { "raw", NULL } };
+    for (size_t i = 0; i < sizeof oids / sizeof *oids; i++) {
+        t_label("oid %s sync", oids[i].n);    expect_unsupported(u, oids[i].oid, 0, 0, oids[i].n);
+        t_label("oid %s timeout", oids[i].n); expect_unsupported(u, oids[i].oid, 0, 5000, oids[i].n);
+    }
+    t_label("flags");
+    expect_unsupported(u, CONTEXT_OID_CERTIFICATE, CRYPT_CACHE_ONLY_RETRIEVAL, 0, "cache only");
+    expect_unsupported(u, CONTEXT_OID_CERTIFICATE, CRYPT_WIRE_ONLY_RETRIEVAL, 0, "wire only");
+    expect_unsupported(u, CONTEXT_OID_CERTIFICATE, CRYPT_DONT_CACHE_RESULT, 0, "dont cache");
+    expect_unsupported(u, CONTEXT_OID_CERTIFICATE, CRYPT_NO_AUTH_RETRIEVAL, 0, "no auth");
+    t_label("spellings");
+    wcscpy(v, L"file://"); wcscat(v, u + 8);   expect_unsupported(v, CONTEXT_OID_CERTIFICATE, 0, 0, "file://C:/");
+    wcscpy(v, L"file:"); wcscat(v, u + 8);     expect_unsupported(v, CONTEXT_OID_CERTIFICATE, 0, 0, "file:C:/");
+    wcscpy(v, L"file://localhost/"); wcscat(v, u + 8); expect_unsupported(v, CONTEXT_OID_CERTIFICATE, 0, 0, "file://localhost/");
+    expect_unsupported(L"file:///C:/cryptt_no_such_dir/none.cer", CONTEXT_OID_CERTIFICATE, 0, 0, "missing file");
+    /* a bare path is not a URL at all */
+    {
+        WCHAR w[MAX_PATH]; MultiByteToWideChar(CP_ACP, 0, path, -1, w, MAX_PATH);
+        LPVOID obj = SENTINEL; SET_ERR(0);
+        EXPECT_FAILS(cn_retrieve_w(w, CONTEXT_OID_CERTIFICATE, 0, 0, &obj, NULL), 2);
+    }
+    t_label("ansi");
+    {
+        LPVOID obj = SENTINEL; SET_ERR(0);
+        EXPECT_FAILS(cn_retrieve_a(au, CONTEXT_OID_CERTIFICATE, 0, 0, &obj, NULL), ERR_NOT_SUPPORTED_50);
+        CHECK(obj == NULL);
+    }
 }
