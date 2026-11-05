@@ -65,7 +65,7 @@ TEST(gap2_c32_locator_release_null_keeps_last_error) {
 }
 TEST(gap2_c32_locator_free_preserves_last_error_on_null_like_args) {
     REQUIRE(c32("CryptObjectLocatorFree"));
-    t_note("CryptObjectLocatorFree saves/restores last error (decomp); NULL handling not exercised");
+    t_note("CryptObjectLocatorFree saves/restores last error; NULL handling not exercised");
 }
 
 /* ---- retired OSS global trio: one shared body, always fails with ERROR_INVALID_FUNCTION --------- */

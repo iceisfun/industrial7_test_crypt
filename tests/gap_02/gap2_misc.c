@@ -1,4 +1,4 @@
-/* Assorted internal exports with decomp-verified, side-effect-free behaviour. */
+/* Assorted internal exports with probed, side-effect-free behaviour. */
 #include "gap2.h"
 #include <string.h>
 #define NOWINE(why) do { if (t_is_wine()) { t_skip("emulator: " why); return; } } while (0)
@@ -112,8 +112,8 @@ TEST(gap2_wt_service_entry_points_resolve) {
 TEST(gap2_registration_entry_points_resolve) {
     const char *w[] = { "SoftpubDllRegisterServer", "SoftpubDllUnregisterServer", "mscat32DllRegisterServer", "mscat32DllUnregisterServer" };
     for (unsigned i = 0; i < 4; i++) { FARPROC p = t_proc_in("wintrust.dll", w[i]); if (t_is_wine() && !p) continue; CHECKF(p != NULL, "%s", w[i]); }
-    FARPROC a = t_proc_in("mssip32.dll", "mssip32DllRegisterServer");
-    FARPROC b = t_proc_in("mssip32.dll", "mssip32DllUnregisterServer");
+    FARPROC a = t_proc_in("mssip32.dll", "DllRegisterServer");
+    FARPROC b = t_proc_in("mssip32.dll", "DllUnregisterServer");
     if (!t_is_wine()) { CHECK(a != NULL); CHECK(b != NULL); }
     const char *s[] = { "CAPISysPrep_Generalize", "CryptoSysPrep_Clean", "CryptoSysPrep_Specialize", "CryptoSysPrep_Specialize_Clone", "CryptoSysPrep_Specialize_Offline" };
     for (unsigned i = 0; i < 5; i++) { FARPROC p = t_proc_in("capisp.dll", s[i]); if (t_is_wine() && !p) continue; CHECKF(p != NULL, "capisp!%s", s[i]); }

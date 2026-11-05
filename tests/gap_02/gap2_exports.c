@@ -57,12 +57,11 @@ TEST(gap2_exports_forwarders_certcli) { fwd_module("certcli.dll"); }
 TEST(gap2_exports_forwarders_keyiso) { fwd_module("keyiso.dll"); }
 
 TEST(gap2_exports_getprocaddress_negative_pairs) {
-    SET_ERR(0);
-    CHECK(GetProcAddress(t_module("certca.dll"), "CAIsValidNoSuchName") == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
-    SET_ERR(0);
-    CHECK(GetProcAddress(t_module("cryptngc.dll"), (LPCSTR)(ULONG_PTR)0xFFF0) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
-    SET_ERR(0);
-    CHECK(GetProcAddress(t_module("certca.dll"), (LPCSTR)(ULONG_PTR)0x7FFE) == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
+    HMODULE ca = t_module("certca.dll"), ng = t_module("cryptngc.dll");
+    REQUIRE_NOTNULL(ca); REQUIRE_NOTNULL(ng);
+    EXPECT_GPA_FAIL(ca, "CAIsValidNoSuchName");
+    EXPECT_GPA_FAIL(ng, MAKEINTRESOURCEA(0xFFF0));
+    EXPECT_GPA_FAIL(ca, MAKEINTRESOURCEA(0x7FFE));
 }
 
 /* The public names of ordinal-only certca exports are not exported by certca itself: only certcli names them. */

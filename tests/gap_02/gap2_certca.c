@@ -86,7 +86,7 @@ TEST(gap2_certca_getdn_gated_by_validity) {
 }
 
 TEST(gap2_certca_findcerttypebyname2_validation) {
-    pf_findbyname2 f = (pf_findbyname2)cli("CAFindCertTypeByName2"); REQUIRE(f);
+    pf_findbyname2 f = (pf_findbyname2)t_proc_in("certca.dll", "CAFindCertTypeByName2"); REQUIRE_NOTNULL(f);
     void *out = (void *)(ULONG_PTR)1;
     EXPECT_EQ(f(NULL, NULL, 0, 0, 0, &out), E_POINTER_);
     EXPECT_EQ(f(L"User", NULL, 0, 0, 0, NULL), E_POINTER_);
