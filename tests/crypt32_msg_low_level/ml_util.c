@@ -7,14 +7,40 @@ const BYTE *ml_memmem(const BYTE *h, size_t hn, const BYTE *n, size_t nn) {
     return NULL;
 }
 
+/* Win10: CryptMsg signing with SHA-2 fails (NTE_BAD_TYPE) on a VERIFYCONTEXT provider, so the signing key lives in a
+   uniquely named temporary container that ml_prov_release deletes. */
+#define ML_MAXPROV 16
+static struct { HCRYPTPROV p; wchar_t name[96]; } g_provs[ML_MAXPROV];
 HCRYPTPROV ml_prov(const BYTE *blob, DWORD cb) {
-    HCRYPTPROV p = 0; HCRYPTKEY k = 0;
-    if (!U(CryptAcquireContextW)(&p, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) return 0;
-    if (blob && !U(CryptImportKey)(p, blob, cb, 0, 0, &k)) { U(CryptReleaseContext)(p, 0); return 0; }
-    if (k) U(CryptDestroyKey)(k);
+    HCRYPTPROV p = 0; HCRYPTKEY k = 0; int slot = -1;
+    if (!blob) {
+        if (!U(CryptAcquireContextW)(&p, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) return 0;
+        return p;
+    }
+    for (int i = 0; i < ML_MAXPROV; i++) if (!g_provs[i].p) { slot = i; break; }
+    if (slot < 0) return 0;
+    const wchar_t *nm = t_unique_w("k");
+    if (!U(CryptAcquireContextW)(&p, nm, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_NEWKEYSET)) return 0;
+    if (!U(CryptImportKey)(p, blob, cb, 0, 0, &k)) {
+        U(CryptReleaseContext)(p, 0); p = 0;
+        U(CryptAcquireContextW)(&p, nm, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
+        return 0;
+    }
+    U(CryptDestroyKey)(k);
+    g_provs[slot].p = p; wcsncpy(g_provs[slot].name, nm, 95);
     return p;
 }
-void ml_prov_release(HCRYPTPROV p) { if (p) U(CryptReleaseContext)(p, 0); }
+void ml_prov_release(HCRYPTPROV p) {
+    if (!p) return;
+    for (int i = 0; i < ML_MAXPROV; i++) if (g_provs[i].p == p) {
+        HCRYPTPROV d = 0;
+        g_provs[i].p = 0;
+        U(CryptReleaseContext)(p, 0);
+        U(CryptAcquireContextW)(&d, g_provs[i].name, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
+        return;
+    }
+    U(CryptReleaseContext)(p, 0);
+}
 PCCERT_CONTEXT ml_cert(const BYTE *der, DWORD cb) { return U(CertCreateCertificateContext)(X509_ASN_ENCODING, der, cb); }
 void ml_cert_free(PCCERT_CONTEXT c) { if (c) U(CertFreeCertificateContext)(c); }
 void ml_free(void *p) { if (p) LocalFree(p); }
