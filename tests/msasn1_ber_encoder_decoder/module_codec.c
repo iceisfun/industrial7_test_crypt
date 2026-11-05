@@ -537,7 +537,8 @@ TEST(mc_decode_setbuffer) {
     DWORD *v = NULL;
     EXPECT_EQ(A.ASN1_Decode(r.d, (void **)&v, 0, DEC_SETBUFFER, (BYTE *)in, sizeof in), 0);
     CHECK(v != NULL); if (v) EXPECT_EQ(*v, 9);
-    CHECK(r.d->buf == in); EXPECT_EQ(r.d->size, 3); EXPECT_EQ(r.d->flags & 8, 8);
+    CHECK(r.d->buf == in); EXPECT_EQ(r.d->size, 3);
+    EXPECT_EQ(r.d->len, 3);
     A.ASN1_FreeDecoded(r.d, v, 0);
     rig_done(&r);
 }
@@ -603,7 +604,7 @@ TEST(mc_decode_sequence) {
 TEST(mc_decode_sequence_long_form) {
     NEED(ASN1_FreeDecoded);
     BYTE *in = malloc(4 + 3 + 4 + 300); int n = 0;
-    in[n++] = 0x30; in[n++] = 0x82; in[n++] = 0x01; in[n++] = 0x34;      /* 308 bytes of content */
+    in[n++] = 0x30; in[n++] = 0x82; in[n++] = 0x01; in[n++] = 0x33;      /* 307 bytes of content */
     in[n++] = 2; in[n++] = 1; in[n++] = 7;
     in[n++] = 4; in[n++] = 0x82; in[n++] = 0x01; in[n++] = 0x2c;
     memset(in + n, 0x77, 300); n += 300;
@@ -616,12 +617,11 @@ TEST(mc_decode_sequence_long_form) {
     rig_done(&r); free(in);
 }
 TEST(mc_decode_sequence_inner_length_mismatch) {
-    /* SEQUENCE claims 7 content bytes but the members only fill 6 -> the inner decoder did not reach the end */
-    static const BYTE in[] = { 0x30, 7, 2, 1, 1, 4, 2, 'a', 'b' };
+    /* SEQUENCE claims 8 content bytes, the members only consume 7: the sub-decoder is not at the end */
+    static const BYTE in[] = { 0x30, 8, 2, 1, 1, 4, 2, 'a', 'b', 0 };
     Rig r; if (!rig_dec(&r, R_DER, in, sizeof in)) return;
     void *s = NULL;
-    int rc = A.ASN1_Decode(r.d, &s, 2, 0, NULL, 0);
-    CHECKF(rc < 0, "rc=%d", rc);
+    EXPECT_EQ(A.ASN1_Decode(r.d, &s, 2, 0, NULL, 0), E_CORRUPT);
     CHECK(s == NULL);
     rig_done(&r);
 }
