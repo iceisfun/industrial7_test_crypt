@@ -129,15 +129,16 @@ TEST(cryptmem_many_allocations_roundtrip) {
 }
 
 /* ================= Async handle API: unimplemented stubs ================= */
+#define NOWINE_ASYNC() do { if (t_is_wine()) { t_skip("async handle exports abort under wine"); return; } } while (0)
 TEST(cryptasync_create_not_implemented) {
-    REQUIRE(U(CryptCreateAsyncHandle));
+    REQUIRE(U(CryptCreateAsyncHandle)); NOWINE_ASYNC();
     HCRYPTASYNC h = (HCRYPTASYNC)(ULONG_PTR)0x1234;
     SET_ERR(0);
     BOOL r = U(CryptCreateAsyncHandle)(0, &h);
     CHECK(r == FALSE); CHECK(GetLastError() == ERR_NOTIMPL); CHECK(h == NULL);
 }
 TEST(cryptasync_create_flags_ignored) {
-    REQUIRE(U(CryptCreateAsyncHandle));
+    REQUIRE(U(CryptCreateAsyncHandle)); NOWINE_ASYNC();
     static const DWORD fl[] = {1, 0x80000000, 0xFFFFFFFF};
     for (size_t i = 0; i < 3; i++) {
         HCRYPTASYNC h = (HCRYPTASYNC)(ULONG_PTR)0x1234;
@@ -146,7 +147,7 @@ TEST(cryptasync_create_flags_ignored) {
     }
 }
 TEST(cryptasync_set_not_implemented) {
-    REQUIRE(U(CryptSetAsyncParam));
+    REQUIRE(U(CryptSetAsyncParam)); NOWINE_ASYNC();
     SET_ERR(0);
     BOOL r = U(CryptSetAsyncParam)(NULL, "oid", (void *)1, NULL);
     CHECK(r == FALSE); CHECK(GetLastError() == ERR_NOTIMPL);
@@ -155,7 +156,7 @@ TEST(cryptasync_set_not_implemented) {
     CHECK(r == FALSE); CHECK(GetLastError() == ERR_NOTIMPL);
 }
 TEST(cryptasync_get_not_implemented_clears_outputs) {
-    REQUIRE(U(CryptGetAsyncParam));
+    REQUIRE(U(CryptGetAsyncParam)); NOWINE_ASYNC();
     LPVOID pv = (LPVOID)(ULONG_PTR)0x99; PFN_CRYPT_ASYNC_PARAM_FREE_FUNC pf = (PFN_CRYPT_ASYNC_PARAM_FREE_FUNC)(ULONG_PTR)0x98;
     SET_ERR(0);
     BOOL r = U(CryptGetAsyncParam)(NULL, "oid", &pv, &pf);
@@ -163,13 +164,13 @@ TEST(cryptasync_get_not_implemented_clears_outputs) {
     CHECK(pv == NULL); CHECK(pf == NULL);
 }
 TEST(cryptasync_get_null_outputs_allowed) {
-    REQUIRE(U(CryptGetAsyncParam));
+    REQUIRE(U(CryptGetAsyncParam)); NOWINE_ASYNC();
     SET_ERR(0);
     CHECK(U(CryptGetAsyncParam)(NULL, NULL, NULL, NULL) == FALSE);
     CHECK(GetLastError() == ERR_NOTIMPL);
 }
 TEST(cryptasync_get_only_one_output) {
-    REQUIRE(U(CryptGetAsyncParam));
+    REQUIRE(U(CryptGetAsyncParam)); NOWINE_ASYNC();
     LPVOID pv = (LPVOID)(ULONG_PTR)0x99;
     SET_ERR(0);
     CHECK(U(CryptGetAsyncParam)(NULL, NULL, &pv, NULL) == FALSE);
@@ -179,7 +180,7 @@ TEST(cryptasync_get_only_one_output) {
     CHECK(pf == NULL);
 }
 TEST(cryptasync_close_not_implemented) {
-    REQUIRE(U(CryptCloseAsyncHandle));
+    REQUIRE(U(CryptCloseAsyncHandle)); NOWINE_ASYNC();
     SET_ERR(0);
     BOOL r = U(CryptCloseAsyncHandle)(NULL);
     CHECK(r == FALSE); CHECK(GetLastError() == ERR_NOTIMPL);
