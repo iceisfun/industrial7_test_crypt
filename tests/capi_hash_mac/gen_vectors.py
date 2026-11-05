@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+# Authoring-time generator for vectors.h (run once; output is committed). Not part of the build.
+import hashlib, hmac, struct, sys
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.ciphers import Cipher, modes
+from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
+
+# ---- pure python MD2 / MD4 -------------------------------------------------
+PI = [41,46,67,201,162,216,124,1,61,54,84,161,236,240,6,19,98,167,5,243,192,199,115,140,152,147,43,217,188,76,130,202,
+30,155,87,60,253,212,224,22,103,66,111,24,138,23,229,18,190,78,196,214,218,158,222,73,160,251,245,142,187,47,238,122,
+169,104,121,145,21,178,7,63,148,194,16,137,11,34,95,33,128,127,93,154,90,144,50,39,53,62,204,231,191,247,151,3,
+255,25,48,179,72,165,181,209,215,94,146,42,172,86,170,198,79,184,56,210,150,164,125,182,118,252,107,226,156,116,4,241,
+69,157,112,89,100,113,135,32,134,91,207,101,230,45,168,2,27,96,37,173,174,176,185,246,28,70,97,105,52,64,126,15,
+85,71,163,35,221,81,175,58,195,92,249,206,186,197,234,38,44,83,13,110,133,40,132,9,211,223,205,244,65,129,77,82,
+106,220,55,200,108,193,171,250,36,225,123,8,12,189,177,74,120,136,149,139,227,99,232,109,233,203,213,254,59,0,29,57,
+242,239,183,14,102,88,208,228,166,119,114,248,235,117,75,10,49,68,80,180,143,237,31,26,219,153,141,51,159,17,131,20]
+def md2(m):
+    m = bytearray(m); p = 16 - len(m) % 16; m += bytes([p]) * p
+    c = bytearray(16); l = 0
+    for i in range(0, len(m), 16):
+        for j in range(16):
+            c[j] ^= PI[m[i+j] ^ l]; l = c[j]
+    m += c
+    x = bytearray(48)
+    for i in range(0, len(m), 16):
+        for j in range(16):
+            x[16+j] = m[i+j]; x[32+j] = x[16+j] ^ x[j]
+        t = 0
+        for j in range(18):
+            for k in range(48):
+                x[k] ^= PI[t]; t = x[k]
+            t = (t + j) & 255
+    return bytes(x[:16])
+def md4(m):
+    def rol(x, n): x &= 0xffffffff; return ((x << n) | (x >> (32-n))) & 0xffffffff
+    ml = len(m)*8; m = bytearray(m); m.append(0x80)
+    while len(m) % 64 != 56: m.append(0)
+    m += struct.pack('<Q', ml)
+    a,b,c,d = 0x67452301,0xefcdab89,0x98badcfe,0x10325476
+    for i in range(0, len(m), 64):
+        X = struct.unpack('<16I', m[i:i+64]); aa,bb,cc,dd = a,b,c,d
+        F = lambda x,y,z: (x&y)|(~x&z); G = lambda x,y,z: (x&y)|(x&z)|(y&z); H = lambda x,y,z: x^y^z
+        for k,s in zip(range(16),[3,7,11,19]*4):
+            a,b,c,d = d, rol(a+F(b,c,d)+X[k],s), b, c
+        for k,s in zip([0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15],[3,5,9,13]*4):
+            a,b,c,d = d, rol(a+G(b,c,d)+X[k]+0x5a827999,s), b, c
+        for k,s in zip([0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15],[3,9,11,15]*4):
+            a,b,c,d = d, rol(a+H(b,c,d)+X[k]+0x6ed9eba1,s), b, c
+        a=(a+aa)&0xffffffff; b=(b+bb)&0xffffffff; c=(c+cc)&0xffffffff; d=(d+dd)&0xffffffff
+    return struct.pack('<4I', a,b,c,d)
+assert md2(b'').hex()=='8350e5a3e24c153df2275c9f80692773'
+assert md2(b'abc').hex()=='da853b0d3f88d99b30283a69e6ded6bb'
+assert md2(b'message digest').hex()=='ab4f496bfb2a530b219ff33031fe06b0'
+assert md4(b'').hex()=='31d6cfe0d16ae931b73c59d7e0c089c0'
+assert md4(b'abc').hex()=='a448017aaf21d8525fc10ae87aa6729d'
+assert md4(b'message digest').hex()=='d9130a8164549fe818874806e1c7014b'
+H = {
+ 'MD2':   (0x8001, md2, 16, 16, '3020300c06082a864886f70d020205000410'),
+ 'MD4':   (0x8002, md4, 16, 64, '3020300c06082a864886f70d020405000410'),
+ 'MD5':   (0x8003, lambda m: hashlib.md5(m).digest(), 16, 64, '3020300c06082a864886f70d020505000410'),
+ 'SHA1':  (0x8004, lambda m: hashlib.sha1(m).digest(), 20, 64, '3021300906052b0e03021a05000414'),
+ 'SHA256':(0x800c, lambda m: hashlib.sha256(m).digest(), 32, 64, '3031300d060960864801650304020105000420'),
+ 'SHA384':(0x800d, lambda m: hashlib.sha384(m).digest(), 48, 128, '3041300d060960864801650304020205000430'),
+ 'SHA512':(0x800e, lambda m: hashlib.sha512(m).digest(), 64, 128, '3051300d060960864801650304020305000440'),
+}
+def hmac_g(alg, key, msg):
+    f = H[alg][1]; bs = H[alg][3]
+    if len(key) > bs: key = f(key)
+    key = key.ljust(bs, b'\0')
+    return f(bytes(b ^ 0x5c for b in key) + f(bytes(b ^ 0x36 for b in key) + msg))
+# sanity vs python hmac
+assert hmac_g('SHA256', b'k'*100, b'abc') == hmac.new(b'k'*100, b'abc', 'sha256').digest()
+assert hmac_g('MD5', b'Jefe', b'what do ya want for nothing?').hex()=='750c783e6ab0b503eaa86e310a5db738'
+
+def pat(n): return bytes((i*7+3) & 0xff for i in range(n))
+MSGS = [('empty', b''), ('abc', b'abc'), ('msgdigest', b'message digest'),
+        ('alpha', b'abcdefghijklmnopqrstuvwxyz'),
+        ('digits80', b'1234567890'*8),
+        ('abcdbcde', b'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq')]
+for n in (1,15,16,17,31,32,33,55,56,57,63,64,65,111,112,113,119,120,127,128,129,191,192,255,256,1000):
+    MSGS.append(('pat%d' % n, pat(n)))
+out = []
+w = out.append
+w('/* Generated by gen_vectors.py (authoring time). Do not edit. */')
+w('typedef struct { const char *name; const char *hex; } hv_msg;')
+w('static const hv_msg hv_msgs[] = {')
+for n, m in MSGS: w('  { "%s", "%s" },' % (n, m.hex()))
+w('};')
+w('#define HV_NMSGS (sizeof(hv_msgs)/sizeof(hv_msgs[0]))')
+for name, (cid, f, ds, bs, pre) in H.items():
+    w('static const char *const hv_dig_%s[] = {' % name)
+    for n, m in MSGS: w('  "%s",' % f(m).hex())
+    w('};')
+    w('static const char hv_million_%s[] = "%s";' % (name, f(b'a'*1000000).hex()))
+# HMAC vectors: (key, data) pairs
+HM = [('rfc_k20', b'\x0b'*20, b'Hi There'),
+      ('rfc_jefe', b'Jefe', b'what do ya want for nothing?'),
+      ('rfc_aa20', b'\xaa'*20, b'\xdd'*50),
+      ('rfc_seq25', bytes(range(1,26)), b'\xcd'*50),
+      ('rfc_k80', b'\xaa'*80, b'Test Using Larger Than Block-Size Key - Hash Key First'),
+      ('rfc_k80b', b'\xaa'*80, b'Test Using Larger Than Block-Size Key and Larger Than One Block-Size Data'),
+      ('k131', b'\xaa'*131, b'Test Using Larger Than Block-Size Key - Hash Key First'),
+      ('k131b', b'\xaa'*131, b'This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.'),
+      ('k1', b'\x01', b'x'),
+      ('k64', pat(64), pat(200)),
+      ('k128', pat(128), b'abc'),
+      ('k129', pat(129), b'abc')]
+w('typedef struct { const char *name; const char *key; const char *data; } hv_hmac_in;')
+w('static const hv_hmac_in hv_hmac_ins[] = {')
+for n,k,d in HM: w('  { "%s", "%s", "%s" },' % (n, k.hex(), d.hex()))
+w('};')
+w('#define HV_NHMAC (sizeof(hv_hmac_ins)/sizeof(hv_hmac_ins[0]))')
+for name in H:
+    w('static const char *const hv_hmac_%s[] = {' % name)
+    for n,k,d in HM: w('  "%s",' % hmac_g(name, k, d).hex())
+    w('};')
+# DES CBC-MAC (zero IV, data multiple of 8)
+deskey = bytes.fromhex('0123456789abcdef')
+w('typedef struct { const char *data; const char *mac; } hv_mac;')
+w('static const hv_mac hv_desmac[] = {')
+for d in (pat(8), pat(16), pat(24), pat(64), b'\0'*8, b'12345678'*5):
+    enc = Cipher(TripleDES(deskey*3), modes.CBC(b'\0'*8)).encryptor()
+    ct = enc.update(d)+enc.finalize()
+    w('  { "%s", "%s" },' % (d.hex(), ct[-8:].hex()))
+w('};')
+w('#define HV_NDESMAC (sizeof(hv_desmac)/sizeof(hv_desmac[0]))')
+
+# ---- RSA keys & signatures -----------------------------------------------
+def le(x, n): return x.to_bytes(n, 'little')
+def blobs(key, alg):
+    pn = key.private_numbers(); pub = pn.public_numbers
+    nb = (pub.n.bit_length()+7)//8; hb = nb//2
+    hdr = lambda t, magic: struct.pack('<BBHI', t, 2, 0, alg) + struct.pack('<III', magic, nb*8, pub.e)
+    pubb = hdr(6, 0x31415352) + le(pub.n, nb)
+    prv = hdr(7, 0x32415352) + le(pub.n, nb) + le(pn.p, hb) + le(pn.q, hb) + le(pn.dmp1, hb) + le(pn.dmq1, hb) + le(pn.iqmp, hb) + le(pn.d, nb)
+    return pubb, prv, nb, pub
+msgs = [b'abc', pat(100), b'']
+w('typedef struct { DWORD alg; DWORD flags; int msg; const char *sig; } hv_sig;')
+w('typedef struct { DWORD bits; DWORD keyalg; const char *pub; const char *prv; const hv_sig *sigs; DWORD nsigs; } hv_rsakey;')
+keys = []
+for ki, (bits, kalg) in enumerate([(1024, 0x2400), (2048, 0xa400), (1024, 0xa400)]):
+    key = rsa.generate_private_key(65537, bits)
+    pubb, prv, nb, pub = blobs(key, kalg)
+    rows = []
+    for name, (cid, f, ds, bs, pre) in H.items():
+        for mi, m in enumerate(msgs):
+            for flags in (0, 1):
+                t = f(m)
+                if flags == 0: t = bytes.fromhex(pre) + t
+                em = b'\x00\x01' + b'\xff'*(nb-len(t)-3) + b'\x00' + t
+                s = pow(int.from_bytes(em, 'big'), key.private_numbers().d, pub.n).to_bytes(nb, 'big')
+                rows.append((cid, flags, mi, s[::-1].hex()))
+    # SSL3 SHAMD5: raw 36 bytes
+    for mi, m in enumerate(msgs):
+        t = hashlib.md5(m).digest() + hashlib.sha1(m).digest()
+        em = b'\x00\x01' + b'\xff'*(nb-len(t)-3) + b'\x00' + t
+        s = pow(int.from_bytes(em, 'big'), key.private_numbers().d, pub.n).to_bytes(nb, 'big')
+        rows.append((0x8008, 1, mi, s[::-1].hex()))
+    w('static const hv_sig hv_sigs%d[] = {' % ki)
+    for r in rows: w('  { 0x%x, %d, %d, "%s" },' % r)
+    w('};')
+    keys.append((bits, kalg, pubb.hex(), prv.hex(), ki, len(rows)))
+w('static const hv_rsakey hv_keys[] = {')
+for bits, kalg, p, v, ki, n in keys:
+    w('  { %d, 0x%x, "%s", "%s", hv_sigs%d, %d },' % (bits, kalg, p, v, ki, n))
+w('};')
+w('#define HV_NKEYS (sizeof(hv_keys)/sizeof(hv_keys[0]))')
+w('static const char *const hv_sigmsgs[] = { "%s", "%s", "%s" };' % tuple(m.hex() for m in msgs))
+open('vectors.h', 'w').write('\n'.join(out) + '\n')
