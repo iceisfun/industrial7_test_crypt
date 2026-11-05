@@ -93,8 +93,7 @@ TEST(ctlsign_small_buffer_more_data) {
     EXPECT_EQ(cb, need);
     cb = need;
     CHECK(U(CryptMsgEncodeAndSignCTL)(CC_X509P7, &m.info, &se, 0, buf, &cb));
-    t_note("size query %lu, actual %lu", need, cb);
-    CHECK(cb <= need);
+    EXPECT_EQ(cb, need);
     LocalFree(buf);
     cc_signer_free(prov, sc);
 }
@@ -180,7 +179,7 @@ TEST(ctlsign_bad_signature_vector_fails_verification) {
     SET_ERR(0);
     BOOL ok = U(CryptMsgControl)(h, 0, CMSG_CTRL_VERIFY_SIGNATURE, sc->pCertInfo);
     CHECK(!ok);
-    t_note("bad signature verify error 0x%lx", GetLastError());
+    EXPECT_ERR(0xc000a000);
     U(CryptMsgClose)(h);
     relc(sc);
 }
@@ -193,7 +192,7 @@ TEST(ctlsign_wrong_signer_cert_fails_verification) {
     CHECK(U(CryptMsgUpdate)(h, VEC(v_ctl_signed), TRUE));
     SET_ERR(0);
     CHECK(!U(CryptMsgControl)(h, 0, CMSG_CTRL_VERIFY_SIGNATURE, other->pCertInfo));
-    t_note("verify with unrelated cert error 0x%lx", GetLastError());
+    EXPECT_ERR(0x8009100e);
     U(CryptMsgClose)(h);
     relc(other);
 }
@@ -236,14 +235,14 @@ TEST(ctlsign_raw_content_not_validated_as_ctl) {
     BYTE junk[] = { 0x30, 0x03, 0x02, 0x01, 0x05 };
     DWORD cb = 0;
     BOOL ok = U(CryptMsgSignCTL)(CC_X509P7, junk, sizeof junk, &se, 0, NULL, &cb);
-    t_note("sign junk content: ret=%d cb=%lu", ok, cb);
+    CHECK(ok); EXPECT_EQ(cb, 357);
     if (ok) {
         BYTE *buf = LocalAlloc(LPTR, cb);
         if (U(CryptMsgSignCTL)(CC_X509P7, junk, sizeof junk, &se, 0, buf, &cb)) {
             SET_ERR(0);
             PCCTL_CONTEXT c = cc_ctl(buf, cb);
             CHECK(c == NULL);
-            t_note("load of signed junk content: err 0x%lx", GetLastError());
+            EXPECT_ERR(ERROR_INVALID_DATA);
             rel(c);
         }
         LocalFree(buf);
@@ -256,7 +255,7 @@ TEST(ctlsign_ctlinfo_invalid_encoding_fails) {
     m.info.SubjectAlgorithm.pszObjId = NULL;
     DWORD cb = 0;
     BYTE *b = cc_sign_ctl(&m.info, 0, &cb);
-    t_note("CTL_INFO with a NULL SubjectAlgorithm OID: %s", b ? "encoded" : "failed");
+    CHECK(b != NULL);
     if (b) LocalFree(b);
     mk_info(&m, 3, NULL);
     m.info.SubjectUsage.rgpszUsageIdentifier[0] = (LPSTR)"not an oid";
@@ -271,11 +270,11 @@ TEST(ctlsign_no_entries) {
     m.info.rgCTLEntry = NULL;
     DWORD cb = 0;
     BYTE *b = cc_sign_ctl(&m.info, 0, &cb);
-    t_note("sign a CTL with no entries: %s", b ? "ok" : "failed");
+    CHECK(b != NULL);
     if (b) {
         SET_ERR(0);
         PCCTL_CONTEXT c = cc_ctl(b, cb);
-        t_note("load CTL with no entries: %s err 0x%lx", c ? "ok" : "failed", c ? 0 : GetLastError());
+        CHECK(c != NULL); if (c) EXPECT_EQ(c->pCtlInfo->cCTLEntry, 0);
         rel(c);
         LocalFree(b);
     }
@@ -306,7 +305,7 @@ TEST(ctlsign_entry_attributes_roundtrip) {
         if (a13 >= 0) CHECK(e->rgAttribute[a13].cValue == 1 && e->rgAttribute[a13].rgValue[0].cbData == sizeof v1 && !memcmp(e->rgAttribute[a13].rgValue[0].pbData, v1, sizeof v1));
         if (a5 >= 0) CHECK(e->rgAttribute[a5].cValue == 1 && e->rgAttribute[a5].rgValue[0].cbData == sizeof v2);
     }
-    t_note("entry without attributes round-trips with cAttribute=%lu", c->pCtlInfo->rgCTLEntry[1].cAttribute);
+    EXPECT_EQ(c->pCtlInfo->rgCTLEntry[1].cAttribute, 0);
     rel(c);
     LocalFree(b);
 }
@@ -333,10 +332,11 @@ TEST(ctlsorted_extension_present) {
     CHECK(U(CertFindExtension)(szOID_SORTED_CTL, c->pCtlInfo->cExtension, c->pCtlInfo->rgExtension) == NULL);
     rel(c); LocalFree(b);
 }
-/* Probed on Win10 22H2: CertFindSubjectInSortedCTL and CertEnumSubjectInSortedCTL reject the sorted CTLs produced by
-   CryptMsgEncodeAndSignCTL(CMSG_ENCODE_SORTED_CTL_FLAG) with E_INVALIDARG for every subject, flag (0..2), attribute
-   variant (none or one entry with attributes), hashed or plain identifiers, and for a CTL context obtained either from
-   CertCreateCTLContext or from a store. The outputs are cleared. */
+/* Probed on Win10 22H2: CertFindSubjectInSortedCTL and CertEnumSubjectInSortedCTL only work on a context that was
+   created with CertCreateContext(CERT_STORE_CTL_CONTEXT, ..., CERT_CREATE_CONTEXT_SORTED_FLAG) (see the ctlsortedctx_*
+   tests below). On a context from CertCreateCTLContext or from a store, which has all its entries decoded up front,
+   they fail with E_INVALIDARG for every subject, flag (0..2), attribute variant (none or one entry with attributes),
+   hashed or plain identifiers. The outputs are cleared. */
 TEST(ctlsorted_find_each_subject) {
     REQUIRE(U(CertFindSubjectInSortedCTL));
     for (int hashed = 0; hashed < 2; hashed++) {
@@ -424,7 +424,7 @@ TEST(ctlsorted_find_on_unsorted_ctl) {
     CRYPT_DER_BLOB at; memset(&at, 0, sizeof at); at.cbData = 5;
     SET_ERR(0);
     BOOL ok = U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &at);
-    t_note("CertFindSubjectInSortedCTL on an unsorted CTL: ret=%d err=0x%lx", ok, GetLastError());
+    CHECK(!ok); EXPECT_ERR(CC_E_INVALIDARG);
     CHECK(at.cbData == 0 && at.pbData == NULL);
     rel(c);
 }
@@ -679,7 +679,7 @@ TEST(ctlentry_create_chain_flag_needs_name_hashes) {
     DWORD cb = 0;
     SET_ERR(0);
     BOOL ok = U(CertCreateCTLEntryFromCertificateContextProperties)(cert, 0, NULL, CTL_ENTRY_FROM_PROP_CHAIN_FLAG, NULL, NULL, &cb);
-    t_note("CTL_ENTRY_FROM_PROP_CHAIN_FLAG on a cert without chain properties: ret=%d cb=%lu err=0x%lx", ok, cb, GetLastError());
+    CHECK(ok); EXPECT_EQ(cb, 222);
     relc(cert);
 }
 
@@ -1082,4 +1082,171 @@ TEST(ctlsign_computed_hash_covers_signed_attributes) {
         LocalFree(set);
     }
     U(CryptMsgClose)(h);
+}
+
+/* ---- sorted CTL contexts (CERT_CREATE_CONTEXT_SORTED_FLAG) ---- */
+typedef void *(WINAPI *CertCreateContext_pfn)(DWORD, DWORD, const BYTE *, DWORD, DWORD, void *);
+static PCCTL_CONTEXT sorted_flag_ctl(MK *m, DWORD enc_flags, DWORD ctx_flags, BYTE **keep) {
+    CertCreateContext_pfn cx = (CertCreateContext_pfn)t_proc("CertCreateContext");
+    DWORD cb = 0;
+    *keep = NULL;
+    if (!cx) return NULL;
+    *keep = cc_sign_ctl(&m->info, enc_flags, &cb);
+    if (!*keep) return NULL;
+    return (PCCTL_CONTEXT)cx(CERT_STORE_CTL_CONTEXT, CC_X509P7, *keep, cb, ctx_flags, NULL);
+}
+#define CTX_SORTED 0x2   /* CERT_CREATE_CONTEXT_SORTED_FLAG */
+static const BYTE k_attr1[] = { 0x31, 0x0f, 0x30, 0x0d, 0x06, 0x04, 0x2a, 0x03, 0x04, 0x05, 0x31, 0x05, 0x04, 0x03, 'a', 'b', 'c' };
+static const BYTE k_attr2[] = { 0x31, 0x1f, 0x30, 0x0b, 0x06, 0x04, 0x2a, 0x03, 0x04, 0x06, 0x31, 0x03, 0x04, 0x01, 'z',
+                                0x30, 0x10, 0x06, 0x04, 0x2a, 0x03, 0x04, 0x05, 0x31, 0x08, 0x04, 0x01, 'z', 0x04, 0x03, 'a', 'b', 'c' };
+static void mk_sorted_attrs(MK *m) {
+    static const BYTE v1[] = { 0x04, 0x03, 'a', 'b', 'c' }, v2[] = { 0x04, 0x01, 'z' };
+    static CRYPT_ATTR_BLOB val1, val2[2]; static CRYPT_ATTRIBUTE at1, at2[2];
+    val1.cbData = sizeof v1; val1.pbData = (BYTE *)v1;
+    val2[0] = val1; val2[1].cbData = sizeof v2; val2[1].pbData = (BYTE *)v2;
+    at1.pszObjId = (LPSTR)"1.2.3.4.5"; at1.cValue = 1; at1.rgValue = &val1;
+    at2[0].pszObjId = (LPSTR)"1.2.3.4.5"; at2[0].cValue = 2; at2[0].rgValue = val2;
+    at2[1].pszObjId = (LPSTR)"1.2.3.4.6"; at2[1].cValue = 1; at2[1].rgValue = &val2[1];
+    m->ent[2].cAttribute = 1; m->ent[2].rgAttribute = &at1;
+    m->ent[3].cAttribute = 2; m->ent[3].rgAttribute = at2;
+}
+TEST(ctlsortedctx_created_without_decoded_entries) {
+    REQUIRE(U(CertFindSubjectInSortedCTL));
+    MK m; mk_info(&m, NIDS, NULL);
+    BYTE *b;
+    PCCTL_CONTEXT c = sorted_flag_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG, CTX_SORTED, &b);
+    REQUIRE_NOTNULL(c);
+    EXPECT_EQ(c->pCtlInfo->cCTLEntry, 0);       /* entries are looked up in the encoded sorted area, not decoded */
+    EXPECT_EQ(c->pCtlInfo->cExtension, 0);
+    rel(c); LocalFree(b);
+}
+TEST(ctlsortedctx_find_each_subject) {
+    REQUIRE(U(CertFindSubjectInSortedCTL));
+    for (int hashed = 0; hashed < 2; hashed++) {
+        MK m; mk_info(&m, NIDS, NULL);
+        BYTE *b;
+        PCCTL_CONTEXT c = sorted_flag_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG | (hashed ? CMSG_ENCODE_HASHED_SUBJECT_IDENTIFIER_FLAG : 0), CTX_SORTED, &b);
+        REQUIRE_NOTNULL(c);
+        t_label("hashed=%d", hashed);
+        for (int i = 0; i < NIDS; i++) {
+            CRYPT_DATA_BLOB id = { 20, m.ids[i] };
+            CRYPT_DER_BLOB attrs = { 7, (BYTE *)7 };
+            SET_ERR(0);
+            BOOL ok = U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs);
+            CHECKF(ok, "id %d", i);
+            CHECK(attrs.cbData == 0 && attrs.pbData == NULL);     /* an entry without attributes */
+        }
+        BYTE other[20]; memset(other, 0xee, sizeof other);
+        CRYPT_DATA_BLOB id = { 20, other };
+        CRYPT_DER_BLOB attrs = { 7, (BYTE *)7 };
+        SET_ERR(0);
+        CHECK(!U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs)); EXPECT_ERR(CC_E_NOT_FOUND);
+        CHECK(attrs.cbData == 0 && attrs.pbData == NULL);
+        id.pbData = m.ids[2]; id.cbData = 19;       /* a prefix of a listed identifier */
+        attrs.cbData = 7; attrs.pbData = (BYTE *)7;
+        SET_ERR(0);
+        CHECK(!U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs)); EXPECT_ERR(CC_E_NOT_FOUND);
+        id.cbData = 0;
+        SET_ERR(0);
+        CHECK(!U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs)); EXPECT_ERR(CC_E_NOT_FOUND);
+        t_label(NULL);
+        rel(c); LocalFree(b);
+    }
+}
+TEST(ctlsortedctx_find_returns_encoded_attributes) {
+    REQUIRE(U(CertFindSubjectInSortedCTL));
+    MK m; mk_info(&m, NIDS, NULL); mk_sorted_attrs(&m);
+    BYTE *b;
+    PCCTL_CONTEXT c = sorted_flag_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG, CTX_SORTED, &b);
+    REQUIRE_NOTNULL(c);
+    CRYPT_DATA_BLOB id = { 20, m.ids[2] };
+    CRYPT_DER_BLOB at = { 7, (BYTE *)7 };
+    SET_ERR(0);
+    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &at));
+    CHECK(at.cbData == sizeof k_attr1 && at.pbData && !memcmp(at.pbData, k_attr1, sizeof k_attr1));
+    id.pbData = m.ids[3]; at.cbData = 7; at.pbData = (BYTE *)7;
+    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &at));
+    CHECK(at.cbData == sizeof k_attr2 && at.pbData && !memcmp(at.pbData, k_attr2, sizeof k_attr2));
+    /* dwFlags and pvReserved are ignored; the attributes pointer may be NULL */
+    id.pbData = m.ids[2];
+    for (DWORD fl = 1; fl < 5; fl++) {
+        t_label("flags %lu", fl);
+        at.cbData = 7; at.pbData = (BYTE *)7;
+        CHECK(U(CertFindSubjectInSortedCTL)(&id, c, fl, NULL, &at));
+        CHECK(at.cbData == sizeof k_attr1);
+    }
+    t_label(NULL);
+    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, NULL));
+    at.cbData = 7; at.pbData = (BYTE *)7;
+    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, (void *)1, &at));
+    CHECK(at.cbData == sizeof k_attr1);
+    rel(c); LocalFree(b);
+}
+TEST(ctlsortedctx_find_null_arguments_fault_inside_call) {
+    REQUIRE(U(CertFindSubjectInSortedCTL));
+    MK m; mk_info(&m, NIDS, NULL);
+    BYTE *b;
+    PCCTL_CONTEXT c = sorted_flag_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG, CTX_SORTED, &b);
+    REQUIRE_NOTNULL(c);
+    CRYPT_DATA_BLOB id = { 20, m.ids[1] };
+    CRYPT_DER_BLOB at = { 7, (BYTE *)7 };
+    /* the access violation is handled inside the call and reported as the last error */
+    SET_ERR(0);
+    CHECK(!U(CertFindSubjectInSortedCTL)(NULL, c, 0, NULL, &at)); EXPECT_ERR(0xc0000005);
+    SET_ERR(0);
+    CHECK(!U(CertFindSubjectInSortedCTL)(&id, NULL, 0, NULL, &at)); EXPECT_ERR(0xc0000005);
+    rel(c); LocalFree(b);
+}
+TEST(ctlsortedctx_enum_all) {
+    REQUIRE(U(CertEnumSubjectInSortedCTL));
+    /* index (in the input list) of each enumerated subject; the encoder orders the plain list and the hashed list differently */
+    static const char *const want[2] = { "534012", "023154" };
+    for (int hashed = 0; hashed < 2; hashed++) {
+        MK m; mk_info(&m, NIDS, NULL); mk_sorted_attrs(&m);
+        BYTE *b;
+        PCCTL_CONTEXT c = sorted_flag_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG | (hashed ? CMSG_ENCODE_HASHED_SUBJECT_IDENTIFIER_FLAG : 0), CTX_SORTED, &b);
+        REQUIRE_NOTNULL(c);
+        t_label("hashed=%d", hashed);
+        void *next = NULL; CRYPT_DER_BLOB id, at; char order[16]; int n = 0, seen[NIDS] = { 0 };
+        for (;;) {
+            id.cbData = 0; id.pbData = NULL; at.cbData = 7; at.pbData = (BYTE *)7;
+            if (!U(CertEnumSubjectInSortedCTL)(c, &next, &id, &at)) break;
+            int idx = -1;
+            for (int i = 0; i < NIDS; i++) if (id.cbData == 20 && !memcmp(id.pbData, m.ids[i], 20)) idx = i;
+            CHECKF(idx >= 0 && n < NIDS, "enumerated subject %d", n);
+            if (idx < 0 || n >= NIDS) break;
+            seen[idx]++; order[n++] = (char)('0' + idx);
+            if (idx == 2) CHECK(at.cbData == sizeof k_attr1 && !memcmp(at.pbData, k_attr1, sizeof k_attr1));
+            else if (idx == 3) CHECK(at.cbData == sizeof k_attr2 && !memcmp(at.pbData, k_attr2, sizeof k_attr2));
+            else CHECK(at.cbData == 0 && at.pbData == NULL);
+        }
+        order[n] = 0;
+        EXPECT_ERR(CC_E_NOT_FOUND);
+        EXPECT_EQ(n, NIDS);
+        for (int i = 0; i < NIDS; i++) EXPECT_EQ(seen[i], 1);
+        CHECK(next == NULL);
+        EXPECT_STR(order, want[hashed]);
+        /* the attributes pointer may be NULL; the identifier pointer may be NULL as well */
+        next = NULL; CHECK(U(CertEnumSubjectInSortedCTL)(c, &next, &id, NULL));
+        next = NULL; CHECK(U(CertEnumSubjectInSortedCTL)(c, &next, NULL, &at));
+        next = NULL; CHECK(U(CertEnumSubjectInSortedCTL)(c, &next, NULL, NULL));
+        /* a cursor that does not point into the sorted subject area ends the enumeration */
+        next = (void *)(ULONG_PTR)0x10;
+        SET_ERR(0);
+        CHECK(!U(CertEnumSubjectInSortedCTL)(c, &next, &id, &at)); EXPECT_ERR(CC_E_NOT_FOUND);
+        t_label(NULL);
+        rel(c); LocalFree(b);
+    }
+}
+TEST(ctlsortedctx_unsorted_encoding_still_found) {
+    REQUIRE(U(CertFindSubjectInSortedCTL));
+    MK m; mk_info(&m, NIDS, NULL);
+    BYTE *b;
+    PCCTL_CONTEXT c = sorted_flag_ctl(&m, 0, CTX_SORTED, &b);       /* encoded without CMSG_ENCODE_SORTED_CTL_FLAG */
+    REQUIRE_NOTNULL(c);
+    CRYPT_DATA_BLOB id = { 20, m.ids[4] };
+    CRYPT_DER_BLOB at = { 7, (BYTE *)7 };
+    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &at));
+    CHECK(at.cbData == 0 && at.pbData == NULL);
+    rel(c); LocalFree(b);
 }

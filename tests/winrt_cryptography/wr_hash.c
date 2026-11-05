@@ -110,8 +110,7 @@ TEST(winrt_hash_open_invalid_names) {
 TEST(winrt_hash_open_null_string) {
     WR_NEED(); void *st = wr_cls_statics(CLS_HASHPROV); if (!st) return;
     void *p = (void *)1; HRESULT hr = VF(st, 6, HSTRING, void **)(st, NULL, &p);
-    CHECK(FAILED(hr)); CHECK(p == NULL);
-    t_note("OpenAlgorithm(NULL) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80070490); CHECK(p == NULL);
     wr_release(st);
 }
 TEST(winrt_hash_open_case_and_alias_forms) {
@@ -119,9 +118,9 @@ TEST(winrt_hash_open_case_and_alias_forms) {
     static const WCHAR *forms[] = { L"sha256", L"Sha256", L"SHA-256", L"SHA_256", L"sha1", L"md5" };
     for (size_t i = 0; i < sizeof forms / sizeof *forms; i++) {
         void *p = NULL; HRESULT hr = wr_hash_open(forms[i], &p);
-        if (SUCCEEDED(hr)) { HSTRING n; UINT32 l = 0; h_name(p, &n); h_len(p, &l); UINT32 nl; const WCHAR *r = wr_raw(n, &nl);
-            t_note("%ls accepted: AlgorithmName='%ls' HashLength=%u", forms[i], r, l); wr_hsfree(n); wr_release(p); }
-        else t_note("%ls rejected 0x%08lx", forms[i], (unsigned long)hr);
+        /* algorithm names are matched case-sensitively and no dashed or underscored alias exists: every form is NOT_FOUND */
+        t_check(hr == (HRESULT)0x80070490 && p == NULL, __FILE__, __LINE__, "OpenAlgorithm(alias form)", "%ls hr 0x%08lx p %p", forms[i], (unsigned long)hr, p);
+        if (SUCCEEDED(hr)) wr_release(p);
     }
 }
 TEST(winrt_hash_provider_interfaces) {
@@ -205,9 +204,8 @@ TEST(winrt_hash_hashdata_null_buffer) {
     WR_NEED(); void *prov = NULL;
     if (wr_hash_open(L"SHA256", &prov) != S_OK) { if (!t_is_wine()) CHECK(!"open"); return; }
     void *out = (void *)1; HRESULT hr = wr_hash_data(prov, NULL, &out);
-    t_note("HashData(NULL) -> 0x%08lx", (unsigned long)hr);
-    if (hr == S_OK) CHECK(wr_buf_is_hex(out, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
-    else CHECK(out == NULL);
+    EXPECT_HR(hr, S_OK);
+    CHECK(wr_buf_is_hex(out, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
     wr_release(out == (void *)1 ? NULL : out); wr_release(prov);
 }
 TEST(winrt_hash_hashdata_respects_buffer_length) {
@@ -464,7 +462,7 @@ TEST(winrt_mac_key_object_interfaces) {
     HSTRING n = NULL; EXPECT_HR(wr_getclassname(key, &n), S_OK);
     CHECK(wr_hs_eq(n, L"Windows.Security.Cryptography.Core.MacKey")); wr_hsfree(n);
     UINT32 sz = 0; EXPECT_HR(VF(key, 6, UINT32 *)(key, &sz), S_OK);
-    t_note("MAC key KeySize for 6-byte secret: %u", sz);
+    EXPECT_EQ(sz, 6);
     wr_release(kb); wr_release(key); wr_release(prov);
 }
 TEST(winrt_mac_sign_null_arguments) {
@@ -485,7 +483,7 @@ TEST(winrt_mac_create_hash_from_provider) {
     WR_NEED(); void *prov = NULL;
     if (wr_mac_open(L"HMAC_SHA256", &prov) != S_OK) { if (!t_is_wine()) CHECK(!"open"); return; }
     ULONG n = 0; GUID *ids = NULL;
-    if (wr_getiids(prov, &n, &ids) != S_OK || n != 3) { t_note("MAC provider exposes %lu interfaces", n); wr_cofree(ids); wr_release(prov); return; }
+    if (!t_require(wr_getiids(prov, &n, &ids) == S_OK && n == 3, __FILE__, __LINE__, "MAC provider exposes exactly 3 interfaces")) { wr_cofree(ids); wr_release(prov); return; }
     void *p2 = NULL; HRESULT hr = wr_qi(prov, &ids[2], &p2); wr_cofree(ids);
     EXPECT_HR(hr, S_OK); if (!p2) { wr_release(prov); return; }
     void *kb = wr_mkbuf("Jefe", 4), *h = NULL;

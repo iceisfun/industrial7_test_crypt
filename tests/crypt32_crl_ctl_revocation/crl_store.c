@@ -97,7 +97,7 @@ TEST(crlstore_disp_add_new_exists) {
     SET_ERR(0);
     PCCRL_CONTEXT c = (PCCRL_CONTEXT)0x1;
     CHECK(!cc_add_crl(s, VEC(v_crl_basic), CERT_STORE_ADD_NEW, &c)); EXPECT_ERR(CC_E_EXISTS);
-    t_note("ppStoreContext after ADD_NEW failure = %p", (void *)c);
+    CHECK(c == NULL);
     SET_ERR(0);
     CHECK(!cc_add_crl(s, VEC(v_crl_basic_newer), CERT_STORE_ADD_NEW, NULL)); EXPECT_ERR(CC_E_EXISTS);
     EXPECT_EQ(cc_count_crls(s), 1);
@@ -183,7 +183,7 @@ TEST(crlstore_disp_newer_same_thisupdate) {
     CHECK(cc_add_crl(s, VEC(v_crl_basic), CERT_STORE_ADD_ALWAYS, NULL));
     SET_ERR(0);
     BOOL ok = cc_add_crl(s, VEC(v_crl_basic), CERT_STORE_ADD_NEWER, NULL);
-    t_note("ADD_NEWER with identical CRL: ret=%d err=0x%lx count=%d", ok, GetLastError(), cc_count_crls(s));
+    CHECK(!ok); EXPECT_ERR(CC_E_EXISTS); EXPECT_EQ(cc_count_crls(s), 1);
     cc_close(s);
 }
 TEST(crlstore_disp_newer_inherit_properties) {
@@ -213,7 +213,7 @@ TEST(crlstore_disp_invalid_value) {
         SET_ERR(0);
         BOOL ok = cc_add_crl(s, VEC(v_crl_basic), bad[i], NULL);
         CHECKF(!ok, "disposition %lu", bad[i]);
-        if (!ok) t_note("add disposition %lu -> err 0x%lx", bad[i], GetLastError());
+        EXPECT_ERR(CC_E_INVALIDARG);
     }
     EXPECT_EQ(cc_count_crls(s), 0);
     cc_close(s);
@@ -273,13 +273,13 @@ TEST(crlstore_link_adds_shared_element) {
         REQUIRE(lnk);
         CHECK(lnk->hCertStore == s2);
         EXPECT_EQ(lnk->cbCrlEncoded, orig->cbCrlEncoded);
-        t_note("link shares encoded buffer: %d", lnk->pbCrlEncoded == orig->pbCrlEncoded);
+        CHECK(lnk->pbCrlEncoded == orig->pbCrlEncoded);       /* the link shares the encoded buffer */
         /* properties set through the link are visible through the original (shared element) */
         BYTE v = 1; CRYPT_DATA_BLOB b = { 1, &v };
         CHECK(U(CertSetCRLContextProperty)(lnk, CERTD, 0, &b));
         DWORD cb = 0;
         BOOL seen = U(CertGetCRLContextProperty)(orig, CERTD, NULL, &cb);
-        t_note("property set on link visible on original: %d", seen);
+        CHECK(seen);
         rel(lnk);
     }
     rel(orig);
@@ -310,7 +310,6 @@ TEST(crlstore_enum_empty) {
     HCERTSTORE s = cc_store(); REQUIRE(s);
     SET_ERR(0);
     CHECK(U(CertEnumCRLsInStore)(s, NULL) == NULL);
-    t_note("enum empty store last error 0x%lx", GetLastError());
     EXPECT_ERR(CC_E_NOT_FOUND);
     cc_close(s);
 }
@@ -518,7 +517,7 @@ TEST(crlfind_issued_by_base_delta_flags) {
     while ((c = U(CertFindCRLInStore)(s, 0, 0, CRL_FIND_ISSUED_BY, ca1, c)) != NULL) nall++;
     EXPECT_EQ(nbase, 2); EXPECT_EQ(ndelta, 1); EXPECT_EQ(nall, 3);
     c = U(CertFindCRLInStore)(s, 0, CRL_FIND_ISSUED_BY_BASE_FLAG | CRL_FIND_ISSUED_BY_DELTA_FLAG, CRL_FIND_ISSUED_BY, ca1, NULL);
-    t_note("find with BASE|DELTA flags -> %p", (void *)c);
+    CHECK(c != NULL);        /* both flags together do not restrict the search */
     rel(c);
     relc(ca1);
     cc_close(s);
@@ -869,7 +868,7 @@ TEST(crlverify_revocation_serial_integer_compare) {
     CHECK(!U(CertVerifyCRLRevocation)(CC_X509, &ci, 1, infos));
     ci.SerialNumber.cbData = 3; ci.SerialNumber.pbData = s1pad;
     BOOL padded = U(CertVerifyCRLRevocation)(CC_X509, &ci, 1, infos);
-    t_note("serial with trailing zero byte (same integer) revoked: %d", !padded);
+    CHECK(!padded);          /* a serial with a trailing zero byte is the same integer: revoked */
     ci.SerialNumber.cbData = 2; ci.SerialNumber.pbData = s2;
     CHECK(U(CertVerifyCRLRevocation)(CC_X509, &ci, 1, infos));
     ci.SerialNumber.cbData = 3; ci.SerialNumber.pbData = shi;
@@ -990,7 +989,7 @@ TEST(crlfind_issued_for_respects_idp) {
     REQUIRE(ca1 && plain && m);
     CRL_FIND_ISSUED_FOR_PARA p = { plain, ca1 };
     PCCRL_CONTEXT c = U(CertFindCRLInStore)(s, 0, 0, CRL_FIND_ISSUED_FOR, &p, NULL);
-    t_note("ISSUED_FOR for cert without CDP vs IDP CRL: %s", c ? "found" : "not found");
+    CHECK(c != NULL);        /* a certificate without a CDP is matched by the IDP CRL in the find path */
     rel(c);
     p.pSubjectCert = m;
     c = U(CertFindCRLInStore)(s, 0, 0, CRL_FIND_ISSUED_FOR, &p, NULL);

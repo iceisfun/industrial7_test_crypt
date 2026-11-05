@@ -113,7 +113,9 @@ TEST(sf_gns_dns_search_all_names_small_buffers) {
     EXPECT_EQ(n, 33); EXPECT_EQ(w[32], 0);
     memset(w, 0xcc, sizeof w);
     n = gw(c, CERT_NAME_DNS_TYPE, CERT_NAME_SEARCH_ALL_NAMES_FLAG, NULL, w, 16);
-    t_note("SEARCH_ALL_NAMES with 16 char buffer: n=%lu w[14]=%#x w[15]=%#x", n, w[14], w[15]);
+    EXPECT_EQ(n, 16);
+    /* the first name is truncated to fit and the list is terminated by two NULs; nothing is written past the buffer */
+    CHECK(!memcmp(w, L"www.example.co\0\0", 16 * sizeof(WCHAR))); EXPECT_EQ(w[16], 0xcccc);
     fc(c);
 }
 TEST(sf_gns_dns_single_alt_name_search_all) {
@@ -172,8 +174,7 @@ TEST(sf_gns_simple_display_org_only) {
 TEST(sf_gns_simple_display_ou_vs_o_priority_observed) {
     REQ_GN(); CTX(c, ou); WCHAR w[64]; DWORD n;
     n = gw(c, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, w, 64);
-    t_note("subject with only O=OnlyOrg,OU=OnlyUnit -> simple display '%ls' (%lu)", w, n);
-    CHECK(!lstrcmpW(w, L"OnlyOrg") || !lstrcmpW(w, L"OnlyUnit"));
+    EXPECT_EQ(n, 9); EXPECT_WSTR(w, L"OnlyUnit");      /* OU wins over O */
     fc(c);
 }
 TEST(sf_gns_simple_display_email_only_name) {
@@ -195,7 +196,7 @@ TEST(sf_gns_friendly_name_property_wins) {
     static const WCHAR fn[] = L"My Friendly";
     CRYPT_DATA_BLOB blob; blob.cbData = sizeof fn; blob.pbData = (BYTE*)fn;
     BOOL r = setp(d, CERT_FRIENDLY_NAME_PROP_ID, 0, &blob);
-    if (!r) { t_note("cannot set friendly name on a free-standing context: %lu", GetLastError()); fc(d); fc(c); return; }
+    CHECK(r); if (!r) { fc(d); fc(c); return; }
     GN(d, CERT_NAME_FRIENDLY_DISPLAY_TYPE, 0, NULL, "My Friendly");
     GN(d, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, NULL, "Leaf Subject");
     GN(c, CERT_NAME_FRIENDLY_DISPLAY_TYPE, 0, NULL, "Leaf Subject");
@@ -306,9 +307,9 @@ TEST(sf_gns_punycode_default_unchanged) {
 TEST(sf_gns_punycode_flag_observed) {
     REQ_GN(); CTX(c, idn); WCHAR w[64]; DWORD n;
     n = gw(c, CERT_NAME_DNS_TYPE, CERT_NAME_STR_ENABLE_PUNYCODE_FLAG, NULL, w, 64);
-    t_note("DNS name with ENABLE_PUNYCODE_FLAG: n=%lu '%ls'", n, w);
+    EXPECT_EQ(n, 15); EXPECT_WSTR(w, L"b\u00fccher.example");
     n = gw(c, CERT_NAME_SIMPLE_DISPLAY_TYPE, CERT_NAME_STR_ENABLE_PUNYCODE_FLAG, NULL, w, 64);
-    t_note("simple display with ENABLE_PUNYCODE_FLAG: n=%lu '%ls'", n, w);
+    EXPECT_EQ(n, 22); EXPECT_WSTR(w, L"xn--bcher-kva.example");     /* only the DNS name type is converted back */
     fc(c);
 }
 TEST(sf_gns_disable_ie4_utf8_flag_accepted) {

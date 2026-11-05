@@ -82,7 +82,8 @@ TEST(winrt_misc_activation_on_thread_without_init) {
     HANDLE t = CreateThread(NULL, 0, noinit_thread, NULL, 0, NULL);
     if (!t) { t_skip("thread"); return; }
     WaitForSingleObject(t, 15000); CloseHandle(t);
-    t_note("RoGetActivationFactory on a thread with no apartment (process has an MTA) -> 0x%08lx", (unsigned long)g_noinit_hr);
+    /* the process already has an MTA (the main thread joined it), so a thread that never initialised COM joins it implicitly */
+    EXPECT_HR(g_noinit_hr, S_OK);
 }
 static void *g_shared_hash;
 static volatile LONG g_mt_fail;

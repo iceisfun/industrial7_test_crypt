@@ -266,11 +266,11 @@ TEST(sf_n2s_non_string_values_hex) {
     static const BYTE oct[] = { 0xab, 0xcd };
     NAME_OF(g_nb, b, { 1, "2.5.4.3", 0x04, oct, 2 });
     n = fw(X509_ASN_ENCODING, &b, CERT_X500_NAME_STR, w, 64);
-    t_note("CN as OCTET STRING {ab cd}, X500: '%ls' (%lu)", w, n);
+    EXPECT_EQ(n, 9); EXPECT_WSTR(w, L"CN=#ABCD");
     static const BYTE intv[] = { 0x05 };
     NAME_OF(g_nb, b, { 1, "2.5.4.3", 0x02, intv, 1 });
     n = fw(X509_ASN_ENCODING, &b, CERT_X500_NAME_STR, w, 64);
-    t_note("CN as INTEGER 5, X500: '%ls' (%lu)", w, n);
+    EXPECT_EQ(n, 11); EXPECT_WSTR(w, L"CN=#020105");
 }
 
 /* ---------------- XML ---------------- */
@@ -313,16 +313,16 @@ TEST(sf_n2s_combined_encoding_types) {
     REQ_N2S(); CERT_NAME_BLOB b; WCHAR w[16];
     NAME_OF(g_nb, b, { 1, "2.5.4.3", PS, "1", -1 });
     DWORD n = fw(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, &b, CERT_X500_NAME_STR, w, 16);
-    t_note("X509|PKCS7 encoding type: n=%lu '%ls'", n, w);
+    EXPECT_EQ(n, 5); EXPECT_WSTR(w, L"CN=1");
     n = fw(PKCS_7_ASN_ENCODING, &b, CERT_X500_NAME_STR, w, 16);
-    t_note("PKCS7 only encoding type: n=%lu err=%lu", n, GetLastError());
+    EXPECT_EQ(n, 5);
 }
 TEST(sf_n2s_empty_name) {
     REQ_N2S(); CERT_NAME_BLOB b; static const BYTE empty[] = { 0x30, 0x00 }; WCHAR w[8]; char s[8]; DWORD n;
     b.cbData = 2; b.pbData = (BYTE*)empty;
     SET_ERR(0);
     n = fw(X509_ASN_ENCODING, &b, CERT_X500_NAME_STR, NULL, 0);
-    EXPECT_EQ(n, 1); t_note("empty name last error = %#lx (decomp sets CRYPT_E_NOT_FOUND)", GetLastError());
+    EXPECT_EQ(n, 1); EXPECT_ERR(CRYPT_E_NOT_FOUND);
     w[0] = 0x7777; n = fw(X509_ASN_ENCODING, &b, CERT_X500_NAME_STR, w, 8); EXPECT_EQ(n, 1); EXPECT_EQ(w[0], 0);
     s[0] = 0x77; n = fa(X509_ASN_ENCODING, &b, CERT_X500_NAME_STR, s, 8); EXPECT_EQ(n, 1); EXPECT_EQ(s[0], 0);
 }
@@ -332,8 +332,7 @@ TEST(sf_n2s_garbage_blob) {
     SET_ERR(0);
     n = fw(X509_ASN_ENCODING, &b, CERT_X500_NAME_STR, w, 8);
     EXPECT_EQ(n, 1); EXPECT_EQ(w[0], 0);
-    CHECK(GetLastError() != 0);
-    t_note("garbage name blob last error: %#lx", GetLastError());
+    EXPECT_ERR(CRYPT_E_ASN1_BADTAG);
 }
 TEST(sf_n2s_truncated_der) {
     REQ_N2S(); CERT_NAME_BLOB b; WCHAR w[8]; DWORD n;

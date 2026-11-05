@@ -251,7 +251,7 @@ TEST(winrt_asym_rsa_import_public_formats) {
     EXPECT_HR(a_imp_pub_t(p, p1, PUB_PKCS1, &k), S_OK); EXPECT_EQ(k_size(k), 2048);
     EXPECT_HR(k_pub(k, &o), S_OK); CHECK(wr_buf_is_hex(o, wr_rsa_spki)); wr_release(o);
     o = NULL; HRESULT hr = k_exp(k, &o);                            /* a public-only key has no private part to export */
-    CHECK(FAILED(hr)); CHECK(o == NULL); t_note("Export(public-only key) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80070057); CHECK(o == NULL);
     wr_release(k); wr_release(s); wr_release(p1); wr_release(p);
 }
 TEST(winrt_asym_import_garbage_fails) {
@@ -317,8 +317,7 @@ TEST(winrt_asym_key_object_interfaces) {
     EXPECT_HR(wr_qi(k, &WR_IID_IAgileObject, &o), S_OK); wr_release(o);
     HSTRING n = NULL; EXPECT_HR(wr_getclassname(k, &n), S_OK);
     UINT32 l; const WCHAR *r = wr_raw(n, &l);
-    CHECK(!lstrcmpW(r, L"Windows.Security.Cryptography.Core.AsymmetricKey") || !lstrcmpW(r, L"Windows.Security.Cryptography.Core.AsymmetricPersistedKey"));
-    t_note("asymmetric key class: %ls", r); wr_hsfree(n);
+    CHECK(!lstrcmpW(r, L"Windows.Security.Cryptography.Core.AsymmetricKey")); wr_hsfree(n);
     wr_release(k); wr_release(p);
 }
 
@@ -369,8 +368,8 @@ TEST(winrt_asym_rsa_verify_wrong_signature_forms) {
     EXPECT_HR(e_verify(pk, m, good, &ok), S_OK); EXPECT_EQ(ok, 1);
     EXPECT_HR(e_verify(pk, m, bad1, &ok), S_OK); EXPECT_EQ(ok, 0);
     EXPECT_HR(e_verify(pk, m, bad2, &ok), S_OK); EXPECT_EQ(ok, 0);
-    HRESULT hr = e_verify(pk, m, sh, &ok); CHECK(hr == S_OK ? ok == 0 : 1); t_note("Verify(255-byte signature) -> 0x%08lx ok=%d", (unsigned long)hr, ok);
-    hr = e_verify(pk, m, e, &ok); CHECK(hr == S_OK ? ok == 0 : 1); t_note("Verify(empty signature) -> 0x%08lx ok=%d", (unsigned long)hr, ok);
+    ok = 0x55; EXPECT_HR(e_verify(pk, m, sh, &ok), S_OK); EXPECT_EQ(ok, 0);      /* wrong length: reported as not verified, not as an error */
+    ok = 0x55; EXPECT_HR(e_verify(pk, m, e, &ok), S_OK); EXPECT_EQ(ok, 0);
     wr_release(pk); wr_release(m); wr_release(good); wr_release(bad1); wr_release(bad2); wr_release(sh); wr_release(e);
 }
 TEST(winrt_asym_rsa_sign_cross_hash_mismatch) {
@@ -452,7 +451,7 @@ TEST(winrt_asym_rsa_encrypt_iv_must_be_null) {
     void *m = wr_mkbuf("x", 1), *iv = wr_mkbuf("0123456789abcdef", 16), *o = (void *)1;
     EXPECT_HR(wr_encrypt(pk, m, iv, &o), HR_E_INVALIDARG); CHECK(o == NULL);
     void *ct = wr_mkbuf_hex(wr_rsa_enc_pkcs1);
-    HRESULT hr = wr_decrypt(k, ct, iv, &o); CHECK(FAILED(hr)); t_note("Decrypt(asym, iv) -> 0x%08lx", (unsigned long)hr);
+    HRESULT hr = wr_decrypt(k, ct, iv, &o); EXPECT_HR(hr, 0x80070057);
     wr_release(pk); wr_release(k); wr_release(m); wr_release(iv); wr_release(ct);
 }
 TEST(winrt_asym_capability_encrypt_decrypt) {
@@ -520,8 +519,8 @@ TEST(winrt_asym_ecdsa_create_key_pair) {
 }
 TEST(winrt_asym_ecdsa_create_key_wrong_size_note) {
     WR_NEED(); void *p = open_a(L"ECDSA_P256_SHA256"); if (!p) return;
-    void *k; HRESULT hr = a_create(p, 384, &k);
-    t_note("ECDSA_P256_SHA256 CreateKeyPair(384) -> 0x%08lx size %u", (unsigned long)hr, k_size(k));
+    void *k = (void *)1; HRESULT hr = a_create(p, 384, &k);
+    EXPECT_HR(hr, 0x80070057); CHECK(k == NULL);
     wr_release(k); wr_release(p);
 }
 TEST(winrt_asym_ecdsa_import_known_private_blob) {
@@ -552,7 +551,7 @@ TEST(winrt_asym_ecdsa_import_public_spki) {
     WR_NEED();
     for (int i = 0; i < 3; i++) {
         void *k = pub_key(k_ec[i].alg, k_ec[i].spki); if (!k) return;
-        if (k_size(k) != k_ec[i].bits) t_note("%ls imported SPKI KeySize = %u (curve size %u)", k_ec[i].alg, k_size(k), k_ec[i].bits);
+        t_check(k_size(k) == k_ec[i].bits, __FILE__, __LINE__, "imported SPKI KeySize", "%ls got %u want %u", k_ec[i].alg, k_size(k), k_ec[i].bits);
         void *b; EXPECT_HR(k_pub(k, &b), S_OK); CHECK(wr_buf_is_hex(b, k_ec[i].spki)); wr_release(b);
         wr_release(k);
     }
@@ -607,33 +606,27 @@ TEST(winrt_asym_ecdsa_cross_curve_import_fails) {
     WR_NEED(); void *p = open_a(L"ECDSA_P384_SHA384"); if (!p) return;
     void *b = wr_mkbuf_hex(wr_p256_spki), *k = (void *)1;
     HRESULT hr = a_imp_pub(p, b, &k);
-    t_note("import P-256 SPKI into ECDSA_P384_SHA384 -> 0x%08lx", (unsigned long)hr);
-    if (FAILED(hr)) CHECK(k == NULL); else wr_release(k);
+    EXPECT_HR(hr, S_OK); if (hr == S_OK) { EXPECT_EQ(k_size(k), 256); wr_release(k); }
     void *b2 = wr_mkbuf_hex(wr_p256_pkcs8); hr = a_imp_priv(p, b2, &k);
-    t_note("import P-256 PKCS#8 into ECDSA_P384_SHA384 -> 0x%08lx", (unsigned long)hr);
-    if (FAILED(hr)) CHECK(k == NULL); else wr_release(k);
+    EXPECT_HR(hr, 0x80070057); CHECK(k == NULL);
     wr_release(p); wr_release(b); wr_release(b2);
 }
 TEST(winrt_asym_ecdsa_generic_import_into_rsa_fails) {
     WR_NEED(); void *p = open_a(L"RSASIGN_PKCS1_SHA256"); if (!p) return;
     void *b = wr_mkbuf_hex(wr_p256_spki), *k = (void *)1;
     HRESULT hr = a_imp_pub(p, b, &k);
-    t_note("import EC SPKI into an RSA provider -> 0x%08lx", (unsigned long)hr);
-    if (FAILED(hr)) CHECK(k == NULL); else wr_release(k);
+    EXPECT_HR(hr, S_OK); if (hr == S_OK) { EXPECT_EQ(k_size(k), 256); wr_release(k); }
     void *b2 = wr_mkbuf_hex(wr_p256_pkcs8); hr = a_imp_priv(p, b2, &k);
-    t_note("import EC PKCS#8 into an RSA provider -> 0x%08lx", (unsigned long)hr);
-    if (FAILED(hr)) CHECK(k == NULL); else wr_release(k);
+    EXPECT_HR(hr, 0x90090005); CHECK(k == NULL);
     wr_release(p); wr_release(b); wr_release(b2);
 }
 TEST(winrt_asym_rsa_into_ecdsa_import_fails) {
     WR_NEED(); void *p = open_a(L"ECDSA_P256_SHA256"); if (!p) return;
     void *b = wr_mkbuf_hex(wr_rsa_spki), *k = (void *)1;
     HRESULT hr = a_imp_pub(p, b, &k);
-    t_note("import RSA SPKI into an ECDSA provider -> 0x%08lx", (unsigned long)hr);
-    if (FAILED(hr)) CHECK(k == NULL); else wr_release(k);
+    EXPECT_HR(hr, S_OK); if (hr == S_OK) { EXPECT_EQ(k_size(k), 2048); wr_release(k); }
     void *b2 = wr_mkbuf_hex(wr_rsa_pkcs8); hr = a_imp_priv(p, b2, &k);
-    t_note("import RSA PKCS#8 into an ECDSA provider -> 0x%08lx", (unsigned long)hr);
-    if (FAILED(hr)) CHECK(k == NULL); else wr_release(k);
+    EXPECT_HR(hr, 0x80070057); CHECK(k == NULL);
     wr_release(p); wr_release(b); wr_release(b2);
 }
 TEST(winrt_asym_ecdsa_curve_name_creation) {

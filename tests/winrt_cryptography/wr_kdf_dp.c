@@ -54,7 +54,7 @@ TEST(winrt_kdf_open_capi_names_note) {
     for (int i = 0; i < 5; i++) {
         void *p = NULL; HRESULT hr = wr_kdf_open(k_kdfnames2[i], &p);
         if (FAILED(hr) && t_is_wine()) { t_skip("emulator"); return; }
-        t_note("%ls -> 0x%08lx", k_kdfnames2[i], (unsigned long)hr); wr_release(p);
+        t_check(hr == S_OK && p, __FILE__, __LINE__, "OpenAlgorithm(CAPI KDF name)", "%ls hr 0x%08lx", k_kdfnames2[i], (unsigned long)hr); wr_release(p);
     }
 }
 TEST(winrt_kdf_open_invalid) {
@@ -103,7 +103,7 @@ TEST(winrt_kdf_params_pbkdf2_build) {
             void *bin = NULL; EXPECT_HR(VF(p, 6, void **)(p, &bin), S_OK); CHECK(wr_buf_is(bin, "salt", 4));
             UINT32 it = 0; EXPECT_HR(VF(p, 8, UINT32 *)(p, &it), S_OK); EXPECT_EQ(it, 1000);
             wr_release(bin);
-        } else t_note("IKeyDerivationParameters slot order differs from {KdfGenericBinary, IterationCount}");
+        } else CHECK(!"IKeyDerivationParameters slot order is {KdfGenericBinary, IterationCount}");
         wr_release(p);
     }
     wr_release(salt); wr_release(s);
@@ -127,7 +127,7 @@ TEST(winrt_kdf_params_pbkdf2_iteration_counts_stored) {
 TEST(winrt_kdf_params_generic_binary_put_get) {
     WR_NEED(); void *s = wr_cls_statics(CLS_KDFPARAMS); if (!s) return;
     void *salt = wr_mkbuf("salt", 4), *p = NULL; p_pbkdf2(s, salt, 1000, &p); if (!p) return;
-    if (!params_layout_binary_first(p)) { t_note("unexpected slot order"); wr_release(p); wr_release(salt); wr_release(s); return; }
+    if (!params_layout_binary_first(p)) { CHECK(!"parameters slot order"); wr_release(p); wr_release(salt); wr_release(s); return; }
     void *nb = wr_mkbuf("pepper", 6), *got = NULL;
     EXPECT_HR(VF(p, 7, void *)(p, nb), S_OK);
     EXPECT_HR(VF(p, 6, void **)(p, &got), S_OK); CHECK(got == nb);
@@ -274,8 +274,8 @@ TEST(winrt_kdf_sp800108_layout_note) {
             derive(key, par, v->dklen, &o2);
             const BYTE *a, *b; UINT32 la, lb; CHECK(wr_buf_get(o1, &a, &la) && wr_buf_get(o2, &b, &lb) && la == lb && !memcmp(a, b, la));
             int w = wr_buf_is_hex(o1, v->dk_with_l), wo = wr_buf_is_hex(o1, v->dk_without_l);
-            if (!w && !wo) t_note("%ls len %u: output matches neither plain counter||label||0||context nor the variant with [L]", v->alg, v->dklen);
-            else if (i % 3 == 0) t_note("%ls: PRF input = counter||label||0x00||context%s", v->alg, w ? "||[L]32" : "");
+            /* the PRF input is counter||label||0x00||context||[L], with L the output length in bits as a 32-bit big-endian value */
+            t_check(w && !wo, __FILE__, __LINE__, "SP800-108 PRF input layout", "%ls len %u with_L %d without_L %d", v->alg, v->dklen, w, wo);
         }
         wr_release(prov); wr_release(kb); wr_release(l); wr_release(c); wr_release(key); wr_release(par); wr_release(o1); wr_release(o2);
     }
@@ -301,7 +301,8 @@ static void *dp_provider(const WCHAR *desc) {
     void *p = NULL; HSTRING h = wr_hs(desc);
     HRESULT hr = VF(f, 6, HSTRING, void **)(f, h, &p);
     wr_hsfree(h); wr_release(f);
-    if (hr != S_OK) { t_note("CreateOverloadExplicit(%ls) -> 0x%08lx", desc, (unsigned long)hr); return NULL; }
+    t_check(hr == S_OK, __FILE__, __LINE__, "CreateOverloadExplicit", "%ls hr 0x%08lx", desc, (unsigned long)hr);
+    if (hr != S_OK) return NULL;
     return p;
 }
 static HRESULT dp_run(void *prov, int slot, void *in, void **out, int *status, HRESULT *err) {
@@ -318,7 +319,7 @@ TEST(winrt_dp_create_descriptor_invalid) {
     EXPECT_HR(VF(f, 6, HSTRING, void **)(f, NULL, &p), HR_E_INVALIDARG); CHECK(p == NULL);
     p = (void *)1;
     HSTRING bad = wr_hs(L"NOSUCHRULE=x"); HRESULT hr = VF(f, 6, HSTRING, void **)(f, bad, &p);
-    CHECK(FAILED(hr)); CHECK(p == NULL); t_note("CreateOverloadExplicit(NOSUCHRULE=x) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0xc0000225); CHECK(p == NULL);
     wr_hsfree(bad);
     wr_release(f);
 }
@@ -333,7 +334,7 @@ TEST(winrt_dp_protect_unprotect_roundtrip_local_user) {
     WR_NEED(); void *p = dp_provider(L"LOCAL=user"); if (!p) { if (!t_is_wine()) CHECK(!"provider"); return; }
     void *in = wr_mkbuf("dp round trip payload", 21), *blob = NULL, *back = NULL; int st; HRESULT err;
     HRESULT hr = dp_run(p, 6, in, &blob, &st, &err);
-    if (hr != S_OK || st != 1) { t_note("ProtectAsync(LOCAL=user): hr 0x%08lx status %d error 0x%08lx", (unsigned long)hr, st, (unsigned long)err); CHECK(0); wr_release(p); wr_release(in); return; }
+    if (hr != S_OK || st != 1) { t_check(0, __FILE__, __LINE__, "ProtectAsync(LOCAL=user)", "hr 0x%08lx status %d error 0x%08lx", (unsigned long)hr, st, (unsigned long)err); wr_release(p); wr_release(in); return; }
     CHECK(wr_buf_len(blob) > 21);
     const BYTE *b; UINT32 n; if (wr_buf_get(blob, &b, &n)) CHECK(b[0] == 0x30);               /* DER SEQUENCE (CMS) */
     hr = dp_run(p, 7, blob, &back, &st, &err);
@@ -347,11 +348,11 @@ TEST(winrt_dp_unprotect_without_descriptor) {
     VF(f, 6, void **)(f, &d);
     void *u = NULL; if (d) wr_qi(d, &k_iid_dpprovider, &u);
     void *in = wr_mkbuf("payload-2", 9), *blob = NULL, *back = NULL; int st; HRESULT err;
-    if (dp_run(p, 6, in, &blob, &st, &err) != S_OK || st != 1) { t_note("protect failed %d 0x%08lx", st, (unsigned long)err); wr_release(p); return; }
+    if (!t_require(dp_run(p, 6, in, &blob, &st, &err) == S_OK && st == 1, __FILE__, __LINE__, "ProtectAsync(LOCAL=user)")) { wr_release(p); return; }
     if (u) {
         HRESULT hr = dp_run(u, 7, blob, &back, &st, &err);
         t_check(hr == S_OK && st == 1 && wr_buf_is(back, "payload-2", 9), __FILE__, __LINE__, "Unprotect via default provider", "hr 0x%08lx status %d err 0x%08lx", (unsigned long)hr, st, (unsigned long)err);
-    } else t_note("default-constructed object does not expose IDataProtectionProvider");
+    } else CHECK(!"default-constructed object exposes IDataProtectionProvider");
     wr_release(u); wr_release(d); wr_release(f); wr_release(p); wr_release(in); wr_release(blob); wr_release(back);
 }
 TEST(winrt_dp_protect_distinct_each_time) {
@@ -375,9 +376,8 @@ TEST(winrt_dp_unprotect_garbage_fails_async) {
     WR_NEED(); void *p = dp_provider(L"LOCAL=user"); if (!p) { if (!t_is_wine()) CHECK(!"provider"); return; }
     void *g = wr_mkbuf("this is not a protected blob", 28), *o = NULL; int st = -1; HRESULT err = S_OK;
     HRESULT hr = dp_run(p, 7, g, &o, &st, &err);
-    t_note("Unprotect(garbage): hr 0x%08lx status %d error 0x%08lx", (unsigned long)hr, st, (unsigned long)err);
-    CHECK(hr != S_OK || st == 3 || st == 2);       /* either rejected up front or completed in the Error state */
-    if (st == 3) CHECK(FAILED(err));
+    /* the call is accepted; the operation completes in the Error state (3) with a decode error */
+    EXPECT_HR(hr, S_OK); EXPECT_EQ(st, 3); EXPECT_HR(err, 0x8009310b); CHECK(o == NULL);
     wr_release(p); wr_release(g); wr_release(o);
 }
 TEST(winrt_dp_async_object_interfaces) {
@@ -390,17 +390,17 @@ TEST(winrt_dp_async_object_interfaces) {
         EXPECT_HR(wr_qi(op, &k_iid_asyncinfo, &u), S_OK); wr_release(u);
         HSTRING n = NULL; EXPECT_HR(wr_getclassname(op, &n), S_OK);
         CHECK(wr_hs_eq(n, L"Windows.Foundation.IAsyncOperation`1<Windows.Storage.Streams.IBuffer>")); wr_hsfree(n);
-        int st; HRESULT err; wait_async(op, &st, &err); CHECK(st == 1 || st == 3);
+        int st; HRESULT err; wait_async(op, &st, &err); EXPECT_EQ(st, 1);
         wr_release(op);
     }
     wr_release(p); wr_release(in);
 }
 TEST(winrt_dp_machine_descriptor_creation) {
     WR_NEED(); void *p = dp_provider(L"LOCAL=machine");
-    if (!p) { t_note("LOCAL=machine descriptor creation failed"); return; }
+    if (!t_require(p != NULL, __FILE__, __LINE__, "LOCAL=machine descriptor")) return;
     void *in = wr_mkbuf("m", 1), *blob = NULL; int st; HRESULT err;
     HRESULT hr = dp_run(p, 6, in, &blob, &st, &err);
-    t_note("Protect(LOCAL=machine): hr 0x%08lx status %d error 0x%08lx", (unsigned long)hr, st, (unsigned long)err);
+    EXPECT_HR(hr, S_OK); EXPECT_EQ(st, 1); EXPECT_HR(err, S_OK); CHECK(blob != NULL);
     wr_release(p); wr_release(in); wr_release(blob);
 }
 TEST(winrt_dp_default_provider_cannot_protect) {
@@ -409,8 +409,8 @@ TEST(winrt_dp_default_provider_cannot_protect) {
     if (u) {
         void *in = wr_mkbuf("x", 1), *o = NULL; int st = -1; HRESULT err = S_OK;
         HRESULT hr = dp_run(u, 6, in, &o, &st, &err);
-        t_note("Protect on default provider: hr 0x%08lx status %d error 0x%08lx", (unsigned long)hr, st, (unsigned long)err);
-        CHECK(hr != S_OK || st == 3); wr_release(in); wr_release(o);
+        /* the call is accepted; the operation completes in the Error state (3) with an invalid-handle error */
+        EXPECT_HR(hr, S_OK); EXPECT_EQ(st, 3); EXPECT_HR(err, 0x80090026); CHECK(o == NULL); wr_release(in); wr_release(o);
     }
     wr_release(u); wr_release(d); wr_release(f);
 }

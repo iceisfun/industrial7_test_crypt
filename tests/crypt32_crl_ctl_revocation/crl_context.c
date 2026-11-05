@@ -55,8 +55,8 @@ TEST(crlctx_create_trailing_garbage) {
     BYTE buf[sizeof(v_crl_basic) + 4];
     memcpy(buf, v_crl_basic, sizeof v_crl_basic); memset(buf + sizeof v_crl_basic, 0xAA, 4);
     PCCRL_CONTEXT c = U(CertCreateCRLContext)(CC_X509, buf, sizeof buf);
-    t_note("trailing garbage after CRL: %s", c ? "accepted" : "rejected");
-    if (c) t_note("cbCrlEncoded=%lu (input %zu, DER %zu)", c->cbCrlEncoded, sizeof buf, sizeof v_crl_basic);
+    CHECK(c != NULL);       /* the trailing bytes are ignored and not counted in the encoded size */
+    if (c) EXPECT_EQ(c->cbCrlEncoded, sizeof v_crl_basic);
     rel(c);
 }
 
@@ -83,7 +83,8 @@ TEST(crlctx_create_all_vectors) {
         if (c->pCrlInfo) {
             EXPECT_EQ(c->pCrlInfo->dwVersion, kVecs[i].ver);
             EXPECT_EQ(c->pCrlInfo->cCRLEntry, kVecs[i].entries);
-            CHECKF(blob_is(&c->pCrlInfo->Issuer, v_ca1_subject, sizeof v_ca1_subject) || !strcmp(kVecs[i].name, "ca2"), "%s issuer", kVecs[i].name);
+            if (!strcmp(kVecs[i].name, "ca2")) CHECKF(blob_is(&c->pCrlInfo->Issuer, v_ca2_subject, sizeof v_ca2_subject), "%s issuer", kVecs[i].name);
+            else CHECKF(blob_is(&c->pCrlInfo->Issuer, v_ca1_subject, sizeof v_ca1_subject), "%s issuer", kVecs[i].name);
         }
         EXPECT_EQ(c->cbCrlEncoded, kVecs[i].n);
         CHECKF(c->pbCrlEncoded && !memcmp(c->pbCrlEncoded, kVecs[i].p, kVecs[i].n), "%s encoded bytes", kVecs[i].name);
@@ -108,11 +109,10 @@ TEST(crlctx_encoding_type_field) {
     PCCRL_CONTEXT c = U(CertCreateCRLContext)(CC_X509, VEC(v_crl_basic));
     REQUIRE(c);
     EXPECT_EQ(c->dwCertEncodingType, CC_X509);
-    t_note("hCertStore of standalone CRL context = %p", (void *)c->hCertStore);
+    CHECK(c->hCertStore != NULL);       /* a standalone context belongs to a hidden store */
     rel(c);
     c = U(CertCreateCRLContext)(CC_X509P7, VEC(v_crl_basic));
-    if (c) { t_note("CRL created with X509|PKCS7 has dwCertEncodingType 0x%lx", c->dwCertEncodingType); rel(c); }
-    else t_note("X509|PKCS7 encoding type rejected for CRL");
+    CHECK(c != NULL); if (c) { EXPECT_EQ(c->dwCertEncodingType, CC_X509); rel(c); }
 }
 TEST(crlctx_info_times_basic) {
     REQUIRE(U(CertCreateCRLContext));
@@ -461,7 +461,7 @@ TEST(crlprop_user_property_empty_value) {
     DWORD cb = 99;
     SET_ERR(0);
     BOOL r = U(CertGetCRLContextProperty)(c, PROP_USER, NULL, &cb);
-    t_note("get zero-length user property: ret=%d cb=%lu err=0x%lx", r, cb, GetLastError());
+    CHECK(r); EXPECT_EQ(cb, 0);
     U(CertSetCRLContextProperty)(c, PROP_USER, 0, NULL);
     rel(c);
 }
@@ -628,7 +628,7 @@ TEST(crlser_roundtrip_via_add_serialized) {
     /* wrong expected type */
     SET_ERR(0);
     CHECK(!U(CertAddSerializedElementToStore)(s, buf, cb, CERT_STORE_ADD_ALWAYS, 0, CERT_STORE_CERTIFICATE_CONTEXT_FLAG, NULL, NULL));
-    t_note("add serialized CRL with CERTIFICATE_CONTEXT_FLAG: err 0x%lx", GetLastError());
+    EXPECT_ERR(CC_E_INVALIDARG);
     EXPECT_EQ(cc_count_certs(s), 0);
     LocalFree(buf);
     cc_close(s);

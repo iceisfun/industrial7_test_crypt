@@ -192,7 +192,7 @@ TEST(sf_b2s_short_buffer_pcch_value_observed) {
     SET_ERR(0);
     BOOL r = fa((const BYTE*)"foobar", 6, CRYPT_STRING_BASE64, buf, &n);
     CHECK(!r); EXPECT_ERR(ERROR_MORE_DATA);
-    t_note("pcchString after ERROR_MORE_DATA with a 4 char buffer = %lu (input value 4)", n);
+    EXPECT_EQ(n, 4);        /* the in/out length is left unchanged (no required size is reported) */
 }
 
 /* ---------------- format value mapping ---------------- */

@@ -200,10 +200,10 @@ TEST(sf_s2n_latin1_value_default_and_t61_flag) {
     REQ_S2N(); WCHAR in[] = L"CN=\x00e9"; BYTE out[64]; DWORD n = sizeof out;
     BOOL r = fw(X509_ASN_ENCODING, in, CERT_X500_NAME_STR, NULL, out, &n, NULL);
     CHECK(r);
-    if (r) { t_note("CN=U+00E9 default encoding tag %#x len %u", out[11], out[12]); EXPECT_EQ(out[11], BM); }
+    if (r) { EXPECT_EQ(out[11], BM); EXPECT_EQ(out[12], 2); }
     n = sizeof out;
     r = fw(X509_ASN_ENCODING, in, CERT_X500_NAME_STR | CERT_NAME_STR_ENABLE_T61_UNICODE_FLAG, NULL, out, &n, NULL);
-    if (r) t_note("CN=U+00E9 with ENABLE_T61_UNICODE tag %#x", out[11]);
+    CHECK(r); if (r) { EXPECT_EQ(out[11], 0x14); EXPECT_EQ(out[12], 1); }
 }
 
 /* ---------------- empty input ---------------- */

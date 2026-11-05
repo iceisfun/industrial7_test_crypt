@@ -208,8 +208,7 @@ TEST(sf_s2b_hexascii_nonprintable_dots) {
     sf_dec d;
     /* the trailing ASCII column "......A~ " must not be parsed as data */
     sf_decode("00 01 02 7f 80 ff 41 7e  20                        ......A~ \r\n", 0, CRYPT_STRING_HEXASCII, 0, &d);
-    t_note("HEXASCII with ascii column starting with dots: ok=%d cb=%lu err=%lu", d.ok, d.cb, d.err);
-    if (d.ok) { EXPECT_EQ(d.cb, 9); CHECK(!memcmp(d.data, m, 9)); }
+    CHECK(d.ok); EXPECT_EQ(d.cb, 9); CHECK(!memcmp(d.data, m, 9));
 }
 TEST(sf_s2b_hexascii_w_variant) {
     REQ_S2B(); BYTE out[16]; DWORD n = 16;

@@ -192,9 +192,9 @@ TEST(sf_s2b_header_labels_need_not_match) {
 TEST(sf_s2b_base64_empty_input_observed) {
     REQ_S2B(); sf_dec d;
     sf_decode("", 0, CRYPT_STRING_BASE64, 0, &d);
-    t_note("BASE64 empty string: ok=%d cb=%lu err=%lu", d.ok, d.cb, d.err);
+    CHECK(d.ok); EXPECT_EQ(d.cb, 0);
     sf_decode("\r\n", 0, CRYPT_STRING_BASE64, 0, &d);
-    t_note("BASE64 whitespace only: ok=%d cb=%lu err=%lu", d.ok, d.cb, d.err);
+    CHECK(d.ok); EXPECT_EQ(d.cb, 0);
 }
 
 /* ---------------- size protocol ---------------- */
@@ -388,7 +388,7 @@ TEST(sf_s2b_header_multiline_body) {
 TEST(sf_s2b_header_empty_body) {
     REQ_S2B(); sf_dec d;
     sf_decode("-----BEGIN CERTIFICATE-----\r\n-----END CERTIFICATE-----\r\n", 0, CRYPT_STRING_BASE64HEADER, 0, &d);
-    t_note("header with empty body: ok=%d cb=%lu err=%lu", d.ok, d.cb, d.err);
+    CHECK(d.ok); EXPECT_EQ(d.cb, 0);
 }
 TEST(sf_s2b_header_cch_limits_footer_search) {
     REQ_S2B(); BYTE out[16]; DWORD n = 16;
@@ -419,7 +419,7 @@ TEST(sf_s2b_header_with_nonheader_format_does_not_skip) {
     /* plain BASE64 with a header present: the dashes are URI-alphabet characters, no skipping is reported */
     sf_decode(HDR "Zm9vYmFy\r\n" FTR, 0, CRYPT_STRING_BASE64, 0, &d);
     EXPECT_EQ(d.skip, 0);
-    t_note("BASE64 applied to PEM text: ok=%d cb=%lu err=%lu flags=%lu", d.ok, d.cb, d.err, d.flags);
+    CHECK(d.ok); EXPECT_EQ(d.cb, 43); EXPECT_EQ(d.flags, CRYPT_STRING_BASE64URI);
 }
 
 /* ---------------- ANY / BASE64_ANY ---------------- */
@@ -543,7 +543,7 @@ TEST(sf_s2b_percent_without_flag_is_stray_char) {
 TEST(sf_s2b_percentescape_bad_hex_fails) {
     REQ_S2B(); sf_dec d;
     sf_decode("Zm9v%ZZ", 0, CRYPT_STRING_BASE64 | CRYPT_STRING_PERCENTESCAPE, 0, &d);
-    t_note("percent escape with non-hex digits: ok=%d cb=%lu err=%lu", d.ok, d.cb, d.err);
+    CHECK(!d.ok); EXPECT_EQ(d.err, ERROR_INVALID_DATA);
 }
 
 /* ---------------- BINARY ---------------- */

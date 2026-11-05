@@ -58,7 +58,7 @@ TEST(winrt_sym_block_length) {
         UINT32 bl = 0xffff; EXPECT_HR(VF(p, 7, UINT32 *)(p, &bl), S_OK);
         UINT32 want = k_symnames[i][0] == L'A' ? 16 : (k_symnames[i][0] == L'D' || k_symnames[i][0] == L'3' || (k_symnames[i][0] == L'R' && k_symnames[i][2] == L'2')) ? 8 : 0;
         if (want) t_check(bl == want, __FILE__, __LINE__, "BlockLength", "%ls got %u want %u", k_symnames[i], bl, want);
-        else t_note("%ls BlockLength = %u", k_symnames[i], bl);
+        else t_check(bl == 1, __FILE__, __LINE__, "stream cipher BlockLength", "%ls got %u want 1", k_symnames[i], bl);
         wr_release(p);
     }
 }
@@ -115,11 +115,9 @@ TEST(winrt_sym_create_key_sizes_aes) {
         HRESULT hr = wr_sym_key(p, b, &k);
         if (v[i].ok) t_check(hr == S_OK && k, __FILE__, __LINE__, "CreateSymmetricKey", "size %u hr 0x%08lx", v[i].n, (unsigned long)hr);
         else {
-            /* an invalid key size is rejected either at creation or at first use */
-            int rejected = FAILED(hr);
-            if (!rejected) { void *d = wr_mkbuf(kb, 16), *o = NULL, *iv = wr_mkbuf(kb, 16); rejected = FAILED(wr_encrypt(k, d, iv, &o)); wr_release(d); wr_release(o); wr_release(iv); }
-            t_check(rejected, __FILE__, __LINE__, "invalid key size rejected", "size %u", v[i].n);
-            t_note("AES key size %u: CreateSymmetricKey -> 0x%08lx", v[i].n, (unsigned long)hr);
+            /* an invalid key size is rejected at creation with E_INVALIDARG and no key is returned */
+            t_check(hr == (HRESULT)0x80070057 && k == NULL, __FILE__, __LINE__, "invalid key size rejected", "size %u hr 0x%08lx k %p", v[i].n, (unsigned long)hr, k);
+            if (SUCCEEDED(hr) && k) wr_release(k);
         }
         if (SUCCEEDED(hr)) wr_release(k);
         wr_release(b);
@@ -130,8 +128,7 @@ TEST(winrt_sym_create_key_null_material) {
     WR_NEED(); void *p = NULL;
     if (wr_sym_open(L"AES_CBC", &p) != S_OK) { if (!t_is_wine()) CHECK(!"open"); return; }
     void *k = (void *)1; HRESULT hr = wr_sym_key(p, NULL, &k);
-    CHECK(FAILED(hr)); CHECK(k == NULL);
-    t_note("CreateSymmetricKey(NULL) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80070057); CHECK(k == NULL);
     wr_release(p);
 }
 TEST(winrt_sym_key_size_property) {
@@ -289,8 +286,7 @@ TEST(winrt_sym_decrypt_bad_padding) {
     void *good = wr_mkbuf_hex("21b68a81b82ed8e55d06658de5bc0351"), *bad = wr_mkbuf_hex("21b68a81b82ed8e55d06658de5bc0350"), *o = NULL;
     EXPECT_HR(wr_decrypt(k, good, iv, &o), S_OK); CHECK(wr_buf_is_hex(o, "030a11181f")); wr_release(o);
     o = (void *)1; HRESULT hr = wr_decrypt(k, bad, iv, &o);       /* tampered final block yields invalid PKCS#7 padding */
-    CHECK(FAILED(hr)); CHECK(o == NULL);
-    t_note("Decrypt(bad padding) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80070017); CHECK(o == NULL);
     wr_release(k); wr_release(iv); wr_release(good); wr_release(bad);
 }
 TEST(winrt_sym_iv_size_must_match_block) {
@@ -320,10 +316,9 @@ TEST(winrt_sym_cbc_without_iv_is_defined) {
     WR_NEED(); void *k = mk_key(L"AES_CBC_PKCS7", "000102030405060708090a0b0c0d0e0f"); if (!k) return;
     void *pt = wr_mkbuf_hex("00112233"), *o = (void *)1, *z = wr_mkbuf_hex("00000000000000000000000000000000"), *o2 = NULL;
     HRESULT hr = wr_encrypt(k, pt, NULL, &o);
-    t_note("CBC Encrypt with NULL iv -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, S_OK);      /* a NULL IV means an all-zero IV */
     if (SUCCEEDED(hr)) { wr_encrypt(k, pt, z, &o2); const BYTE *a, *b; UINT32 la, lb;
-        if (wr_buf_get(o, &a, &la) && wr_buf_get(o2, &b, &lb)) t_note("NULL iv equals all-zero iv: %d", la == lb && !memcmp(a, b, la)); }
-    else CHECK(o == NULL);
+        CHECK(wr_buf_get(o, &a, &la) && wr_buf_get(o2, &b, &lb) && la == lb && !memcmp(a, b, la)); }
     wr_release(k); wr_release(pt); wr_release(z); wr_release(o2);
 }
 TEST(winrt_sym_iv_buffer_not_modified) {
@@ -358,7 +353,7 @@ TEST(winrt_sym_ecb_ignores_nothing_with_iv_note) {
     WR_NEED(); void *k = mk_key(L"AES_ECB", "000102030405060708090a0b0c0d0e0f"); if (!k) return;
     void *pt = wr_mkbuf_hex("00112233445566778899aabbccddeeff"), *iv = wr_mkbuf_hex("00000000000000000000000000000000"), *o = NULL;
     HRESULT hr = wr_encrypt(k, pt, iv, &o);
-    t_note("ECB Encrypt with 16-byte iv -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80070057);
     wr_release(k); wr_release(pt); wr_release(iv); wr_release(o);
 }
 TEST(winrt_sym_roundtrip_all_lengths_all_modes) {
@@ -428,7 +423,7 @@ TEST(winrt_sym_engine_encrypt_with_mac_key_fails) {
     void *kb = wr_mkbuf("secret", 6), *key = NULL, *pt = wr_mkbuf("data", 4), *o = (void *)1;
     VF(p, 8, void *, void **)(p, kb, &key);
     HRESULT hr = wr_encrypt(key, pt, NULL, &o);
-    CHECK(FAILED(hr)); t_note("Encrypt(MAC key) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80004002);
     wr_release(p); wr_release(kb); wr_release(key); wr_release(pt);
 }
 TEST(winrt_sym_engine_sign_with_symmetric_key_fails) {
@@ -443,7 +438,8 @@ TEST(winrt_sym_rc4_stateless_keystream_note) {
     BYTE z[16] = { 0 }; void *pt = wr_mkbuf(z, 16), *a = NULL, *b = NULL;
     wr_encrypt(k, pt, NULL, &a); wr_encrypt(k, pt, NULL, &b);
     const BYTE *pa, *pb; UINT32 la, lb;
-    if (wr_buf_get(a, &pa, &la) && wr_buf_get(b, &pb, &lb)) t_note("RC4: second Encrypt with same key repeats keystream: %d", la == lb && !memcmp(pa, pb, la));
+    /* the key object carries the RC4 state: the second encryption continues the keystream */
+    CHECK(wr_buf_get(a, &pa, &la) && wr_buf_get(b, &pb, &lb) && la == lb && memcmp(pa, pb, la) != 0);
     wr_release(k); wr_release(pt); wr_release(a); wr_release(b);
 }
 
@@ -501,7 +497,7 @@ TEST(winrt_sym_aead_tamper_detection) {
     void *out = (void *)1; HRESULT hr;
     hr = eng_da(k, ct, nonce, tag, aad, &out); EXPECT_HR(hr, S_OK); CHECK(wr_buf_is_hex(out, "00112233445566778899")); wr_release(out);
     c2[0] ^= 1; { void *b = wr_mkbuf(c2, lc); hr = eng_da(k, b, nonce, tag, aad, &out); CHECK(FAILED(hr)); CHECK(out == NULL); wr_release(b); c2[0] ^= 1; }
-    t2[15] ^= 0x80; { void *b = wr_mkbuf(t2, lt); hr = eng_da(k, ct, nonce, b, aad, &out); CHECK(FAILED(hr)); CHECK(out == NULL); t_note("GCM tag mismatch -> 0x%08lx", (unsigned long)hr); wr_release(b); t2[15] ^= 0x80; }
+    t2[15] ^= 0x80; { void *b = wr_mkbuf(t2, lt); hr = eng_da(k, ct, nonce, b, aad, &out); EXPECT_HR(hr, 0x80070017); CHECK(out == NULL); wr_release(b); t2[15] ^= 0x80; }
     { void *b = wr_mkbuf(aad2, 3); hr = eng_da(k, ct, nonce, tag, b, &out); CHECK(FAILED(hr)); CHECK(out == NULL); wr_release(b); }
     hr = eng_da(k, ct, nonce, tag, NULL, &out); CHECK(FAILED(hr));     /* missing AAD */
     { void *n2 = wr_mkbuf_hex("0b0b0b0b0b0b0b0b0b0b0b0c"); hr = eng_da(k, ct, n2, tag, aad, &out); CHECK(FAILED(hr)); wr_release(n2); }
@@ -523,14 +519,14 @@ TEST(winrt_sym_aead_on_non_aead_key_fails) {
     WR_NEED(); void *k = mk_key(L"AES_CBC_PKCS7", "000102030405060708090a0b0c0d0e0f"); if (!k) return;
     void *nonce = wr_mkbuf_hex("000000000000000000000000"), *pt = wr_mkbuf_hex("00112233"), *res = (void *)1;
     HRESULT hr = eng_ea(k, pt, nonce, NULL, &res);
-    CHECK(FAILED(hr)); t_note("EncryptAndAuthenticate(CBC key) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80004001);
     wr_release(k); wr_release(nonce); wr_release(pt);
 }
 TEST(winrt_sym_plain_encrypt_on_gcm_key) {
     WR_NEED(); void *k = mk_key(L"AES_GCM", "000102030405060708090a0b0c0d0e0f"); if (!k) return;
     void *pt = wr_mkbuf_hex("00112233"), *iv = wr_mkbuf_hex("000000000000000000000000"), *o = NULL;
     HRESULT hr = wr_encrypt(k, pt, iv, &o);
-    t_note("Encrypt(GCM key) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80004001);
     wr_release(k); wr_release(pt); wr_release(iv); wr_release(o);
 }
 TEST(winrt_sym_aead_empty_plaintext_tag_only) {

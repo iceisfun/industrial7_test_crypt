@@ -292,7 +292,7 @@ TEST(winrt_buffer_generate_random_lengths) {
     void *s = wr_cbs();
     static const UINT32 sz[] = { 1, 2, 7, 8, 16, 31, 32, 33, 255, 1000, 4096, 65536 };
     { void *z = NULL; HRESULT hr = VF(s, CB_GenerateRandom, UINT32, void **)(s, 0, &z);
-      t_note("GenerateRandom(0) -> 0x%08lx length %u", (unsigned long)hr, hr == S_OK ? wr_buf_len(z) : 0); wr_release(z); }
+      EXPECT_HR(hr, S_OK); EXPECT_EQ(hr == S_OK && z ? wr_buf_len(z) : 0xffff, 0); wr_release(z); }
     for (size_t i = 0; i < sizeof sz / sizeof *sz; i++) {
         void *b = NULL; HRESULT hr = VF(s, CB_GenerateRandom, UINT32, void **)(s, sz[i], &b);
         t_check(hr == S_OK && b, __FILE__, __LINE__, "GenerateRandom", "len %u hr 0x%08lx", sz[i], (unsigned long)hr);
@@ -565,14 +565,14 @@ TEST(winrt_buffer_base64_decode_valid) {
 }
 TEST(winrt_buffer_base64_decode_trailing_whitespace) {
     /* trailing whitespace after the last digit is not discounted from the output size: the buffer is one byte
-     * longer than the data (the extra byte is not part of the decoded data and is only logged) */
+     * longer than the data; the extra byte is 0x04 whatever the heap held before (probed with a dirtied heap) */
     WR_NEED(); if (!wr_cbs()) return;
     static const WCHAR *v[] = { L" Zm9vYmFy ", L"Zm9v\tYmFy\n", L"Zm9vYmFy\n" };
     for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
         void *b; HRESULT hr = c_b64dec(v[i], (UINT32)lstrlenW(v[i]), &b);
         const BYTE *p; UINT32 n = 0;
         t_check(hr == S_OK && b && wr_buf_get(b, &p, &n) && n == 7 && !memcmp(p, "foobar", 6), __FILE__, __LINE__, "decode with trailing whitespace", "vector %zu hr 0x%08lx len %u", i, (unsigned long)hr, n);
-        if (b && n == 7) t_note("vector %zu extra trailing byte 0x%02x", i, p[6]);
+        if (b && n == 7) t_check(p[6] == 0x04, __FILE__, __LINE__, "extra trailing byte", "vector %zu got 0x%02x want 0x04", i, p[6]);
         if (SUCCEEDED(hr) && b) wr_release(b);
     }
 }
@@ -791,7 +791,7 @@ TEST(winrt_buffer_utf8_roundtrip_ranges) {
     w[n++] = 0xd83d; w[n++] = 0xde00;       /* ends with a valid surrogate pair */
     for (int e = 0; e < 3; e++) {
         void *b; HRESULT hr = c_s2b(w, n, e, &b);
-        if (e == 0 && hr != S_OK) { t_note("utf8 conversion of generated string failed 0x%08lx", (unsigned long)hr); continue; }
+        EXPECT_HR(hr, S_OK); if (hr != S_OK) continue;
         HSTRING h; UINT32 m; hr = c_b2s(e, b, &h); const WCHAR *r = wr_raw(h, &m);
         t_check(hr == S_OK && m == n && !memcmp(r, w, n * 2), __FILE__, __LINE__, "roundtrip", "enc %d hr 0x%08lx m %u n %u", e, (unsigned long)hr, m, n);
         wr_hsfree(h); wr_release(b);

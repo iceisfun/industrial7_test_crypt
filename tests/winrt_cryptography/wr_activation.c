@@ -66,9 +66,8 @@ TEST(winrt_activation_direct_extra_classes) {
     WR_NEED(); if (!p_gaf()) { t_skip("DllGetActivationFactory missing"); return; }
     for (size_t i = 0; i < sizeof k_extra / sizeof *k_extra; i++) {
         void *f; HRESULT hr = direct(k_extra[i], (UINT32)lstrlenW(k_extra[i]), &f);
+        t_check(hr == S_OK && f && f != (void *)1, __FILE__, __LINE__, "DllGetActivationFactory(extra class)", "%ls hr 0x%08lx", k_extra[i], (unsigned long)hr);
         if (SUCCEEDED(hr) && f) wr_release(f);
-        else t_note("%ls: DllGetActivationFactory hr 0x%08lx", k_extra[i], (unsigned long)hr);
-        CHECK(SUCCEEDED(hr) || hr == (HRESULT)CLASS_E_CLASSNOTAVAILABLE_HR);
     }
 }
 TEST(winrt_activation_direct_unknown_class) {
@@ -164,7 +163,7 @@ TEST(winrt_activation_runtime_same_object_as_direct) {
         direct(k_classes[i], (UINT32)lstrlenW(k_classes[i]), &b);
         void *ua = NULL, *ub = NULL;
         wr_qi(a, &WR_IID_IUnknown, &ua); if (b && b != (void *)1) wr_qi(b, &WR_IID_IUnknown, &ub);
-        if (ua != ub) t_note("%ls: runtime factory %p differs from direct %p", k_classes[i], ua, ub);
+        t_check(ua == ub, __FILE__, __LINE__, "runtime factory is the direct factory", "%ls runtime %p direct %p", k_classes[i], ua, ub);
         wr_release(ua); wr_release(ub); wr_release(a); if (b && b != (void *)1) wr_release(b);
     }
 }
@@ -174,15 +173,14 @@ TEST(winrt_activation_runtime_unknown_class) {
     for (size_t i = 0; i < 4; i++) {
         void *f = NULL; HRESULT hr = wr_activate(bad[i], &f);
         t_check(FAILED(hr) && f == NULL, __FILE__, __LINE__, "RoGetActivationFactory(unknown)", "%ls hr 0x%08lx", bad[i], (unsigned long)hr);
-        t_note("%ls -> 0x%08lx", bad[i], (unsigned long)hr);
+        t_check(hr == (HRESULT)0x80040154, __FILE__, __LINE__, "REGDB_E_CLASSNOTREG", "%ls hr 0x%08lx", bad[i], (unsigned long)hr);
     }
 }
 TEST(winrt_activation_runtime_null_class_name) {
     WR_NEED();
     void *f = (void *)1;
     HRESULT hr = UIN("combase.dll", RoGetActivationFactory)(NULL, &WR_IID_IActivationFactory, &f);
-    CHECK(FAILED(hr));
-    t_note("RoGetActivationFactory(NULL) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80070057);
 }
 TEST(winrt_activation_runtime_wrong_interface) {
     WR_NEED();
@@ -190,8 +188,7 @@ TEST(winrt_activation_runtime_wrong_interface) {
     HRESULT hr = UIN("combase.dll", RoGetActivationFactory)(h, &WR_IID_IBuffer, &f);
     wr_hsfree(h);
     if (t_is_wine()) { t_skip("emulator"); return; }
-    CHECK(FAILED(hr)); CHECK(f == NULL);
-    t_note("RoGetActivationFactory(CryptographicBuffer, IBuffer) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, 0x80004002); CHECK(f == NULL);
 }
 TEST(winrt_activation_factory_interfaces_agile) {
     WINE_SKIP();
@@ -289,8 +286,8 @@ TEST(winrt_activation_activate_instance_all_statics_fail_cleanly) {
     for (size_t i = 0; i < sizeof s / sizeof *s; i++) {
         void *f = wr_factory(s[i], 0); if (!f) return;
         void *o = (void *)1; HRESULT hr = VF(f, 6, void **)(f, &o);
-        if (SUCCEEDED(hr)) { t_note("%ls: ActivateInstance succeeded", s[i]); wr_release(o); }
-        else t_check(o == NULL || t_is_wine(), __FILE__, __LINE__, "out cleared", "%ls hr 0x%08lx", s[i], (unsigned long)hr);
+        t_check(hr == (HRESULT)E_NOTIMPL_HR && (o == NULL || t_is_wine()), __FILE__, __LINE__, "ActivateInstance on a statics factory", "%ls hr 0x%08lx o %p", s[i], (unsigned long)hr, o);
+        if (SUCCEEDED(hr)) wr_release(o);
         wr_release(f);
     }
 }
@@ -311,9 +308,9 @@ TEST(winrt_activation_factory_getruntimeclassname_trust) {
     WR_NEED();
     void *f = wr_factory(CLS_HASHPROV, 0); if (!f) return;
     HSTRING n = NULL; HRESULT hr = wr_getclassname(f, &n);
-    t_note("factory GetRuntimeClassName -> 0x%08lx", (unsigned long)hr); wr_hsfree(n);
+    EXPECT_HR(hr, 0x8000000e); wr_hsfree(n);
     int lvl = -1; hr = wr_gettrust(f, &lvl);
-    t_note("factory GetTrustLevel -> 0x%08lx level %d", (unsigned long)hr, lvl);
+    EXPECT_HR(hr, S_OK); EXPECT_EQ(lvl, 0);
     wr_release(f);
 }
 TEST(winrt_activation_provider_object_class_names) {
@@ -371,8 +368,7 @@ TEST(winrt_activation_getclassobject_statics_iids_as_clsids) {
 TEST(winrt_activation_canunloadnow_returns_hresult) {
     if (!p_cun()) { t_skip("DllCanUnloadNow missing"); return; }
     HRESULT hr = p_cun()();
-    CHECK(hr == S_OK || hr == S_FALSE);
-    t_note("DllCanUnloadNow -> %ld", (long)hr);
+    CHECK(hr == S_OK || hr == S_FALSE);    /* depends on objects other tests still hold; the live-object tests below pin S_FALSE */
 }
 TEST(winrt_activation_canunloadnow_false_with_live_object) {
     WR_NEED(); if (!p_cun()) { t_skip("DllCanUnloadNow missing"); return; }

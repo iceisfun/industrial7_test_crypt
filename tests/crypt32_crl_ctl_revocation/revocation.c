@@ -15,7 +15,6 @@ UDECL(BOOL, CertDllVerifyRevocation, (DWORD, DWORD, DWORD, void **, DWORD, void 
 static void rel(PCCERT_CONTEXT c) { if (c) U(CertFreeCertificateContext)(c); }
 static void st_init(RS *s) { memset(s, 0xcd, sizeof *s); s->cbSize = sizeof *s; }
 static FILETIME mkft(ULONGLONG v) { FILETIME f; f.dwLowDateTime = (DWORD)v; f.dwHighDateTime = (DWORD)(v >> 32); return f; }
-static int is_nocheck(DWORD e) { return e == CC_E_NO_REVOCATION_CHECK || e == CC_E_REVOCATION_OFFLINE; }
 
 typedef struct { HCERTSTORE crls; RP p; PCCERT_CONTEXT ca1; } CTX;
 static int cx_init(CTX *c, const BYTE *a, DWORD an, const BYTE *b, DWORD bn) {
@@ -76,7 +75,7 @@ TEST(rev_wrong_revocation_type) {
         CHECKF(!U(CertVerifyRevocation)(CC_X509P7, types[i], 1, ctxs, OFFLINE_FLAGS, NULL, &s), "type %lu", types[i]);
         DWORD gle = GetLastError();
         CHECKF(gle == s.dwError, "GetLastError 0x%lx equals status.dwError 0x%lx", gle, s.dwError);
-        CHECKF(s.dwError == CC_E_NO_REVOCATION_CHECK || s.dwError == CC_E_NO_REVOCATION_DLL, "type %lu error 0x%lx", types[i], s.dwError);
+        CHECKF(s.dwError == CC_E_NO_REVOCATION_CHECK, "type %lu error 0x%lx", types[i], s.dwError);
         EXPECT_EQ(s.dwIndex, 0);
     }
     rel(l);
@@ -89,10 +88,10 @@ TEST(rev_wrong_encoding_type) {
     RS s; st_init(&s);
     SET_ERR(0);
     CHECK(!U(CertVerifyRevocation)(PKCS_7_ASN_ENCODING, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, NULL, &s));
-    t_note("PKCS7-only encoding: err 0x%lx", s.dwError);
+    EXPECT_EQ(s.dwError, CC_E_NO_REVOCATION_CHECK);
     st_init(&s);
     CHECK(!U(CertVerifyRevocation)(0, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, NULL, &s));
-    t_note("encoding 0: err 0x%lx", s.dwError);
+    EXPECT_EQ(s.dwError, CC_E_NO_REVOCATION_DLL);
     rel(l);
 }
 
@@ -192,7 +191,6 @@ TEST(rev_crl_all_reason_codes) {
         void *ctxs[1] = { (void *)l };
         RS s; st_init(&s);
         BOOL ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
-        if (t[i].reason == 8) { t_note("removeFromCRL entry in a base CRL: ret=%d err=0x%lx reason=%lu", ok, s.dwError, s.dwReason); rel(l); continue; }
         CHECKF(!ok, "reason %lu", t[i].reason);
         EXPECT_EQ(s.dwError, CC_E_REVOKED);
         EXPECT_EQ(s.dwReason, t[i].reason);
@@ -209,7 +207,8 @@ TEST(rev_crl_missing_reason_extension_means_unspecified) {
     void *ctxs[1] = { (void *)l };
     RS s; st_init(&s);
     BOOL ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
-    t_note("revoked via CRL with issuing-distribution-point and a cert without CDP: ret=%d err=0x%lx reason=%lu", ok, s.dwError, s.dwReason);
+    /* the IDP CRL does not cover a certificate without a matching CDP: no revocation check is possible */
+    CHECK(!ok); EXPECT_EQ(s.dwError, CC_E_NO_REVOCATION_CHECK);
     rel(l); cx_done(&c);
 }
 TEST(rev_crl_wrong_issuer_not_used) {
@@ -224,7 +223,7 @@ TEST(rev_crl_wrong_issuer_not_used) {
     CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s));
     /* CA1's CRL lists serial 0x1001 but CA2 is the issuer here: that CRL must not produce a "revoked" verdict */
     CHECK(s.dwError != CC_E_REVOKED);
-    CHECKF(is_nocheck(s.dwError), "error 0x%lx", s.dwError);
+    CHECKF(s.dwError == CC_E_NO_REVOCATION_CHECK, "error 0x%lx", s.dwError);
     rel(l); rel(ca2); cx_done(&c);
 }
 TEST(rev_crl_ca2_crl_revokes_ca2_leaf) {
@@ -249,7 +248,7 @@ TEST(rev_crl_expired_not_usable) {
     RS s; st_init(&s);
     SET_ERR(0);
     CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s));
-    CHECKF(is_nocheck(s.dwError), "error 0x%lx", s.dwError);
+    CHECKF(s.dwError == CC_E_REVOCATION_OFFLINE, "error 0x%lx", s.dwError);
     EXPECT_ERR(s.dwError);
     rel(l); cx_done(&c);
 }
@@ -264,7 +263,7 @@ TEST(rev_crl_expired_checked_at_time_to_use) {
     void *ctxs[1] = { (void *)l };
     RS s; st_init(&s);
     BOOL ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
-    t_note("expired CRL examined at a time inside its validity: ret=%d err=0x%lx reason=%lu", ok, s.dwError, s.dwReason);
+    CHECK(ok); EXPECT_EQ(s.dwError, 0);
     rel(l); cx_done(&c);
 }
 TEST(rev_crl_empty_store_no_check) {
@@ -276,10 +275,9 @@ TEST(rev_crl_empty_store_no_check) {
     RS s; st_init(&s);
     SET_ERR(0);
     CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s));
-    CHECKF(is_nocheck(s.dwError), "error 0x%lx", s.dwError);
+    CHECKF(s.dwError == CC_E_NO_REVOCATION_CHECK, "error 0x%lx", s.dwError);
     EXPECT_ERR(s.dwError);
     EXPECT_EQ(s.dwIndex, 0);
-    t_note("no CRL available: status.dwError=0x%lx", s.dwError);
     rel(l); cx_done(&c);
 }
 TEST(rev_no_para_no_check) {
@@ -290,8 +288,7 @@ TEST(rev_no_para_no_check) {
     RS s; st_init(&s);
     SET_ERR(0);
     CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, NULL, &s));
-    t_note("leaf without issuer or CRL source: status.dwError=0x%lx", s.dwError);
-    CHECK(s.dwError != 0 && s.dwError != CC_E_REVOKED);
+    EXPECT_EQ(s.dwError, CC_E_REVOCATION_OFFLINE);
     rel(l);
 }
 TEST(rev_cert_with_cdp_cache_only) {
@@ -304,8 +301,7 @@ TEST(rev_cert_with_cdp_cache_only) {
     c.p.dwUrlRetrievalTimeout = 1;
     SET_ERR(0);
     CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s));
-    t_note("cert with a file:// CDP, cache only: status.dwError=0x%lx", s.dwError);
-    CHECK(s.dwError != 0 && s.dwError != CC_E_REVOKED);
+    EXPECT_EQ(s.dwError, CC_E_REVOCATION_OFFLINE);
     rel(l); cx_done(&c);
 }
 TEST(rev_self_signed_ca_without_para) {
@@ -316,8 +312,7 @@ TEST(rev_self_signed_ca_without_para) {
     RS s; st_init(&s);
     SET_ERR(0);
     CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, NULL, &s));
-    t_note("self-signed root without CRL: status.dwError=0x%lx", s.dwError);
-    CHECK(s.dwError != 0);
+    EXPECT_EQ(s.dwError, CC_E_NO_REVOCATION_CHECK);
     rel(ca);
 }
 
@@ -393,7 +388,8 @@ TEST(rev_delta_crl_removes_hold) {
     void *ctxs[1] = { (void *)l };
     RS s; st_init(&s);
     BOOL ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
-    t_note("hold in base CRL, removeFromCRL in delta CRL: ret=%d err=0x%lx reason=%lu", ok, s.dwError, s.dwReason);
+    /* the delta CRL's removeFromCRL entry does not lift the hold in the base CRL */
+    CHECK(!ok); EXPECT_EQ(s.dwError, CC_E_REVOKED); EXPECT_EQ(s.dwReason, 6);
     rel(l); cx_done(&c);
 }
 TEST(rev_delta_crl_does_not_hide_other_revocations) {
@@ -404,7 +400,7 @@ TEST(rev_delta_crl_does_not_hide_other_revocations) {
     void *ctxs[1] = { (void *)l };
     RS s; st_init(&s);
     BOOL ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 1, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
-    t_note("revoked in base CRL, unrelated delta present: ret=%d err=0x%lx reason=%lu", ok, s.dwError, s.dwReason);
+    CHECK(!ok); EXPECT_EQ(s.dwError, CC_E_REVOKED); EXPECT_EQ(s.dwReason, 1);
     rel(l); cx_done(&c);
 }
 
@@ -413,7 +409,6 @@ TEST(revdll_export_resolves_by_name_and_ordinal) {
     FARPROC byname = t_proc_in("cryptnet.dll", "CertDllVerifyRevocation");
     REQUIRE(byname);
     FARPROC byord = t_proc_ord("cryptnet.dll", 2);
-    t_note("CertDllVerifyRevocation by name %p, by ordinal 2 %p", (void *)byname, (void *)byord);
     CHECK(byord == byname);
 }
 TEST(revdll_zero_contexts_invalidarg) {

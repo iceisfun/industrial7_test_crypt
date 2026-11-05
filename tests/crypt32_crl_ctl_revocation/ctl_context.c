@@ -95,7 +95,7 @@ TEST(ctlctx_create_usage_only_no_entries) {
     REQUIRE(U(CertCreateCTLContext));
     SET_ERR(0);
     PCCTL_CONTEXT c = cc_ctl(VEC(v_ctl_signed_usage_only));
-    t_note("CTL with an empty subject list: %s (err 0x%lx)", c ? "created" : "rejected", c ? 0 : GetLastError());
+    CHECK(c != NULL);
     if (c) EXPECT_EQ(c->pCtlInfo->cCTLEntry, 0);
     rel(c);
 }
@@ -171,7 +171,7 @@ TEST(ctlctx_encoding_type_always_includes_pkcs7) {
     CHECK(c != NULL);
     if (c) { EXPECT_EQ(c->dwMsgAndCertEncodingType, CC_X509P7); rel(c); }
     c = U(CertCreateCTLContext)(PKCS_7_ASN_ENCODING, VEC(v_ctl_signed));
-    t_note("PKCS7-only encoding type for a CTL: %s", c ? "accepted" : "rejected");
+    CHECK(c != NULL); if (c) EXPECT_EQ(c->dwMsgAndCertEncodingType, CC_X509P7);
     rel(c);
 }
 
@@ -390,7 +390,7 @@ TEST(ctlstore_different_usage_is_distinct) {
     HCERTSTORE s = cc_store(); REQUIRE(s);
     CHECK(cc_add_ctl(s, VEC(v_ctl_signed_min), CERT_STORE_ADD_NEW, NULL));
     CHECK(cc_add_ctl(s, VEC(v_ctl_signed_usage_only), CERT_STORE_ADD_NEW, NULL));
-    t_note("CTL count after adding two CTLs with different usage: %d", cc_count_ctls(s));
+    EXPECT_EQ(cc_count_ctls(s), 2);
     cc_close(s);
 }
 TEST(ctlstore_add_always_duplicates) {

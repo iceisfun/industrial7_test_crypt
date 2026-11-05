@@ -179,12 +179,13 @@ TEST(sf_cfo_basic_constraints_size_protocol) {
         if (r) {
             CHECK(cb2 <= cb); CHECK(cb2 % 2 == 0);
             CHECK(buf[cb2 / 2 - 1] == 0 || lstrlenW(buf) == (int)(cb2 / 2) - 1);
-            t_note("BasicConstraints2 CA=TRUE formatted (locale dependent): '%ls' cb=%lu", buf, cb2);
+            EXPECT_EQ(cb2, cb);
+            if (PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_ENGLISH) { EXPECT_EQ(cb2, 90); EXPECT_WSTR(buf, L"Subject Type=CA, Path Length Constraint=None"); }
         }
         DWORD small = 4; SET_ERR(0);
         r = f(X509_ASN_ENCODING, 0, 0, NULL, szOID_BASIC_CONSTRAINTS2, bc, sizeof bc, buf, &small);
         CHECK(!r); EXPECT_ERR(ERROR_MORE_DATA);
-        t_note("short buffer: *pcb=%lu (needed %lu)", small, cb);
+        EXPECT_EQ(small, cb);        /* the required size is reported */
     }
 }
 TEST(sf_cfo_multiline_uses_crlf) {
@@ -199,7 +200,7 @@ TEST(sf_cfo_multiline_uses_crlf) {
         CHECK(f(X509_ASN_ENCODING, 0, CRYPT_FORMAT_STR_MULTI_LINE, NULL, szOID_BASIC_CONSTRAINTS2, bc, sizeof bc, b, &c2));
         CHECK(wcschr(a, L'\n') == NULL);
         CHECK(wcsstr(b, L"\r\n") != NULL);
-        t_note("single line: '%ls'", a);
+        if (PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_ENGLISH) EXPECT_WSTR(a, L"Subject Type=CA, Path Length Constraint=None");
     }
 }
 TEST(sf_cfo_key_usage) {
@@ -211,7 +212,7 @@ TEST(sf_cfo_key_usage) {
     if (cb && cb < sizeof buf) {
         CHECK(f(X509_ASN_ENCODING, 0, 0, NULL, szOID_KEY_USAGE, ku, sizeof ku, buf, &cb));
         CHECK(wcsstr(buf, L"(a0)") != NULL);
-        t_note("KeyUsage formatted: '%ls'", buf);
+        if (PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_ENGLISH) EXPECT_WSTR(buf, L"Digital Signature, Key Encipherment (a0)");
     }
 }
 TEST(sf_cfo_unknown_oid_hex_fallback) {
@@ -220,10 +221,10 @@ TEST(sf_cfo_unknown_oid_hex_fallback) {
     static const BYTE v[] = { 0x30, 0x03, 0x02, 0x01, 0x05 }; DWORD cb = 0; WCHAR buf[256];
     SET_ERR(0);
     BOOL r = f(X509_ASN_ENCODING, 0, 0, NULL, "1.2.3.4.5", v, sizeof v, NULL, &cb);
-    t_note("unknown OID: ok=%d cb=%lu err=%lu", r, cb, GetLastError());
+    CHECK(r); EXPECT_EQ(cb, 30);
     if (r && cb && cb < sizeof buf) {
         r = f(X509_ASN_ENCODING, 0, 0, NULL, "1.2.3.4.5", v, sizeof v, buf, &cb);
-        if (r) t_note("unknown OID formatted as '%ls'", buf);
+        CHECK(r); EXPECT_WSTR(buf, L"30 03 02 01 05");
     }
 }
 TEST(sf_cfo_bad_arguments) {
@@ -233,14 +234,14 @@ TEST(sf_cfo_bad_arguments) {
     DWORD cb = 0; WCHAR buf[64];
     SET_ERR(0);
     BOOL r = f(0, 0, 0, NULL, szOID_BASIC_CONSTRAINTS2, bc, sizeof bc, NULL, &cb);
-    t_note("encoding type 0: ok=%d err=%lu", r, GetLastError());
+    CHECK(!r); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     SET_ERR(0);
     r = f(X509_ASN_ENCODING, 0, 0, NULL, szOID_BASIC_CONSTRAINTS2, NULL, 0, NULL, &cb);
-    t_note("no data: ok=%d err=%lu cb=%lu", r, GetLastError(), cb);
+    CHECK(!r); EXPECT_ERR(0x80070057); EXPECT_EQ(cb, 0);
     cb = sizeof buf; SET_ERR(0);
     static const BYTE junk[] = { 0xde, 0xad };
     r = f(X509_ASN_ENCODING, 0, 0, NULL, szOID_BASIC_CONSTRAINTS2, junk, sizeof junk, buf, &cb);
-    t_note("undecodable basic constraints: ok=%d err=%#lx", r, GetLastError());
+    CHECK(!r); EXPECT_ERR(CRYPT_E_ASN1_BADTAG);
 }
 
 /* ---------------- export resolution ---------------- */
