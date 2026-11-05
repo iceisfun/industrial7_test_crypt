@@ -645,7 +645,8 @@ TEST(css_serialize_crl_ctl_roundtrip) {
     }
     EXPECT_EQ(sm_ncrls(d), 1); EXPECT_EQ(sm_nctls(d), ctl ? 1 : 0);
     LocalFree(b1);
-    if (crl) U(CertFreeCRLContext)(crl); if (ctl) U(CertFreeCTLContext)(ctl);
+    if (crl) U(CertFreeCRLContext)(crl);
+    if (ctl) U(CertFreeCTLContext)(ctl);
     sm_close(s); sm_close(d);
 }
 TEST(css_add_serialized_garbage) {
