@@ -167,8 +167,9 @@ TEST(query_binary_wrong_mask_no_match_table) {
         for (int j = 0; j < NBIN; j++) {
             if (i == j || g_bin[i].mask == g_bin[j].mask) continue;
             DWORD m = g_bin[j].mask;
-            if (g_bin[i].ct == T_CTL && m == QC_P7S) continue;   /* a CTL is a signed PKCS#7 message */
             QR r; BOOL ok = qblob(g_bin[i].p, g_bin[i].n, m, QF_BIN, &r);
+            if (g_bin[i].ct == T_CTL && m == QC_P7S) {   /* a CTL is a signed PKCS#7 message and matches that mask */
+                t_label("%s as %s", g_bin[i].name, g_bin[j].name); CHECK(ok); EXPECT_EQ(r.ct, T_P7S); t_label(NULL); qfree(&r); continue; }
             CHECKF(!ok, "%s queried as %s unexpectedly matched (type %lu)", g_bin[i].name, g_bin[j].name, r.ct);
             if (!ok) CHECKF(r.err == E_CRYPT_E_NO_MATCH, "%s as %s: err 0x%lx", g_bin[i].name, g_bin[j].name, r.err);
             qfree(&r);
@@ -284,9 +285,8 @@ TEST(query_pkcs7_embedded_flag_on_plain_blob) {
 TEST(query_pkcs10_request) {
     REQUIRE(CQ);
     QR r; BOOL ok = qblob(v_o_p10, sizeof v_o_p10, QC_P10, QF_BIN, &r);
-    t_note("PKCS#10 request as CERT_QUERY_CONTENT_PKCS10 -> %d type %lu err 0x%lx", ok, r.ct, r.err);
+    CHECKF(ok, "err 0x%lx", r.err); /* observed: a PKCS#10 request is recognised */
     if (ok) { EXPECT_EQ(r.ct, T_P10); EXPECT_EQ(r.enc, 1); CHECK(r.st == NULL); CHECK(r.msg == NULL); }
-    else EXPECT_EQ(r.err, E_CRYPT_E_NO_MATCH);
     qfree(&r);
     ok = qblob(v_o_p10, sizeof v_o_p10, QC_CERT | QC_CRL | QC_CTL | QC_P7S | QC_PAIR | QC_PFX, QF_BIN, &r);
     EXPECT_EQ(ok, FALSE); qfree(&r);
@@ -378,7 +378,7 @@ TEST(query_serialized_ctl) {
     DWORD n = 0; BYTE *b = ser_ctl(&n); CHECK(b != NULL); if (!b) return;
     QR r; BOOL ok = qblob(b, n, QC_SCTL, QF_BIN, &r);
     CHECKF(ok, "err 0x%lx", r.err);
-    if (ok) { EXPECT_EQ(r.ct, T_SCTL); CHECK(r.ctx != NULL); CHECK(r.st != NULL); t_note("serialized CTL encoding type 0x%lx", r.enc); }
+    if (ok) { EXPECT_EQ(r.ct, T_SCTL); CHECK(r.ctx != NULL); CHECK(r.st != NULL); EXPECT_EQ(r.enc, 0x10001); /* observed: X509 | PKCS7 */ }
     qfree(&r);
     ok = qblob(b, n, QC_SCERT | QC_SCRL, QF_BIN, &r); EXPECT_EQ(ok, FALSE); EXPECT_EQ(r.err, E_CRYPT_E_NO_MATCH);
     free(b);
@@ -404,7 +404,8 @@ TEST(query_serialized_store_empty) {
     b.pbData = malloc(b.cbData);
     CHECK(U(CertSaveStore)(s, ENC, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_MEMORY, &b, 0));
     QR r; BOOL ok = qblob(b.pbData, b.cbData, QC_SSTORE, QF_BIN, &r);
-    t_note("empty serialized store (%lu bytes) -> %d err 0x%lx", b.cbData, ok, r.err);
+    CHECKF(ok, "err 0x%lx", r.err); /* observed: an empty serialized store (20 bytes) is recognised */
+    EXPECT_EQ(b.cbData, 20);
     if (ok) { CHECK(r.st != NULL); EXPECT_EQ(mh_count_certs(r.st), 0); }
     qfree(&r); free(b.pbData); U(CertCloseStore)(s, 0);
 }
@@ -436,7 +437,7 @@ TEST(query_base64_crlf_variants) {
     static const DWORD f[] = { CRYPT_STRING_BASE64, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCR, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF };
     for (int i = 0; i < 3; i++) {
         DWORD n = 0; char *s = mh_to_b64(v_o_crl, sizeof v_o_crl, f[i], &n);
-        if (!s) { t_note("CryptBinaryToString flags 0x%lx unsupported", f[i]); continue; }
+        CHECKF(s != NULL, "CryptBinaryToString flags 0x%lx", f[i]); if (!s) continue;
         QR r; BOOL ok = qblob((BYTE *)s, n, QC_CRL, QF_B64, &r);
         CHECKF(ok, "flags 0x%lx: err 0x%lx", f[i], r.err);
         if (ok) { EXPECT_EQ(r.ct, T_CRL); EXPECT_EQ(r.ft, 2); }
@@ -551,20 +552,20 @@ TEST(query_utf16_base64_text) {
     WCHAR *w = calloc(n + 2, sizeof(WCHAR)); /* even-aligned heap block */
     for (DWORD i = 0; i < n; i++) w[i] = (unsigned char)s[i];
     QR r; BOOL ok = qblob((BYTE *)w, n * 2, QC_CERT, QF_B64, &r);
-    t_note("UTF-16 base64 text -> %d type %lu format %lu err 0x%lx", ok, r.ct, r.ft, r.err);
+    CHECKF(ok, "err 0x%lx", r.err); /* observed: UTF-16 base64 text is recognised */
     if (ok) { EXPECT_EQ(r.ct, T_CERT); EXPECT_EQ(r.ft, 2); }
     qfree(&r); free(w); free(s);
 }
 TEST(query_truncated_and_corrupted_objects) {
     REQUIRE(CQ); BIN_INIT();
     for (int i = 0; i < NBIN; i++) {
-        if (g_bin[i].ct == T_PFX) continue;
+        /* observed: every kind of object, the PFX included, is rejected as NO_MATCH when cut to half or by one byte */
+        t_label("%s", g_bin[i].name);
         QR r; BOOL ok = qblob(g_bin[i].p, g_bin[i].n / 2, g_bin[i].mask, QF_BIN, &r);
-        CHECKF(!ok, "%s truncated to half", g_bin[i].name);
-        if (!ok) EXPECT_EQ(r.err, E_CRYPT_E_NO_MATCH);
+        CHECK(!ok); EXPECT_EQ(r.err, E_CRYPT_E_NO_MATCH);
         qfree(&r);
         ok = qblob(g_bin[i].p, g_bin[i].n - 1, g_bin[i].mask, QF_BIN, &r);
-        CHECKF(!ok || r.ct == g_bin[i].ct, "%s minus one byte", g_bin[i].name);
+        CHECK(!ok); EXPECT_EQ(r.err, E_CRYPT_E_NO_MATCH);
         qfree(&r);
     }
 }
@@ -572,7 +573,7 @@ TEST(query_trailing_data_after_cert) {
     REQUIRE(CQ);
     BYTE *b = malloc(sizeof v_o_cert + 8); memcpy(b, v_o_cert, sizeof v_o_cert); memset(b + sizeof v_o_cert, 0, 8);
     QR r; BOOL ok = qblob(b, sizeof v_o_cert + 8, QC_CERT, QF_BIN, &r);
-    t_note("certificate followed by 8 zero bytes -> %d type %lu err 0x%lx", ok, r.ct, r.err);
+    CHECKF(ok, "err 0x%lx", r.err); EXPECT_EQ(r.ct, T_CERT); /* observed: trailing bytes are ignored */
     qfree(&r); free(b);
 }
 
@@ -634,7 +635,7 @@ TEST(query_file_empty) {
     REQUIRE(CQ);
     WCHAR p[MAX_PATH]; write_file("qf_empty.cer", "", 0, p);
     QR r; BOOL ok = qfile(p, QC_ALL, QF_ALL, &r);
-    t_note("zero-length file -> %d err 0x%lx", ok, r.err); qfree(&r);
+    EXPECT_EQ(ok, FALSE); EXPECT_EQ(r.err, 0x80004005u); qfree(&r); /* observed: E_FAIL, not NO_MATCH */
 }
 TEST(query_file_garbage_is_no_match) {
     REQUIRE(CQ);
@@ -663,7 +664,7 @@ TEST(query_file_directory_path) {
     REQUIRE(CQ);
     WCHAR p[MAX_PATH]; MultiByteToWideChar(CP_ACP, 0, t_tmpdir(), -1, p, MAX_PATH);
     QR r; BOOL ok = qfile(p, QC_ALL, QF_ALL, &r);
-    t_note("directory as object -> %d err 0x%lx", ok, r.err); qfree(&r);
+    EXPECT_EQ(ok, FALSE); EXPECT_EQ(r.err, 0x80004005u); qfree(&r); /* observed: E_FAIL */
 }
 TEST(query_file_large_nonmatching) {
     REQUIRE(CQ);
@@ -707,5 +708,5 @@ TEST(query_dwflags_zero_vs_unknown) {
     REQUIRE(CQ);
     CERT_BLOB b = { sizeof v_o_cert, (BYTE *)v_o_cert }; DWORD ct = 0;
     SET_ERR(0); BOOL r = CQ(CERT_QUERY_OBJECT_BLOB, &b, QC_CERT, QF_BIN, 0x1234, NULL, &ct, NULL, NULL, NULL, NULL);
-    t_note("dwFlags 0x1234 -> %d err 0x%lx", r, GetLastError());
+    CHECKF(r, "err 0x%lx", GetLastError()); /* observed: unknown flag bits are ignored */
 }

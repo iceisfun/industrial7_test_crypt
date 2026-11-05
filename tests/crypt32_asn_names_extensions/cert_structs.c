@@ -45,8 +45,7 @@ TEST(extensions_encode_empty_value_and_bad_oid) {
     ENC_EQ(X509_EXTENSIONS, &s, exp);
     e.pszObjId = (LPSTR)"abc";
     DWORD cb = 0; SET_ERR(0);
-    BOOL r = U(CryptEncodeObjectEx)(ENC, X509_EXTENSIONS, &s, 0, NULL, NULL, &cb);
-    CHECK(!r); t_note("extension with malformed OID: err 0x%lx", GetLastError());
+    EXPECT_FAILS(U(CryptEncodeObjectEx)(ENC, X509_EXTENSIONS, &s, 0, NULL, NULL, &cb), 0x80093109);
 }
 TEST(extensions_decode) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -94,10 +93,10 @@ TEST(extensions_decode_nocopy_and_share) {
 }
 TEST(extensions_decode_errors) {
     REQUIRE(U(CryptDecodeObjectEx));
-    a_dec_fail(__FILE__, __LINE__, X509_EXTENSIONS, v_bc2_ca, sizeof v_bc2_ca, 0, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_EXTENSIONS, v_bc2_ca, sizeof v_bc2_ca, 0, HR_ASN1_BADTAG);
     a_dec_fail(__FILE__, __LINE__, X509_EXTENSIONS, v_ku_ds, sizeof v_ku_ds, 0, HR_ASN1_BADTAG);
     static const BYTE no_value[] = { 0x30, 0x06, 0x30, 0x04, 0x06, 0x02, 0x2A, 0x03 };
-    a_dec_fail(__FILE__, __LINE__, X509_EXTENSIONS, no_value, sizeof no_value, 0, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_EXTENSIONS, no_value, sizeof no_value, 0, HR_ASN1_EOD);
 }
 
 /* ---- X509_CERT_TO_BE_SIGNED -------------------------------------------- */
@@ -148,7 +147,7 @@ TEST(tbs_cert_decode_v1) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb; CERT_INFO *ci = DEC(X509_CERT_TO_BE_SIGNED, v_tbs_v1, CRYPT_DECODE_TO_BE_SIGNED_FLAG, &cb);
     if (!ci) return;
-    CHECK(cb >= sizeof *ci);
+    EXPECT_EQ(cb, 336); /* observed: CERT_INFO 208 bytes plus its strings and blobs */
     CHECK(ci->dwVersion == CERT_V1);
     CHECK(ci->SerialNumber.cbData == 1 && ci->SerialNumber.pbData[0] == 1);
     CHECK(ci->SignatureAlgorithm.pszObjId && !strcmp(ci->SignatureAlgorithm.pszObjId, szOID_RSA_SHA1RSA));
@@ -188,7 +187,8 @@ TEST(tbs_cert_decode_v3_ext_uid_serial) {
     ci = DEC(X509_CERT_TO_BE_SIGNED, v_tbs_v3_gentime, CRYPT_DECODE_TO_BE_SIGNED_FLAG, NULL);
     if (ci) { CHECK(a_ft_eq(ci->NotAfter, a_ft(2050, 1, 1, 0, 0, 0))); LocalFree(ci); }
     ci = DEC(X509_CERT_TO_BE_SIGNED, v_tbs_v3_serial_hi, CRYPT_DECODE_TO_BE_SIGNED_FLAG, NULL);
-    if (ci) { t_note("serial 02 02 00 80 decoded as %lu bytes first=%02x", ci->SerialNumber.cbData, ci->SerialNumber.pbData[0]); LocalFree(ci); }
+    if (ci) { /* observed: the serial is byte-reversed (little endian), the redundant leading zero is kept */
+        CHECKF(ci->SerialNumber.cbData == 2 && ci->SerialNumber.pbData[0] == 0x80 && ci->SerialNumber.pbData[1] == 0x00, "cb %lu first %02x", ci->SerialNumber.cbData, ci->SerialNumber.pbData[0]); LocalFree(ci); }
 }
 TEST(tbs_cert_roundtrips) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -220,7 +220,7 @@ TEST(tbs_cert_decode_signed_vs_to_be_signed_flag) {
     ci = DEC(X509_CERT_TO_BE_SIGNED, v_tbs_v1, 0, NULL);
     if (ci) { CHECK(ci->dwVersion == CERT_V1 && ci->SerialNumber.cbData == 1 && ci->Subject.cbData == sizeof v_name_cn_test); LocalFree(ci); }
     /* and the flag must not be combined with the signed structure */
-    a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_x509_cert, sizeof v_x509_cert, CRYPT_DECODE_TO_BE_SIGNED_FLAG, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_x509_cert, sizeof v_x509_cert, CRYPT_DECODE_TO_BE_SIGNED_FLAG, HR_ASN1_BADTAG);
 }
 TEST(tbs_cert_decode_truncated) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -229,12 +229,12 @@ TEST(tbs_cert_decode_truncated) {
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CERT_TO_BE_SIGNED, v_tbs_v3_ext, cut, CRYPT_DECODE_TO_BE_SIGNED_FLAG, NULL, NULL, &cb);
         CHECKF(!r, "cut %lu succeeded", cut);
     }
-    DEC_FAIL(X509_CERT_TO_BE_SIGNED, v_tbs_truncated, 0);
+    DEC_FAIL(X509_CERT_TO_BE_SIGNED, v_tbs_truncated, HR_ASN1_EOD);
 }
 TEST(tbs_cert_decode_wrong_content) {
     REQUIRE(U(CryptDecodeObjectEx));
-    a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_name_cn_test, sizeof v_name_cn_test, CRYPT_DECODE_TO_BE_SIGNED_FLAG, 0);
-    a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_bc2_empty, sizeof v_bc2_empty, CRYPT_DECODE_TO_BE_SIGNED_FLAG, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_name_cn_test, sizeof v_name_cn_test, CRYPT_DECODE_TO_BE_SIGNED_FLAG, HR_ASN1_BADTAG);
+    a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_bc2_empty, sizeof v_bc2_empty, CRYPT_DECODE_TO_BE_SIGNED_FLAG, HR_ASN1_EOD);
     a_dec_fail(__FILE__, __LINE__, X509_CERT_TO_BE_SIGNED, v_ku_ds, sizeof v_ku_ds, CRYPT_DECODE_TO_BE_SIGNED_FLAG, HR_ASN1_BADTAG);
 }
 
@@ -291,7 +291,7 @@ TEST(signed_content_decode_params_and_errors) {
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CERT, v_x509_cert, cut, 0, NULL, NULL, &cb);
         CHECKF(!r, "cut %lu succeeded", cut);
     }
-    a_dec_fail(__FILE__, __LINE__, X509_CERT, v_tbs_v1, sizeof v_tbs_v1, 0, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_CERT, v_tbs_v1, sizeof v_tbs_v1, 0, HR_ASN1_BADTAG);
 }
 
 /* ---- CRL to be signed ----------------------------------------------------- */

@@ -154,9 +154,8 @@ TEST(mld_data_bare_flag_content_param) {
     DWORD cb = 0; BYTE *b = ml_encode_data(CMSG_BARE_CONTENT_FLAG, TXT3, 3, &cb);
     CHECK(b != NULL);
     if (b) {
-        if (cb == sizeof BARE_ABC && !memcmp(b, BARE_ABC, cb)) CHECK(1);
-        else t_note("BARE_CONTENT_FLAG: CONTENT_PARAM has %lu bytes, first 0x%02x", (unsigned long)cb, b[0]);
-        CHECK(cb >= sizeof BARE_ABC);
+        /* observed: the bare flag is ignored when encoding CMSG_DATA, the complete 20 byte ContentInfo comes back */
+        EXPECT_EQ(cb, sizeof DATA_ABC); CHECK(cb == sizeof DATA_ABC && !memcmp(b, DATA_ABC, cb));
     }
     ml_free(b);
 }
@@ -260,13 +259,13 @@ TEST(mld_update_detached_nonfinal_rejected) {
     CHECK(mUpdate()(m, TXT3, 3, TRUE));
     mClose()(m);
 }
-TEST(mld_detached_data_content_is_empty_octets) {
+TEST(mld_detached_flag_is_ignored_for_data) {
     REQ_MSG();
     DWORD cb = 0; BYTE *b = ml_encode_data(CMSG_DETACHED_FLAG, TXT3, 3, &cb);
     CHECK(b != NULL);
     if (b) {
-        CHECKF(ml_memmem(b, cb, TXT3, 3) == NULL || cb == sizeof DATA_ABC, "cb=%lu", (unsigned long)cb);
-        t_note("detached CMSG_DATA encoded length %lu", (unsigned long)cb);
+        /* observed: CMSG_DETACHED_FLAG does not change the encoding of a CMSG_DATA message (content included) */
+        EXPECT_EQ(cb, sizeof DATA_ABC); CHECK(cb == sizeof DATA_ABC && !memcmp(b, DATA_ABC, cb));
     }
     ml_free(b);
 }
@@ -341,7 +340,7 @@ TEST(mld_data_getparam_index_ignored_for_content) {
     CHECK(mUpdate()(m, TXT3, 3, TRUE));
     DWORD n = 0; SET_ERR(0);
     BOOL ok = mGetParam()(m, CMSG_CONTENT_PARAM, 5, NULL, &n);
-    if (ok) CHECK(n == sizeof DATA_ABC); else t_note("CONTENT_PARAM with index 5 fails err=%lx", GetLastError());
+    CHECKF(ok, "err 0x%lx", GetLastError()); EXPECT_EQ(n, sizeof DATA_ABC); /* observed: the index is ignored */
     mClose()(m);
 }
 TEST(mld_data_unknown_param_numbers) {
@@ -353,8 +352,7 @@ TEST(mld_data_unknown_param_numbers) {
     for (size_t i = 0; i < sizeof p / sizeof *p; i++) {
         DWORD n = 0; SET_ERR(0);
         BOOL ok = mGetParam()(m, p[i], 0, NULL, &n);
-        CHECKF(!ok, "param %lu", (unsigned long)p[i]);
-        if (!ok) t_note("param %lu on data msg: err 0x%lx", (unsigned long)p[i], (unsigned long)GetLastError());
+        t_label("param %lu", (unsigned long)p[i]); EXPECT_FAIL(!ok, 0x80091004); t_label(NULL); /* observed: CRYPT_E_INVALID_MSG_TYPE */
     }
     mClose()(m);
 }
@@ -453,7 +451,7 @@ TEST(mld_decode_explicit_data_type_takes_bare_content) {
     if (!m) return;
     CHECK(mUpdate()(m, BARE_ABC, sizeof BARE_ABC, TRUE));
     DWORD t = 0;
-    if (ml_param_dword(m, CMSG_TYPE_PARAM, 0, &t)) EXPECT_EQ(t, CMSG_DATA); else t_note("TYPE_PARAM after explicit data decode: 0x%lx", (unsigned long)GetLastError());
+    CHECK(ml_param_dword(m, CMSG_TYPE_PARAM, 0, &t)); EXPECT_EQ(t, CMSG_DATA);
     DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
     CHECK(b && n == 3 && !memcmp(b, TXT3, 3));
     ml_free(b);
@@ -487,9 +485,8 @@ TEST(mld_decode_data_getparams) {
     DWORD t = 0; CHECK(ml_param_dword(m, CMSG_TYPE_PARAM, 0, &t)); EXPECT_EQ(t, CMSG_DATA);
     DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
     CHECK(b && n == 3 && !memcmp(b, TXT3, 3)); ml_free(b);
-    b = ml_param(m, CMSG_INNER_CONTENT_TYPE_PARAM, 0, &n);
-    if (b) CHECK(!strcmp((char *)b, OID_DATA)); else t_note("INNER_CONTENT_TYPE_PARAM on a decoded data message failed: 0x%lx", (unsigned long)GetLastError());
-    ml_free(b);
+    { DWORD nn = 0; SET_ERR(0); /* observed: a plain data message has no inner content type (CRYPT_E_INVALID_MSG_TYPE) */
+      EXPECT_FAIL(!mGetParam()(m, CMSG_INNER_CONTENT_TYPE_PARAM, 0, NULL, &nn), 0x80091004); }
     mClose()(m);
 }
 TEST(mld_decode_data_openssl_message) {

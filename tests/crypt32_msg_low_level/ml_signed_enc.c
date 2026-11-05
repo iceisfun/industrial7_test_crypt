@@ -1,7 +1,7 @@
 /* CMSG_SIGNED encoding: open validation, flags, attributes, certs/CRLs, round trips. */
 #include "ml.h"
 
-#define REQ_SIGN(s) do { REQ_MSG(); if (!ml_signer_init(&(s), OID_SHA256)) { ml_signer_done(&(s)); t_skip("cannot set up ephemeral signer (provider/key import)"); return; } } while (0)
+#define REQ_SIGN(s) do { REQ_MSG(); if (!ml_signer_init(&(s), OID_SHA256)) { ml_signer_done(&(s)); CHECKF(0, "cannot set up ephemeral signer (provider/key import)"); return; } } while (0)
 
 static BOOL has_attr(const CRYPT_ATTRIBUTES *a, const char *oid) {
     for (DWORD i = 0; i < a->cAttr; i++) if (a->rgAttr[i].pszObjId && !strcmp(a->rgAttr[i].pszObjId, oid)) return TRUE;
@@ -264,10 +264,10 @@ TEST(mls_bare_content_flag) {
     if (m) { CHECK(mUpdate()(m, V_CONTENT, V_CONTENT_LEN, TRUE)); bare = ml_param(m, CMSG_BARE_CONTENT_PARAM, 0, &cbare); mClose()(m); }
     CHECK(full && bare);
     if (full && bare) {
-        CHECK(cbare < cf);
+        EXPECT_EQ(cbare, 299); EXPECT_EQ(cf, 318);
         CHECK(bare[0] == 0x30);
         CHECK(ml_memmem(full, cf, bare, cbare) != NULL);          /* full = ContentInfo { signedData, [0] bare } */
-        CHECK(cf - cbare <= 24);
+        EXPECT_EQ(cf - cbare, 19); /* ContentInfo header, OID and explicit tag */
         /* the bare form starts with: SEQUENCE { INTEGER 1 ... } */
         const BYTE ver[] = {0x02,0x01,0x01};
         const BYTE *p = ml_memmem(bare, 8, ver, 3);
@@ -276,12 +276,12 @@ TEST(mls_bare_content_flag) {
     ml_free(full); ml_free(bare);
     ml_signer_done(&s);
 }
-TEST(mls_bare_flag_content_param_is_bare) {
+TEST(mls_bare_flag_does_not_change_signed_output) {
     ml_signer_t s; REQ_SIGN(s);
     DWORD cf = 0; BYTE *full = ml_sign(&s, 0, OID_SHA256, V_CONTENT, V_CONTENT_LEN, &cf);
     DWORD cb = 0; BYTE *b = ml_sign(&s, CMSG_BARE_CONTENT_FLAG, OID_SHA256, V_CONTENT, V_CONTENT_LEN, &cb);
     CHECK(full && b);
-    if (full && b) { t_note("SIGNED with BARE_CONTENT_FLAG: CONTENT_PARAM %lu bytes vs %lu without flag", (unsigned long)cb, (unsigned long)cf); CHECK(cb <= cf); }
+    if (full && b) { EXPECT_EQ(cb, cf); CHECK(cb == cf && !memcmp(full, b, cb)); } /* observed: the bare flag is ignored for a signed message (318 bytes either way) */
     ml_free(full); ml_free(b);
     ml_signer_done(&s);
 }
@@ -294,7 +294,7 @@ TEST(mls_detached_flag_omits_content) {
     if (det && att) {
         CHECK(ml_memmem(det, cd, V_CONTENT, 8) == NULL);
         CHECK(ml_memmem(att, ca, V_CONTENT, 8) != NULL);
-        CHECK(cd < ca);
+        EXPECT_EQ(cd, 281); EXPECT_EQ(ca, 318);
         CHECK(ml_memmem(det, cd, V_SIG1_SHA256, V_SIG1_SHA256_LEN) != NULL);   /* same signature either way */
     }
     ml_free(det); ml_free(att);
@@ -337,8 +337,7 @@ TEST(mls_detached_verify_with_separate_content) {
             CHECK(mUpdate()(d, b, cb, TRUE));
             CHECK(mUpdate()(d, bad, V_CONTENT_LEN, TRUE));
             SET_ERR(0);
-            CHECK(!verify1(d));
-            t_note("detached verify with altered content: err 0x%lx", (unsigned long)GetLastError());
+            EXPECT_FAIL(!verify1(d), ML_INVALID_SIG);
             mClose()(d);
         }
     }
@@ -366,7 +365,7 @@ TEST(mls_cms_encapsulated_content_flag) {
                 CHECK(it && !strcmp((char *)it, "1.2.3.4.5.6")); ml_free(it);
                 SET_ERR(0);
                 CHECKF(verify1(d), "verify err 0x%lx", GetLastError());
-                DWORD v = 0; if (ml_param_dword(d, CMSG_VERSION_PARAM, 0, &v)) t_note("CMS encapsulated non-data content: version %lu", (unsigned long)v);
+                DWORD v = 0; CHECK(ml_param_dword(d, CMSG_VERSION_PARAM, 0, &v)); EXPECT_EQ(v, 3); /* observed: non-data content makes it CMS version 3 */
                 mClose()(d);
             }
         }
@@ -410,7 +409,7 @@ TEST(mls_authenticated_attributes_flag) {
         CHECK(a != NULL);
         if (a) {
             CRYPT_ATTRIBUTES *at = (CRYPT_ATTRIBUTES *)a;
-            CHECK(at->cAttr >= 2);
+            EXPECT_EQ(at->cAttr, 2);
             CHECK(has_attr(at, OID_CT)); CHECK(has_attr(at, OID_MD));
             ml_free(a);
         }
@@ -499,7 +498,7 @@ TEST(mls_unauth_attr_not_in_signature) {
     DWORD c1 = 0, c2 = 0;
     BYTE *a = sign_attr(&s, CMSG_AUTHENTICATED_ATTRIBUTES_FLAG, FALSE, FALSE, &c1);
     BYTE *b = sign_attr(&s, CMSG_AUTHENTICATED_ATTRIBUTES_FLAG, FALSE, TRUE, &c2);
-    CHECK(a && b && c2 > c1);
+    CHECK(a && b); EXPECT_EQ(c1, 397); EXPECT_EQ(c2, 414);
     if (a && b) {
         const BYTE *sig = ml_memmem(a, c1, V_SIG1_SHA256, 1);   /* locate by decoding instead */
         (void)sig;
@@ -557,7 +556,7 @@ TEST(mls_embedded_cert_and_crl_params) {
     }
     ml_signer_done(&s);
 }
-TEST(mls_cert_order_preserved) {
+TEST(mls_cert_set_is_sorted) {
     ml_signer_t s; REQ_SIGN(s);
     CERT_BLOB cb1[2] = {{V_CERT2_LEN, (BYTE *)V_CERT2}, {V_CERT1_LEN, (BYTE *)V_CERT1}};
     s.se.cCertEncoded = 2; s.se.rgCertEncoded = cb1;
@@ -567,7 +566,8 @@ TEST(mls_cert_order_preserved) {
     if (d) {
         DWORD k = 0; BYTE *c0 = ml_param(d, CMSG_CERT_PARAM, 0, &k);
         CHECK(c0 != NULL);
-        if (c0) t_note("certificate order in SET: first is %s", k == V_CERT2_LEN && !memcmp(c0, V_CERT2, k) ? "as supplied" : "reordered");
+        /* observed: the certificate SET is sorted (DER SET OF), so the order supplied is not preserved: cert 1 comes first */
+        if (c0) { EXPECT_EQ(k, V_CERT1_LEN); CHECK(k == V_CERT1_LEN && !memcmp(c0, V_CERT1, k)); }
         ml_free(c0); mClose()(d);
     }
     ml_free(b);
@@ -588,7 +588,7 @@ static BOOL two_signers(ml_signer_t *s) {
 }
 TEST(mls_two_signers) {
     ml_signer_t s; REQ_SIGN(s);
-    if (!two_signers(&s)) { ml_signer_done(&s); t_skip("second signer setup failed"); return; }
+    if (!two_signers(&s)) { ml_signer_done(&s); CHECKF(0, "second signer setup failed"); return; }
     DWORD cb = 0; BYTE *b = ml_sign(&s, 0, OID_SHA256, V_CONTENT, V_CONTENT_LEN, &cb);
     HCRYPTMSG d = b ? ml_decode(b, cb, 0, 0) : NULL;
     CHECK(d != NULL);
@@ -617,7 +617,7 @@ TEST(mls_two_signers) {
 }
 TEST(mls_two_signers_verify_ex_by_index) {
     ml_signer_t s; REQ_SIGN(s);
-    if (!two_signers(&s)) { ml_signer_done(&s); t_skip("second signer setup failed"); return; }
+    if (!two_signers(&s)) { ml_signer_done(&s); CHECKF(0, "second signer setup failed"); return; }
     DWORD cb = 0; BYTE *b = ml_sign(&s, 0, OID_SHA256, V_CONTENT, V_CONTENT_LEN, &cb);
     HCRYPTMSG d = b ? ml_decode(b, cb, 0, 0) : NULL;
     CHECK(d != NULL);
@@ -632,8 +632,7 @@ TEST(mls_two_signers_verify_ex_by_index) {
         /* signer 0 verified against signer 1's certificate must fail */
         p.dwSignerIndex = 0; p.pvSigner = (void *)s.cert2;
         SET_ERR(0);
-        CHECK(!mControl()(d, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p));
-        t_note("VERIFY_SIGNATURE_EX signer0 vs cert2: err 0x%lx", (unsigned long)GetLastError());
+        EXPECT_FAIL(!mControl()(d, 0, CMSG_CTRL_VERIFY_SIGNATURE_EX, &p), ML_INVALID_SIG);
         mClose()(d);
     }
     ml_free(b);

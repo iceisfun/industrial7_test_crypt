@@ -50,7 +50,7 @@ TEST(mlt_data_definite_chunked_matches_nonstreamed) {
         CHECK(ref && a.len == cb && !memcmp(a.buf, ref, cb));
         ml_free(ref);
         EXPECT_EQ(a.finals, 1);
-        CHECK(a.calls >= 2);
+        EXPECT_EQ(a.calls, 8);
     }
     acc_free(&a);
 }
@@ -112,8 +112,7 @@ TEST(mlt_data_stream_callback_failure_propagates) {
     if (m) {
         SET_ERR(0);
         BOOL ok = mUpdate()(m, T3, 3, TRUE);
-        CHECK(!ok);
-        t_note("stream callback returned FALSE: Update ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
+        CHECK(!ok); EXPECT_ERR(0); /* observed: the failure is reported without a last error */
         mClose()(m);
     }
     acc_free(&a);
@@ -130,7 +129,7 @@ TEST(mlt_data_stream_open_nonfinal_ok) {
         CHECK(mUpdate()(m, T3, 3, TRUE));
         mClose()(m);
         EXPECT_EQ(a.finals, 1);
-        CHECK(a.len > 6);
+        EXPECT_EQ(a.len, 23); EXPECT_EQ(a.calls, 3);
     }
     acc_free(&a);
 }
@@ -147,7 +146,7 @@ TEST(mlt_data_indefinite_structure) {
         CHECK(mUpdate()(m, T3, 3, FALSE));
         CHECK(mUpdate()(m, T3, 3, TRUE));
         mClose()(m);
-        CHECK(a.len > sizeof head + 6);
+        EXPECT_EQ(a.len, 33);
         CHECK(a.len >= sizeof head && !memcmp(a.buf, head, sizeof head));
         static const BYTE tail[6] = {0,0,0,0,0,0};
         CHECK(a.len >= 6 && !memcmp(a.buf + a.len - 6, tail, 6));
@@ -183,7 +182,7 @@ TEST(mlt_data_indefinite_decodes_nonstreamed) {
 }
 
 /* ---------------------------------------------------------------- hashed / signed / enveloped streamed encode */
-TEST(mlt_hashed_stream_roundtrip) {
+TEST(mlt_hashed_stream_callback_not_invoked) {
     REQ_MSG();
     acc_t a; memset(&a, 0, sizeof a);
     CMSG_STREAM_INFO si = {V_CONTENT_LEN, acc_cb, &a};
@@ -193,18 +192,14 @@ TEST(mlt_hashed_stream_roundtrip) {
     if (m) {
         CHECK(mUpdate()(m, V_CONTENT, V_CONTENT_LEN, TRUE));
         mClose()(m);
-        t_note("streamed hashed message produced %lu bytes in %lu callbacks (final flags: %lu)", (unsigned long)a.len, (unsigned long)a.calls, (unsigned long)a.finals);
-        if (a.len) {
-            HCRYPTMSG d = ml_decode(a.buf, a.len, 0, 0);
-            CHECK(d != NULL);
-            if (d) { CHECK(mControl()(d, 0, CMSG_CTRL_VERIFY_HASH, NULL)); mClose()(d); }
-        }
+        /* observed: a streamed CMSG_HASHED encode never invokes the callback */
+        EXPECT_EQ(a.len, 0); EXPECT_EQ(a.calls, 0); EXPECT_EQ(a.finals, 0);
     }
     acc_free(&a);
 }
 TEST(mlt_signed_stream_definite_verifies) {
     ml_signer_t s; REQ_MSG();
-    if (!ml_signer_init(&s, OID_SHA1)) { ml_signer_done(&s); t_skip("setup"); return; }
+    if (!ml_signer_init(&s, OID_SHA1)) { ml_signer_done(&s); CHECKF(0, "setup failed"); return; }
     acc_t a; memset(&a, 0, sizeof a);
     CMSG_STREAM_INFO si = {V_CONTENT_LEN, acc_cb, &a};
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_SIGNED, &s.se, NULL, &si);
@@ -225,7 +220,8 @@ TEST(mlt_signed_stream_definite_verifies) {
             mClose()(d);
         }
         DWORD cb = 0; BYTE *ref = ml_sign(&s, 0, OID_SHA1, V_CONTENT, V_CONTENT_LEN, &cb);
-        if (ref) t_note("streamed (definite) vs non-streamed signed message: %s", (cb == a.len && !memcmp(ref, a.buf, cb)) ? "byte-identical" : "different bytes");
+        CHECK(ref != NULL); /* observed: byte-identical to the non-streamed message */
+        if (ref) { EXPECT_EQ(a.len, cb); CHECK(cb == a.len && !memcmp(ref, a.buf, cb)); }
         ml_free(ref);
     }
     acc_free(&a);
@@ -233,7 +229,7 @@ TEST(mlt_signed_stream_definite_verifies) {
 }
 TEST(mlt_signed_stream_indefinite_verifies) {
     ml_signer_t s; REQ_MSG();
-    if (!ml_signer_init(&s, OID_SHA1)) { ml_signer_done(&s); t_skip("setup"); return; }
+    if (!ml_signer_init(&s, OID_SHA1)) { ml_signer_done(&s); CHECKF(0, "setup failed"); return; }
     acc_t a; memset(&a, 0, sizeof a);
     CMSG_STREAM_INFO si = {CMSG_INDEFINITE_LENGTH, acc_cb, &a};
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_SIGNED, &s.se, NULL, &si);
@@ -242,7 +238,7 @@ TEST(mlt_signed_stream_indefinite_verifies) {
         CHECK(mUpdate()(m, V_CONTENT, 10, FALSE));
         CHECK(mUpdate()(m, V_CONTENT + 10, V_CONTENT_LEN - 10, TRUE));
         mClose()(m);
-        CHECK(a.len > 2 && a.buf[0] == 0x30 && a.buf[1] == 0x80);
+        EXPECT_EQ(a.len, 320); CHECK(a.buf[0] == 0x30 && a.buf[1] == 0x80);
         HCRYPTMSG d = ml_decode(a.buf, a.len, 0, 0);
         CHECKF(d != NULL, "err 0x%lx", GetLastError());
         if (d) {
@@ -258,7 +254,7 @@ TEST(mlt_enveloped_stream_roundtrip) {
     REQ_MSG();
     HCRYPTPROV ep = ml_prov(NULL, 0), dp = ml_prov(V_KEY1, V_KEY1_LEN);
     PCCERT_CONTEXT c = ml_cert(V_CERT1, V_CERT1_LEN);
-    if (!ep || !dp || !c) { ml_cert_free(c); ml_prov_release(ep); ml_prov_release(dp); t_skip("setup"); return; }
+    if (!ep || !dp || !c) { ml_cert_free(c); ml_prov_release(ep); ml_prov_release(dp); CHECKF(0, "setup failed"); return; }
     PCERT_INFO rc[1] = {c->pCertInfo};
     CMSG_ENVELOPED_ENCODE_INFO ei; memset(&ei, 0, sizeof ei);
     ei.cbSize = sizeof ei; ei.hCryptProv = ep; ei.ContentEncryptionAlgorithm.pszObjId = OID_3DES; ei.cRecipients = 1; ei.rgpRecipients = rc;
@@ -317,7 +313,7 @@ TEST(mlt_decode_stream_whole_message_signed) {
     PCCERT_CONTEXT c = ml_cert(V_CERT1, V_CERT1_LEN);
     SET_ERR(0);
     BOOL ok = c && mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, c->pCertInfo);
-    t_note("verify on a streamed-decode signed message: ok=%d err=0x%lx", ok, (unsigned long)GetLastError());
+    CHECKF(ok, "err 0x%lx", GetLastError()); /* observed: verifies */
     ml_cert_free(c);
     mClose()(m);
     acc_free(&a);
@@ -368,9 +364,7 @@ TEST(mlt_decode_stream_partial_message_final_insufficient) {
     if (!m) return;
     CHECK(mUpdate()(m, M_SIGNED_NOATTR, 100, FALSE));
     SET_ERR(0);
-    CHECK(!mUpdate()(m, NULL, 0, TRUE));
-    DWORD e = GetLastError();
-    t_note("streamed decode, 100 of %d bytes then final: err 0x%lx", (int)M_SIGNED_NOATTR_LEN, (unsigned long)e);
+    EXPECT_FAIL(!mUpdate()(m, NULL, 0, TRUE), CRYPT_E_MSG_ERROR); /* observed: 100 of 791 bytes then the final update */
     mClose()(m);
     acc_free(&a);
 }

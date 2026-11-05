@@ -42,10 +42,9 @@ TEST(mh_sign_size_query_null_buffer) {
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; DWORD n = 0x1234;
     SET_ERR(0);
     CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n));
-    CHECK(n > sizeof v_payload);
+    EXPECT_EQ(n, 328);
     DWORD cb = 0; BYTE *b = mh_sign(MH_S1, OID_SHA256, 0, 0, PL, &cb);
-    CHECK(b != NULL); CHECK(n >= cb);
-    if (n != cb) t_note("size query %lu vs actual %lu", n, cb);
+    CHECK(b != NULL); EXPECT_EQ(n, cb);
     free(b);
 }
 TEST(mh_sign_size_query_ignores_incoming_value) {
@@ -76,7 +75,7 @@ TEST(mh_sign_exact_buffer_succeeds_and_trailing_untouched) {
     BYTE *buf = malloc(q + 16); memset(buf, 0xA5, q + 16);
     DWORD n = q;
     CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, buf, &n));
-    CHECK(n <= q);
+    EXPECT_EQ(n, q);
     EXPECT_EQ(mh_der_total(buf, n), n);
     for (DWORD i = n; i < q + 16; i++) if (buf[i] != 0xA5) { CHECKF(0, "byte %lu past output modified", i); break; }
     free(buf);
@@ -106,7 +105,7 @@ TEST(mh_sign_buffer_size_one) {
     SET_ERR(0);
     BOOL r = U(CryptSignMessage)(&p, FALSE, 1, a, l, one, &n);
     EXPECT_FAIL(r == FALSE, ERROR_MORE_DATA);
-    CHECK(n > 1);
+    EXPECT_EQ(n, 328); /* observed: the required size is reported */
 }
 TEST(mh_sign_cbsize_too_small_is_invalidarg) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
@@ -133,7 +132,7 @@ TEST(mh_sign_cbsize_0x50_is_accepted) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
     CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256); p.cbSize = 0x50;
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; DWORD n = 0;
-    CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n)); CHECK(n > 0);
+    CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n)); EXPECT_EQ(n, 328);
 }
 TEST(mh_sign_cbsize_gates_attributes_and_flags) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
@@ -176,12 +175,13 @@ TEST(mh_sign_hash_algorithm_table) {
 TEST(mh_sign_unknown_hash_oid_fails) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
     static const char *bad[] = { "1.2.3.4.5", "2.16.840.1.101.3.4.2.99", "not.an.oid", "1.3.14.3.2.7" /* DES-CBC, not a hash */ };
+    /* observed: CRYPT_E_UNKNOWN_ALGO, except for an OID string that does not parse (CRYPT_E_OSS_ERROR-range 0x80091003) */
+    static const DWORD want[] = { 0x80091002, 0x80091002, 0x80091003, 0x80091002 };
     for (unsigned i = 0; i < 4; i++) {
         CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, bad[i]);
         const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; DWORD n = 55; SET_ERR(0);
         BOOL r = U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n);
-        if (r) { t_note("hash oid %s accepted on size query", bad[i]); continue; }
-        t_note("hash oid %s -> err 0x%lx", bad[i], GetLastError());
+        t_label("%s", bad[i]); EXPECT_FAIL(r == FALSE, want[i]); t_label(NULL);
         EXPECT_EQ(n, 0);
     }
 }
@@ -191,21 +191,19 @@ TEST(mh_sign_pubonly_cert_without_key_fails) {
     p.dwFlags = CRYPT_MESSAGE_SILENT_KEYSET_FLAG;
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; DWORD n = 9; SET_ERR(0);
     BOOL r = U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n);
-    CHECK(r == FALSE); EXPECT_EQ(n, 0);
-    t_note("signing without private key -> 0x%lx", GetLastError());
-    CHECK(GetLastError() != 0);
+    EXPECT_FAIL(r == FALSE, 0x8009200B); EXPECT_EQ(n, 0); /* observed: CRYPT_E_NO_KEY_PROPERTY */
 }
 TEST(mh_sign_wrong_encoding_type_fails) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
     CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256); p.dwMsgEncodingType = 0;
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; DWORD n = 9; SET_ERR(0);
     BOOL r = U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n);
-    CHECK(r == FALSE); t_note("encoding type 0 -> 0x%lx", GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x80070057); /* observed */
     p.dwMsgEncodingType = PKCS_7_ASN_ENCODING; n = 0;
     CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n));
     p.dwMsgEncodingType = X509_ASN_ENCODING; n = 0; SET_ERR(0);
     r = U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n);
-    t_note("X509-only encoding type -> %d err 0x%lx", r, GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x80070057); /* observed: the PKCS7 encoding bit is required */
 }
 /* Windows 10: an attached signature accepts exactly one content blob. The size query still succeeds (with a size that
  * depends on the blob count) but producing the message fails. Splitting content is only supported detached. */
@@ -240,10 +238,10 @@ TEST(mh_sign_zero_blobs) {
     CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256);
     DWORD n = 0; SET_ERR(0);
     BOOL r = U(CryptSignMessage)(&p, FALSE, 0, NULL, NULL, NULL, &n);
-    t_note("cToBeSigned=0 size query -> %d n=%lu err 0x%lx", r, n, GetLastError());
+    CHECKF(r, "err 0x%lx", GetLastError()); EXPECT_EQ(n, 277); /* observed: a message without content is signed; the query over-reports by 5 bytes */
     if (r) {
-        BYTE *b = malloc(n); n += 0; BOOL r2 = U(CryptSignMessage)(&p, FALSE, 0, NULL, NULL, b, &n);
-        CHECK(r2); free(b);
+        BYTE *b = malloc(n); BOOL r2 = U(CryptSignMessage)(&p, FALSE, 0, NULL, NULL, b, &n);
+        CHECK(r2); EXPECT_EQ(n, 272); free(b);
     }
 }
 TEST(mh_sign_empty_content_roundtrip) {
@@ -257,7 +255,7 @@ TEST(mh_sign_empty_content_roundtrip) {
     DWORD dn = 5; BYTE d[5]; PCCERT_CONTEXT sc = NULL;
     SET_ERR(0);
     BOOL r = U(CryptVerifyMessageSignature)(&vp, 0, b, n, d, &dn, &sc);
-    t_note("verify of empty-content signed message -> %d err 0x%lx n=%lu", r, GetLastError(), dn);
+    CHECKF(r, "err 0x%lx", GetLastError()); EXPECT_EQ(dn, 0); /* observed: verifies, empty content */
     if (sc) U(CertFreeCertificateContext)(sc);
     free(b);
 }
@@ -269,7 +267,7 @@ TEST(mh_sign_large_content_roundtrip) {
     p.cMsgCert = 1; PCCERT_CONTEXT mc[1] = { mh_ids[MH_S1].pub }; p.rgpMsgCert = mc;
     const BYTE *a[1] = { data }; DWORD l[1] = { sz };
     DWORD n = 0; CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n));
-    CHECK(n > sz);
+    EXPECT_EQ(n, 300888); /* observed: 300000 content bytes plus 888 bytes of framing and signature */
     BYTE *b = malloc(n); CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, b, &n));
     CHECK(mh_der_total(b, n) == n);
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
@@ -289,7 +287,7 @@ TEST(mh_sign_detached_omits_content) {
     CHECK(at && de); if (!at || !de) return;
     CHECK(!mh_has(de, cd, v_payload, sizeof v_payload));
     CHECK(mh_has(at, ca, v_payload, sizeof v_payload));
-    CHECK(cd + sizeof v_payload <= ca + 4);
+    EXPECT_EQ(ca, 328); EXPECT_EQ(cd, 272); /* observed: the detached message omits the 50 byte payload plus 6 bytes of framing */
     EXPECT_EQ(mh_der_total(de, cd), cd);
     DWORD h = mh_der_hdr(de, cd); CHECK(!memcmp(de + h, MH_OID_SIGNED, 11));
     free(at); free(de);
@@ -379,7 +377,7 @@ TEST(mh_sign_bare_content_flag_drops_contentinfo) {
     CHECK(b[0] == 0x30); CHECK(h && h + 3 <= cb && !memcmp(b + h, "\x02\x01\x01", 3));
     CHECK(!MH_HAS(b, cb, MH_OID_SIGNED));
     DWORD cn = 0; BYTE *nb = mh_sign(MH_S1, OID_SHA256, 0, 0, PL, &cn);
-    CHECK(nb && cb < cn); free(nb);
+    EXPECT_EQ(cb, 309); EXPECT_EQ(cn, 328); /* observed: dropping the ContentInfo wrapper of the data content saves 19 bytes */ free(nb);
     free(b);
 }
 TEST(mh_sign_bare_content_not_decodable_as_message) {
@@ -404,7 +402,8 @@ TEST(mh_sign_encapsulated_content_flag_roundtrip) {
     if (r) { EXPECT_EQ(n, sizeof v_payload); CHECK(!memcmp(d, v_payload, n)); }
     if (sc) U(CertFreeCertificateContext)(sc);
     DWORD c0 = 0; BYTE *b0 = mh_sign(MH_S1, OID_SHA256, 0, 0, PL, &c0);
-    if (b0) { if (c0 != cb || memcmp(b0, b, cb)) t_note("encapsulated flag changes the encoding (%lu vs %lu bytes)", cb, c0); else t_note("encapsulated flag leaves a data payload encoding unchanged"); free(b0); }
+    CHECK(b0 != NULL); /* observed: the encapsulated flag leaves a data payload encoding unchanged */
+    if (b0) { EXPECT_EQ(c0, cb); CHECK(c0 == cb && !memcmp(b0, b, cb)); free(b0); }
     free(b);
 }
 TEST(mh_sign_silent_keyset_flag_accepted) {
@@ -429,7 +428,7 @@ TEST(mh_sign_keyid_signer_flag) {
         DWORD type = 0, n = sizeof type;
         CHECK(U(CryptMsgGetParam)(m, CMSG_TYPE_PARAM, 0, &type, &n)); EXPECT_EQ(type, CMSG_SIGNED);
         DWORD ver = 0; n = sizeof ver;
-        if (U(CryptMsgGetParam)(m, CMSG_VERSION_PARAM, 0, &ver, &n)) t_note("message version with KEYID signer: %lu", ver);
+        CHECK(U(CryptMsgGetParam)(m, CMSG_VERSION_PARAM, 0, &ver, &n)); EXPECT_EQ(ver, 3); /* observed: a key-identifier signer makes it version 3 */
         U(CryptMsgClose)(m);
     }
     free(b);
@@ -464,8 +463,7 @@ TEST(mh_sign_auth_attr_adds_contenttype_and_digest) {
     const char *want[3] = { "1.2.3.4.5.6.7.99", "1.2.840.113549.1.9.3", "1.2.840.113549.1.9.4" };
     int found[3] = { 0, 0, 0 };
     int cnt = msg_attr_count(b, n, CMSG_SIGNER_AUTH_ATTR_PARAM, want, 3, found);
-    CHECK(cnt >= 3); CHECK(found[0]); CHECK(found[1]); CHECK(found[2]);
-    t_note("authenticated attribute count with one caller attribute: %d", cnt);
+    EXPECT_EQ(cnt, 3); CHECK(found[0]); CHECK(found[1]); CHECK(found[2]); /* observed: caller attribute + content type + message digest */
     int f1[1] = { 0 }; const char *w1[1] = { "1.2.3.4.5.6.7.99" };
     EXPECT_EQ(msg_attr_count(b, n, CMSG_SIGNER_UNAUTH_ATTR_PARAM, w1, 1, f1) <= 0, 1);
     free(b);
@@ -505,9 +503,7 @@ TEST(mh_sign_auth_attr_changes_signature_semantics) {
     if (pos) {
         pos[5] ^= 1; dn = sizeof d; SET_ERR(0); sc = NULL;
         BOOL r = U(CryptVerifyMessageSignature)(&vp, 0, b, n, d, &dn, &sc);
-        CHECK(r == FALSE); CHECK(sc == NULL);
-        DWORD e = GetLastError(); t_note("tampered content with auth attrs -> 0x%lx", e);
-        EXPECT_EQ(e, E_CRYPT_E_HASH_VALUE);
+        EXPECT_FAIL(r == FALSE, E_CRYPT_E_HASH_VALUE); CHECK(sc == NULL);
         if (sc) U(CertFreeCertificateContext)(sc);
     }
     free(b);
@@ -524,7 +520,7 @@ TEST(mh_sign_two_auth_attrs_and_values) {
     BYTE *b = malloc(n); CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, b, &n));
     const char *want[2] = { o1, o2 }; int found[2] = { 0, 0 };
     int cnt = msg_attr_count(b, n, CMSG_SIGNER_AUTH_ATTR_PARAM, want, 2, found);
-    CHECK(cnt >= 4); CHECK(found[0] && found[1]);
+    EXPECT_EQ(cnt, 4); /* observed: two caller attributes (2 + 1 values) plus content type and message digest */ CHECK(found[0] && found[1]);
     free(b);
 }
 TEST(mh_sign_inner_content_type_default_is_data) {
@@ -639,13 +635,13 @@ TEST(mh_sign_cng_key_via_handle_property) {
     for (int i = 0; i < 7; i++) { for (DWORD j = 0; j < lens[i]; j++) w[j] = src[lens[i] - 1 - j]; w += lens[i]; src += lens[i]; }
     SECURITY_STATUS st = U(NCryptImportKey)(prov, 0, BCRYPT_RSAFULLPRIVATE_BLOB, NULL, &key, blob, tot, 0);
     free(blob);
-    if (st != 0) { t_note("NCryptImportKey failed 0x%lx", (long)st); U(NCryptFreeObject)(prov); return; }
+    EXPECT_EQ(st, 0); if (st != 0) { U(NCryptFreeObject)(prov); return; }
     PCCERT_CONTEXT cc = U(CertDuplicateCertificateContext)(mh_ids[MH_S2].pub);
     PCCERT_CONTEXT own = NULL;
     HCERTSTORE tmp = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_NO_CRYPT_RELEASE_FLAG, NULL);
     CHECK(U(CertAddCertificateContextToStore)(tmp, cc, CERT_STORE_ADD_ALWAYS, &own));
     CERT_KEY_CONTEXT kc; memset(&kc, 0, sizeof kc); kc.cbSize = sizeof kc; kc.hNCryptKey = key; kc.dwKeySpec = CERT_NCRYPT_KEY_SPEC;
-    if (!U(CertSetCertificateContextProperty)(own, CERT_KEY_CONTEXT_PROP_ID, 0, &kc)) { t_note("set key ctx failed 0x%lx", GetLastError()); }
+    if (!U(CertSetCertificateContextProperty)(own, CERT_KEY_CONTEXT_PROP_ID, 0, &kc)) { CHECKF(0, "set key ctx failed 0x%lx", GetLastError()); }
     else {
         CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S2, OID_SHA256); p.pSigningCert = own;
         const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload };

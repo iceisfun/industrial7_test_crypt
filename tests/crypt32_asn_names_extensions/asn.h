@@ -40,6 +40,7 @@ void a_enc_eq(const char *file, int line, LPCSTR oid, const void *s, DWORD flags
 BYTE *a_enc(LPCSTR oid, const void *s, DWORD flags, DWORD *cb);
 /* Encode must fail: checks FALSE (size query and with buffer) and GetLastError == err (err==0: any). */
 void a_enc_fail(const char *file, int line, LPCSTR oid, const void *s, DWORD flags, DWORD err);
+void a_enc_fail_x(const char *file, int line, LPCSTR oid, const void *s, DWORD flags, DWORD err, int untouched);
 #define ENC_FAIL(oid, s, err) a_enc_fail(__FILE__, __LINE__, oid, s, 0, err)
 
 /* ---- decode ------------------------------------------------------------ */
@@ -48,6 +49,7 @@ void *a_dec(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n, DW
 #define DEC(oid, v, fl, pcb) a_dec(__FILE__, __LINE__, oid, v, A_SZ(v), fl, pcb)
 /* Decode must fail with err (0: any error) for both ALLOC and size-query forms. */
 void a_dec_fail(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n, DWORD flags, DWORD err);
+void a_dec_fail_x(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n, DWORD flags, DWORD err, int untouched);
 #define DEC_FAIL(oid, v, err) a_dec_fail(__FILE__, __LINE__, oid, v, A_SZ(v), 0, err)
 /* decode(v) -> encode -> must equal v. */
 void a_roundtrip(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n);

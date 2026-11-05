@@ -79,8 +79,7 @@ TEST(altname_encode_invalid_choice_out_of_range) {
     CERT_ALT_NAME_ENTRY e = { 10 }; CERT_ALT_NAME_INFO i; alt1(&i, &e);
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_ALTERNATE_NAME, &i, 0, NULL, NULL, &cb);
-    CHECK(!r);
-    t_note("alt name choice 10 -> err 0x%lx", GetLastError());
+    EXPECT_FAIL(!r, HR_INVALIDARG);
 }
 TEST(altname_encode_non_ia5_characters) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -107,10 +106,10 @@ TEST(altname_encode_x400_edi_unsupported_probe) {
     CERT_ALT_NAME_ENTRY e = { CERT_ALT_NAME_X400_ADDRESS }; CERT_ALT_NAME_INFO i; alt1(&i, &e);
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_ALTERNATE_NAME, &i, 0, NULL, NULL, &cb);
-    t_note("X400 entry encode: ok=%d err=0x%lx cb=%lu", r, GetLastError(), cb);
+    EXPECT_FAIL(!r, HR_INVALIDARG); EXPECT_EQ(cb, 0); /* observed */
     e.dwAltNameChoice = CERT_ALT_NAME_EDI_PARTY_NAME; SET_ERR(0);
     r = U(CryptEncodeObjectEx)(ENC, X509_ALTERNATE_NAME, &i, 0, NULL, NULL, &cb);
-    t_note("EDI entry encode: ok=%d err=0x%lx cb=%lu", r, GetLastError(), cb);
+    EXPECT_FAIL(!r, HR_INVALIDARG); EXPECT_EQ(cb, 0); /* observed */
 }
 
 /* ---- decode ----------------------------------------------------------- */
@@ -151,7 +150,9 @@ TEST(altname_decode_directory_and_other) {
     DWORD cb1, cb2;
     i = DEC(X509_ALTERNATE_NAME, v_alt_dir, 0, &cb1);
     CERT_ALT_NAME_INFO *n = DEC(X509_ALTERNATE_NAME, v_alt_dir, CRYPT_DECODE_NOCOPY_FLAG, &cb2);
-    if (n) { t_note("alt name directory NOCOPY: %s, size %lu vs %lu", PTR_IN(n->rgAltEntry->DirectoryName.pbData, v_alt_dir, sizeof v_alt_dir) ? "in place" : "copied", cb2, cb1); LocalFree(n); }
+    if (n) { /* observed: NOCOPY points into the input and needs 24 bytes less */
+        CHECK(PTR_IN(n->rgAltEntry->DirectoryName.pbData, v_alt_dir, sizeof v_alt_dir));
+        EXPECT_EQ(cb2, 40); EXPECT_EQ(cb1, 64); LocalFree(n); }
     if (i) LocalFree(i);
     i = DEC(X509_ALTERNATE_NAME, v_alt_other, 0, NULL);
     if (i) {
@@ -183,10 +184,7 @@ TEST(altname_decode_multiple_and_roundtrips) {
 }
 TEST(altname_decode_unknown_choice) {
     REQUIRE(U(CryptDecodeObjectEx));
-    a_dec_fail(__FILE__, __LINE__, X509_ALTERNATE_NAME, v_alt_bad_choice, sizeof v_alt_bad_choice, 0, 0);
-    DWORD cb = 0; SET_ERR(0);
-    U(CryptDecodeObjectEx)(ENC, X509_ALTERNATE_NAME, v_alt_bad_choice, sizeof v_alt_bad_choice, 0, NULL, NULL, &cb);
-    t_note("unknown GeneralName tag -> err 0x%lx", GetLastError());
+    a_dec_fail(__FILE__, __LINE__, X509_ALTERNATE_NAME, v_alt_bad_choice, sizeof v_alt_bad_choice, 0, HR_ASN1_CORRUPT);
 }
 TEST(altname_decode_x400_edi_probe) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -194,8 +192,8 @@ TEST(altname_decode_x400_edi_probe) {
     for (int k = 0; k < 2; k++) {
         DWORD cb = 0; void *p = NULL; SET_ERR(0);
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_ALTERNATE_NAME, vs[k], ns[k], CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb);
-        if (r) { t_note("%s entry decoded as choice %lu", k ? "edi" : "x400", ((CERT_ALT_NAME_INFO *)p)->rgAltEntry[0].dwAltNameChoice); LocalFree(p); }
-        else t_note("%s entry decode failed 0x%lx", k ? "edi" : "x400", GetLastError());
+        CHECKF(r, "%s entry decode failed 0x%lx", k ? "edi" : "x400", GetLastError());
+        if (r) { EXPECT_EQ(((CERT_ALT_NAME_INFO *)p)->rgAltEntry[0].dwAltNameChoice, k ? CERT_ALT_NAME_EDI_PARTY_NAME : CERT_ALT_NAME_X400_ADDRESS); LocalFree(p); }
     }
 }
 TEST(altname_decode_punycode_flag) {
@@ -207,9 +205,10 @@ TEST(altname_decode_punycode_flag) {
     if (i) { CHECK(!lstrcmpW(i->rgAltEntry[0].pwszDNSName, uni)); LocalFree(i); }
     static const WCHAR rplain[] = L"user@xn--bcher-kva.example", runi[] = { 'u','s','e','r','@','b', 0x00FC, 'c','h','e','r','.','e','x','a','m','p','l','e', 0 };
     i = DEC(X509_ALTERNATE_NAME, v_alt_rfc822_puny, CRYPT_DECODE_ENABLE_PUNYCODE_FLAG, NULL);
-    if (i) { t_note("rfc822 punycode %s", !lstrcmpW(i->rgAltEntry[0].pwszRfc822Name, runi) ? "converted" : "not converted"); LocalFree(i); }
+    if (i) { CHECK(!lstrcmpW(i->rgAltEntry[0].pwszRfc822Name, runi)); LocalFree(i); } /* observed: converted */
     i = DEC(X509_ALTERNATE_NAME, v_alt_url_puny, CRYPT_DECODE_ENABLE_PUNYCODE_FLAG, NULL);
-    if (i) { t_note("url punycode: %ls", i->rgAltEntry[0].pwszURL); LocalFree(i); }
+    static const WCHAR wuni[] = { 'h','t','t','p',':','/','/','b', 0x00FC, 'c','h','e','r','.','e','x','a','m','p','l','e','/','p', 0 };
+    if (i) { CHECK(!lstrcmpW(i->rgAltEntry[0].pwszURL, wuni)); LocalFree(i); } /* observed: the host label of a URL is converted too */
 }
 
 /* ---- aliases: string OIDs that share the X509_ALTERNATE_NAME encoder ------ */
@@ -219,7 +218,7 @@ TEST(altname_string_oid_aliases) {
     CERT_ALT_NAME_INFO i; alt1(&i, &e);
     static const char *oids[] = { szOID_SUBJECT_ALT_NAME, szOID_ISSUER_ALT_NAME, szOID_SUBJECT_ALT_NAME2, szOID_ISSUER_ALT_NAME2 };
     for (unsigned k = 0; k < 4; k++) {
-        t_note("oid %s", oids[k]);
+        t_label("oid %s", oids[k]);
         a_enc_eq(__FILE__, __LINE__, oids[k], &i, 0, v_alt_dns, sizeof v_alt_dns);
         BYTE *p; DWORD cb;
         CERT_ALT_NAME_INFO *d = (CERT_ALT_NAME_INFO *)a_dec(__FILE__, __LINE__, oids[k], v_alt_dns, sizeof v_alt_dns, 0, &cb);
@@ -230,10 +229,7 @@ TEST(altname_next_update_location_probe) {
     REQUIRE(U(CryptEncodeObjectEx));
     CERT_ALT_NAME_ENTRY e = { CERT_ALT_NAME_URL }; e.pwszURL = (LPWSTR)wurl;
     CERT_ALT_NAME_INFO i; alt1(&i, &e);
-    DWORD cb = 0; BYTE *p = a_enc(szOID_NEXT_UPDATE_LOCATION, &i, 0, &cb);
-    if (!p) { t_note("szOID_NEXT_UPDATE_LOCATION encode not registered: err 0x%lx", GetLastError()); return; }
-    CHECK(cb == sizeof v_alt_url && !memcmp(p, v_alt_url, cb));
-    LocalFree(p);
+    ENC_EQ(szOID_NEXT_UPDATE_LOCATION, &i, v_alt_url); /* observed: registered, same encoder as the alternate name */
 }
 
 /* ---- basic constraints 2 ------------------------------------------------ */
@@ -248,19 +244,20 @@ TEST(bc2_encode_table) {
     for (unsigned i = 0; i < sizeof bc2_rows / sizeof *bc2_rows; i++) {
         const struct bc2_row *r = &bc2_rows[i];
         CERT_BASIC_CONSTRAINTS2_INFO s = { r->ca, r->pl, r->len };
-        t_note("row %s", r->label);
+        a_ctx = r->label;
         a_enc_eq(__FILE__, __LINE__, X509_BASIC_CONSTRAINTS2, &s, 0, r->der, r->dn);
         a_enc_eq(__FILE__, __LINE__, szOID_BASIC_CONSTRAINTS2, &s, 0, r->der, r->dn);
     }
+    a_ctx = "";
 }
 TEST(bc2_decode_table) {
     REQUIRE(U(CryptDecodeObjectEx));
     for (unsigned i = 0; i < sizeof bc2_rows / sizeof *bc2_rows; i++) {
         const struct bc2_row *r = &bc2_rows[i];
+        t_label("row %s", r->label);
         DWORD cb; CERT_BASIC_CONSTRAINTS2_INFO *s = a_dec(__FILE__, __LINE__, X509_BASIC_CONSTRAINTS2, r->der, r->dn, 0, &cb);
-        t_note("row %s", r->label);
         if (!s) continue;
-        CHECK(cb >= sizeof *s);
+        EXPECT_EQ(cb, 12);
         CHECK(!!s->fCA == !!r->ca); CHECK(!!s->fPathLenConstraint == !!r->pl);
         if (r->pl) CHECK(s->dwPathLenConstraint == r->len);
         LocalFree(s);
@@ -282,7 +279,7 @@ TEST(bc2_truncated_inputs) {
         DWORD cb = 0; SET_ERR(0);
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, v_bc2_ca_pl3, cut, 0, NULL, NULL, &cb);
         CHECKF(!r, "cut %lu succeeded", cut);
-        if (!r && cut >= 2) CHECKF(GetLastError() == HR_ASN1_EOD || GetLastError() == HR_ASN1_CORRUPT, "cut %lu err 0x%lx", cut, GetLastError());
+        if (!r) { DWORD e = GetLastError(); CHECKF(e == HR_ASN1_EOD, "cut %lu err 0x%lx", cut, e); }
     }
 }
 TEST(bc2_trailing_bytes_ignored) {
@@ -371,7 +368,7 @@ TEST(keyusage_decode) {
 TEST(keyusage_decode_errors) {
     REQUIRE(U(CryptDecodeObjectEx));
     { DWORD cb = 0; SET_ERR(0); BOOL r = U(CryptDecodeObjectEx)(ENC, X509_KEY_USAGE, v_ku_bad_unused, sizeof v_ku_bad_unused, 0, NULL, NULL, &cb);
-      t_note("bit string with 8 unused bits: ok=%d err=0x%lx", r, GetLastError()); }
+      EXPECT_FAIL(!r, HR_ASN1_CORRUPT); } /* observed */
     a_dec_fail(__FILE__, __LINE__, X509_KEY_USAGE, v_bc2_ca, sizeof v_bc2_ca, 0, HR_ASN1_BADTAG);
     BYTE trunc[] = { 0x03, 0x03, 0x07, 0x80 };
     a_dec_fail(__FILE__, __LINE__, X509_KEY_USAGE, trunc, sizeof trunc, 0, HR_ASN1_EOD);
@@ -383,7 +380,7 @@ TEST(keyusage_roundtrips_and_netscape_probe) {
     ROUNDTRIP(X509_BITS, v_ku_two);
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, szOID_NETSCAPE_CERT_TYPE, v_ns_cert_type, sizeof v_ns_cert_type, CRYPT_DECODE_ALLOC_FLAG, NULL, &(void *){0}, &cb);
-    t_note("szOID_NETSCAPE_CERT_TYPE decode ok=%d err=0x%lx", r, GetLastError());
+    EXPECT_FAIL(!r, ERROR_FILE_NOT_FOUND); /* observed: no decoder registered for this OID */
 }
 
 /* ---- enhanced key usage ------------------------------------------------- */
@@ -408,7 +405,9 @@ TEST(eku_decode) {
     if (e) { CHECK(e->cUsageIdentifier == 1 && !strcmp(e->rgpszUsageIdentifier[0], "2.5.29.37.0")); LocalFree(e); }
     DWORD c1, c2; e = DEC(X509_ENHANCED_KEY_USAGE, v_eku_two, 0, &c1);
     CERT_ENHKEY_USAGE *s = DEC(X509_ENHANCED_KEY_USAGE, v_eku_two, CRYPT_DECODE_SHARE_OID_STRING_FLAG, &c2);
-    if (s) { CHECK(!strcmp(s->rgpszUsageIdentifier[0], szOID_PKIX_KP_SERVER_AUTH)); t_note("EKU SHARE_OID: strings %s, size %lu vs %lu", PTR_IN(s->rgpszUsageIdentifier[0], s, c2) ? "copied" : "shared", c2, c1); LocalFree(s); }
+    if (s) { CHECK(!strcmp(s->rgpszUsageIdentifier[0], szOID_PKIX_KP_SERVER_AUTH)); 
+        /* observed: with SHARE_OID_STRING the registered OID strings are shared, not copied, which saves 48 bytes */
+        CHECK(!PTR_IN(s->rgpszUsageIdentifier[0], s, c2)); EXPECT_EQ(c2, 32); EXPECT_EQ(c1, 80); LocalFree(s); }
     if (e) LocalFree(e);
     a_dec_fail(__FILE__, __LINE__, X509_ENHANCED_KEY_USAGE, v_eku_bad_item, sizeof v_eku_bad_item, 0, HR_ASN1_BADTAG);
     ROUNDTRIP(X509_ENHANCED_KEY_USAGE, v_eku_two);
@@ -425,7 +424,7 @@ TEST(eku_encode_invalid_oid) {
     ENC_EQ(X509_ENHANCED_KEY_USAGE, &e, lenient);
     LPSTR one[] = { (LPSTR)"1" }; e.rgpszUsageIdentifier = one; SET_ERR(0);
     r = U(CryptEncodeObjectEx)(ENC, X509_ENHANCED_KEY_USAGE, &e, 0, NULL, NULL, &cb);
-    t_note("EKU with one-arc OID \"1\": ok=%d err=0x%lx", r, GetLastError());
+    EXPECT_FAIL(!r, 0x80093109); /* observed: a single-arc OID is rejected */
 }
 
 /* ---- authority key identifier ------------------------------------------- */
@@ -455,7 +454,7 @@ TEST(authkeyid_v1_issuer_probe) {
     DWORD cb;
     CERT_AUTHORITY_KEY_ID_INFO *d = (CERT_AUTHORITY_KEY_ID_INFO *)a_dec(__FILE__, __LINE__, X509_AUTHORITY_KEY_ID, v_aki_issuer_serial, sizeof v_aki_issuer_serial, 0, &cb);
     if (d) {
-        t_note("AKI v1 issuer blob %lu bytes", d->CertIssuer.cbData);
+        EXPECT_EQ(d->CertIssuer.cbData, 19); /* observed */
         CHECK(d->CertSerialNumber.cbData == 1);
         LocalFree(d);
     }
@@ -490,7 +489,7 @@ TEST(authkeyid2_encode_invalid_issuer_entry) {
     CERT_AUTHORITY_KEY_ID2_INFO s; memset(&s, 0, sizeof s);
     CERT_ALT_NAME_ENTRY e; memset(&e, 0, sizeof e);
     s.AuthorityCertIssuer.cAltEntry = 1; s.AuthorityCertIssuer.rgAltEntry = &e;
-    ENC_FAIL(X509_AUTHORITY_KEY_ID2, &s, HR_INVALIDARG);
+    a_enc_fail_x(__FILE__, __LINE__, X509_AUTHORITY_KEY_ID2, &s, 0, HR_INVALIDARG, 1);
 }
 TEST(authkeyid2_decode) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -547,8 +546,8 @@ TEST(keyattributes_encode_decode) {
     s.KeyId.cbData = 3; s.KeyId.pbData = k;
     s.IntendedKeyUsage.cbData = 1; s.IntendedKeyUsage.pbData = &ds; s.IntendedKeyUsage.cUnusedBits = 7;
     DWORD cb; BYTE *p = a_enc(X509_KEY_ATTRIBUTES, &s, 0, &cb);
-    if (!p) { t_note("X509_KEY_ATTRIBUTES encode unsupported: err 0x%lx", GetLastError()); return; }
-    if (cb != sizeof v_ka_keyid_usage || memcmp(p, v_ka_keyid_usage, cb)) t_note("key attributes encoding differs from the RFC-style reference");
+    REQUIRE_NOTNULL(p);
+    CHECK(cb == sizeof v_ka_keyid_usage && !memcmp(p, v_ka_keyid_usage, cb)); /* observed: equals the reference encoding */
     CERT_KEY_ATTRIBUTES_INFO *d = a_dec(__FILE__, __LINE__, X509_KEY_ATTRIBUTES, p, cb, 0, NULL);
     if (d) { CHECK(d->KeyId.cbData == 3 && !memcmp(d->KeyId.pbData, k, 3) && d->IntendedKeyUsage.cbData == 1 && d->IntendedKeyUsage.cUnusedBits == 7 && d->pPrivateKeyUsagePeriod == NULL); LocalFree(d); }
     LocalFree(p);
@@ -562,7 +561,7 @@ TEST(keyattributes_private_key_period_roundtrip) {
     CERT_KEY_ATTRIBUTES_INFO s; memset(&s, 0, sizeof s);
     s.KeyId.cbData = 3; s.KeyId.pbData = k; s.pPrivateKeyUsagePeriod = &pv;
     DWORD cb; BYTE *p = a_enc(X509_KEY_ATTRIBUTES, &s, 0, &cb);
-    if (!p) { t_note("X509_KEY_ATTRIBUTES with period unsupported: err 0x%lx", GetLastError()); return; }
+    REQUIRE_NOTNULL(p);
     CERT_KEY_ATTRIBUTES_INFO *d = a_dec(__FILE__, __LINE__, X509_KEY_ATTRIBUTES, p, cb, 0, NULL);
     CHECK(d && d->pPrivateKeyUsagePeriod);
     if (d && d->pPrivateKeyUsagePeriod) {
@@ -581,8 +580,8 @@ TEST(keyusagerestriction_encode_decode) {
     s.RestrictedKeyUsage.cbData = 1; s.RestrictedKeyUsage.pbData = &ds; s.RestrictedKeyUsage.cUnusedBits = 7;
     s.cCertPolicyId = 1; s.rgCertPolicyId = &pid;
     DWORD cb; BYTE *p = a_enc(X509_KEY_USAGE_RESTRICTION, &s, 0, &cb);
-    if (!p) { t_note("X509_KEY_USAGE_RESTRICTION encode unsupported: err 0x%lx", GetLastError()); return; }
-    if (cb != sizeof v_kur_pol || memcmp(p, v_kur_pol, cb)) t_note("key usage restriction encoding differs from the reference");
+    REQUIRE_NOTNULL(p);
+    CHECK(cb == sizeof v_kur_pol && !memcmp(p, v_kur_pol, cb)); /* observed: equals the reference encoding */
     CERT_KEY_USAGE_RESTRICTION_INFO *d = a_dec(__FILE__, __LINE__, X509_KEY_USAGE_RESTRICTION, p, cb, 0, NULL);
     if (d) {
         CHECK(d->cCertPolicyId == 1 && d->rgCertPolicyId[0].cCertPolicyElementId == 1 && !strcmp(d->rgCertPolicyId[0].rgpszCertPolicyElementId[0], "1.2.3"));

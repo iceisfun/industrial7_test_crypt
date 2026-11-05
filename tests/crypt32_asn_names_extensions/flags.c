@@ -15,9 +15,9 @@ TEST(flags_encode_custom_allocator) {
     CRYPT_ENCODE_PARA ep = { sizeof ep, as_alloc, as_free };
     BYTE *p = NULL; DWORD cb = 0; AS_RESET();
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_NAME, &ni, CRYPT_ENCODE_ALLOC_FLAG, &ep, &p, &cb);
-    CHECK(r); CHECK(g_as.allocs >= 1); CHECK(p != NULL && p == g_as.last);
+    CHECK(r); CHECK(p != NULL && p == g_as.last);
     CHECK(cb == sizeof v_name_cn_test); CHECK(p && !memcmp(p, v_name_cn_test, sizeof v_name_cn_test));
-    CHECK(g_as.lastsz >= cb);
+    EXPECT_EQ(g_as.lastsz, cb); EXPECT_EQ(g_as.allocs, 1);
     if (p) { as_free(p); CHECK(g_as.frees == 1); }
 }
 TEST(flags_encode_allocator_failure) {
@@ -26,8 +26,9 @@ TEST(flags_encode_allocator_failure) {
     CRYPT_ENCODE_PARA ep = { sizeof ep, as_alloc, as_free };
     BYTE *p = (BYTE *)(ULONG_PTR)1; DWORD cb = 77; AS_RESET(); g_as.fail = 1; SET_ERR(0);
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_NAME, &ni, CRYPT_ENCODE_ALLOC_FLAG, &ep, &p, &cb);
-    CHECK(!r); CHECK(g_as.allocs >= 1);
-    t_note("encode with failing allocator: err 0x%lx, p=%p, cb=%lu", GetLastError(), p, cb);
+    CHECK(!r); EXPECT_EQ(g_as.allocs, 1);
+    /* observed: a failing allocator is not reported through the last error; the output pointer is cleared, the size is the 17 requested bytes */
+    EXPECT_ERR(0); EXPECT_EQ(p, NULL); EXPECT_EQ(cb, 17);
 }
 TEST(flags_encode_default_allocator_is_localalloc) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -35,12 +36,12 @@ TEST(flags_encode_default_allocator_is_localalloc) {
     BYTE *p = NULL; DWORD cb = 0;
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_NAME, &ni, CRYPT_ENCODE_ALLOC_FLAG, NULL, &p, &cb);
     CHECK(r && p);
-    if (p) { CHECK(LocalSize(p) >= cb); CHECK(LocalFree(p) == NULL); }
+    if (p) { EXPECT_EQ(LocalSize(p), cb); CHECK(LocalFree(p) == NULL); }
     /* a PCRYPT_ENCODE_PARA with NULL callbacks also means LocalAlloc/LocalFree */
     CRYPT_ENCODE_PARA ep = { sizeof ep, NULL, NULL }; p = NULL;
     r = U(CryptEncodeObjectEx)(ENC, X509_NAME, &ni, CRYPT_ENCODE_ALLOC_FLAG, &ep, &p, &cb);
     CHECK(r && p);
-    if (p) { CHECK(LocalSize(p) >= cb); LocalFree(p); }
+    if (p) { EXPECT_EQ(LocalSize(p), cb); LocalFree(p); }
 }
 TEST(flags_encode_allocator_across_structures) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -97,7 +98,7 @@ TEST(flags_encode_buffer_untouched_on_more_data) {
     CERT_NAME_INFO ni; CERT_RDN rdn; CERT_RDN_ATTR a; enc_name_cn(&ni, &rdn, &a);
     BYTE buf[64]; memset(buf, 0xA5, sizeof buf); DWORD cb = 4; SET_ERR(0);
     BOOL r = U(CryptEncodeObjectEx)(ENC, X509_NAME, &ni, 0, NULL, buf, &cb);
-    CHECK(!r);
+    EXPECT_FAIL(!r, ERROR_MORE_DATA);
     int touched = 0; for (int i = 8; i < 64; i++) if (buf[i] != 0xA5) touched = 1;
     CHECK(!touched);
 }
@@ -110,10 +111,10 @@ TEST(flags_decode_custom_allocator_across_structures) {
     AS_RESET(); p = NULL;
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, v_bc2_ca_pl3, sizeof v_bc2_ca_pl3, CRYPT_DECODE_ALLOC_FLAG, &dp, &p, &cb));
     CHECK(p != NULL && p == g_as.last && ((CERT_BASIC_CONSTRAINTS2_INFO *)p)->dwPathLenConstraint == 3);
-    if (p) { CHECK(g_as.lastsz >= cb); as_free(p); }
+    if (p) { EXPECT_EQ(g_as.lastsz, cb); EXPECT_EQ(cb, 12); as_free(p); }
     AS_RESET(); p = NULL;
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_ALTERNATE_NAME, v_alt_multi, sizeof v_alt_multi, CRYPT_DECODE_ALLOC_FLAG, &dp, &p, &cb));
-    CHECK(p != NULL && g_as.allocs >= 1 && p == g_as.last);
+    CHECK(p != NULL && p == g_as.last); EXPECT_EQ(g_as.allocs, 1);
     if (p) as_free(p);
     AS_RESET(); p = NULL;
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_CERT_TO_BE_SIGNED, v_tbs_v3_ext, sizeof v_tbs_v3_ext, CRYPT_DECODE_ALLOC_FLAG | CRYPT_DECODE_TO_BE_SIGNED_FLAG, &dp, &p, &cb));
@@ -121,7 +122,7 @@ TEST(flags_decode_custom_allocator_across_structures) {
     if (p) as_free(p);
     AS_RESET(); p = NULL;
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_CHOICE_OF_TIME, v_time_2000, sizeof v_time_2000, CRYPT_DECODE_ALLOC_FLAG, &dp, &p, &cb));
-    CHECK(p != NULL && p == g_as.last && cb >= sizeof(FILETIME));
+    CHECK(p != NULL && p == g_as.last); EXPECT_EQ(cb, 8);
     if (p) as_free(p);
 }
 TEST(flags_decode_allocator_failure) {
@@ -129,17 +130,17 @@ TEST(flags_decode_allocator_failure) {
     CRYPT_DECODE_PARA dp = { sizeof dp, as_alloc, as_free };
     void *p = (void *)(ULONG_PTR)1; DWORD cb = 77; AS_RESET(); g_as.fail = 1; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, v_bc2_ca, sizeof v_bc2_ca, CRYPT_DECODE_ALLOC_FLAG, &dp, &p, &cb);
-    CHECK(!r); CHECK(p == NULL); CHECK(g_as.allocs >= 1);
-    t_note("decode with failing allocator: err 0x%lx cb=%lu", GetLastError(), cb);
+    CHECK(!r); CHECK(p == NULL); EXPECT_EQ(g_as.allocs, 1);
+    EXPECT_ERR(0); EXPECT_EQ(cb, 0); /* observed: the allocator failure leaves the last error untouched */
 }
 TEST(flags_decode_default_allocator_is_localalloc) {
     REQUIRE(U(CryptDecodeObjectEx));
     void *p = NULL; DWORD cb = 0;
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, v_bc2_ca, sizeof v_bc2_ca, CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb));
-    if (p) { CHECK(LocalSize(p) >= cb); CHECK(LocalFree(p) == NULL); }
+    if (p) { EXPECT_EQ(LocalSize(p), cb); CHECK(LocalFree(p) == NULL); }
     CRYPT_DECODE_PARA dp = { sizeof dp, NULL, NULL }; p = NULL;
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, v_bc2_ca, sizeof v_bc2_ca, CRYPT_DECODE_ALLOC_FLAG, &dp, &p, &cb));
-    if (p) { CHECK(LocalSize(p) >= cb); LocalFree(p); }
+    if (p) { EXPECT_EQ(LocalSize(p), cb); LocalFree(p); }
 }
 TEST(flags_decode_allocator_not_used_without_alloc_flag) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -161,7 +162,7 @@ TEST(flags_decode_protocol_exact_and_oversized) {
     CHECK(need > sizeof(CERT_NAME_INFO));
     BYTE *buf = (BYTE *)LocalAlloc(LPTR, need + 64); DWORD cb = need + 64;
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_NAME, v_name_c_cn, sizeof v_name_c_cn, 0, NULL, buf, &cb));
-    CHECK(cb <= need + 64 && cb >= sizeof(CERT_NAME_INFO));
+    EXPECT_EQ(cb, need);
     CERT_NAME_INFO *ni = (CERT_NAME_INFO *)buf;
     CHECK(ni->cRDN == 2);
     if (ni->cRDN == 2) {
@@ -172,7 +173,7 @@ TEST(flags_decode_protocol_exact_and_oversized) {
     CHECK(U(CryptDecodeObjectEx)(ENC, X509_NAME, v_name_c_cn, sizeof v_name_c_cn, 0, NULL, buf, &cb));
     cb = 0; SET_ERR(0);
     CHECK(!U(CryptDecodeObjectEx)(ENC, X509_NAME, v_name_c_cn, sizeof v_name_c_cn, 0, NULL, buf, &cb));
-    EXPECT_ERR(ERROR_MORE_DATA); CHECK(cb == need || cb > 0);
+    EXPECT_ERR(ERROR_MORE_DATA); EXPECT_EQ(cb, need);
     LocalFree(buf);
 }
 TEST(flags_decode_legacy_matches_ex) {
@@ -253,12 +254,12 @@ TEST(flags_decode_hash_prefixed_integer_oid) {
     DWORD cb = 0; void *p = NULL; SET_ERR(0);
     char oid[16]; wsprintfA(oid, "#%u", (unsigned)(ULONG_PTR)X509_BASIC_CONSTRAINTS2);
     BOOL r = U(CryptDecodeObjectEx)(ENC, oid, v_bc2_ca, sizeof v_bc2_ca, CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("decode with type \"%s\": ok=%d err=0x%lx", oid, r, GetLastError());
+    CHECKF(r, "type \"%s\" err 0x%lx", oid, GetLastError());
     if (r) { CHECK(((CERT_BASIC_CONSTRAINTS2_INFO *)p)->fCA); LocalFree(p); }
     wsprintfA(oid, "#%u", (unsigned)(ULONG_PTR)X509_NAME);
     cb = 0; p = NULL;
     r = U(CryptDecodeObjectEx)(ENC, oid, v_name_cn_test, sizeof v_name_cn_test, CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("decode with type \"%s\": ok=%d err=0x%lx", oid, r, GetLastError());
+    CHECKF(r, "type \"%s\" err 0x%lx", oid, GetLastError());
     if (r) { CHECK(((CERT_NAME_INFO *)p)->cRDN == 1); LocalFree(p); }
 }
 TEST(flags_encoding_type_variants) {
@@ -270,12 +271,12 @@ TEST(flags_encoding_type_variants) {
     if (p) LocalFree(p);
     p = NULL; SET_ERR(0);
     r = U(CryptEncodeObjectEx)(0, X509_BASIC_CONSTRAINTS2, &bc, CRYPT_ENCODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("encoding type 0: ok=%d err=0x%lx", r, GetLastError());
-    CHECK(!r); if (r && p) LocalFree(p);
+    EXPECT_FAIL(!r, ERROR_FILE_NOT_FOUND); if (r && p) LocalFree(p); /* observed: no encoding type = no encoder */
     p = NULL; SET_ERR(0);
     r = U(CryptEncodeObjectEx)(PKCS_7_ASN_ENCODING, X509_BASIC_CONSTRAINTS2, &bc, CRYPT_ENCODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("PKCS_7_ASN_ENCODING only: ok=%d err=0x%lx", r, GetLastError());
-    if (r && p) { CHECK(cb == sizeof v_bc2_ca); LocalFree(p); }
+    /* observed: the PKCS7 encoding type alone is accepted and yields the same DER */
+    CHECK(r && p && cb == sizeof v_bc2_ca && !memcmp(p, v_bc2_ca, cb));
+    if (r && p) LocalFree(p);
 }
 TEST(flags_decode_encoding_type_variants) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -285,23 +286,20 @@ TEST(flags_decode_encoding_type_variants) {
     if (p) LocalFree(p);
     p = NULL; SET_ERR(0);
     r = U(CryptDecodeObjectEx)(0, X509_BASIC_CONSTRAINTS2, v_bc2_ca, sizeof v_bc2_ca, CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("decode encoding type 0: ok=%d err=0x%lx", r, GetLastError());
-    CHECK(!r); CHECK(p == NULL);
+    EXPECT_FAIL(!r, ERROR_FILE_NOT_FOUND); CHECK(p == NULL);
     p = NULL; SET_ERR(0);
     r = U(CryptDecodeObjectEx)(PKCS_7_ASN_ENCODING, X509_BASIC_CONSTRAINTS2, v_bc2_ca, sizeof v_bc2_ca, CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("decode PKCS_7_ASN_ENCODING only: ok=%d err=0x%lx", r, GetLastError());
+    CHECK(r && p && ((CERT_BASIC_CONSTRAINTS2_INFO *)p)->fCA); /* observed: accepted */
     if (r && p) LocalFree(p);
 }
 TEST(flags_decode_null_input) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, NULL, 0, 0, NULL, NULL, &cb);
-    CHECK(!r);
-    t_note("NULL input, length 0: err 0x%lx", GetLastError());
+    EXPECT_FAIL(!r, HR_ASN1_EOD);
     BYTE zero = 0; SET_ERR(0);
     r = U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, &zero, 1, 0, NULL, NULL, &cb);
-    CHECK(!r);
-    t_note("1 byte of input: err 0x%lx", GetLastError());
+    EXPECT_FAIL(!r, HR_ASN1_BADTAG);
     BYTE bad_tag[] = { 0x31, 0x00 };
     a_dec_fail(__FILE__, __LINE__, X509_BASIC_CONSTRAINTS2, bad_tag, sizeof bad_tag, 0, HR_ASN1_BADTAG);
 }
@@ -342,7 +340,7 @@ TEST(sweep_every_truncation_fails) {
         }
     }
 }
-TEST(sweep_truncated_error_is_eod_or_corrupt) {
+TEST(sweep_truncated_error_is_eod) {
     REQUIRE(U(CryptDecodeObjectEx));
     for (unsigned i = 0; i < NSWEEP; i++) {
         const struct vec *v = &sweep[i];
@@ -351,7 +349,7 @@ TEST(sweep_truncated_error_is_eod_or_corrupt) {
         BOOL ok = U(CryptDecodeObjectEx)(ENC, v->oid, v->der, v->n - 1, v->flags, NULL, NULL, &cb);
         DWORD e = GetLastError();
         if (!strcmp(v->label, "namevalue")) { CHECKF(!ok && e == 0, "namevalue: ok=%d err=0x%lx", ok, e); continue; }
-        CHECKF(!ok && (e == HR_ASN1_EOD || e == HR_ASN1_CORRUPT), "%s: ok=%d err=0x%lx", v->label, ok, e);
+        CHECKF(!ok && e == HR_ASN1_EOD, "%s: ok=%d err=0x%lx", v->label, ok, e); /* observed: always end-of-data */
     }
 }
 TEST(sweep_decode_all_with_alloc_and_nocopy) {
@@ -391,10 +389,11 @@ TEST(sweep_trailing_bytes_accepted_probe) {
         memcpy(buf, v->der, v->n); buf[v->n] = 0xAA; buf[v->n + 1] = 0xBB; buf[v->n + 2] = 0xCC;
         DWORD cb = 0; SET_ERR(0);
         BOOL ok = U(CryptDecodeObjectEx)(ENC, v->oid, buf, v->n + 3, v->flags, NULL, NULL, &cb);
-        if (ok) accepted++; else t_note("%s: trailing bytes rejected err 0x%lx", v->label, GetLastError());
+        if (ok) accepted++; else t_check(0, __FILE__, __LINE__, "trailing bytes accepted", "%s: rejected err 0x%lx", v->label, GetLastError());
         LocalFree(buf);
     }
-    t_note("%u of %u structures accept trailing bytes", accepted, (unsigned)NSWEEP);
+    /* observed: every structure accepts trailing garbage after the encoded value */
+    EXPECT_EQ(accepted, NSWEEP);
 }
 TEST(sweep_encode_buffer_protocol_all_vectors) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -404,9 +403,9 @@ TEST(sweep_encode_buffer_protocol_all_vectors) {
         if (v->flags & CRYPT_DECODE_TO_BE_SIGNED_FLAG) continue;
         if (v->oid == X509_CERT) continue;
         void *st = NULL; DWORD sc = 0;
-        if (!U(CryptDecodeObjectEx)(ENC, v->oid, v->der, v->n, CRYPT_DECODE_ALLOC_FLAG, NULL, &st, &sc)) continue;
+        if (!U(CryptDecodeObjectEx)(ENC, v->oid, v->der, v->n, CRYPT_DECODE_ALLOC_FLAG, NULL, &st, &sc)) { CHECKF(0, "%s: decode err 0x%lx", v->label, GetLastError()); continue; }
         DWORD n = 0;
-        if (!U(CryptEncodeObjectEx)(ENC, v->oid, st, 0, NULL, NULL, &n)) { t_note("%s: re-encode unsupported 0x%lx", v->label, GetLastError()); LocalFree(st); continue; }
+        if (!U(CryptEncodeObjectEx)(ENC, v->oid, st, 0, NULL, NULL, &n)) { CHECKF(0, "%s: re-encode err 0x%lx", v->label, GetLastError()); LocalFree(st); continue; }
         BYTE *buf = (BYTE *)LocalAlloc(LPTR, n + 2);
         for (DWORD sz = 0; sz < n; sz++) {
             DWORD cb = sz; SET_ERR(0);

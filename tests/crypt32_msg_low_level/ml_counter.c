@@ -85,7 +85,7 @@ TEST(mlk_encoded_signer_param) {
 }
 TEST(mlk_countersign_encoded_and_verify) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
     BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
@@ -102,7 +102,7 @@ TEST(mlk_countersign_encoded_and_verify) {
 }
 TEST(mlk_countersign_encoded_size_protocol) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN, 0, 0);
     DWORD scb = 0; BYTE *signer = m ? ml_param(m, CMSG_ENCODED_SIGNER, 0, &scb) : NULL;
     CHECK(signer != NULL);
@@ -110,7 +110,7 @@ TEST(mlk_countersign_encoded_size_protocol) {
         DWORD n = 0;
         SET_ERR(0);
         CHECKF(mCountersignEnc()(ENC, signer, scb, 1, &c.si, NULL, &n), "size query err 0x%lx", GetLastError());
-        CHECK(n > 128);
+        EXPECT_EQ(n, 319);
         BYTE *buf = (BYTE *)LocalAlloc(LPTR, n + 16);
         DWORD m1 = n - 1; SET_ERR(0);
         CHECK(!mCountersignEnc()(ENC, signer, scb, 1, &c.si, buf, &m1));
@@ -118,7 +118,7 @@ TEST(mlk_countersign_encoded_size_protocol) {
         EXPECT_EQ(m1, n);
         m1 = n + 16; memset(buf, 0xAA, n + 16);
         CHECK(mCountersignEnc()(ENC, signer, scb, 1, &c.si, buf, &m1));
-        CHECK(m1 <= n && m1 > 128);
+        EXPECT_EQ(m1, n);
         CHECK(buf[m1] == 0xAA);
         LocalFree(buf);
         ml_free(signer);
@@ -128,7 +128,7 @@ TEST(mlk_countersign_encoded_size_protocol) {
 }
 TEST(mlk_countersign_encoded_is_deterministic) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     BYTE *s1, *s2; DWORD a = 0, b = 0, n1 = 0, n2 = 0;
     BYTE *x = make_counter(&c, &s1, &a, &n1), *y = make_counter(&c, &s2, &b, &n2);
     CHECK(x && y && n1 == n2 && !memcmp(x, y, n1) == (c.si.cAuthAttr == 0));
@@ -137,7 +137,7 @@ TEST(mlk_countersign_encoded_is_deterministic) {
 }
 TEST(mlk_countersign_encoded_bad_args) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN, 0, 0);
     DWORD scb = 0; BYTE *signer = m ? ml_param(m, CMSG_ENCODED_SIGNER, 0, &scb) : NULL;
     CHECK(signer != NULL);
@@ -166,7 +166,7 @@ TEST(mlk_countersign_encoded_bad_args) {
 }
 TEST(mlk_verify_tampered_signer_info) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
     BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
@@ -191,7 +191,7 @@ TEST(mlk_verify_tampered_signer_info) {
 }
 TEST(mlk_verify_bad_args) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
     BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
@@ -207,7 +207,7 @@ TEST(mlk_verify_bad_args) {
 }
 TEST(mlk_verify_ex_signer_types) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     BYTE *signer; DWORD scb = 0, ccb = 0;
     BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
     CHECK(cnt != NULL);
@@ -226,7 +226,7 @@ TEST(mlk_verify_ex_signer_types) {
 }
 TEST(mlk_countersign_message) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN, 0, 0);
     CHECK(m != NULL);
     if (!m) { cs_done(&c); return; }
@@ -261,7 +261,7 @@ TEST(mlk_countersign_message) {
 }
 TEST(mlk_countersign_message_bad_args) {
     cs_t c; REQ_CS();
-    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); t_skip("setup"); return; }
+    if (!cs_init(&c, TRUE, OID_SHA256)) { cs_done(&c); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN, 0, 0);
     CHECK(m != NULL);
     if (m) {
@@ -284,7 +284,7 @@ TEST(mlk_countersign_md5_sha1_algorithms) {
     cs_t c; REQ_CS();
     static const char *h[] = {OID_SHA1, OID_MD5, OID_SHA256};
     for (size_t i = 0; i < 3; i++) {
-        if (!cs_init(&c, TRUE, h[i])) { cs_done(&c); t_skip("setup"); return; }
+        if (!cs_init(&c, TRUE, h[i])) { cs_done(&c); CHECKF(0, "setup failed"); return; }
         BYTE *signer; DWORD scb = 0, ccb = 0;
         BYTE *cnt = make_counter_si(&c, &signer, &scb, &ccb);
         CHECKF(cnt != NULL, "hash %s err 0x%lx", h[i], GetLastError());

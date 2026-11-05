@@ -106,7 +106,7 @@ TEST(mlp_signer_info_size_protocol) {
     if (!m) return;
     DWORD need = 0;
     CHECK(mGetParam()(m, CMSG_SIGNER_INFO_PARAM, 0, NULL, &need));
-    CHECK(need > sizeof(CMSG_SIGNER_INFO) + 128);
+    EXPECT_EQ(need, 816); /* observed: the structure is 136 bytes, the rest are strings and blobs */
     BYTE *buf = (BYTE *)LocalAlloc(LPTR, need);
     DWORD n = need - 1; SET_ERR(0);
     CHECK(!mGetParam()(m, CMSG_SIGNER_INFO_PARAM, 0, buf, &n));
@@ -114,7 +114,7 @@ TEST(mlp_signer_info_size_protocol) {
     EXPECT_EQ(n, need);
     n = need;
     CHECK(mGetParam()(m, CMSG_SIGNER_INFO_PARAM, 0, buf, &n));
-    CHECK(n <= need);
+    EXPECT_EQ(n, need);
     /* all pointers inside the structure point into the caller's buffer */
     CMSG_SIGNER_INFO *s = (CMSG_SIGNER_INFO *)buf;
     CHECK((BYTE *)s->Issuer.pbData >= buf && (BYTE *)s->Issuer.pbData + s->Issuer.cbData <= buf + n);
@@ -236,8 +236,7 @@ TEST(mlp_matrix_decoded_signed) {
     HCRYPTMSG m = ml_decode(M_SIGNED_ATTR, M_SIGNED_ATTR_LEN, 0, 0);
     CHECK(m != NULL);
     if (!m) return;
-    /* the last two entries (UNAUTH_ATTR, CRL) do not exist in this message: only the first 8 are tested for success */
-    matrix_row("signed", m, SIGNED_ONLY, 8, FALSE);
+    matrix_row("signed", m, SIGNED_ONLY, 10, FALSE);   /* UNAUTH_ATTR / CRL: absent from this message, pinned as failures */
     matrix_row("signed", m, ENV_ONLY, 3, TRUE);
     matrix_row("signed", m, HASH_ONLY, 2, TRUE);
     mClose()(m);
@@ -274,7 +273,7 @@ TEST(mlp_matrix_decoded_data) {
 }
 TEST(mlp_matrix_encoded_signed) {
     ml_signer_t s; REQ_MSG();
-    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); t_skip("setup"); return; }
+    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_SIGNED, &s.se, NULL, NULL);
     CHECK(m != NULL);
     if (m) {
@@ -308,7 +307,8 @@ TEST(mlp_bare_content_of_decoded_hashed) {
     CHECK(m != NULL);
     if (!m) return;
     DWORD n = 0; BYTE *b = ml_param(m, CMSG_BARE_CONTENT_PARAM, 0, &n);
-    t_note("BARE_CONTENT_PARAM on a decoded hashed message: %s (%lu bytes)", b ? "available" : "unavailable", (unsigned long)n);
+    /* observed: not available for a decoded hashed message (CRYPT_E_INVALID_MSG_TYPE) */
+    CHECK(b == NULL); { DWORD pn = 0; SET_ERR(0); EXPECT_FAIL(!mGetParam()(m, CMSG_BARE_CONTENT_PARAM, 0, NULL, &pn), 0x80091004); }
     if (b) { DWORD un = 0; const BYTE *bare = ml_unwrap(M_DIGESTED_SHA256, M_DIGESTED_SHA256_LEN, &un); CHECK(bare && n == un && !memcmp(b, bare, n)); }
     ml_free(b);
     mClose()(m);
@@ -370,15 +370,14 @@ TEST(mlp_calc_length_signed_and_enveloped) {
     REQUIRE(mCalcLen());
     if (t_is_wine()) { t_skip("CryptMsgCalculateEncodedLength is unimplemented under wine"); return; }
     ml_signer_t s;
-    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); t_skip("setup"); return; }
+    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); CHECKF(0, "setup failed"); return; }
     DWORD actual = 0; BYTE *b = ml_sign(&s, 0, OID_SHA256, V_CONTENT, V_CONTENT_LEN, &actual);
     DWORD calc = mCalcLen()(ENC, 0, CMSG_SIGNED, &s.se, NULL, V_CONTENT_LEN);
     CHECK(b && calc > 0);
-    t_note("signed: CalculateEncodedLength=%lu actual=%lu", (unsigned long)calc, (unsigned long)actual);
-    CHECK(calc >= actual);   /* the documented purpose: a buffer size that is large enough */
+    EXPECT_EQ(calc, actual); /* observed: exact for a signed message (318 bytes) */
     DWORD calc_det = mCalcLen()(ENC, CMSG_DETACHED_FLAG, CMSG_SIGNED, &s.se, NULL, V_CONTENT_LEN);
     DWORD act_det = 0; BYTE *d = ml_sign(&s, CMSG_DETACHED_FLAG, OID_SHA256, V_CONTENT, V_CONTENT_LEN, &act_det);
-    CHECK(d && calc_det >= act_det && calc_det <= calc);
+    CHECK(d); EXPECT_EQ(calc_det, act_det); EXPECT_EQ(act_det, 281); EXPECT_EQ(calc, 318); /* observed: exact for the detached message too */
     ml_free(b); ml_free(d);
     ml_signer_done(&s);
 }

@@ -53,11 +53,11 @@ TEST(mh_encrypt_size_protocol) {
     CRYPT_ENCRYPT_MESSAGE_PARA p; mh_enc_para(&p, "1.2.840.113549.3.7");
     PCCERT_CONTEXT rc[1] = { mh_ids[MH_R1].pub };
     DWORD q = 0x77; SET_ERR(0);
-    CHECK(ENCM(&p, 1, rc, v_payload, sizeof v_payload, NULL, &q)); CHECK(q > sizeof v_payload);
+    CHECK(ENCM(&p, 1, rc, v_payload, sizeof v_payload, NULL, &q)); EXPECT_EQ(q, 322);
     BYTE *buf = malloc(q + 16); DWORD n = 0; SET_ERR(0);
     BOOL r = ENCM(&p, 1, rc, v_payload, sizeof v_payload, buf, &n);
     EXPECT_FAIL(r == FALSE, ERROR_MORE_DATA); EXPECT_EQ(n, q);
-    n = q; CHECK(ENCM(&p, 1, rc, v_payload, sizeof v_payload, buf, &n)); CHECK(n <= q); CHECK(mh_der_total(buf, n) == n);
+    n = q; CHECK(ENCM(&p, 1, rc, v_payload, sizeof v_payload, buf, &n)); EXPECT_EQ(n, q); CHECK(mh_der_total(buf, n) == n);
     DWORD full = n; n = full - 1; SET_ERR(0);
     r = ENCM(&p, 1, rc, v_payload, sizeof v_payload, buf, &n);
     EXPECT_FAIL(r == FALSE, ERROR_MORE_DATA); EXPECT_EQ(n, full);
@@ -74,7 +74,7 @@ TEST(mh_encrypt_cbsize_checks) {
         EXPECT_FAIL(r == FALSE, E_INVALIDARG_); EXPECT_EQ(n, 0);
     }
     CRYPT_ENCRYPT_MESSAGE_PARA p; mh_enc_para(&p, "1.2.840.113549.3.7"); p.cbSize = 0x30;
-    DWORD n = 0; CHECK(ENCM(&p, 1, rc, v_payload, sizeof v_payload, NULL, &n)); CHECK(n > 0);
+    DWORD n = 0; CHECK(ENCM(&p, 1, rc, v_payload, sizeof v_payload, NULL, &n)); EXPECT_EQ(n, 322);
 }
 TEST(mh_encrypt_flags_need_cbsize_0x38) {
     MH_INIT(); REQUIRE(ENCM);
@@ -95,11 +95,11 @@ TEST(mh_encrypt_algorithm_table_roundtrip) {
     static const struct { const char *oid; const char *name; int hard; DWORD dec_err; } t[] = {
         { "2.16.840.1.101.3.4.1.2",  "aes128", 1, 0 }, { "2.16.840.1.101.3.4.1.42", "aes256", 1, 0 },
         { "1.2.840.113549.3.7",      "3des",   1, 0 }, { "1.2.840.113549.3.2",      "rc2",    1, 0 },
-        { "2.16.840.1.101.3.4.1.22", "aes192", 0, 0 }, { "1.3.14.3.2.7",            "des",    0, 0 },
-        { "1.2.840.113549.3.4",      "rc4",    0, ERROR_NOT_SUPPORTED } };   /* rc4 content encrypts but cannot be decrypted */
+        { "2.16.840.1.101.3.4.1.22", "aes192", 1, 0 }, { "1.3.14.3.2.7",            "des",    1, 0 },
+        { "1.2.840.113549.3.4",      "rc4",    1, ERROR_NOT_SUPPORTED } };   /* rc4 content encrypts but cannot be decrypted */
     for (unsigned i = 0; i < sizeof t / sizeof t[0]; i++) {
         DWORD n = 0; SET_ERR(0); BYTE *b = enc_blob(t[i].oid, 0, 1, MH_R1, MH_R1, &n);
-        if (!b) { if (t[i].hard) CHECKF(0, "%s encrypt err 0x%lx", t[i].name, GetLastError()); else t_note("%s encrypt -> 0x%lx", t[i].name, GetLastError()); continue; }
+        if (!b) { CHECKF(0, "%s encrypt err 0x%lx", t[i].name, GetLastError()); continue; }
         BYTE d[200]; DWORD dn = sizeof d; PCCERT_CONTEXT x = NULL; SET_ERR(0);
         BOOL r = dec_with(mh_priv_store, b, n, d, &dn, &x);
         t_label("%s", t[i].name);
@@ -113,9 +113,11 @@ TEST(mh_encrypt_algorithm_table_roundtrip) {
 TEST(mh_encrypt_key_transport_algorithm_observed) {
     MH_INIT(); REQUIRE(ENCM);
     DWORD n = 0; BYTE *a = enc_blob("2.16.840.1.101.3.4.1.2", 0, 1, MH_R1, MH_R1, &n);
-    if (a) { t_note("aes128 content + RSA recipient: key-transport OID is %s", MH_HAS(a, n, MH_OID_OAEP) ? "RSAES-OAEP" : "rsaEncryption"); free(a); }
+    /* observed: with an AES content key the RSA recipient is wrapped as RSAES-OAEP, with 3DES as plain rsaEncryption */
+    CHECK(a != NULL); if (a) { CHECK(MH_HAS(a, n, MH_OID_OAEP)); free(a); }
     BYTE *b = enc_blob("1.2.840.113549.3.7", 0, 1, MH_R1, MH_R1, &n);
-    if (b) { t_note("3des content + RSA recipient: key-transport OID is %s", MH_HAS(b, n, MH_OID_OAEP) ? "RSAES-OAEP" : "rsaEncryption");
+    CHECK(b != NULL);
+    if (b) { CHECK(!MH_HAS(b, n, MH_OID_OAEP));
              CHECK(MH_HAS(b, n, "\x06\x09\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01")); free(b); }
 }
 TEST(mh_encrypt_unknown_algorithm) {
@@ -126,8 +128,8 @@ TEST(mh_encrypt_unknown_algorithm) {
         CRYPT_ENCRYPT_MESSAGE_PARA p; mh_enc_para(&p, bad[i]); DWORD n = 55; SET_ERR(0);
         BYTE tmp[8];
         BOOL r = ENCM(&p, 1, rc, v_payload, sizeof v_payload, NULL, &n);
-        t_note("content encryption OID %s -> %d, err 0x%lx", bad[i], r, GetLastError());
-        if (!r) EXPECT_EQ(n, 0);
+        EXPECT_FAIL(r == FALSE, 0x80091002); /* observed: CRYPT_E_UNKNOWN_ALGO, also for a signature algorithm OID */
+        EXPECT_EQ(n, 0);
         (void)tmp;
     }
 }
@@ -153,15 +155,14 @@ TEST(mh_encrypt_recipient_count_scales_size) {
     CHECK(ENCM(&p, 1, rc, v_payload, sizeof v_payload, NULL, &s1));
     CHECK(ENCM(&p, 2, rc, v_payload, sizeof v_payload, NULL, &s2));
     CHECK(ENCM(&p, 3, rc, v_payload, sizeof v_payload, NULL, &s3));
-    CHECK(s2 > s1 + 100); CHECK(s3 > s2 + 100);
+    EXPECT_EQ(s1, 322); EXPECT_EQ(s2, 523); EXPECT_EQ(s3, 723); /* observed: about 200 bytes per additional recipient */
 }
 TEST(mh_encrypt_zero_recipients) {
     MH_INIT(); REQUIRE(ENCM);
     CRYPT_ENCRYPT_MESSAGE_PARA p; mh_enc_para(&p, "1.2.840.113549.3.7");
     DWORD n = 33; SET_ERR(0);
     BOOL r = ENCM(&p, 0, NULL, v_payload, sizeof v_payload, NULL, &n);
-    t_note("cRecipientCert = 0 -> %d err 0x%lx size %lu", r, GetLastError(), n);
-    if (!r) EXPECT_EQ(n, 0);
+    CHECK(r); EXPECT_EQ(n, 115); /* observed: accepted, an EnvelopedData without recipients */
 }
 TEST(mh_encrypt_empty_plaintext_roundtrip) {
     MH_NOWINE(); MH_INIT(); REQUIRE(ENCM); REQUIRE(DECM);
@@ -173,8 +174,7 @@ TEST(mh_encrypt_empty_plaintext_roundtrip) {
     BYTE *b = malloc(n); CHECK(ENCM(&p, 1, rc, (BYTE *)"", 0, b, &n));
     BYTE d[16]; DWORD dn = sizeof d; SET_ERR(0);
     r = dec_with(mh_priv_store, b, n, d, &dn, NULL);
-    t_note("decrypt of empty plaintext -> %d err 0x%lx n=%lu", r, GetLastError(), dn);
-    if (r) EXPECT_EQ(dn, 0);
+    CHECKF(r, "err 0x%lx", GetLastError()); EXPECT_EQ(dn, 0); /* observed */
     free(b);
 }
 TEST(mh_encrypt_large_plaintext_roundtrip) {
@@ -182,11 +182,10 @@ TEST(mh_encrypt_large_plaintext_roundtrip) {
     DWORD sz = 200000 + 7; BYTE *pt = malloc(sz); for (DWORD i = 0; i < sz; i++) pt[i] = (BYTE)(i * 7 + (i >> 9));
     CRYPT_ENCRYPT_MESSAGE_PARA p; mh_enc_para(&p, "2.16.840.1.101.3.4.1.42");
     PCCERT_CONTEXT rc[1] = { mh_ids[MH_R2].pub };
-    DWORD n = 0; CHECK(ENCM(&p, 1, rc, pt, sz, NULL, &n)); CHECK(n > sz);
+    DWORD n = 0; CHECK(ENCM(&p, 1, rc, pt, sz, NULL, &n)); EXPECT_EQ(n, 200300);
     BYTE *b = malloc(n); CHECK(ENCM(&p, 1, rc, pt, sz, b, &n));
     DWORD dn = 0; PCCERT_CONTEXT x = NULL;
-    CHECK(dec_with(mh_priv_store, b, n, NULL, &dn, NULL)); CHECK(dn >= sz && dn <= sz + 32);
-    t_note("decrypt size query for %lu plaintext bytes -> %lu", sz, dn);
+    CHECK(dec_with(mh_priv_store, b, n, NULL, &dn, NULL)); EXPECT_EQ(dn, 200022); /* observed: the query over-reports by the padding block (15 bytes beyond the plaintext) */
     BYTE *d = malloc(dn + 1);
     CHECK(dec_with(mh_priv_store, b, n, d, &dn, &x)); CHECK(dn == sz && !memcmp(d, pt, sz)); CHECK(CERT_IS(x, v_r2_cert));
     FREE_CERT(x); free(d); free(b); free(pt);
@@ -248,8 +247,7 @@ TEST(mh_decrypt_size_query_does_not_need_key) {
     DWORD dn = 0; SET_ERR(0);
     BOOL r = dec_with(s, v_m_env_r2, sizeof v_m_env_r2, NULL, &dn, NULL);
     CHECKF(r, "err 0x%lx", GetLastError());
-    CHECK(dn >= sizeof v_payload && dn <= sizeof v_payload + 32);
-    t_note("size query for %zu plaintext bytes -> %lu", sizeof v_payload, dn);
+    EXPECT_EQ(dn, 70); /* observed: 50 payload bytes -> 70 (padded ciphertext length) */
     dn = 0; PCCERT_CONTEXT x = (PCCERT_CONTEXT)1;
     r = dec_with(s, v_m_env_r2, sizeof v_m_env_r2, NULL, &dn, &x);   /* asking for the cert forces decryption */
     CHECK(r == FALSE); CHECK(x == NULL);
@@ -310,8 +308,7 @@ TEST(mh_decrypt_corrupted_ciphertext) {
     b[sizeof v_m_env_aes128 - 1] ^= 0xFF;           /* last ciphertext block: padding becomes invalid or the plaintext changes */
     BYTE d[100]; DWORD dn = sizeof d; SET_ERR(0);
     BOOL r = dec_with(mh_priv_store, b, sizeof v_m_env_aes128, d, &dn, NULL);
-    if (r) CHECK(dn != sizeof v_payload || memcmp(d, v_payload, dn));
-    t_note("flipped last ciphertext byte -> %d err 0x%lx", r, GetLastError());
+    EXPECT_FAIL(r == FALSE, 0xC000003E); /* observed: STATUS_DATA_ERROR (invalid padding) */
     free(b);
 }
 TEST(mh_decrypt_corrupted_wrapped_key) {
@@ -324,7 +321,7 @@ TEST(mh_decrypt_corrupted_wrapped_key) {
         b[pos] ^= 0x55;
         BYTE d[100]; DWORD dn = sizeof d; SET_ERR(0);
         BOOL r = dec_with(mh_priv_store, b, sizeof v_m_env_aes128, d, &dn, NULL);
-        CHECK(r == FALSE); t_note("corrupted RSA-wrapped content key -> 0x%lx", GetLastError());
+        EXPECT_FAIL(r == FALSE, 0x80090027); /* observed: NTE_INVALID_PARAMETER */
     }
     free(b);
 }
@@ -367,7 +364,7 @@ TEST(mh_signandencrypt_decrypt_yields_signed_message) {
     DWORD n = 0; BYTE *b = sae_blob(0, &n); CHECK(b != NULL); if (!b) return;
     BYTE inner[1000]; DWORD in = sizeof inner;
     CHECK(dec_with(mh_priv_store, b, n, inner, &in, NULL));
-    CHECK(in > sizeof v_payload); CHECK(inner[0] == 0x30);
+    EXPECT_EQ(in, 926); CHECK(inner[0] == 0x30);
     DWORD h = mh_der_hdr(inner, in); CHECK(in >= h + 11 && !memcmp(inner + h, MH_OID_SIGNED, 11));
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     BYTE d[100]; DWORD dn = sizeof d; PCCERT_CONTEXT sc = NULL;
@@ -380,11 +377,11 @@ TEST(mh_signandencrypt_size_protocol) {
     CRYPT_ENCRYPT_MESSAGE_PARA ep; mh_enc_para(&ep, "2.16.840.1.101.3.4.1.2");
     PCCERT_CONTEXT rc[1] = { mh_ids[MH_R1].pub };
     DWORD q = 0x55; SET_ERR(0);
-    CHECK(U(CryptSignAndEncryptMessage)(&sp, &ep, 1, rc, v_payload, sizeof v_payload, NULL, &q)); CHECK(q > 2 * sizeof v_payload);
+    CHECK(U(CryptSignAndEncryptMessage)(&sp, &ep, 1, rc, v_payload, sizeof v_payload, NULL, &q)); EXPECT_EQ(q, 615);
     BYTE *buf = malloc(q); DWORD n = 0; SET_ERR(0);
     BOOL r = U(CryptSignAndEncryptMessage)(&sp, &ep, 1, rc, v_payload, sizeof v_payload, buf, &n);
-    EXPECT_FAIL(r == FALSE, ERROR_MORE_DATA); CHECK(n >= 1); t_note("zero-size buffer reports %lu (query %lu)", n, q);
-    n = q; CHECK(U(CryptSignAndEncryptMessage)(&sp, &ep, 1, rc, v_payload, sizeof v_payload, buf, &n)); CHECK(n <= q + 64);
+    EXPECT_FAIL(r == FALSE, ERROR_MORE_DATA); EXPECT_EQ(n, q); EXPECT_EQ(q, 615);
+    n = q; CHECK(U(CryptSignAndEncryptMessage)(&sp, &ep, 1, rc, v_payload, sizeof v_payload, buf, &n)); EXPECT_EQ(n, q);
     free(buf);
 }
 TEST(mh_signandencrypt_bad_signer_zeroes_size) {
@@ -421,7 +418,7 @@ TEST(mh_decryptandverify_plain_envelope_fails_verification) {
     CRYPT_DECRYPT_MESSAGE_PARA dp; mh_dec_para(&dp); CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para_cb(&vp);
     BYTE d[100]; DWORD dn = sizeof d; PCCERT_CONTEXT x = (PCCERT_CONTEXT)1, sc = (PCCERT_CONTEXT)1; SET_ERR(0);
     BOOL r = U(CryptDecryptAndVerifyMessageSignature)(&dp, &vp, 0, v_m_env_aes128, sizeof v_m_env_aes128, d, &dn, &x, &sc);
-    CHECK(r == FALSE); t_note("envelope around a non-signed payload -> 0x%lx", GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x8009310B); /* observed: ASN1 bad tag (the payload is not a SignedData) */
     CHECK(x == NULL); CHECK(sc == NULL); EXPECT_EQ(dn, 0);
 }
 TEST(mh_decryptandverify_signer_index_and_sizes) {

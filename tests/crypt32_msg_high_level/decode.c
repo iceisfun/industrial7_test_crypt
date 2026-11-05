@@ -143,7 +143,7 @@ TEST(mh_decode_encoding_type_taken_from_verify_para_first) {
     CHECKF(r, "err 0x%lx", GetLastError());
     vp.dwMsgAndCertEncodingType = 0; dp.dwMsgAndCertEncodingType = ENC; dn = 100; SET_ERR(0);
     r = DEC(CMSG_HASHED_FLAG, &dp, &vp, 0, (BYTE *)v_m_hashed_sha256, sizeof v_m_hashed_sha256, 0, &mt, NULL, d, &dn, NULL, NULL);
-    t_note("verify para encoding type 0 with a valid decrypt para -> %d err 0x%lx", r, GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x80070057); /* observed: the verify parameter's encoding type is the one that counts, and 0 is invalid */
 }
 TEST(mh_decode_certs_only_message) {
     MH_NOWINE(); MH_INIT(); REQUIRE(DEC);
@@ -288,7 +288,7 @@ TEST(mh_msgparam_signed_message_params) {
     CHECK(ci->Issuer.cbData == mh_ids[MH_S1].pub->pCertInfo->Issuer.cbData);
     free(ci);
     on = 0;
-    if (U(CryptMsgGetParam)(m, CMSG_ENCRYPTED_DIGEST, 0, NULL, &on)) EXPECT_EQ(on, 128); else t_note("CMSG_ENCRYPTED_DIGEST unavailable: 0x%lx", GetLastError());
+    CHECK(U(CryptMsgGetParam)(m, CMSG_ENCRYPTED_DIGEST, 0, NULL, &on)); EXPECT_EQ(on, 128);
     on = sizeof oid; CHECK(U(CryptMsgGetParam)(m, CMSG_INNER_CONTENT_TYPE_PARAM, 0, oid, &on)); EXPECT_STR(oid, "1.2.840.113549.1.7.1");
     on = 0; CHECK(U(CryptMsgGetParam)(m, CMSG_CONTENT_PARAM, 0, NULL, &on)); EXPECT_EQ(on, sizeof v_payload);
     U(CryptMsgClose)(m); free(b);
@@ -345,7 +345,8 @@ TEST(mh_msgparam_enveloped_message_params) {
     free(ri);
     DWORD cn = 0; SET_ERR(0);
     BOOL r = U(CryptMsgGetParam)(m, CMSG_CONTENT_PARAM, 0, NULL, &cn);
-    t_note("content of an undecrypted enveloped message -> %d err 0x%lx n=%lu", r, GetLastError(), cn);
+    /* observed: the size query succeeds on a still encrypted message and reports 62 bytes (50 payload bytes plus padding) */
+    CHECK(r); EXPECT_EQ(cn, 62);
     U(CryptMsgClose)(m); free(b);
 }
 TEST(mh_msgparam_certs_and_crls_of_signed_message) {

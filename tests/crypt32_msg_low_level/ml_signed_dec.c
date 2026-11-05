@@ -43,7 +43,7 @@ TEST(mlsd_type_and_counts) {
         CHECKF(ml_param_dword(m, CMSG_SIGNER_COUNT_PARAM, 0, &v) && v == 1, "%s", SV[i].name);
         CHECKF(ml_param_dword(m, CMSG_CERT_COUNT_PARAM, 0, &v) && v == (SV[i].certs ? 1 : 0), "%s", SV[i].name);
         CHECKF(ml_param_dword(m, CMSG_CRL_COUNT_PARAM, 0, &v) && v == 0, "%s", SV[i].name);
-        { BOOL vok = ml_param_dword(m, CMSG_VERSION_PARAM, 0, &v); t_note("%s: CMSG_VERSION_PARAM ok=%d v=%lu", SV[i].name, (int)vok, (unsigned long)v); }
+        CHECKF(ml_param_dword(m, CMSG_VERSION_PARAM, 0, &v) && v == 1, "%s version %lu", SV[i].name, (unsigned long)v); /* observed: SignedData version 1 */
         mClose()(m);
     }
 }
@@ -63,7 +63,8 @@ TEST(mlsd_content_param) {
         HCRYPTMSG m = open_sv(&SV[i]);
         if (!m) { CHECKF(m != NULL, "%s", SV[i].name); continue; }
         DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
-        if (SV[i].detached) { t_note("%s: CONTENT_PARAM after supplying detached content: %lu bytes", SV[i].name, (unsigned long)(b ? n : 0)); ml_free(b); mClose()(m); continue; }
+        if (SV[i].detached) { /* observed: CONTENT_PARAM of a detached message returns an empty buffer (the content is never stored) */
+            CHECKF(b != NULL && n == 0, "%s: b %p n %lu", SV[i].name, b, (unsigned long)n); ml_free(b); mClose()(m); continue; }
         CHECKF(b && n == V_CONTENT_LEN && !memcmp(b, V_CONTENT, n), "%s (%lu bytes)", SV[i].name, (unsigned long)n);
         ml_free(b);
         mClose()(m);
@@ -86,7 +87,7 @@ TEST(mlsd_signer_info_fields) {
             CHECKF(s->HashAlgorithm.pszObjId && !strcmp(s->HashAlgorithm.pszObjId, SV[i].hash), "%s hash alg", SV[i].name);
             CHECKF(s->HashEncryptionAlgorithm.pszObjId && !strcmp(s->HashEncryptionAlgorithm.pszObjId, OID_RSA), "%s enc alg %s", SV[i].name, s->HashEncryptionAlgorithm.pszObjId ? s->HashEncryptionAlgorithm.pszObjId : "(null)");
             CHECKF(s->EncryptedHash.cbData == 128, "%s sig len", SV[i].name);
-            if (SV[i].attrs) CHECKF(s->AuthAttrs.cAttr >= 3, "%s auth attrs %lu", SV[i].name, (unsigned long)s->AuthAttrs.cAttr);
+            if (SV[i].attrs) CHECKF(s->AuthAttrs.cAttr == 4, "%s auth attrs %lu", SV[i].name, (unsigned long)s->AuthAttrs.cAttr);
             else CHECKF(s->AuthAttrs.cAttr == 0, "%s", SV[i].name);
             CHECKF(s->UnauthAttrs.cAttr == 0, "%s", SV[i].name);
             ml_free(b);
@@ -104,11 +105,9 @@ TEST(mlsd_signer_info_encrypted_hash_byte_order) {
     CHECK(b != NULL);
     if (b) {
         CMSG_SIGNER_INFO *s = (CMSG_SIGNER_INFO *)b;
-        BOOL same = s->EncryptedHash.cbData == V_SIG1_SHA256_LEN && !memcmp(s->EncryptedHash.pbData, V_SIG1_SHA256, V_SIG1_SHA256_LEN);
-        BYTE rev[128]; for (int i = 0; i < 128; i++) rev[i] = V_SIG1_SHA256[127 - i];
-        BOOL r = s->EncryptedHash.cbData == 128 && !memcmp(s->EncryptedHash.pbData, rev, 128);
-        CHECK(same || r);
-        t_note("CMSG_SIGNER_INFO.EncryptedHash byte order: %s", same ? "wire (big-endian)" : r ? "reversed (little-endian)" : "other");
+        /* observed: the signature in CMSG_SIGNER_INFO.EncryptedHash is in wire (big-endian) order */
+        EXPECT_EQ(s->EncryptedHash.cbData, V_SIG1_SHA256_LEN);
+        CHECK(s->EncryptedHash.cbData == V_SIG1_SHA256_LEN && !memcmp(s->EncryptedHash.pbData, V_SIG1_SHA256, V_SIG1_SHA256_LEN));
         ml_free(b);
     }
     mClose()(m);
@@ -244,8 +243,7 @@ TEST(mlsd_bad_indexes) {
     for (size_t i = 0; i < sizeof pn / sizeof *pn; i++) {
         DWORD n = 0; SET_ERR(0);
         BOOL ok = mGetParam()(m, pn[i], 7, NULL, &n);
-        CHECKF(!ok, "param %lu", (unsigned long)pn[i]);
-        t_note("signer param %lu with index 7: err 0x%lx", (unsigned long)pn[i], (unsigned long)GetLastError());
+        t_label("param %lu", (unsigned long)pn[i]); EXPECT_FAIL(!ok, (DWORD)CRYPT_E_INVALID_INDEX); t_label(NULL);
     }
     mClose()(m);
 }
@@ -274,8 +272,8 @@ TEST(mlsd_eku_inner_content_type) {
     b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
     CHECK(b != NULL);
     if (b) {
-        t_note("non-data inner content: CONTENT_PARAM %lu bytes (plaintext %d)", (unsigned long)n, V_CONTENT_LEN);
-        CHECK(ml_memmem(b, n, V_CONTENT, V_CONTENT_LEN) != NULL);
+        EXPECT_EQ(n, V_CONTENT_LEN); /* observed: the content is returned without its own framing */
+        CHECK(n == V_CONTENT_LEN && !memcmp(b, V_CONTENT, n));
         ml_free(b);
     }
     SET_ERR(0);
@@ -383,8 +381,7 @@ TEST(mlsd_type_mismatch_unexpected_msg_type) {
     HCRYPTMSG h = mOpenDec()(ENC, 0, CMSG_HASHED, 0, NULL, NULL);
     if (h) {
         SET_ERR(0);
-        CHECK(!mUpdate()(h, bare, n, TRUE));
-        t_note("signed bare content decoded as CMSG_HASHED: err 0x%lx", (unsigned long)GetLastError());
+        EXPECT_FAIL(!mUpdate()(h, bare, n, TRUE), 0x8009310B); /* observed: ASN1 bad tag */
         mClose()(h);
     }
     SET_ERR(0);
@@ -483,7 +480,7 @@ TEST(mlsd_detached_content_param_before_content) {
     CHECK(mUpdate()(m, M_SIGNED_DETACHED_NOATTR, M_SIGNED_DETACHED_NOATTR_LEN, TRUE));
     DWORD n = 0; SET_ERR(0);
     BOOL ok = mGetParam()(m, CMSG_CONTENT_PARAM, 0, NULL, &n);
-    t_note("detached: CONTENT_PARAM before the content update: ok=%d size=%lu err=0x%lx", ok, (unsigned long)n, (unsigned long)GetLastError());
+    CHECK(ok); EXPECT_EQ(n, 0); /* observed: succeeds with an empty content before the detached content is supplied */
     CHECK(mUpdate()(m, V_CONTENT, V_CONTENT_LEN, TRUE));
     SET_ERR(0);
     CHECKF(verify_with(m, V_CERT1, V_CERT1_LEN), "err 0x%lx", GetLastError());
@@ -641,7 +638,6 @@ TEST(mlsd_getandverify_wrong_message_type) {
     if (!m) { CHECK(m != NULL); return; }
     PCCERT_CONTEXT signer = NULL;
     SET_ERR(0);
-    CHECK(!U(CryptMsgGetAndVerifySigner)(m, 0, NULL, 0, &signer, NULL));
-    t_note("GetAndVerifySigner on a data message: err 0x%lx", (unsigned long)GetLastError());
+    EXPECT_FAIL(!U(CryptMsgGetAndVerifySigner)(m, 0, NULL, 0, &signer, NULL), 0x8009202B); /* observed */
     mClose()(m);
 }

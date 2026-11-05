@@ -65,16 +65,18 @@ TEST(policies_decode_nocopy_qualifier) {
     if (n) {
         CERT_POLICY_QUALIFIER_INFO *q = n->rgPolicyInfo[0].rgPolicyQualifier;
         CHECK(q[0].Qualifier.cbData == 10);
-        t_note("policy qualifier NOCOPY: %s (size %lu vs %lu)", PTR_IN(q[0].Qualifier.pbData, v_pol_cps, sizeof v_pol_cps) ? "in place" : "copied", c2, c1);
+        /* observed: NOCOPY points into the input and needs 16 bytes less */
+        CHECK(PTR_IN(q[0].Qualifier.pbData, v_pol_cps, sizeof v_pol_cps));
+        EXPECT_EQ(c2, 96); EXPECT_EQ(c1, 112);
         LocalFree(n);
     }
     if (a) LocalFree(a);
 }
 TEST(policies_decode_errors) {
     REQUIRE(U(CryptDecodeObjectEx));
-    a_dec_fail(__FILE__, __LINE__, X509_CERT_POLICIES, v_bc2_ca, sizeof v_bc2_ca, 0, 0);
+    a_dec_fail_x(__FILE__, __LINE__, X509_CERT_POLICIES, v_bc2_ca, sizeof v_bc2_ca, 0, HR_ASN1_BADTAG, 1);
     BYTE trunc[sizeof v_pol_one - 1]; memcpy(trunc, v_pol_one, sizeof trunc);
-    a_dec_fail(__FILE__, __LINE__, X509_CERT_POLICIES, trunc, sizeof trunc, 0, HR_ASN1_EOD);
+    a_dec_fail_x(__FILE__, __LINE__, X509_CERT_POLICIES, trunc, sizeof trunc, 0, HR_ASN1_EOD, 1);
 }
 TEST(policies_encode_invalid_oid) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -89,10 +91,9 @@ TEST(policies_encode_invalid_oid) {
 TEST(application_policies_alias_probe) {
     REQUIRE(U(CryptEncodeObjectEx));
     CERT_POLICY_INFO pi = { (LPSTR)"1.2.3", 0, NULL }; CERT_POLICIES_INFO s = { 1, &pi };
-    DWORD cb = 0; BYTE *p = a_enc(szOID_APPLICATION_CERT_POLICIES, &s, 0, &cb);
-    if (!p) { t_note("szOID_APPLICATION_CERT_POLICIES encode: err 0x%lx", GetLastError()); return; }
-    CHECK(cb == sizeof v_pol_one && !memcmp(p, v_pol_one, cb));
-    LocalFree(p);
+    /* observed: the application-policies OID has no encoder (ERROR_FILE_NOT_FOUND) */
+    DWORD cb = 0; SET_ERR(0);
+    EXPECT_FAILS(U(CryptEncodeObjectEx)(ENC, szOID_APPLICATION_CERT_POLICIES, &s, 0, NULL, NULL, &cb), ERROR_FILE_NOT_FOUND);
 }
 
 /* ---- policy mappings / constraints ------------------------------------- */
@@ -114,10 +115,9 @@ TEST(policy_mappings) {
 TEST(policy_mappings_application_probe) {
     REQUIRE(U(CryptEncodeObjectEx));
     CERT_POLICY_MAPPING m = { (LPSTR)"1.2.3", (LPSTR)"1.2.4" }; CERT_POLICY_MAPPINGS_INFO s = { 1, &m };
-    DWORD cb = 0; BYTE *p = a_enc(szOID_APPLICATION_POLICY_MAPPINGS, &s, 0, &cb);
-    if (!p) { t_note("szOID_APPLICATION_POLICY_MAPPINGS: err 0x%lx", GetLastError()); return; }
-    CHECK(cb == sizeof v_pmap_one && !memcmp(p, v_pmap_one, cb));
-    LocalFree(p);
+    /* observed: the application-policy-mappings OID has no encoder (ERROR_FILE_NOT_FOUND) */
+    DWORD cb = 0; SET_ERR(0);
+    EXPECT_FAILS(U(CryptEncodeObjectEx)(ENC, szOID_APPLICATION_POLICY_MAPPINGS, &s, 0, NULL, NULL, &cb), ERROR_FILE_NOT_FOUND);
 }
 TEST(policy_constraints_encode) {
     REQUIRE(U(CryptEncodeObjectEx));
@@ -214,19 +214,18 @@ TEST(crldp_decode_issuer_rdn_name_probe) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb = 0; void *p = NULL; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CRL_DIST_POINTS, v_cdp_rdn, sizeof v_cdp_rdn, CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("distributionPoint nameRelativeToCRLIssuer: ok=%d err=0x%lx", r, GetLastError());
-    if (r) LocalFree(p);
+    /* observed: nameRelativeToCRLIssuer is decoded as CRL_DIST_POINT_ISSUER_RDN_NAME (2) */
+    CHECKF(r, "err 0x%lx", GetLastError());
+    if (r) { CRL_DIST_POINTS_INFO *d = p; EXPECT_EQ(d->cDistPoint, 1); EXPECT_EQ(d->rgDistPoint[0].DistPointName.dwDistPointNameChoice, CRL_DIST_POINT_ISSUER_RDN_NAME); LocalFree(p); }
 }
 TEST(crldp_encode_rdn_choice_probe) {
     REQUIRE(U(CryptEncodeObjectEx));
     CRL_DIST_POINT dp; memset(&dp, 0, sizeof dp); dp.DistPointName.dwDistPointNameChoice = CRL_DIST_POINT_ISSUER_RDN_NAME;
     CRL_DIST_POINTS_INFO s = { 1, &dp };
     DWORD cb = 0; SET_ERR(0);
-    BOOL r = U(CryptEncodeObjectEx)(ENC, X509_CRL_DIST_POINTS, &s, 0, NULL, NULL, &cb);
-    t_note("encode ISSUER_RDN_NAME choice: ok=%d err=0x%lx", r, GetLastError());
+    EXPECT_FAILS(U(CryptEncodeObjectEx)(ENC, X509_CRL_DIST_POINTS, &s, 0, NULL, NULL, &cb), HR_INVALIDARG);
     dp.DistPointName.dwDistPointNameChoice = 9; SET_ERR(0);
-    r = U(CryptEncodeObjectEx)(ENC, X509_CRL_DIST_POINTS, &s, 0, NULL, NULL, &cb);
-    CHECK(!r); t_note("encode bogus choice 9: err=0x%lx", GetLastError());
+    EXPECT_FAILS(U(CryptEncodeObjectEx)(ENC, X509_CRL_DIST_POINTS, &s, 0, NULL, NULL, &cb), HR_INVALIDARG);
 }
 TEST(crldp_decode_truncated) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -268,14 +267,14 @@ TEST(aia_encode_decode) {
     ROUNDTRIP(X509_AUTHORITY_INFO_ACCESS, v_aia_ocsp);
     ROUNDTRIP(X509_AUTHORITY_INFO_ACCESS, v_aia_two);
     ROUNDTRIP(szOID_AUTHORITY_INFO_ACCESS, v_aia_two);
-    DEC_FAIL(X509_AUTHORITY_INFO_ACCESS, v_bc2_ca, 0);
+    DEC_FAIL(X509_AUTHORITY_INFO_ACCESS, v_bc2_ca, HR_ASN1_BADTAG);
 }
 TEST(aia_subject_info_access_probe) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb = 0; void *p = NULL; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, szOID_SUBJECT_INFO_ACCESS, v_aia_ocsp, sizeof v_aia_ocsp, CRYPT_DECODE_ALLOC_FLAG, NULL, &p, &cb);
-    t_note("szOID_SUBJECT_INFO_ACCESS decode: ok=%d err=0x%lx", r, GetLastError());
-    if (r) LocalFree(p);
+    CHECKF(r, "err 0x%lx", GetLastError()); /* observed: SIA shares the AIA decoder */
+    if (r) { CERT_AUTHORITY_INFO_ACCESS *d = p; EXPECT_EQ(d->cAccDescr, 1); EXPECT_STR(d->rgAccDescr[0].pszAccessMethod, szOID_PKIX_OCSP); LocalFree(p); }
 }
 
 /* ---- issuing distribution point ----------------------------------------- */
@@ -399,7 +398,7 @@ TEST(time_encode_table) {
         TM("1949", a_ft(1949, 12, 31, 23, 59, 59), v_time_1949), TM("2007", a_ft(2007, 1, 2, 3, 4, 5), v_time_2007_gen),
     };
     for (unsigned i = 0; i < sizeof rows / sizeof *rows; i++) {
-        t_note("row %s", rows[i].label);
+        a_ctx = rows[i].label;
         if (!strcmp(rows[i].label, "2007")) {
             /* 2007 is inside UTCTime range: encoded as UTCTime */
             static const BYTE e[] = { 0x17, 0x0d, '0','7','0','1','0','2','0','3','0','4','0','5','Z' };
@@ -408,6 +407,7 @@ TEST(time_encode_table) {
         }
         a_enc_eq(__FILE__, __LINE__, X509_CHOICE_OF_TIME, &rows[i].ft, 0, rows[i].der, rows[i].n);
     }
+    a_ctx = "";
 }
 TEST(time_decode_table) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -420,9 +420,9 @@ TEST(time_decode_table) {
         TM("minus0130_scaled", a_ft(1999, 12, 31, 22, 12, 0), v_time_off_minus),
     };
     for (unsigned i = 0; i < sizeof rows / sizeof *rows; i++) {
+        t_label("row %s", rows[i].label);
         DWORD cb; FILETIME *f = a_dec(__FILE__, __LINE__, X509_CHOICE_OF_TIME, rows[i].der, rows[i].n, 0, &cb);
-        t_note("row %s", rows[i].label);
-        if (f) { CHECK(cb >= sizeof *f); CHECKF(a_ft_eq(*f, rows[i].ft), "row %s got %08lx%08lx want %08lx%08lx", rows[i].label, f->dwHighDateTime, f->dwLowDateTime, rows[i].ft.dwHighDateTime, rows[i].ft.dwLowDateTime); LocalFree(f); }
+        if (f) { EXPECT_EQ(cb, 8); CHECKF(a_ft_eq(*f, rows[i].ft), "row %s got %08lx%08lx want %08lx%08lx", rows[i].label, f->dwHighDateTime, f->dwLowDateTime, rows[i].ft.dwHighDateTime, rows[i].ft.dwLowDateTime); LocalFree(f); }
     }
 }
 /* UTCTime offsets (probed on Windows 10): the hours are exact, but the minutes are scaled by 1.6 (30 minutes shifts by 48 minutes). */
@@ -452,17 +452,21 @@ TEST(time_decode_utc_offset_table) {
 }
 TEST(time_decode_errors) {
     REQUIRE(U(CryptDecodeObjectEx));
-    DEC_FAIL(X509_CHOICE_OF_TIME, v_time_bad_tag, 0);
+    DEC_FAIL(X509_CHOICE_OF_TIME, v_time_bad_tag, HR_ASN1_CORRUPT);
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CHOICE_OF_TIME, v_time_bad_month, sizeof v_time_bad_month, 0, NULL, NULL, &cb);
-    t_note("month 13: ok=%d err=0x%lx", r, GetLastError());
-    DEC_FAIL(X509_CHOICE_OF_TIME, v_enum_1, 0);
+    /* observed: the size query only parses the structure (ok, 8 bytes); the real decode fails converting the time */
+    EXPECT_EQ(r, 1); EXPECT_EQ(cb, 8);
+    { FILETIME *f2 = (FILETIME *)(ULONG_PTR)1; DWORD c2 = 0; SET_ERR(0);
+      EXPECT_FAIL(!U(CryptDecodeObjectEx)(ENC, X509_CHOICE_OF_TIME, v_time_bad_month, sizeof v_time_bad_month, CRYPT_DECODE_ALLOC_FLAG, NULL, &f2, &c2), 0x80092002); }
+    DEC_FAIL(X509_CHOICE_OF_TIME, v_enum_1, HR_ASN1_CORRUPT);
 }
 TEST(time_decode_fractional_generalized_probe) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb = 0; FILETIME *f = a_dec(__FILE__, __LINE__, X509_CHOICE_OF_TIME, v_time_gen_frac, sizeof v_time_gen_frac, 0, &cb);
     if (f) { FILETIME w = a_ft(2007, 1, 2, 3, 4, 5); ULONGLONG a = ((ULONGLONG)f->dwHighDateTime << 32) | f->dwLowDateTime, b = ((ULONGLONG)w.dwHighDateTime << 32) | w.dwLowDateTime;
-        t_note("fractional seconds .5 decode delta %lld x100ns", (long long)(a - b)); LocalFree(f); }
+        /* observed: the fraction is kept (0.5 s = 5000000 x 100 ns) */
+        EXPECT_EQ((long long)(a - b), 5000000LL); LocalFree(f); }
 }
 TEST(time_roundtrips_and_pre1601) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -472,7 +476,10 @@ TEST(time_roundtrips_and_pre1601) {
     static const BYTE old[] = { 0x18, 0x0f, '1','5','9','9','0','1','0','1','0','0','0','0','0','0','Z' };
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_CHOICE_OF_TIME, old, sizeof old, 0, NULL, NULL, &cb);
-    t_note("year 1599 (before FILETIME epoch): ok=%d err=0x%lx", r, GetLastError());
+    /* observed: as for month 13, the size query succeeds and the real decode fails (CRYPT_E_BAD_ENCODE) */
+    EXPECT_EQ(r, 1); EXPECT_EQ(cb, 8);
+    { FILETIME *f2 = (FILETIME *)(ULONG_PTR)1; DWORD c2 = 0; SET_ERR(0);
+      EXPECT_FAIL(!U(CryptDecodeObjectEx)(ENC, X509_CHOICE_OF_TIME, old, sizeof old, CRYPT_DECODE_ALLOC_FLAG, NULL, &f2, &c2), 0x80092002); }
 }
 
 /* ---- Microsoft extensions ------------------------------------------------ */
@@ -498,25 +505,21 @@ TEST(enroll_certtype_extension_probe) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb = 0; CERT_NAME_VALUE *v = NULL; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, szOID_ENROLL_CERTTYPE_EXTENSION, v_enroll_certtype, sizeof v_enroll_certtype, CRYPT_DECODE_ALLOC_FLAG, NULL, &v, &cb);
-    t_note("szOID_ENROLL_CERTTYPE_EXTENSION decode: ok=%d err=0x%lx", r, GetLastError());
-    if (r) { CHECK(v->dwValueType == CERT_RDN_BMP_STRING || v->dwValueType == CERT_RDN_UNICODE_STRING); CHECK(v->Value.cbData == 8); LocalFree(v); }
+    EXPECT_FAIL(!r, ERROR_FILE_NOT_FOUND); /* observed: no decoder registered for this OID */
 }
 TEST(ca_version_extension_probe) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb = 0; int *v = NULL; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, szOID_CERTSRV_CA_VERSION, v_ca_version, sizeof v_ca_version, CRYPT_DECODE_ALLOC_FLAG, NULL, &v, &cb);
-    t_note("szOID_CERTSRV_CA_VERSION decode: ok=%d err=0x%lx", r, GetLastError());
-    if (r) { t_note("CA version decoded as 0x%x", *v); LocalFree(v); }
+    EXPECT_FAIL(!r, ERROR_FILE_NOT_FOUND); /* observed: no decoder registered for this OID */
 }
 TEST(next_ca_and_os_version_probe) {
     REQUIRE(U(CryptDecodeObjectEx));
     static const BYTE osv[] = { 0x16, 0x07, '1','0','.','0','.','1','5' };
     DWORD cb = 0; void *v = NULL; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, szOID_OS_VERSION, osv, sizeof osv, CRYPT_DECODE_ALLOC_FLAG, NULL, &v, &cb);
-    t_note("szOID_OS_VERSION decode (IA5): ok=%d err=0x%lx", r, GetLastError());
-    if (r) LocalFree(v);
+    EXPECT_FAIL(!r, ERROR_FILE_NOT_FOUND); /* observed: no decoder registered for this OID */
     v = NULL; SET_ERR(0);
     r = U(CryptDecodeObjectEx)(ENC, "1.3.6.1.4.1.311.25.2", v_ski_3, sizeof v_ski_3, CRYPT_DECODE_ALLOC_FLAG, NULL, &v, &cb);
-    t_note("NTDS_CA_SECURITY_EXT decode: ok=%d err=0x%lx", r, GetLastError());
-    if (r) LocalFree(v);
+    EXPECT_FAIL(!r, ERROR_FILE_NOT_FOUND); /* observed: no decoder registered for this OID */
 }

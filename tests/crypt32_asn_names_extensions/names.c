@@ -52,9 +52,10 @@ TEST(names_ansi_string_type_table) {
         BYTE exp[128]; DWORD en = mk_name(exp, r->tag, r->out, r->outn);
         CERT_RDN_ATTR a; set_attr(&a, r->type, r->in, r->cb);
         CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
-        t_note("row %s", r->label); a_ctx = r->label;
+        a_ctx = r->label;
         a_enc_eq(__FILE__, __LINE__, X509_NAME, &ni, 0, exp, en);
     }
+    a_ctx = "";
 }
 
 TEST(names_ansi_bmp_value_is_big_endian) {
@@ -107,7 +108,7 @@ TEST(names_encode_two_rdns_and_multivalued_rdn) {
 TEST(names_decode_empty_and_indefinite) {
     REQUIRE(U(CryptDecodeObjectEx));
     DWORD cb; CERT_NAME_INFO *ni = DEC(X509_NAME, v_name_empty, 0, &cb);
-    if (ni) { CHECK(ni->cRDN == 0); CHECK(cb >= sizeof(CERT_NAME_INFO)); LocalFree(ni); }
+    if (ni) { CHECK(ni->cRDN == 0); EXPECT_EQ(cb, sizeof(CERT_NAME_INFO)); LocalFree(ni); }
     ni = DEC(X509_NAME, v_name_empty_indef, 0, &cb);   /* BER indefinite length is accepted */
     if (ni) { CHECK(ni->cRDN == 0); LocalFree(ni); }
     ni = DEC(X509_UNICODE_NAME, v_name_empty, 0, &cb);
@@ -164,14 +165,13 @@ TEST(names_decode_ansi_tag_table) {
     for (unsigned i = 0; i < sizeof ansi_rows / sizeof *ansi_rows; i++) {
         const struct st_row *r = &ansi_rows[i];
         BYTE der[128]; DWORD n = mk_name(der, r->tag, r->out, r->outn);
+        t_label("row %s", r->label);
         DWORD cb; CERT_NAME_INFO *ni = a_dec(__FILE__, __LINE__, X509_NAME, der, n, 0, &cb);
-        t_note("row %s", r->label);
         if (!ni) continue;
         CHECK(ni->cRDN == 1 && ni->rgRDN[0].cRDNAttr == 1);
         if (ni->cRDN == 1 && ni->rgRDN[0].cRDNAttr == 1) {
             CERT_RDN_ATTR *a = &ni->rgRDN[0].rgRDNAttr[0];
-            if (r->tag == 0x04) { if (a->dwValueType != CERT_RDN_OCTET_STRING) t_note("octet tag decoded as type %lu", a->dwValueType); }
-            else CHECKF(a->dwValueType == r->type, "type %lu want %lu", a->dwValueType, r->type);
+            CHECKF(a->dwValueType == r->type, "type %lu want %lu", a->dwValueType, r->type);
             t_check(a->Value.cbData == r->decn, __FILE__, __LINE__, "decoded cbData", "row %s got %lu want %lu type %lu", r->label, a->Value.cbData, r->decn, a->dwValueType);
             DIFF("decoded bytes", a->Value.pbData, a->Value.cbData, r->dec, r->decn);
         }
@@ -207,7 +207,6 @@ TEST(names_decode_unknown_value_tag_is_encoded_blob) {
     CERT_NAME_INFO *ni = a_dec(__FILE__, __LINE__, X509_NAME, der, n, 0, NULL);
     if (!ni) return;
     CERT_RDN_ATTR *a = &ni->rgRDN[0].rgRDNAttr[0];
-    t_note("NULL value decodes as dwValueType %lu cb %lu", a->dwValueType, a->Value.cbData);
     CHECK(a->dwValueType == CERT_RDN_ENCODED_BLOB);
     CHECK(a->Value.cbData == 2 && !memcmp(a->Value.pbData, v_name_value_null, 2));
     LocalFree(ni);
@@ -238,7 +237,7 @@ TEST(names_decode_share_oid_string) {
         LPSTR o = s->rgRDN[0].rgRDNAttr[0].pszObjId;
         CHECK(o && !strcmp(o, "2.5.4.3"));
         CHECK(!PTR_IN(o, s, cb2));           /* shared: lives in crypt32, not in the block */
-        if (c) CHECK(cb2 <= cb1);
+        if (c) { EXPECT_EQ(cb1, 80); EXPECT_EQ(cb2, 72); } /* observed: sharing the OID string saves 8 bytes */
     }
     if (c) { CHECK(PTR_IN(c->rgRDN[0].rgRDNAttr[0].pszObjId, c, cb1)); LocalFree(c); }
     if (s) LocalFree(s);
@@ -249,15 +248,14 @@ TEST(names_decode_custom_allocator) {
     CRYPT_DECODE_PARA dp = { sizeof dp, as_alloc, as_free };
     void *p = NULL; DWORD cb = 0; AS_RESET();
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_NAME, v_name_cn_test, sizeof v_name_cn_test, CRYPT_DECODE_ALLOC_FLAG, &dp, &p, &cb);
-    CHECK(r); CHECK(g_as.allocs >= 1);
+    CHECK(r); EXPECT_EQ(g_as.allocs, 1);
     CHECK(p == g_as.last);
     if (r && p) { CHECK(((CERT_NAME_INFO *)p)->cRDN == 1); as_free(p); }
     /* allocation failure */
     AS_RESET(); g_as.fail = 1; p = (void *)(ULONG_PTR)1; cb = 5; SET_ERR(0);
     r = U(CryptDecodeObjectEx)(ENC, X509_NAME, v_name_cn_test, sizeof v_name_cn_test, CRYPT_DECODE_ALLOC_FLAG, &dp, &p, &cb);
     CHECK(!r); CHECK(p == NULL);
-    DWORD e = GetLastError();
-    t_note("alloc failure last error 0x%lx", e);
+    EXPECT_ERR(0); /* observed: an allocator failure leaves the last error untouched */
 }
 
 TEST(names_decode_truncated_and_garbage) {
@@ -266,13 +264,13 @@ TEST(names_decode_truncated_and_garbage) {
         DWORD cb = 0; SET_ERR(0);
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_NAME, v_name_cn_test, cut, 0, NULL, NULL, &cb);
         CHECKF(!r, "cut %lu succeeded", cut);
-        if (!r && cut >= 2) { DWORD e = GetLastError(); CHECKF(e == HR_ASN1_EOD || e == HR_ASN1_CORRUPT, "cut %lu err 0x%lx", cut, e); }
+        if (!r) { DWORD e = GetLastError(); CHECKF(e == HR_ASN1_EOD, "cut %lu err 0x%lx", cut, e); } /* observed */
     }
-    a_dec_fail(__FILE__, __LINE__, X509_NAME, v_name_cn_test, 0, 0, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_NAME, v_name_cn_test, 0, 0, HR_ASN1_EOD);
     BYTE not_seq[] = { 0x02, 0x01, 0x05 };
     a_dec_fail(__FILE__, __LINE__, X509_NAME, not_seq, sizeof not_seq, 0, HR_ASN1_BADTAG);
     BYTE bad_len[] = { 0x30, 0x7f, 0x31 };
-    a_dec_fail(__FILE__, __LINE__, X509_NAME, bad_len, sizeof bad_len, 0, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_NAME, bad_len, sizeof bad_len, 0, HR_ASN1_EOD);
 }
 
 TEST(names_decode_trailing_data_ignored) {
@@ -284,7 +282,7 @@ TEST(names_decode_trailing_data_ignored) {
 
 TEST(names_decode_wrong_structure) {
     REQUIRE(U(CryptDecodeObjectEx));
-    a_dec_fail(__FILE__, __LINE__, X509_NAME, v_bc2_ca, A_SZ(v_bc2_ca), 0, 0);
+    a_dec_fail(__FILE__, __LINE__, X509_NAME, v_bc2_ca, A_SZ(v_bc2_ca), 0, HR_ASN1_BADTAG);
 }
 
 /* ---- X509_UNICODE_NAME ------------------------------------------------- */
@@ -344,7 +342,7 @@ TEST(names_unicode_encode_table) {
         BYTE exp[128]; DWORD en = mk_name(exp, r->tag, r->out, r->outn);
         CERT_RDN_ATTR a; uni_attr(&a, r->type, r->in, 0);      /* cbData 0 => NUL-terminated */
         CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
-        t_note("row %s", r->label); a_ctx = r->label;
+        a_ctx = r->label;
         a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, r->flags, exp, en);
         /* explicit byte count gives the same result */
         uni_attr(&a, r->type, r->in, (DWORD)(lstrlenW(r->in) * 2));
@@ -355,6 +353,7 @@ TEST(names_unicode_encode_table) {
             a_enc_eq(__FILE__, __LINE__, X509_UNICODE_NAME, &ni, 0, exp, en);
         }
     }
+    a_ctx = "";
 }
 
 TEST(names_unicode_encode_empty_value) {
@@ -400,8 +399,9 @@ TEST(names_unicode_invalid_characters) {
         DWORD cb = 0xCAFE; SET_ERR(0);
         BOOL ok = U(CryptEncodeObjectEx)(ENC, X509_UNICODE_NAME, &ni, 0, NULL, NULL, &cb);
         DWORD e = GetLastError();
-        t_note("row %s err=0x%lx loc=0x%lx", r->label, e, cb);
-        if (r->type == CERT_RDN_VISIBLE_STRING) { t_note("visible control char: ok=%d err=0x%lx", ok, e); continue; }
+        t_label("row %s", r->label);
+        if (r->type == CERT_RDN_VISIBLE_STRING) { /* observed: control characters are accepted in a VisibleString (no length of 'loc', just the size) */
+            CHECKF(ok, "visible control char: err 0x%lx", e); continue; }
         CHECK(!ok);
         CHECK(e == r->err);
         CHECK(GET_CERT_UNICODE_RDN_ERR_INDEX(cb) == 0);
@@ -413,7 +413,7 @@ TEST(names_unicode_invalid_characters) {
         CHECK(!ok); CHECK(GET_CERT_UNICODE_VALUE_ERR_INDEX(cb) == r->idx);
         BYTE *p = NULL; cb = 0; SET_ERR(0);
         ok = U(CryptEncodeObjectEx)(ENC, X509_UNICODE_NAME, &ni, CRYPT_ENCODE_ALLOC_FLAG, NULL, &p, &cb);
-        CHECK(!ok); if (p) t_note("ALLOC encode failure left pointer %p", p);
+        CHECK(!ok); CHECK(p == NULL);
         if (ok && p) LocalFree(p);
     }
 }
@@ -478,18 +478,17 @@ TEST(names_unicode_bad_oid_rejected) {
     CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
     DWORD cb = 0; SET_ERR(0);
     BOOL ok = U(CryptEncodeObjectEx)(ENC, X509_UNICODE_NAME, &ni, 0, NULL, NULL, &cb);
-    CHECK(!ok);
-    t_note("bad attribute OID -> err 0x%lx", GetLastError());
+    EXPECT_FAIL(!ok, 0x80093109); /* observed */
     a.pszObjId = NULL; SET_ERR(0);
     ok = U(CryptEncodeObjectEx)(ENC, X509_NAME, &ni, 0, NULL, NULL, &cb);
-    t_note("NULL attribute OID: ok=%d err=0x%lx", ok, GetLastError());
+    CHECKF(ok, "NULL attribute OID: err 0x%lx", GetLastError()); /* observed: accepted */
 }
 
 /* ---- X509_UNICODE_NAME decode ---------------------------------------- */
 static void chk_uni_dec(const char *label, BYTE tag, const BYTE *c, DWORD n, DWORD flags, DWORD wtype, const WCHAR *want, DWORD wantc) {
     BYTE der[160]; DWORD dn = mk_name(der, tag, c, n);
+    t_label("row %s", label);
     DWORD cb; CERT_NAME_INFO *ni = a_dec(__FILE__, __LINE__, X509_UNICODE_NAME, der, dn, flags, &cb);
-    t_note("row %s", label);
     if (!ni) return;
     CHECK(ni->cRDN == 1 && ni->rgRDN[0].cRDNAttr == 1);
     if (ni->cRDN == 1 && ni->rgRDN[0].cRDNAttr == 1) {
@@ -528,11 +527,17 @@ TEST(names_unicode_decode_invalid_utf8_rejected) {
     BYTE der[64]; DWORD n = mk_name(der, 0x0c, B(0xC3), 1);
     DWORD cb = 0; SET_ERR(0);
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_UNICODE_NAME, der, n, 0, NULL, NULL, &cb);
-    t_note("truncated UTF-8 sequence -> %d err 0x%lx", r, GetLastError());
+    /* observed: a truncated UTF-8 sequence is accepted and becomes one U+FFFD (the size query reports 80 bytes) */
+    EXPECT_EQ(r, 1);
+    { CERT_NAME_INFO *q = NULL; DWORD c2 = 0; CHECK(U(CryptDecodeObjectEx)(ENC, X509_UNICODE_NAME, der, n, CRYPT_DECODE_ALLOC_FLAG, NULL, &q, &c2));
+      if (q) { CERT_RDN_ATTR *a = &q->rgRDN[0].rgRDNAttr[0]; EXPECT_EQ(a->dwValueType, CERT_RDN_UTF8_STRING); EXPECT_EQ(a->Value.cbData, 2); EXPECT_EQ(((WCHAR *)a->Value.pbData)[0], 0xFFFD); LocalFree(q); } }
     n = mk_name(der, 0x1e, B(0x20), 1);          /* odd BMP length */
     SET_ERR(0);
     r = U(CryptDecodeObjectEx)(ENC, X509_UNICODE_NAME, der, n, 0, NULL, NULL, &cb);
-    t_note("odd-length BMP -> %d err 0x%lx", r, GetLastError());
+    /* observed: an odd-length BMPString is accepted and yields an empty value */
+    EXPECT_EQ(r, 1);
+    { CERT_NAME_INFO *q = NULL; DWORD c2 = 0; CHECK(U(CryptDecodeObjectEx)(ENC, X509_UNICODE_NAME, der, n, CRYPT_DECODE_ALLOC_FLAG, NULL, &q, &c2));
+      if (q) { CERT_RDN_ATTR *a = &q->rgRDN[0].rgRDNAttr[0]; EXPECT_EQ(a->dwValueType, CERT_RDN_BMP_STRING); EXPECT_EQ(a->Value.cbData, 0); LocalFree(q); } }
 }
 
 TEST(names_unicode_decode_punycode_flag_ignored_for_names) {
@@ -569,7 +574,7 @@ TEST(name_value_encode_unicode) {
     ENC_EQ(X509_UNICODE_NAME_VALUE, &v, v_name_value_bmp);
     v.dwValueType = CERT_RDN_NUMERIC_STRING; v.Value.pbData = (BYTE *)w_n_bad;
     { DWORD cb = 0; SET_ERR(0); BOOL ok = U(CryptEncodeObjectEx)(ENC, X509_UNICODE_NAME_VALUE, &v, 0, NULL, NULL, &cb);
-      t_note("unicode name value with invalid numeric char: ok=%d err=0x%lx", ok, GetLastError()); }
+      EXPECT_FAIL(!ok, 0x80092020); } /* observed: CRYPT_E_INVALID_NUMERIC_STRING */
 }
 
 TEST(name_value_decode_ansi) {
@@ -581,7 +586,8 @@ TEST(name_value_decode_ansi) {
     v = DEC(X509_NAME_VALUE, v_name_value_bmp, 0, NULL);
     if (v) { CHECK(v->dwValueType == CERT_RDN_BMP_STRING); CHECK(v->Value.cbData == 6 && !memcmp(v->Value.pbData, w_bmp, 6)); LocalFree(v); }
     v = DEC(X509_NAME_VALUE, v_name_value_null, 0, NULL);
-    if (v) { t_note("NULL as name value: type %lu cb %lu", v->dwValueType, v->Value.cbData); LocalFree(v); }
+    if (v) { /* observed: an ASN.1 NULL comes back as an encoded blob (the 2 encoded bytes) */
+        EXPECT_EQ(v->dwValueType, CERT_RDN_ENCODED_BLOB); EXPECT_EQ(v->Value.cbData, 2); CHECK(!memcmp(v->Value.pbData, v_name_value_null, 2)); LocalFree(v); }
 }
 
 TEST(name_value_decode_unicode) {
@@ -600,7 +606,7 @@ TEST(name_value_decode_failures) {
     REQUIRE(U(CryptDecodeObjectEx));
     BYTE trunc[] = { 0x13, 0x04, 'T', 'e' };
     /* the name-value decoders fail without setting a last error (probed: stays 0) */
-    a_dec_fail(__FILE__, __LINE__, X509_NAME_VALUE, trunc, sizeof trunc, 0, A_ERR_NONE);
+    a_dec_fail_x(__FILE__, __LINE__, X509_NAME_VALUE, trunc, sizeof trunc, 0, A_ERR_NONE, 1);
     a_dec_fail(__FILE__, __LINE__, X509_UNICODE_NAME_VALUE, trunc, sizeof trunc, 0, A_ERR_NONE);
-    a_dec_fail(__FILE__, __LINE__, X509_NAME_VALUE, trunc, 0, 0, A_ERR_NONE);
+    a_dec_fail_x(__FILE__, __LINE__, X509_NAME_VALUE, trunc, 0, 0, A_ERR_NONE, 1);
 }

@@ -48,8 +48,7 @@ void a_enc_eq(const char *file, int line, LPCSTR oid, const void *s, DWORD flags
     r = U(CryptEncodeObjectEx)(ENC, oid, (void *)s, flags, NULL, NULL, &cb);
     AEQ(r);
     if (!r) { t_note("size query failed err 0x%lx", GetLastError()); t_label(NULL); return; }
-    /* a query may over-report; the final length is checked below */
-    t_check(cb >= n, file, line, "query cb >= n", "got %lu want >= %lu", cb, n);
+    t_check(cb == n, file, line, "query cb == n", "got %lu want %lu", cb, n);
     if (cb > 0x10000) { t_label(NULL); return; }
     /* too small */
     if (n > 0) {
@@ -57,7 +56,7 @@ void a_enc_eq(const char *file, int line, LPCSTR oid, const void *s, DWORD flags
         a_stage("too-small");
         cb = n - 1; SET_ERR(0);
         r = U(CryptEncodeObjectEx)(ENC, oid, (void *)s, flags, NULL, small_, &cb);
-        AEQ(!r); AEQ(GetLastError() == ERROR_MORE_DATA); t_check(cb >= n, file, line, "more-data cb >= n", "got %lu want >= %lu", cb, n);
+        AEQ(!r); AEQ(GetLastError() == ERROR_MORE_DATA); t_check(cb == n, file, line, "more-data cb == n", "got %lu want %lu", cb, n);
         LocalFree(small_);
     }
     /* exact buffer, then oversized buffer */
@@ -92,6 +91,9 @@ void a_enc_eq(const char *file, int line, LPCSTR oid, const void *s, DWORD flags
 }
 
 void a_enc_fail(const char *file, int line, LPCSTR oid, const void *s, DWORD flags, DWORD err) {
+    a_enc_fail_x(file, line, oid, s, flags, err, 0);
+}
+void a_enc_fail_x(const char *file, int line, LPCSTR oid, const void *s, DWORD flags, DWORD err, int untouched) {
     DWORD cb = 0, e; BOOL r;
     SET_ERR(0);
     r = U(CryptEncodeObjectEx)(ENC, oid, (void *)s, flags, NULL, NULL, &cb);
@@ -108,7 +110,10 @@ void a_enc_fail(const char *file, int line, LPCSTR oid, const void *s, DWORD fla
     e = GetLastError();
     t_check(!r, file, line, "encode ALLOC fails", "ret %d err 0x%lx", r, e);
     if (err) t_check(e == err, file, line, "encode ALLOC error", "got 0x%lx want 0x%lx", e, err);
-    t_note("%s:%d encode failure: err 0x%lx out ptr %p cb %lu", file, line, e, p, cb);
+    /* observed: a failed ALLOC encode resets the size to 0 and clears the pointer, except when the structure is rejected
+       before the output is initialised (untouched=1) */
+    t_check(p == (untouched ? (BYTE *)(ULONG_PTR)1 : NULL), file, line, "encode ALLOC output pointer on failure", "p %p", p);
+    t_check(cb == 0, file, line, "encode ALLOC output size on failure", "cb %lu", cb);
     if (r && p) LocalFree(p);
 }
 
@@ -133,7 +138,7 @@ void *a_dec(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n, DW
     void *buf = LocalAlloc(LPTR, cb + 8);
     DWORD c3 = cb;
     r = U(CryptDecodeObjectEx)(ENC, oid, der, n, flags, NULL, buf, &c3);
-    AEQ(r); AEQ(c3 <= cb);
+    AEQ(r); t_check(c3 == cb, file, line, "caller buffer cb == query", "got %lu want %lu", c3, cb);
     LocalFree(buf);
     /* ALLOC */
     void *p = NULL; DWORD c4 = 0;
@@ -144,6 +149,9 @@ void *a_dec(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n, DW
 }
 
 void a_dec_fail(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n, DWORD flags, DWORD err) {
+    a_dec_fail_x(file, line, oid, der, n, flags, err, 0);
+}
+void a_dec_fail_x(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n, DWORD flags, DWORD err, int untouched) {
     DWORD cb = 0, e; BOOL r;
     SET_ERR(0);
     r = U(CryptDecodeObjectEx)(ENC, oid, der, n, flags, NULL, NULL, &cb);
@@ -156,7 +164,10 @@ void a_dec_fail(const char *file, int line, LPCSTR oid, const BYTE *der, DWORD n
     t_check(!r, file, line, "decode ALLOC fails", "ret %d err 0x%lx", r, e);
     if (err) t_check(e == (err == A_ERR_NONE ? 0 : err), file, line, "decode ALLOC error", "got 0x%lx want 0x%lx", e, err == A_ERR_NONE ? 0 : err);
     /* the output pointer is either untouched or NULL on failure (it depends on the decoder); it is never an allocation */
-    t_check(p == NULL || p == (void *)(ULONG_PTR)1, file, line, "no allocation returned on failure", "p %p cb %lu", p, cb);
+    /* observed: the decoder resets the size to 0 and the pointer to NULL, except for the callers that pass untouched=1
+       (CERT_POLICIES / NAME_VALUE failures detected before the output is initialised), which leave the pointer alone */
+    t_check(p == (untouched ? (void *)(ULONG_PTR)1 : NULL), file, line, "output pointer on failure", "p %p cb %lu untouched %d", p, cb, untouched);
+    t_check(cb == 0, file, line, "output size reset on failure", "cb %lu", cb);
     if (r && p) LocalFree(p);
 }
 

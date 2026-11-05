@@ -24,7 +24,7 @@ static BOOL env_init(env_t *e, const char *alg) {
     return TRUE;
 }
 static void env_done(env_t *e) { ml_cert_free(e->cert); ml_prov_release(e->encprov); ml_prov_release(e->decprov); }
-#define REQ_ENV(e, alg) env_t e; do { REQ_MSG(); if (!env_init(&(e), alg)) { env_done(&(e)); t_skip("cannot set up ephemeral recipient"); return; } } while (0)
+#define REQ_ENV(e, alg) env_t e; do { REQ_MSG(); if (!env_init(&(e), alg)) { env_done(&(e)); CHECKF(0, "cannot set up ephemeral recipient"); return; } } while (0)
 
 static BYTE *env_encode(env_t *e, DWORD flags, const BYTE *d, DWORD n, DWORD *cb) {
     HCRYPTMSG m = mOpenEnc()(ENC, flags, CMSG_ENVELOPED, &e->ei, NULL, NULL);
@@ -86,7 +86,7 @@ TEST(mle_roundtrip_all_ciphers) {
     REQ_MSG();
     for (size_t i = 0; i < sizeof CALGS / sizeof *CALGS; i++) {
         env_t e;
-        if (!env_init(&e, CALGS[i].oid)) { env_done(&e); t_skip("setup"); return; }
+        if (!env_init(&e, CALGS[i].oid)) { env_done(&e); CHECKF(0, "setup failed"); return; }
         SET_ERR(0);
         DWORD cb = 0; BYTE *b = env_encode(&e, 0, V_CONTENT, V_CONTENT_LEN, &cb);
         CHECKF(b != NULL, "%s encode err 0x%lx", CALGS[i].name, GetLastError());
@@ -112,7 +112,7 @@ TEST(mle_envelope_algorithm_param) {
     REQ_MSG();
     for (size_t i = 0; i < sizeof CALGS / sizeof *CALGS; i++) {
         env_t e;
-        if (!env_init(&e, CALGS[i].oid)) { env_done(&e); t_skip("setup"); return; }
+        if (!env_init(&e, CALGS[i].oid)) { env_done(&e); CHECKF(0, "setup failed"); return; }
         DWORD cb = 0; BYTE *b = env_encode(&e, 0, V_CONTENT, V_CONTENT_LEN, &cb);
         HCRYPTMSG d = b ? ml_decode(b, cb, 0, 0) : NULL;
         CHECKF(d != NULL, "%s", CALGS[i].name);
@@ -169,7 +169,7 @@ TEST(mle_detached_nonfinal_chunks) {
     if (m) {
         SET_ERR(0);
         BOOL a = mUpdate()(m, V_CONTENT, 5, FALSE);
-        t_note("enveloped DETACHED non-final update: ok=%d err=0x%lx", a, (unsigned long)GetLastError());
+        EXPECT_FAIL(!a, 0x80070057); /* observed: a detached enveloped message only accepts a final update */
         mClose()(m);
     }
     env_done(&e);
@@ -183,8 +183,7 @@ TEST(mle_empty_content_roundtrip) {
     if (d) {
         CHECK(decrypt(&e, d, 0));
         DWORD n = 77; BYTE *p = ml_param(d, CMSG_CONTENT_PARAM, 0, &n);
-        t_note("empty enveloped content decrypts to %s (%lu bytes)", p ? "a buffer" : "failure", (unsigned long)n);
-        CHECK(p == NULL || n == 0);
+        CHECK(p != NULL); EXPECT_EQ(n, 0); /* observed: decrypts to an empty buffer */
         ml_free(p); mClose()(d);
     }
     ml_free(b); env_done(&e);
@@ -276,7 +275,7 @@ TEST(mle_decrypt_openssl_vectors) {
         {"aes128", M_ENV_AES128, M_ENV_AES128_LEN, OID_AES128}, {"aes256", M_ENV_AES256, M_ENV_AES256_LEN, OID_AES256}, {"3des", M_ENV_3DES, M_ENV_3DES_LEN, OID_3DES},
     };
     env_t e;
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     for (size_t i = 0; i < 3; i++) {
         HCRYPTMSG m = ml_decode(v[i].d, v[i].len, 0, 0);
         CHECKF(m != NULL, "%s", v[i].n);
@@ -296,7 +295,7 @@ TEST(mle_decrypt_openssl_vectors) {
 }
 TEST(mle_decrypt_twice) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_ENV_3DES, M_ENV_3DES_LEN, 0, 0);
     CHECK(m != NULL);
     if (m) {
@@ -310,7 +309,7 @@ TEST(mle_decrypt_twice) {
 }
 TEST(mle_decrypt_bad_parameters) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_ENV_3DES, M_ENV_3DES_LEN, 0, 0);
     CHECK(m != NULL);
     if (m) {
@@ -330,7 +329,7 @@ TEST(mle_decrypt_bad_parameters) {
 }
 TEST(mle_decrypt_wrong_message_types) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     const struct { const char *n; const BYTE *d; DWORD len; } v[] = {{"signed", M_SIGNED_NOATTR, M_SIGNED_NOATTR_LEN}, {"hashed", M_DIGESTED_SHA256, M_DIGESTED_SHA256_LEN}, {"data", M_DATA, M_DATA_LEN}};
     for (size_t i = 0; i < 3; i++) {
         HCRYPTMSG m = ml_decode(v[i].d, v[i].len, 0, 0);
@@ -345,7 +344,7 @@ TEST(mle_decrypt_wrong_message_types) {
 }
 TEST(mle_decrypt_without_data) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = mOpenDec()(ENC, 0, 0, 0, NULL, NULL);
     CHECK(m != NULL);
     if (m) {
@@ -358,7 +357,7 @@ TEST(mle_decrypt_without_data) {
 }
 TEST(mle_decrypt_with_wrong_key) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     HCRYPTPROV other = ml_prov(V_KEY2, V_KEY2_LEN);
     HCRYPTMSG m = ml_decode(M_ENV_3DES, M_ENV_3DES_LEN, 0, 0);
     CHECK(m != NULL && other);
@@ -384,7 +383,7 @@ TEST(mle_content_before_decrypt) {
 }
 TEST(mle_key_trans_decrypt) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_ENV_3DES, M_ENV_3DES_LEN, 0, 0);
     CHECK(m != NULL);
     if (m) {
@@ -410,7 +409,7 @@ TEST(mle_key_trans_decrypt) {
 }
 TEST(mle_key_trans_decrypt_bad_cbsize) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = ml_decode(M_ENV_3DES, M_ENV_3DES_LEN, 0, 0);
     CHECK(m != NULL);
     if (m) {
@@ -425,7 +424,7 @@ TEST(mle_key_trans_decrypt_bad_cbsize) {
 }
 TEST(mle_key_trans_recipient_by_key_id) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     static BYTE kid[20] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
     CMSG_KEY_TRANS_RECIPIENT_ENCODE_INFO kt; memset(&kt, 0, sizeof kt);
     kt.cbSize = sizeof kt;
@@ -443,7 +442,7 @@ TEST(mle_key_trans_recipient_by_key_id) {
     CHECK(d != NULL);
     if (d) {
         DWORD v = 0;
-        if (ml_param_dword(d, CMSG_VERSION_PARAM, 0, &v)) t_note("enveloped with SKI recipient: message version %lu", (unsigned long)v);
+        CHECK(ml_param_dword(d, CMSG_VERSION_PARAM, 0, &v)); EXPECT_EQ(v, 2); /* observed */
         DWORD n = 0; BYTE *r = ml_param(d, CMSG_CMS_RECIPIENT_INFO_PARAM, 0, &n);
         CHECK(r != NULL);
         if (r) {
@@ -468,7 +467,7 @@ TEST(mle_key_trans_recipient_by_key_id) {
 }
 TEST(mle_two_recipients_same_cert) {
     env_t e; REQ_MSG();
-    if (!env_init(&e, OID_3DES)) { env_done(&e); t_skip("setup"); return; }
+    if (!env_init(&e, OID_3DES)) { env_done(&e); CHECKF(0, "setup failed"); return; }
     PCCERT_CONTEXT c2 = ml_cert(V_CERT2, V_CERT2_LEN);
     HCRYPTPROV p2 = ml_prov(V_KEY2, V_KEY2_LEN);
     CHECK(c2 && p2);
@@ -511,7 +510,7 @@ TEST(mle_mail_list_roundtrip) {
     HCRYPTPROV prov = ml_prov(NULL, 0);
     REQUIRE(prov);
     HCRYPTKEY kek = 0;
-    if (!U(CryptGenKey)(prov, CALG_3DES, CRYPT_EXPORTABLE, &kek)) { t_note("cannot create a 3DES key-encryption key: 0x%lx", GetLastError()); ml_prov_release(prov); return; }
+    if (!U(CryptGenKey)(prov, CALG_3DES, CRYPT_EXPORTABLE, &kek)) { CHECKF(0, "cannot create a 3DES key-encryption key: 0x%lx", GetLastError()); ml_prov_release(prov); return; }
     static BYTE kid[4] = {9,8,7,6};
     CMSG_MAIL_LIST_RECIPIENT_ENCODE_INFO ml; memset(&ml, 0, sizeof ml);
     ml.cbSize = sizeof ml; ml.KeyEncryptionAlgorithm.pszObjId = "1.2.840.113549.1.9.16.3.6";
@@ -524,7 +523,7 @@ TEST(mle_mail_list_roundtrip) {
     ei.cRecipients = 1; ei.rgCmsRecipients = &ri;
     SET_ERR(0);
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_ENVELOPED, &ei, NULL, NULL);
-    if (!m) { t_note("mail-list envelope open failed: 0x%lx", GetLastError()); U(CryptDestroyKey)(kek); ml_prov_release(prov); return; }
+    if (!m) { CHECKF(0, "mail-list envelope open failed: 0x%lx", GetLastError()); U(CryptDestroyKey)(kek); ml_prov_release(prov); return; }
     CHECK(mUpdate()(m, V_CONTENT, V_CONTENT_LEN, TRUE));
     DWORD cb = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &cb);
     CHECK(b != NULL);

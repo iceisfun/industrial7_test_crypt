@@ -147,7 +147,7 @@ TEST(mh_hash_detached_blob_omits_content) {
     DWORD na = 0, nd = 0; BYTE *a = hash_blob(OID_SHA256, FALSE, PL, &na), *d = hash_blob(OID_SHA256, TRUE, PL, &nd);
     CHECK(a && d); if (!a || !d) return;
     CHECK(!mh_has(d, nd, v_payload, sizeof v_payload)); CHECK(mh_has(d, nd, v_h_sha256, 32));
-    CHECK(nd + sizeof v_payload <= na + 4);
+    EXPECT_EQ(na, 137); EXPECT_EQ(nd, 82); /* observed: the detached blob omits the 50 byte payload plus 5 bytes of framing */
     BYTE *d2 = NULL; DWORD n2 = 0; d2 = hash_blob(OID_SHA256, 7, PL, &n2);
     CHECK(d2 && n2 == nd && !memcmp(d2, d, nd));   /* any non-zero fDetachedHash */
     free(a); free(d); free(d2);
@@ -157,9 +157,9 @@ TEST(mh_hash_blob_size_protocol) {
     CRYPT_HASH_MESSAGE_PARA p; mh_hash_para(&p, OID_SHA256);
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload };
     DWORD q = 0x1111; SET_ERR(0);
-    CHECK(HM(&p, FALSE, 1, a, l, NULL, &q, NULL, NULL)); CHECK(q > sizeof v_payload);
+    CHECK(HM(&p, FALSE, 1, a, l, NULL, &q, NULL, NULL)); EXPECT_EQ(q, 137);
     DWORD cb = 0; BYTE *real = hash_blob(OID_SHA256, FALSE, PL, &cb); CHECK(real != NULL);
-    CHECK(q >= cb); if (q != cb) t_note("hashed blob size query %lu actual %lu", q, cb);
+    EXPECT_EQ(q, cb);
     BYTE *buf = malloc(q + 8); DWORD n = 0; SET_ERR(0);
     BOOL r = HM(&p, FALSE, 1, a, l, buf, &n, NULL, NULL);
     EXPECT_FAIL(r == FALSE, ERROR_MORE_DATA); EXPECT_EQ(n, q);
@@ -175,7 +175,7 @@ TEST(mh_hash_both_outputs_in_one_call) {
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload };
     DWORD q = 0, hq = 0;
     SET_ERR(0);
-    CHECK(HM(&p, FALSE, 1, a, l, NULL, &q, NULL, &hq)); EXPECT_EQ(hq, 32); CHECK(q > 0);
+    CHECK(HM(&p, FALSE, 1, a, l, NULL, &q, NULL, &hq)); EXPECT_EQ(hq, 32); EXPECT_EQ(q, 137);
     BYTE *buf = malloc(q); BYTE h[32]; DWORD n = q, hn = 32;
     CHECK(HM(&p, FALSE, 1, a, l, buf, &n, h, &hn));
     CHECK(hn == 32 && !memcmp(h, v_h_sha256, 32)); CHECK(mh_der_total(buf, n) == n);
@@ -212,8 +212,7 @@ TEST(mh_hash_unknown_algorithm_fails) {
         const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload };
         BYTE h[64]; DWORD hn = sizeof h; DWORD q = 0; SET_ERR(0);
         BOOL r = HM(&p, FALSE, 1, a, l, NULL, &q, h, &hn);
-        CHECKF(r == FALSE, "%s", bad[i]);
-        t_note("hash algorithm %s -> 0x%lx", bad[i], GetLastError());
+        t_label("%s", bad[i]); EXPECT_FAIL(r == FALSE, 0x80091002); /* observed: CRYPT_E_UNKNOWN_ALGO */ t_label(NULL);
         r = HM(&p, FALSE, 1, a, l, NULL, NULL, NULL, &hn);
         CHECKF(r == FALSE, "%s size query", bad[i]); EXPECT_EQ(hn, 0);
     }
@@ -223,7 +222,7 @@ TEST(mh_hash_bad_encoding_type) {
     CRYPT_HASH_MESSAGE_PARA p; mh_hash_para(&p, OID_SHA256); p.dwMsgEncodingType = 0;
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; BYTE h[32]; DWORD hn = 32; SET_ERR(0);
     BOOL r = HM(&p, FALSE, 1, a, l, NULL, NULL, h, &hn);
-    t_note("encoding type 0 -> %d err 0x%lx", r, GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x80070057); /* observed */
     p.dwMsgEncodingType = PKCS_7_ASN_ENCODING; hn = 32;
     CHECK(HM(&p, FALSE, 1, a, l, NULL, NULL, h, &hn));
     p.dwMsgEncodingType = ENC; hn = 32;
@@ -362,7 +361,7 @@ TEST(mh_hash_verify_cbsize_and_garbage) {
     static const BYTE g[] = { 0x30, 0x03, 0x02, 0x01, 0x01 };
     dn = sizeof d; SET_ERR(0);
     r = VMH(&p, (BYTE *)g, sizeof g, d, &dn, NULL, NULL);
-    CHECK(r == FALSE); EXPECT_EQ(dn, 0); t_note("garbage hashed blob -> 0x%lx", GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x8009310B); EXPECT_EQ(dn, 0); /* observed: ASN1 bad tag */
     r = VMH(&p, (BYTE *)g, 0, d, &dn, NULL, NULL); CHECK(r == FALSE);
 }
 TEST(mh_hash_verify_detached_hash_blob_as_attached) {
@@ -370,7 +369,7 @@ TEST(mh_hash_verify_detached_hash_blob_as_attached) {
     CRYPT_HASH_MESSAGE_PARA p; mh_hash_para(&p, OID_SHA256);
     BYTE d[100]; DWORD dn = sizeof d; SET_ERR(0);
     BOOL r = VMH(&p, (BYTE *)v_m_hashed_sha256_det, sizeof v_m_hashed_sha256_det, d, &dn, NULL, NULL);
-    CHECK(r == FALSE); t_note("detached hash blob verified as attached -> 0x%lx", GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x80091007); /* observed: CRYPT_E_HASH_VALUE */
 }
 
 /* ---- detached verify ------------------------------------------------------------------------ */
@@ -442,5 +441,5 @@ TEST(mh_hash_detached_verify_attached_blob_with_content) {
     CRYPT_HASH_MESSAGE_PARA p; mh_hash_para(&p, OID_SHA256);
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; SET_ERR(0);
     BOOL r = VDH(&p, (BYTE *)v_m_hashed_sha256, sizeof v_m_hashed_sha256, 1, a, l, NULL, NULL);
-    t_note("attached hash blob given to the detached verifier -> %d err 0x%lx", r, GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x80091007); /* observed: CRYPT_E_HASH_VALUE */
 }

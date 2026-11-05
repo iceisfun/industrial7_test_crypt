@@ -102,7 +102,7 @@ TEST(mlh_encode_content_info_oid_is_digested) {
     static const BYTE digested[] = {0x06,0x09,0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x07,0x05};
     DWORD cb = 0; BYTE *b = enc_hashed(OID_SHA1, 0, T3, 3, &cb);
     CHECK(b != NULL);
-    if (b) { CHECK(ml_memmem(b, cb, digested, sizeof digested) == b + 2 || ml_memmem(b, cb, digested, sizeof digested) == b + 3 || ml_memmem(b, cb, digested, sizeof digested) == b + 4); ml_free(b); }
+    if (b) { EXPECT_EQ(cb, 73); CHECK(ml_memmem(b, cb, digested, sizeof digested) == b + 2); /* observed: right after the outer SEQUENCE header */ ml_free(b); }
 }
 TEST(mlh_encode_version_param_zero) {
     REQ_MSG();
@@ -111,8 +111,7 @@ TEST(mlh_encode_version_param_zero) {
     if (!m) { CHECK(m != NULL); return; }
     CHECK(mUpdate()(m, T3, 3, TRUE));
     DWORD v = 99;
-    if (ml_param_dword(m, CMSG_VERSION_PARAM, 0, &v)) EXPECT_EQ(v, 0);
-    else t_note("VERSION_PARAM on encode hashed failed: 0x%lx", (unsigned long)GetLastError());
+    CHECK(ml_param_dword(m, CMSG_VERSION_PARAM, 0, &v)); EXPECT_EQ(v, 0);
     mClose()(m);
 }
 TEST(mlh_encode_getparams_after_final) {
@@ -177,7 +176,7 @@ TEST(mlh_encode_computed_hash_finalizes_hash) {
     SET_ERR(0);
     CHECK(!mUpdate()(m, V_CONTENT, 4, TRUE));
     DWORD e = GetLastError();
-    CHECKF(e == (DWORD)NTE_BAD_HASH_STATE || e == (DWORD)CRYPT_E_MSG_ERROR, "err 0x%lx", (unsigned long)e);
+    EXPECT_EQ(e, CRYPT_E_MSG_ERROR); /* observed: the hash is already finalised */
     mClose()(m);
 }
 TEST(mlh_encode_nonfinal_needs_detached) {
@@ -249,8 +248,7 @@ TEST(mlh_encode_calc_length) {
     CMSG_HASHED_ENCODE_INFO h; hinfo(&h, OID_SHA1, 0);
     DWORD cb = 0; BYTE *b = enc_hashed(OID_SHA1, 0, V_CONTENT, V_CONTENT_LEN, &cb);
     DWORD calc = mCalcLen()(ENC, 0, CMSG_HASHED, &h, NULL, V_CONTENT_LEN);
-    CHECKF(b && calc >= cb, "calc %lu actual %lu", (unsigned long)calc, (unsigned long)cb);
-    t_note("hashed: CalculateEncodedLength=%lu actual=%lu", (unsigned long)calc, (unsigned long)cb);
+    CHECK(b != NULL); EXPECT_EQ(calc, cb); /* observed: exact for a hashed message (103 bytes) */
     ml_free(b);
 }
 
@@ -402,8 +400,7 @@ TEST(mlh_decode_truncated_final_fails) {
         if (!m) { CHECK(m != NULL); continue; }
         SET_ERR(0);
         BOOL ok = mUpdate()(m, M_DIGESTED_SHA256, cut[i], TRUE);
-        CHECKF(!ok, "cut at %lu", (unsigned long)cut[i]);
-        if (!ok) t_note("hashed truncated to %lu bytes (final): err 0x%lx", (unsigned long)cut[i], (unsigned long)GetLastError());
+        t_label("cut at %lu", (unsigned long)cut[i]); EXPECT_FAIL(!ok, 0x80093102); t_label(NULL); /* observed: end-of-data */
         mClose()(m);
     }
 }

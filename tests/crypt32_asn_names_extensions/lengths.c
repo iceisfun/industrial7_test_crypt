@@ -75,10 +75,9 @@ TEST(lengths_ber_leniency_probes) {
     for (int i = 0; i < 3; i++) {
         DWORD cb = 0; SET_ERR(0);
         BOOL r = U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, vs[i], ns[i], 0, NULL, NULL, &cb);
-        t_note("BER form %d for BASIC_CONSTRAINTS2: ok=%d err=0x%lx", i, r, GetLastError());
+        /* observed: non-minimal long-form lengths and an indefinite-length SEQUENCE (with extra trailing members) are all accepted */
+        CHECKF(r, "BER form %d err 0x%lx", i, GetLastError());
     }
-    DWORD cb = 0;
-    { BOOL ri = U(CryptDecodeObjectEx)(ENC, X509_BASIC_CONSTRAINTS2, indef_nested, sizeof indef_nested, 0, NULL, NULL, &cb); t_note("indefinite-length SEQUENCE accepted: %d", ri); }
 }
 TEST(lengths_decode_oversized_length_field) {
     REQUIRE(U(CryptDecodeObjectEx));
@@ -86,8 +85,7 @@ TEST(lengths_decode_oversized_length_field) {
     BOOL r = U(CryptDecodeObjectEx)(ENC, X509_NAME, v_seq_huge_len, sizeof v_seq_huge_len, 0, NULL, NULL, &cb);
     CHECK(!r);
     DWORD e = GetLastError();
-    t_note("length 0xFFFFFFFF with 1 byte of content: err 0x%lx", e);
-    CHECK(e == HR_ASN1_EOD || e == HR_ASN1_LARGE || e == HR_ASN1_CORRUPT);
+    EXPECT_EQ(e, HR_ASN1_EOD); /* observed */
     SET_ERR(0);
     r = U(CryptDecodeObjectEx)(ENC, X509_NAME, v_seq_long_form_len, sizeof v_seq_long_form_len, 0, NULL, NULL, &cb);
     /* "30 81 00" is a long-form zero length: accepted as an empty name (probed) */
@@ -122,12 +120,7 @@ TEST(charset_printable_exact_set) {
 TEST(charset_numeric_exact_set) {
     REQUIRE(U(CryptEncodeObjectEx));
     unsigned bad = 0;
-    for (unsigned c = 1; c < 512; c++) {
-        SET_ERR(0);
-        BOOL r = enc1(CERT_RDN_NUMERIC_STRING, (WCHAR)c, NULL);
-        /* first character 'a' is itself invalid: use a leading digit instead */
-        (void)r;
-    }
+    /* the first character 'a' of enc1 is itself invalid for a numeric string: use a leading digit instead */
     for (unsigned c = 1; c < 512; c++) {
         WCHAR w[3] = { '1', (WCHAR)c, 0 };
         CERT_RDN_ATTR a = { (LPSTR)"2.5.4.3", CERT_RDN_NUMERIC_STRING, { 0, (BYTE *)w } };
@@ -166,19 +159,19 @@ TEST(charset_lone_surrogate_probe) {
     REQUIRE(U(CryptEncodeObjectEx));
     SET_ERR(0);
     BOOL r = enc1(CERT_RDN_UTF8_STRING, 0xD800, NULL);
-    t_note("UTF8String from lone high surrogate: ok=%d err=0x%lx", r, GetLastError());
+    CHECKF(r, "UTF8String from a lone high surrogate: err 0x%lx", GetLastError()); /* observed: accepted */
     SET_ERR(0);
     r = enc1(CERT_RDN_BMP_STRING, 0xD800, NULL);
-    t_note("BMPString from lone surrogate code unit: ok=%d", r);
+    CHECK(r); /* observed: accepted */
 }
 TEST(charset_t61_wide_characters_probe) {
     REQUIRE(U(CryptEncodeObjectEx));
     unsigned acc = 0;
     for (unsigned c = 0x80; c < 0x100; c++) { SET_ERR(0); if (enc1(CERT_RDN_T61_STRING, (WCHAR)c, NULL)) acc++; }
-    t_note("T61 string accepts %u of 128 Latin-1 characters from X509_UNICODE_NAME", acc);
+    EXPECT_EQ(acc, 128); /* observed: every Latin-1 character */
     SET_ERR(0);
     BOOL r = enc1(CERT_RDN_T61_STRING, 0x20AC, NULL);
-    t_note("T61 string with U+20AC: ok=%d err=0x%lx", r, GetLastError());
+    CHECKF(r, "T61 string with U+20AC: err 0x%lx", GetLastError()); /* observed: accepted */
 }
 
 /* ---- OID arc encoding ------------------------------------------------------ */
@@ -188,7 +181,7 @@ TEST(oid_arcs_in_name_attributes) {
         CERT_RDN_ATTR a = { (LPSTR)oid_table[i].s, CERT_RDN_PRINTABLE_STRING, { 1, (BYTE *)"a" } };
         CERT_RDN rdn = { 1, &a }; CERT_NAME_INFO ni = { 1, &rdn };
         DWORD cb = 0; BYTE *p = a_enc(X509_NAME, &ni, 0, &cb);
-        t_note("oid %s", oid_table[i].s);
+        t_label("oid %s", oid_table[i].s);
         if (!p) { t_check(0, __FILE__, __LINE__, "encode attribute OID", "%s err 0x%lx", oid_table[i].s, GetLastError()); continue; }
         /* 30 L 31 L 30 L 06 n <oid> 13 01 61 */
         DWORD n = oid_table[i].n;

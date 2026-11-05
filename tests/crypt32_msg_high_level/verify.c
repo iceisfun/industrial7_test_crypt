@@ -89,8 +89,7 @@ TEST(mh_verify_size_query_does_not_verify_signature) {
     EXPECT_EQ(dn, sizeof v_payload);
     BYTE d[100]; dn = sizeof d; SET_ERR(0);
     r = VMS(&vp, 0, b, sizeof v_m_sig_noattr, d, &dn, NULL);
-    CHECK(r == FALSE); t_note("corrupt signature value -> 0x%lx", GetLastError());
-    EXPECT_ERR(E_STATUS_INVALID_SIGNATURE);
+    EXPECT_FAIL(r == FALSE, E_STATUS_INVALID_SIGNATURE);
     dn = 0; PCCERT_CONTEXT sc = NULL;
     r = VMS(&vp, 0, b, sizeof v_m_sig_noattr, NULL, &dn, &sc);   /* asking for the signer forces verification */
     CHECK(r == FALSE); CHECK(sc == NULL); FREE_CERT(sc);
@@ -216,10 +215,7 @@ TEST(mh_verify_wrong_signer_cert_fails_signature) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp); vp.pfnGetSignerCertificate = cb_wrong;
     BYTE d[100]; DWORD dn = sizeof d; PCCERT_CONTEXT sc = (PCCERT_CONTEXT)1; SET_ERR(0);
     BOOL r = VMS(&vp, 0, (BYTE *)v_m_sig_nocert, sizeof v_m_sig_nocert, d, &dn, &sc);
-    CHECK(r == FALSE); CHECK(sc == NULL);
-    DWORD e = GetLastError();
-    t_note("signature checked against the wrong certificate -> 0x%lx", e);
-    EXPECT_EQ(e, E_STATUS_INVALID_SIGNATURE);
+    EXPECT_FAIL(r == FALSE, E_STATUS_INVALID_SIGNATURE); CHECK(sc == NULL);
 }
 TEST(mh_verify_tampered_content_attached) {
     MH_INIT(); REQUIRE(VMS);
@@ -243,9 +239,7 @@ TEST(mh_verify_tampered_content_with_authenticated_attrs) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     BYTE d[100]; DWORD dn = sizeof d; SET_ERR(0);
     BOOL r = VMS(&vp, 0, b, cb, d, &dn, NULL);
-    CHECK(r == FALSE);
-    DWORD e = GetLastError(); t_note("tampered content under messageDigest attribute -> 0x%lx", e);
-    EXPECT_EQ(e, E_CRYPT_E_HASH_VALUE);
+    EXPECT_FAIL(r == FALSE, E_CRYPT_E_HASH_VALUE);
     free(b);
 }
 TEST(mh_verify_wrong_message_type_hashed_and_enveloped) {
@@ -270,13 +264,14 @@ TEST(mh_verify_garbage_input) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     static const BYTE g1[] = { 0 }, g2[] = { 0x30 }, g3[] = { 0x30, 0x00 }, g4[] = { 0x30, 0x03, 0x02, 0x01, 0x01 },
                       g5[] = { 0x04, 0x02, 0x41, 0x42 }, g6[] = { 0x30, 0x84, 0xff, 0xff, 0xff, 0xff, 0x00 };
-    static const struct { const BYTE *p; DWORD n; } g[] = { { g1, 1 }, { g2, 1 }, { g3, 2 }, { g4, 5 }, { g5, 4 }, { g6, 7 } };
+    /* observed: end-of-data for input that stops short, bad-tag for a wrong first tag */
+    static const struct { const BYTE *p; DWORD n; DWORD err; } g[] = { { g1, 1, 0x8009310B }, { g2, 1, 0x80093102 }, { g3, 2, 0x80093102 },
+                                                                       { g4, 5, 0x8009310B }, { g5, 4, 0x8009310B }, { g6, 7, 0x80093102 } };
     for (unsigned i = 0; i < sizeof g / sizeof g[0]; i++) {
         BYTE d[100]; DWORD dn = sizeof d; PCCERT_CONTEXT sc = (PCCERT_CONTEXT)1; SET_ERR(0);
         BOOL r = VMS(&vp, 0, (BYTE *)g[i].p, g[i].n, d, &dn, &sc);
-        CHECKF(r == FALSE, "garbage %u", i);
-        t_note("garbage %u -> err 0x%lx", i, GetLastError());
-        CHECK(GetLastError() != 0); CHECK(sc == NULL); EXPECT_EQ(dn, 0);
+        t_label("garbage %u", i); EXPECT_FAIL(r == FALSE, g[i].err); t_label(NULL);
+        CHECK(sc == NULL); EXPECT_EQ(dn, 0);
     }
 }
 TEST(mh_verify_truncated_message) {
@@ -286,8 +281,7 @@ TEST(mh_verify_truncated_message) {
     for (unsigned i = 0; i < 4; i++) {
         BYTE d[100]; DWORD dn = sizeof d; SET_ERR(0);
         BOOL r = VMS(&vp, 0, (BYTE *)v_m_sig_noattr, sizeof v_m_sig_noattr - cut[i], d, &dn, NULL);
-        CHECKF(r == FALSE, "cut %lu", cut[i]);
-        if (!r) t_note("message truncated by %lu bytes -> 0x%lx", cut[i], GetLastError());
+        t_label("cut %lu", cut[i]); EXPECT_FAIL(r == FALSE, 0x80093102); t_label(NULL); /* observed: end-of-data */
     }
 }
 TEST(mh_verify_zero_length_blob) {
@@ -295,7 +289,7 @@ TEST(mh_verify_zero_length_blob) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     BYTE d[10]; DWORD dn = sizeof d; SET_ERR(0);
     BOOL r = VMS(&vp, 0, d, 0, d, &dn, NULL);
-    CHECK(r == FALSE); t_note("cbSignedBlob == 0 -> 0x%lx", GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x80093102);
     EXPECT_EQ(dn, 0);
 }
 TEST(mh_verify_detached_message_as_attached) {
@@ -303,11 +297,10 @@ TEST(mh_verify_detached_message_as_attached) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     BYTE d[100]; DWORD dn = sizeof d; SET_ERR(0);
     BOOL r = VMS(&vp, 0, (BYTE *)v_m_sig_det_noattr, sizeof v_m_sig_det_noattr, d, &dn, NULL);
-    CHECK(r == FALSE);
-    t_note("detached signature verified as attached -> 0x%lx", GetLastError());
-    dn = 0; SET_ERR(0);
+    EXPECT_FAIL(r == FALSE, E_STATUS_INVALID_SIGNATURE); /* observed: no content to hash */
+    dn = 0xdead; SET_ERR(0);
     r = VMS(&vp, 0, (BYTE *)v_m_sig_det_noattr, sizeof v_m_sig_det_noattr, NULL, &dn, NULL);
-    t_note("length-only decode of a detached signature -> %d n=%lu err 0x%lx", r, dn, GetLastError());
+    CHECK(r); EXPECT_EQ(dn, 0); /* observed: the length-only decode succeeds and reports an empty content */
 }
 TEST(mh_verify_signer_cert_ownership_refcount) {
     MH_INIT(); REQUIRE(VMS);
@@ -390,7 +383,7 @@ TEST(mh_detached_verify_no_content_fails) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     SET_ERR(0);
     BOOL r = VDS(&vp, 0, (BYTE *)v_m_sig_det_noattr, sizeof v_m_sig_det_noattr, 0, NULL, NULL, NULL);
-    CHECK(r == FALSE); t_note("no content blobs -> 0x%lx", GetLastError());
+    EXPECT_FAIL(r == FALSE, E_STATUS_INVALID_SIGNATURE); /* observed: nothing to hash */
 }
 TEST(mh_detached_verify_signer_index) {
     MH_INIT(); REQUIRE(VDS);
@@ -410,7 +403,7 @@ TEST(mh_detached_verify_cbsize_and_garbage) {
     mh_verify_para(&vp); SET_ERR(0);
     static const BYTE junk[] = { 0x30, 0x03, 0x02, 0x01, 0x01 };
     r = VDS(&vp, 0, (BYTE *)junk, sizeof junk, 1, a, l, NULL);
-    CHECK(r == FALSE); t_note("junk detached blob -> 0x%lx", GetLastError());
+    EXPECT_FAIL(r == FALSE, 0x8009310B); /* observed: ASN1 bad tag */
 }
 TEST(mh_detached_verify_wrong_type) {
     MH_INIT(); REQUIRE(VDS);
@@ -464,7 +457,7 @@ TEST(mh_signer_count_encoding_type_requirements) {
     EXPECT_EQ(U(CryptGetMessageSignerCount)(PKCS_7_ASN_ENCODING, v_m_sig_noattr, sizeof v_m_sig_noattr), 1);
     EXPECT_EQ(U(CryptGetMessageSignerCount)(0, v_m_sig_noattr, sizeof v_m_sig_noattr), -1);
     LONG r = U(CryptGetMessageSignerCount)(X509_ASN_ENCODING, v_m_sig_noattr, sizeof v_m_sig_noattr);
-    t_note("X509-only encoding type -> %ld", r);
+    EXPECT_EQ(r, -1); /* observed: the PKCS7 encoding bit is required */
 }
 TEST(mh_signer_count_own_messages) {
     MH_INIT(); REQUIRE(U(CryptGetMessageSignerCount));
@@ -502,17 +495,21 @@ TEST(mh_get_certs_failures) {
     static const BYTE g[] = { 0x30, 0x03, 0x02, 0x01, 0x01 };
     SET_ERR(0);
     HCERTSTORE s = U(CryptGetMessageCertificates)(ENC, 0, 0, g, sizeof g);
-    CHECK(s == NULL); t_note("garbage blob -> 0x%lx", GetLastError()); CHECK(GetLastError() != 0);
+    EXPECT_FAIL(s == NULL, 0x80093102); /* observed: end-of-data */
     /* any PKCS#7 ContentInfo opens; an enveloped message just carries no certificates */
     s = U(CryptGetMessageCertificates)(ENC, 0, 0, v_m_env_aes128, sizeof v_m_env_aes128);
     CHECK(s != NULL); if (s) { EXPECT_EQ(mh_count_certs(s), 0); U(CertCloseStore)(s, 0); }
     SET_ERR(0);
     s = U(CryptGetMessageCertificates)(ENC, 0, 0, v_m_hashed_sha256, sizeof v_m_hashed_sha256);
-    CHECK(s == NULL); t_note("hashed message -> 0x%lx", GetLastError());
+    EXPECT_FAIL(s == NULL, 0x80091004); /* observed: CRYPT_E_INVALID_MSG_TYPE */
     s = U(CryptGetMessageCertificates)(ENC, 0, 0, v_o_cert, sizeof v_o_cert);
     CHECK(s == NULL);
     s = U(CryptGetMessageCertificates)(0, 0, 0, v_m_certs_only, sizeof v_m_certs_only);
-    t_note("encoding type 0 -> store %p", s); if (s) U(CertCloseStore)(s, 0);
+    /* observed: the encoding type is not validated, a store with the message's certificates is returned */
+    CHECK(s != NULL);
+    if (s) { HCERTSTORE s2 = U(CryptGetMessageCertificates)(ENC, 0, 0, v_m_certs_only, sizeof v_m_certs_only);
+             CHECK(s2 != NULL); if (s2) { EXPECT_EQ(mh_count_certs(s), mh_count_certs(s2)); U(CertCloseStore)(s2, 0); }
+             U(CertCloseStore)(s, 0); }
 }
 TEST(mh_get_certs_store_independent_of_buffer) {
     MH_INIT(); REQUIRE(U(CryptGetMessageCertificates));
@@ -558,7 +555,6 @@ TEST(mh_withkey_wrong_key_fails) {
     BYTE d[100]; DWORD dn = sizeof d; SET_ERR(0);
     BOOL r = VWK(&p, &mh_ids[MH_S2].pub->pCertInfo->SubjectPublicKeyInfo, v_m_sig_nocert, sizeof v_m_sig_nocert, d, &dn);
     CHECK(r == FALSE); EXPECT_EQ(dn, 0);
-    t_note("wrong public key -> 0x%lx", GetLastError());
     EXPECT_ERR(E_STATUS_INVALID_SIGNATURE);
 }
 TEST(mh_withkey_size_only_without_key) {
@@ -583,7 +579,7 @@ TEST(mh_withkey_more_data) {
     BYTE d[100]; DWORD dn = 10; SET_ERR(0);
     BOOL r = VWK(&p, &mh_ids[MH_S1].pub->pCertInfo->SubjectPublicKeyInfo, v_m_sig_nocert, sizeof v_m_sig_nocert, d, &dn);
     EXPECT_FAIL(r == FALSE, ERROR_MORE_DATA);
-    t_note("MORE_DATA path leaves *pcbDecoded = %lu", dn);
+    EXPECT_EQ(dn, 50); /* observed: the required size is reported */
 }
 TEST(mh_withkey_cbsize_must_be_exact) {
     MH_NOWINE(); MH_INIT(); REQUIRE(VWK);

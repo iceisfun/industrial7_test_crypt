@@ -41,7 +41,7 @@ TEST(mlc_encode_signed_msg_rejects_controls) {
     REQ_MSG();
     if (t_is_wine()) { t_skip("emulator differs for encode-side controls"); return; }
     ml_signer_t s;
-    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); t_skip("setup"); return; }
+    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_SIGNED, &s.se, NULL, NULL);
     CHECK(m != NULL);
     if (m) {
@@ -55,7 +55,7 @@ TEST(mlc_encode_signed_msg_rejects_controls) {
 TEST(mlc_encode_signed_msg_rejects_verify_with_real_parameter) {
     REQ_MSG();
     ml_signer_t s;
-    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); t_skip("setup"); return; }
+    if (!ml_signer_init(&s, OID_SHA256)) { ml_signer_done(&s); CHECKF(0, "setup failed"); return; }
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_SIGNED, &s.se, NULL, NULL);
     CHECK(m != NULL);
     if (m) {
@@ -168,7 +168,7 @@ TEST(mlc_detached_hash_verify_before_content) {
     SET_ERR(0);
     CHECK(!mUpdate()(m, d4, 4, TRUE));
     DWORD e = GetLastError();
-    CHECKF(e == (DWORD)NTE_BAD_HASH_STATE || e == (DWORD)CRYPT_E_MSG_ERROR, "err 0x%lx", (unsigned long)e);
+    EXPECT_EQ(e, CRYPT_E_MSG_ERROR); /* observed: the hash is already finalised */
     mClose()(m);
 }
 TEST(mlc_detached_hash_wrong_content) {
@@ -421,7 +421,6 @@ TEST(mlc_add_signer) {
         si.cbSize = sizeof si; si.pCertInfo = c2->pCertInfo; si.hCryptProv = prov; si.dwKeySpec = AT_KEYEXCHANGE; si.HashAlgorithm.pszObjId = OID_SHA256;
         SET_ERR(0);
         BOOL ok = mControl()(m, 0, CMSG_CTRL_ADD_SIGNER, &si);
-        if (!ok) t_note("ADD_SIGNER on a decoded message failed: 0x%lx", (unsigned long)GetLastError());
         CHECKF(ok, "add signer err 0x%lx", GetLastError());
         if (ok) {
             DWORD n = 0; CHECK(ml_param_dword(m, CMSG_SIGNER_COUNT_PARAM, 0, &n)); EXPECT_EQ(n, 2);
