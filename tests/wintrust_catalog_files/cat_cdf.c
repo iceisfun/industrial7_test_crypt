@@ -73,6 +73,15 @@ static void out_path(WCHAR *w, const char *leaf)
     char p[MAX_PATH]; snprintf(p, sizeof p, "%s%s", g_out, leaf); wtow(w, MAX_PATH, p);
 }
 static HANDLE cdf_store(CRYPTCATCDF *c) { return c->hCATStore; }
+/* The SHA-1 compatibility member is enumerable but CryptCATGetMemberInfo does not find it on Win10
+ * (returns NULL, last error untouched), so locate it by walking the member list. */
+static CRYPTCATMEMBER *find_member_enum(HANDLE h, const WCHAR *tag)
+{
+    CRYPTCATMEMBER *m = NULL;
+    while ((m = U(CryptCATEnumerateMember)(h, m)) != NULL)
+        if (m->pwszReferenceTag && !wcscmp(m->pwszReferenceTag, tag)) return m;
+    return NULL;
+}
 static int dig_is(const CRYPTCATMEMBER *m, const char *oid, const BYTE *d, DWORD n)
 {
     return m && m->pIndirectData && m->pIndirectData->DigestAlgorithm.pszObjId && !strcmp(m->pIndirectData->DigestAlgorithm.pszObjId, oid) &&
@@ -883,7 +892,8 @@ TEST(wtcdf_bytag_v2_hash_tags_and_compat_member)
     CHECK(m->pwszReferenceTag && !wcscmp(m->pwszReferenceTag, h256));   /* reference tag = upper-case hex of the file hash */
     CHECK(dig_is(m, OID_SHA256, flat_a_sha256, 32));
     /* a SHA-1 compatibility member is added next to the SHA-256 one */
-    compat = U(CryptCATGetMemberInfo)(cdf_store(c), h1);
+    CHECK(U(CryptCATGetMemberInfo)(cdf_store(c), h1) == NULL);   /* probed on Win10: lookup by the compat tag misses */
+    compat = find_member_enum(cdf_store(c), h1);
     CHECK(compat != NULL);
     if (compat) CHECK(dig_is(compat, OID_SHA1, flat_a_sha1, 20));
     EXPECT_EQ(count_members(cdf_store(c)), 2);
@@ -987,7 +997,8 @@ TEST(wtcdf_bytag_member_attributes_with_cdf_tag)
     CHECK(UN(CryptCATCDFEnumAttributesWithCDFTag)(c, t, m, a, NULL) == NULL);
     EXPECT_EQ(count_attrs(cdf_store(c), m), 2);
     /* the first attribute is mirrored onto the SHA-1 compatibility member, the NO_AUTO_COMPAT one is not */
-    compat = U(CryptCATGetMemberInfo)(cdf_store(c), h1);
+    CHECK(U(CryptCATGetMemberInfo)(cdf_store(c), h1) == NULL);   /* probed on Win10: lookup by the compat tag misses */
+    compat = find_member_enum(cdf_store(c), h1);
     CHECK(compat != NULL);
     if (compat) { CHECK(U(CryptCATGetAttrInfo)(cdf_store(c), compat, L"File") != NULL); CHECK(U(CryptCATGetAttrInfo)(cdf_store(c), compat, L"NoCompat") == NULL); }
     LocalFree(t);
