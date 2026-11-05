@@ -462,7 +462,7 @@ TEST(winrt_mac_key_object_interfaces) {
     EXPECT_HR(wr_qi(key, &WR_IID_ICryptographicKey, &o), S_OK); wr_release(o);
     EXPECT_HR(wr_qi(key, &WR_IID_IAgileObject, &o), S_OK); wr_release(o);
     HSTRING n = NULL; EXPECT_HR(wr_getclassname(key, &n), S_OK);
-    t_note("MAC key runtime class: %ls", wr_raw(n, NULL)); wr_hsfree(n);
+    CHECK(wr_hs_eq(n, L"Windows.Security.Cryptography.Core.MacKey")); wr_hsfree(n);
     UINT32 sz = 0; EXPECT_HR(VF(key, 6, UINT32 *)(key, &sz), S_OK);
     t_note("MAC key KeySize for 6-byte secret: %u", sz);
     wr_release(kb); wr_release(key); wr_release(prov);
