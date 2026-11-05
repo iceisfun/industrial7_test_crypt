@@ -78,14 +78,16 @@ TEST(pkcs8_export_unknown_oid_is_unsupported_type) {
     EXPECT_FAIL(!r, E_UNSUPPORTED_TYPE);
     U(CryptReleaseContext)(p, 0);
 }
-TEST(pkcs8_export_null_oid_observed) {
+TEST(pkcs8_export_null_oid_fails_unsupported_type) {
     NEED_P8(); PP_WINE_P8();
     HCRYPTPROV p = gen_prov();
     if (!p) { CHECK(p != 0); return; }
     DWORD cb = 0;
     SET_ERR(0);
     BOOL r = U(CryptExportPKCS8)(p, AT_KEYEXCHANGE, NULL, 0, NULL, NULL, &cb);
-    t_note("CryptExportPKCS8 with NULL OID: ret=%d err=%lu cb=%lu", r, GetLastError(), cb);
+    CHECK(!r);
+    EXPECT_ERR(ERROR_UNSUPPORTED_TYPE);     /* 1630 */
+    EXPECT_EQ(cb, 0);
     U(CryptReleaseContext)(p, 0);
 }
 TEST(pkcs8_export_size_query) {
@@ -162,7 +164,7 @@ TEST(pkcs8_export_wrong_keyspec_fails) {
     SET_ERR(0);
     BOOL r = U(CryptExportPKCS8)(p, AT_SIGNATURE, (LPSTR)rsa_oid, 0, NULL, NULL, &cb);
     CHECK(!r);
-    t_note("export of absent AT_SIGNATURE key: err 0x%lx", GetLastError());
+    EXPECT_ERR(0x8009000D);           /* NTE_NO_KEY */
     U(CryptReleaseContext)(p, 0);
 }
 TEST(pkcs8_export_nonexportable_key_fails) {
@@ -180,7 +182,7 @@ TEST(pkcs8_export_nonexportable_key_fails) {
         LocalFree(buf);
     }
     CHECK(!r);
-    t_note("non-exportable key: err 0x%lx", GetLastError());
+    EXPECT_ERR(0x8009000B);           /* NTE_BAD_KEY_STATE */
     U(CryptReleaseContext)(p, 0);
 }
 TEST(pkcs8_export_ex_is_not_exported) {
@@ -234,7 +236,7 @@ TEST(pkcs8_import_plain_fixture_yields_usable_provider) {
 TEST(pkcs8_import_8000_flag_uses_verify_context_provider) {
     NEED_P8(); PP_WINE_P8();
     HCRYPTPROV p = import_plain_8000(fx_p8plain, sizeof fx_p8plain, 0);
-    t_note("flag 0x8000 import without resolver: %s (err 0x%lx)", p ? "ok" : "failed", GetLastError());
+    CHECKF(p != 0, "err 0x%lx", GetLastError());
     if (p) {
         DWORD cb = 0;
         BYTE *pub = get_pub(p, AT_KEYEXCHANGE, &cb);
@@ -263,7 +265,7 @@ TEST(pkcs8_import_exportable_flag_allows_key_export) {
             BOOL r = U(CryptExportKey)(k, 0, PRIVATEKEYBLOB, 0, NULL, &cb);
             CHECKF(r, "CryptExportKey err 0x%lx", GetLastError());
             U(CryptDestroyKey)(k);
-        } else t_note("no AT_KEYEXCHANGE key after import (err 0x%lx)", GetLastError());
+        } else CHECKF(0, "no AT_KEYEXCHANGE key after import (err 0x%lx)", GetLastError());
         U(CryptReleaseContext)(p, 0);
     }
 }
@@ -273,11 +275,13 @@ TEST(pkcs8_import_without_exportable_flag_blocks_key_export) {
     CHECKF(p != 0, "err 0x%lx", GetLastError());
     if (p) {
         HCRYPTKEY k = 0; DWORD cb = 0;
-        if (U(CryptGetUserKey)(p, AT_KEYEXCHANGE, &k)) {
+        BOOL got = U(CryptGetUserKey)(p, AT_KEYEXCHANGE, &k);
+        CHECKF(got, "err 0x%lx", GetLastError());
+        if (got) {
             SET_ERR(0);
             BOOL r = U(CryptExportKey)(k, 0, PRIVATEKEYBLOB, 0, NULL, &cb);
             CHECK(!r);
-            t_note("non-exportable imported key: CryptExportKey err 0x%lx", GetLastError());
+            EXPECT_ERR(0x8009000B);   /* NTE_BAD_KEY_STATE */
             U(CryptDestroyKey)(k);
         }
         U(CryptReleaseContext)(p, 0);
@@ -357,7 +361,7 @@ TEST(pkcs8_import_resolve_callback_failure_fails_import) {
     CHECK(!r);
     EXPECT_EQ(calls, 1);
     EXPECT_EQ(out, 0);
-    t_note("resolve callback failure: last error %lu", GetLastError());
+    EXPECT_ERR(ERROR_ACCESS_DENIED);  /* the callback's last error is passed through */
 }
 
 /* ---- import: invalid input ------------------------------------------------------------- */
@@ -387,13 +391,12 @@ TEST(pkcs8_import_garbage_fails) {
     HCRYPTPROV p = import_plain(g, sizeof g, 0);
     CHECK(p == 0);
     DWORD e = GetLastError();
-    CHECK(e != 0);
-    t_note("garbage PKCS#8: last error 0x%lx", e);
+    EXPECT_EQ(e, CRYPT_E_BAD_ENCODE);
     static const BYTE g2[] = {0x30, 0x00};
     SET_ERR(0);
     p = import_plain(g2, sizeof g2, 0);
     CHECK(p == 0);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
 }
 TEST(pkcs8_import_empty_fails) {
     NEED_P8(); PP_WINE_P8();
@@ -402,7 +405,7 @@ TEST(pkcs8_import_empty_fails) {
     SET_ERR(0);
     BOOL r = U(CryptImportPKCS8)(ip, 0, &out, NULL);
     CHECK(!r);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
     EXPECT_EQ(out, 0);
 }
 TEST(pkcs8_import_truncated_fails) {
@@ -411,6 +414,7 @@ TEST(pkcs8_import_truncated_fails) {
         SET_ERR(0);
         HCRYPTPROV p = import_plain(fx_p8plain, sizeof fx_p8plain - cut, 0);
         CHECKF(p == 0, "cut %zu", cut);
+        EXPECT_ERR(CRYPT_E_BAD_ENCODE);
         if (p) U(CryptReleaseContext)(p, 0);
     }
 }
@@ -419,7 +423,7 @@ TEST(pkcs8_import_certificate_der_fails) {
     SET_ERR(0);
     HCRYPTPROV p = import_plain(fx_cert1, sizeof fx_cert1, 0);
     CHECK(p == 0);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
 }
 
 /* ---- import: encrypted ---------------------------------------------------------------------- */
@@ -450,7 +454,7 @@ TEST(pkcs8_import_encrypted_fixture_reaches_decrypt_callback) {
     EXPECT_STR(seen.oid, "1.2.840.113549.1.12.1.3");
     CHECK(seen.enc_cb > 500);
     CHECK(seen.blob_matches);
-    t_note("decrypt callback failure surfaces last error 0x%lx", GetLastError());
+    EXPECT_ERR(NTE_BAD_DATA);         /* the callback's last error is passed through */
 }
 TEST(pkcs8_import_encrypted_decrypt_callback_returns_plain_key) {
     NEED_P8(); PP_WINE_P8();
@@ -492,7 +496,7 @@ TEST(pkcs8_import_encrypted_decrypt_returns_garbage) {
     SET_ERR(0);
     BOOL r = U(CryptImportPKCS8)(ip, 0, &out, NULL);
     CHECK(!r);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
     EXPECT_EQ(out, 0);
 }
 
@@ -577,7 +581,7 @@ TEST(pkcs8_roundtrip_through_encrypt_decrypt_callbacks) {
     if (pa) LocalFree(pa);
     U(CryptReleaseContext)(a, 0);
 }
-TEST(pkcs8_roundtrip_fixture_export_matches_openssl_der) {
+TEST(pkcs8_roundtrip_fixture_reexport_is_650_bytes_not_source_der) {
     NEED_P8(); PP_WINE_P8();
     HCRYPTPROV p = import_plain(fx_p8plain, sizeof fx_p8plain, CRYPT_EXPORTABLE);
     CHECKF(p != 0, "err 0x%lx", GetLastError());
@@ -590,9 +594,11 @@ TEST(pkcs8_roundtrip_fixture_export_matches_openssl_der) {
             EXPECT_STR(pk->Algorithm.pszObjId, szOID_RSA_RSA);
             LocalFree(pk);
         }
-        t_note("re-export of fixture key: %lu bytes (source %zu), identical=%d", cb, sizeof fx_p8plain, cb == sizeof fx_p8plain && !memcmp(b, fx_p8plain, cb));
+        /* Win10 re-encodes the key: 650 bytes (the 635 byte source uses a different DER layout), not byte-identical */
+        EXPECT_EQ(cb, 650);
+        CHECK(!(cb == sizeof fx_p8plain && !memcmp(b, fx_p8plain, cb)));
         LocalFree(b);
-    } else t_note("re-export of imported fixture key failed: 0x%lx", GetLastError());
+    } else CHECKF(0, "re-export failed: 0x%lx", GetLastError());
     U(CryptReleaseContext)(p, 0);
 }
 

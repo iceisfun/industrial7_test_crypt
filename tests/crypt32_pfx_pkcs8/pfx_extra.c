@@ -32,7 +32,8 @@ TEST(pfxextra_isblob_ignores_trailing_nothing_and_rejects_truncation) {
     /* a valid PFX cut short is no longer a well-formed PFX */
     for (size_t cut = 1; cut <= 8; cut++) {
         CRYPT_DATA_BLOB b = pp_blob_of(fx_leg3des, sizeof fx_leg3des - cut);
-        if (U(PFXIsPFXBlob)(&b)) t_note("truncated by %zu still reported as PFX", cut);
+        t_label("cut %zu", cut);
+        CHECK(!U(PFXIsPFXBlob)(&b));
     }
 }
 TEST(pfxextra_verify_each_fixture_with_known_password) {

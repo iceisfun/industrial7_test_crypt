@@ -182,11 +182,10 @@ TEST(ap_set_aes_cfb_msgblock_defaults_after_mode_switch) {
     NT_OK(ap_getdw(h, BCRYPT_MESSAGE_BLOCK_LENGTH, &v, &cb)); EXPECT_EQ(v, 16);
     NT_OK(set_mode(h, BCRYPT_CHAIN_MODE_CFB));        /* re-selecting the mode restores the default shift */
     NT_OK(ap_getdw(h, BCRYPT_MESSAGE_BLOCK_LENGTH, &v, &cb));
-    t_note("AES CFB default MessageBlockLength after re-set = %lu", (unsigned long)v);
+    EXPECT_EQ(v, 1);                  /* re-selecting CFB restores the 8-bit shift default */
     NT_OK(set_mode(h, BCRYPT_CHAIN_MODE_CBC));
     NT_OK(ap_getdw(h, BCRYPT_MESSAGE_BLOCK_LENGTH, &v, &cb));
-    t_note("AES CBC MessageBlockLength = %lu", (unsigned long)v);
-    CHECK(v == 16 || v == 1 || v == 0);
+    EXPECT_EQ(v, 16);
     AP_CLOSE(h);
 }
 TEST(ap_set_aes_gcm_then_authtag_and_objlen_consistent) {
@@ -211,9 +210,9 @@ TEST(ap_set_rc4_chaining_mode_na) {
     if (!h) return;
     WCHAR cur[40]; ULONG cb;
     NTSTATUS s = ap_getstr(h, BCRYPT_CHAINING_MODE, cur, 32, &cb);
-    t_note("RC4 ChainingMode get 0x%08lx \"%ls\" cb=%lu", (unsigned long)s, cur, (unsigned long)cb);
+    NT_OK(s); EXPECT_WSTR(cur, BCRYPT_CHAIN_MODE_NA); EXPECT_EQ(cb, 64);
     s = set_mode(h, BCRYPT_CHAIN_MODE_NA);
-    t_note("RC4 set ChainingModeN/A -> 0x%08lx", (unsigned long)s);
+    NT_OK(s);                         /* RC4 accepts re-setting its own (only) mode */
     AP_CLOSE(h);
 }
 TEST(ap_set_na_on_aes) {
@@ -222,8 +221,7 @@ TEST(ap_set_na_on_aes) {
     NT_OK(AP_OPEN(&h, BCRYPT_AES_ALGORITHM, NULL, 0));
     if (!h) return;
     NTSTATUS s = set_mode(h, BCRYPT_CHAIN_MODE_NA);
-    NT_FAILED(s);
-    t_note("AES set ChainingModeN/A -> 0x%08lx", (unsigned long)s);
+    NT_EQ(s, AP_NOT_SUPPORTED);
     CHECK(mode_is(h, BCRYPT_CHAIN_MODE_CBC));
     AP_CLOSE(h);
 }
@@ -322,9 +320,11 @@ TEST(ap_set_ecc_generic_curve_name) {
     for (int i = 0; i < 2; i++) {
         BCRYPT_ALG_HANDLE h = NULL;
         NTSTATUS s = AP_OPEN(&h, id[i], NULL, 0);
-        if (s < 0) { t_note("%ls unavailable 0x%08lx", id[i], (unsigned long)s); continue; }
+        t_label("%ls", id[i]);
+        NT_OK(s);
+        if (s < 0) continue;
         s = U(BCryptSetProperty)(h, BCRYPT_ECC_CURVE_NAME, (PUCHAR)L"nistP256", sizeof(L"nistP256"), 0);
-        t_note("%ls generic: set curve nistP256 -> 0x%08lx", id[i], (unsigned long)s);
+        NT_OK(s);                       /* the generic ECDSA/ECDH handle accepts a curve name once */
         if (s >= 0) {
             WCHAR nm[40]; ULONG cb;
             NT_OK(ap_getstr(h, BCRYPT_ECC_CURVE_NAME, nm, 40, &cb));
@@ -339,18 +339,17 @@ TEST(ap_set_ecc_generic_bad_curve) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = NULL;
     NTSTATUS s = AP_OPEN(&h, L"ECDSA", NULL, 0);
-    if (s < 0) { t_note("generic ECDSA unavailable 0x%08lx", (unsigned long)s); return; }
+    NT_OK(s);
+    if (s < 0) return;
     s = U(BCryptSetProperty)(h, BCRYPT_ECC_CURVE_NAME, (PUCHAR)L"noSuchCurve", sizeof(L"noSuchCurve"), 0);
-    NT_FAILED(s);
-    t_note("generic ECDSA: unknown curve -> 0x%08lx", (unsigned long)s);
+    NT_EQ(s, AP_INVALID_PARAM);
     AP_CLOSE(h);
 }
 
 static void f_kd_set(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     ULONG v = 1;
     NTSTATUS s = U(BCryptSetProperty)(h, L"NoSuchProperty", (PUCHAR)&v, 4, 0);
-    NT_FAILED(s);
-    t_note("%ls alg set unknown property -> 0x%08lx", a->id, (unsigned long)s);
+    NT_EQ(s, AP_INVALID_HANDLE);      /* observed: unknown property on a key-derivation algorithm handle is INVALID_HANDLE (0xc0000008) */
     NT_EQ(U(BCryptSetProperty)(h, L"NoSuchProperty", (PUCHAR)&v, 4, 1), AP_INVALID_PARAM);
 }
 #define KD_TAGS(X) X(sp800108) X(sp80056a) X(pbkdf2) X(capikdf) X(hkdf) X(tls11) X(tls12)

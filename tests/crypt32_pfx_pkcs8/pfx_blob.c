@@ -77,12 +77,12 @@ TEST(pfxblob_corrupt_version_is_not_pfx) {
     CHECK(U(PFXIsPFXBlob)(&b));
     LocalFree(copy);
 }
-TEST(pfxblob_trailing_data_observed) {
+TEST(pfxblob_trailing_data_is_still_a_pfx) {
     REQUIRE(U(PFXIsPFXBlob));
     BYTE *copy = (BYTE *)LocalAlloc(LPTR, sizeof fx_leg3des + 16);
     memcpy(copy, fx_leg3des, sizeof fx_leg3des);
     CRYPT_DATA_BLOB b = pp_blob_of(copy, sizeof fx_leg3des + 16);
-    t_note("PFXIsPFXBlob with 16 trailing zero bytes: %d", U(PFXIsPFXBlob)(&b));
+    CHECK(U(PFXIsPFXBlob)(&b));       /* the outer length header decides; trailing zeros are ignored */
     LocalFree(copy);
 }
 
@@ -156,9 +156,7 @@ TEST(pfxverify_garbage_blob) {
     SET_ERR(0);
     BOOL r = U(PFXVerifyPassword)(&b, L"test", 0);
     CHECK(!r);
-    DWORD e = GetLastError();
-    CHECKF(e != 0, "last error %lx", e);
-    t_note("PFXVerifyPassword(garbage) last error 0x%lx", e);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
     b.cbData = 0; b.pbData = NULL;
     SET_ERR(0);
     CHECK(!U(PFXVerifyPassword)(&b, L"test", 0));
@@ -183,20 +181,20 @@ TEST(pfxverify_matrix_of_fixtures) {
         CHECKF(!U(PFXVerifyPassword)(&b, L"zzz", 0), "row %zu wrong", i);
     }
 }
-TEST(pfxverify_pbes2_fixture_observed) {
+TEST(pfxverify_pbes2_fixture_verifies) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
     CRYPT_DATA_BLOB b = pp_blob_of(fx_pbes2, sizeof fx_pbes2);
     BOOL r = U(PFXVerifyPassword)(&b, L"test", 0);
-    t_note("PFXVerifyPassword(PBES2/AES256/SHA256-MAC fixture) = %d (err %lu)", r, GetLastError());
+    CHECKF(r, "err %lu", GetLastError());
     CHECK(!U(PFXVerifyPassword)(&b, L"wrong", 0));
 }
-TEST(pfxverify_long_password_truncation_observed) {
+TEST(pfxverify_long_password_is_not_truncated) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
-    /* import path retries with the first 32 characters of a longer password (observed) */
+    /* Win10 22H2: a longer password is not accepted by truncation to its first 32 characters */
     CRYPT_DATA_BLOB b = pp_blob_of(fx_leg32, sizeof fx_leg32);
     CHECK(U(PFXVerifyPassword)(&b, L"abcdefghijklmnopqrstuvwxyz012345", 0));
     BOOL r = U(PFXVerifyPassword)(&b, L"abcdefghijklmnopqrstuvwxyz012345EXTRA", 0);
-    t_note("32-char PFX password verified with extra suffix = %d", r);
+    CHECK(!r);
 }
 TEST(pfxverify_does_not_change_blob) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
@@ -222,6 +220,6 @@ TEST(pfxverify_corrupted_mac_fails) {
     SET_ERR(0);
     BOOL r = U(PFXVerifyPassword)(&b, L"test", 0);
     CHECK(!r);
-    t_note("corrupted MAC tail: last error %lu", GetLastError());
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
     LocalFree(copy);
 }

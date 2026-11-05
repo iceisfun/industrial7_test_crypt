@@ -63,9 +63,12 @@ TEST(gap2_c32_locator_release_null_keeps_last_error) {
     DWORD flags[] = { 0, 1, 2, 4, 0xFFFFFFFF };
     for (unsigned i = 0; i < 5; i++) { SET_ERR(0x1357); f(flags[i], NULL); EXPECT_ERR(0x1357); }
 }
-TEST(gap2_c32_locator_free_preserves_last_error_on_null_like_args) {
-    REQUIRE(c32("CryptObjectLocatorFree"));
-    t_note("CryptObjectLocatorFree saves/restores last error; NULL handling not exercised");
+TEST(gap2_c32_locator_free_null_preserves_last_error) {
+    typedef void (WINAPI *pf)(void *loc);
+    pf f = (pf)c32("CryptObjectLocatorFree"); REQUIRE(f);
+    SET_ERR(0x1357);
+    f(NULL);
+    EXPECT_ERR(0x1357);               /* freeing NULL leaves the caller's last error untouched */
 }
 
 /* ---- retired OSS global trio: one shared body, always fails with ERROR_INVALID_FUNCTION --------- */
@@ -184,7 +187,8 @@ TEST(gap2_c32_loadsip_registered_pe_fills_dispatch) {
     static const GUID pe = { 0xC689AAB8, 0x8E78, 0x11D0, { 0x8C, 0x47, 0x00, 0xC0, 0x4F, 0xC2, 0x95, 0xEE } };
     struct { DWORD cb; DWORD pad; void *hSIP; void *fn[5]; } d; memset(&d, 0, sizeof d);
     BOOL ok = f(&pe, 0, &d);
-    if (!ok) { t_note("PE SIP GUID not resolvable here, err 0x%lx", GetLastError()); return; }
+    CHECKF(ok, "err 0x%lx", GetLastError());
+    if (!ok) return;
     CHECK(d.hSIP == NULL);
     for (int i = 0; i < 5; i++) CHECKF(d.fn[i] != NULL, "slot %d", i);
 }
@@ -192,5 +196,5 @@ TEST(gap2_c32_wnf_enable_flush_cache_is_idempotent) {
     typedef void (WINAPI *pf)(void);
     pf f = (pf)c32("I_CertWnfEnableFlushCache"); REQUIRE(f);
     SET_ERR(0x4321); f(); f();
-    t_note("last error after I_CertWnfEnableFlushCache: 0x%lx", GetLastError());
+    EXPECT_ERR(0x4321);               /* the last error is preserved */
 }

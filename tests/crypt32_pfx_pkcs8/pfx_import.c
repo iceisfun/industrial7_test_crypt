@@ -57,9 +57,7 @@ TEST(pfximport_garbage_blob_fails) {
     SET_ERR(0);
     HCERTSTORE s = pp_import(g, sizeof g, L"test", PP_NP);
     CHECK(s == NULL);
-    DWORD e = GetLastError();
-    CHECK(e != 0);
-    t_note("PFXImportCertStore(garbage) last error 0x%lx", e);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
     pp_close(s);
 }
 TEST(pfximport_empty_blob_fails) {
@@ -68,7 +66,7 @@ TEST(pfximport_empty_blob_fails) {
     SET_ERR(0);
     HCERTSTORE s = U(PFXImportCertStore)(&b, L"test", PP_NP);
     CHECK(s == NULL);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
     pp_close(s);
 }
 TEST(pfximport_certificate_der_is_not_a_pfx) {
@@ -76,7 +74,7 @@ TEST(pfximport_certificate_der_is_not_a_pfx) {
     SET_ERR(0);
     HCERTSTORE s = pp_import(fx_cert1, sizeof fx_cert1, L"test", PP_NP);
     CHECK(s == NULL);
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(CRYPT_E_BAD_ENCODE);
     pp_close(s);
 }
 
@@ -154,11 +152,13 @@ TEST(pfximport_32_char_password) {
     EXPECT_FAIL(s == NULL, PP_ERR_INVALID_PASSWORD);
     pp_close(s);
 }
-TEST(pfximport_long_password_prefix_retry_observed) {
+TEST(pfximport_long_password_prefix_is_not_retried) {
     NEED_IMPORT();
-    /* the routine retries a >32 character password truncated to 32 characters */
+    /* Win10 22H2: a password longer than 32 characters is NOT retried truncated; the import is rejected as a bad password */
+    SET_ERR(0);
     HCERTSTORE s = PP_IMPORT(fx_leg32, L"abcdefghijklmnopqrstuvwxyz012345TAIL", PP_NP);
-    t_note("password longer than 32 chars with matching 32-char prefix: %s (err %lu)", s ? "imported" : "rejected", GetLastError());
+    CHECK(s == NULL);
+    EXPECT_ERR(PP_ERR_INVALID_PASSWORD);
     pp_close(s);
 }
 TEST(pfximport_wrong_password_repeated_is_stable) {
@@ -247,13 +247,13 @@ TEST(pfximport_unencrypted_cert_bag) {
     if (s) EXPECT_EQ(pp_count(s), 1);
     pp_close(s);
 }
-TEST(pfximport_pbes2_aes_fixture_observed) {
+TEST(pfximport_pbes2_aes_fixture_imports) {
     PP_WINE_SKIP("pbes2");
     NEED_IMPORT();
     SET_ERR(0);
     HCERTSTORE s = PP_IMPORT(fx_pbes2, L"test", PP_NP);
-    t_note("PBES2/AES-256 PFX import: %s (err %lu, certs %d)", s ? "ok" : "failed", GetLastError(), pp_count(s));
-    if (s) { CHECK(pp_find_der(s, fx_cert1, sizeof fx_cert1) != NULL); }
+    CHECKF(s != NULL, "err %lu", GetLastError());
+    if (s) { EXPECT_EQ(pp_count(s), 1); CHECK(pp_find_der(s, fx_cert1, sizeof fx_cert1) != NULL); }
     pp_close(s);
     SET_ERR(0);
     s = PP_IMPORT(fx_pbes2, L"wrong", PP_NP);
@@ -334,25 +334,21 @@ TEST(pfximport_nopersist_sets_key_context) {
         if (r) {
             EXPECT_EQ(kc.cbSize, sizeof(CERT_KEY_CONTEXT));
             CHECK(kc.hCryptProv != 0);
-            t_note("no-persist key context: keyspec 0x%lx", kc.dwKeySpec);
+            EXPECT_EQ(kc.dwKeySpec, AT_KEYEXCHANGE);
         }
         U(CertFreeCertificateContext)(c);
     }
     pp_close(s);
 }
-TEST(pfximport_nopersist_key_prov_info_observed) {
+TEST(pfximport_nopersist_has_no_key_prov_info) {
     NEED_IMPORT();
     HCERTSTORE s; PCCERT_CONTEXT c = import_leaf(&s, PP_NP);
+    CHECKF(c != NULL, "err %lu", GetLastError());
     if (c) {
         DWORD cb = 0;
         BOOL r = pp_has_prop(c, CERT_KEY_PROV_INFO_PROP_ID, &cb);
-        t_note("no-persist KEY_PROV_INFO present=%d size=%lu", r, cb);
-        if (r) {
-            CRYPT_KEY_PROV_INFO *ki = (CRYPT_KEY_PROV_INFO *)LocalAlloc(LPTR, cb);
-            if (U(CertGetCertificateContextProperty)(c, CERT_KEY_PROV_INFO_PROP_ID, ki, &cb))
-                t_note("provider type %lu keyspec %lu flags 0x%lx", ki->dwProvType, ki->dwKeySpec, ki->dwFlags);
-            LocalFree(ki);
-        }
+        EXPECT_EQ(r, 0);              /* no persisted key: only the key-context property is set */
+        EXPECT_EQ(cb, 0);
         U(CertFreeCertificateContext)(c);
     }
     pp_close(s);
@@ -362,7 +358,7 @@ TEST(pfximport_nopersist_exportable_flag_combo) {
     NEED_IMPORT();
     HCERTSTORE s; PCCERT_CONTEXT c = import_leaf(&s, PP_NP | CRYPT_EXPORTABLE);
     CHECKF(c != NULL, "err %lu", GetLastError());
-    if (c) { CHECK(pp_has_prop(c, CERT_KEY_CONTEXT_PROP_ID, NULL) || pp_has_prop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL)); U(CertFreeCertificateContext)(c); }
+    if (c) { CHECK(pp_has_prop(c, CERT_KEY_CONTEXT_PROP_ID, NULL)); CHECK(!pp_has_prop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL)); U(CertFreeCertificateContext)(c); }
     pp_close(s);
 }
 TEST(pfximport_nopersist_user_keyset_combo) {
@@ -383,7 +379,7 @@ TEST(pfximport_nopersist_always_cng_ksp) {
         if (U(CertGetCertificateContextProperty)(c, CERT_KEY_CONTEXT_PROP_ID, &kc, &cb)) {
             EXPECT_EQ(kc.dwKeySpec, CERT_NCRYPT_KEY_SPEC);
             CHECK(kc.hNCryptKey != 0);
-        } else t_note("no key context with ALWAYS_CNG_KSP, err %lu", GetLastError());
+        } else CHECKF(0, "no key context with ALWAYS_CNG_KSP, err %lu", GetLastError());
         U(CertFreeCertificateContext)(c);
     }
     pp_close(s);
@@ -393,7 +389,7 @@ TEST(pfximport_nopersist_prefer_cng_ksp) {
     NEED_IMPORT();
     HCERTSTORE s; PCCERT_CONTEXT c = import_leaf(&s, PP_NP | PKCS12_PREFER_CNG_KSP);
     CHECKF(c != NULL, "err %lu", GetLastError());
-    if (c) { CHECK(pp_has_prop(c, CERT_KEY_CONTEXT_PROP_ID, NULL) || pp_has_prop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL)); U(CertFreeCertificateContext)(c); }
+    if (c) { CHECK(pp_has_prop(c, CERT_KEY_CONTEXT_PROP_ID, NULL)); CHECK(!pp_has_prop(c, CERT_KEY_PROV_INFO_PROP_ID, NULL)); U(CertFreeCertificateContext)(c); }
     pp_close(s);
 }
 TEST(pfximport_nopersist_allow_overwrite_flag) {
@@ -417,21 +413,21 @@ TEST(pfximport_user_protected_flag_silent) {
     NEED_IMPORT();
     /* CRYPT_USER_PROTECTED with no-persist: no key is stored, so no UI protection can be requested */
     HCERTSTORE s = PP_IMPORT(fx_leg3des, L"test", PP_NP | CRYPT_USER_PROTECTED);
-    t_note("CRYPT_USER_PROTECTED|NO_PERSIST import: %s (err %lu)", s ? "ok" : "failed", GetLastError());
+    CHECKF(s != NULL, "err %lu", GetLastError());
     pp_close(s);
 }
 TEST(pfximport_machine_keyset_nopersist) {
     PP_WINE_SKIP("flags");
     NEED_IMPORT();
     HCERTSTORE s = PP_IMPORT(fx_leg3des, L"test", PP_NP | CRYPT_MACHINE_KEYSET);
-    t_note("MACHINE_KEYSET|NO_PERSIST import: %s (err %lu)", s ? "ok" : "failed", GetLastError());
+    CHECKF(s != NULL, "err %lu", GetLastError());
     pp_close(s);
 }
-TEST(pfximport_virtual_isolation_flag_observed) {
+TEST(pfximport_virtual_isolation_flag_accepted) {
     PP_WINE_SKIP("flags");
     NEED_IMPORT();
     HCERTSTORE s = PP_IMPORT(fx_legcert, L"test", PP_NP | PKCS12_VIRTUAL_ISOLATION_KEY);
-    t_note("VIRTUAL_ISOLATION_KEY import: %s (err %lu)", s ? "ok" : "failed", GetLastError());
+    CHECKF(s != NULL, "err %lu", GetLastError());
     pp_close(s);
 }
 
@@ -447,7 +443,7 @@ TEST(pfximport_only_certificates_ignores_keys) {
         if (c) {
             DWORD cb;
             BOOL r = pp_has_prop(c, CERT_KEY_PROV_INFO_PROP_ID, &cb);
-            t_note("ONLY_CERTIFICATES: key prov info present=%d", r);
+            EXPECT_EQ(r, 1);          /* observed: the key provider info is still attached although keys are not imported */
             U(CertFreeCertificateContext)(c);
         }
     }
@@ -458,7 +454,8 @@ TEST(pfximport_only_certificates_wrong_password_still_reads_plain_bag) {
     NEED_IMPORT();
     /* with ONLY_CERTIFICATES the routine first tries the unencrypted-certificates path (observed) */
     HCERTSTORE s = PP_IMPORT(fx_legplaincert, L"definitely wrong", PKCS12_ONLY_CERTIFICATES | PKCS12_IMPORT_SILENT);
-    t_note("ONLY_CERTIFICATES with wrong password on plain-cert pfx: %s (certs %d, err %lu)", s ? "ok" : "failed", pp_count(s), GetLastError());
+    CHECKF(s != NULL, "err %lu", GetLastError());
+    EXPECT_EQ(pp_count(s), 1);
     pp_close(s);
 }
 TEST(pfximport_only_not_encrypted_certificates_plain_bag) {
@@ -474,7 +471,8 @@ TEST(pfximport_only_not_encrypted_certificates_encrypted_bag) {
     NEED_IMPORT();
     SET_ERR(0);
     HCERTSTORE s = PP_IMPORT(fx_leg3des, NULL, PKCS12_ONLY_NOT_ENCRYPTED_CERTIFICATES | PKCS12_IMPORT_SILENT);
-    t_note("ONLY_NOT_ENCRYPTED on encrypted pfx: %s (certs %d, err %lu)", s ? "ok" : "failed", pp_count(s), GetLastError());
+    CHECK(s == NULL);
+    EXPECT_ERR(CRYPT_E_NOT_FOUND);
     pp_close(s);
 }
 

@@ -149,8 +149,11 @@ TEST(ap_enumalg_duplicate_names_observed) {
     NEED_ENUM();
     for (int k = 0; k < 7; k++) {
         ULONG n; BCRYPT_ALGORITHM_IDENTIFIER *l;
-        if (enum_algs(g_ops[k], &n, &l) < 0) continue;
-        for (ULONG i = 0; i < n; i++) for (ULONG j = i + 1; j < n; j++) if (!lstrcmpW(l[i].pszName, l[j].pszName)) t_note("%s: name %ls listed more than once (several providers register it)", g_opname[k], l[i].pszName);
+        t_label("%s", g_opname[k]);
+        NT_OK(enum_algs(g_ops[k], &n, &l));
+        int dup = 0;                      /* Win10 22H2 lists every name once per operation class */
+        for (ULONG i = 0; i < n; i++) for (ULONG j = i + 1; j < n; j++) if (!lstrcmpW(l[i].pszName, l[j].pszName)) dup++;
+        EXPECT_EQ(dup, 0);
         if (n) U(BCryptFreeBuffer)(l);
     }
 }
@@ -167,14 +170,27 @@ TEST(ap_enumalg_every_listed_name_opens) {
         else t_note("enumerated \"%ls\" (class %lu) fails to open: 0x%08lx", l[i].pszName, (unsigned long)l[i].dwClass, (unsigned long)s);
     }
     EXPECT_EQ(opened, n);
-    t_note("enumerated algorithms: %lu", (unsigned long)n);
+    EXPECT_EQ(n, 39);
     U(BCryptFreeBuffer)(l);
 }
 TEST(ap_enumalg_names_for_known_set) {
     NEED_ENUM();
     ULONG n; BCRYPT_ALGORITHM_IDENTIFIER *l;
     NT_OK(enum_algs(0, &n, &l));
-    for (ULONG i = 0; i < n; i++) t_note("alg[%lu] class=%lu name=%ls", (unsigned long)i, (unsigned long)l[i].dwClass, l[i].pszName);
+    /* exact Win10 22H2 list, in enumeration order */
+    static const struct { ULONG cls; const WCHAR *nm; } ex[] = {
+        {1,L"AES"},{1,L"3DES"},{1,L"3DES_112"},{1,L"XTS-AES"},{1,L"DESX"},{1,L"DES"},{1,L"RC2"},{1,L"RC4"},
+        {2,L"SHA256"},{2,L"SHA384"},{2,L"SHA512"},{2,L"SHA1"},{2,L"MD5"},{2,L"MD4"},{2,L"MD2"},{2,L"AES-GMAC"},{2,L"AES-CMAC"},
+        {3,L"RSA"},{4,L"DH"},{4,L"ECDH_P256"},{4,L"ECDH_P384"},{4,L"ECDH_P521"},{4,L"ECDH"},
+        {5,L"RSA_SIGN"},{5,L"ECDSA_P256"},{5,L"ECDSA_P384"},{5,L"ECDSA_P521"},{5,L"ECDSA"},{5,L"DSA"},
+        {6,L"RNG"},{6,L"FIPS186DSARNG"},{6,L"DUALECRNG"},
+        {7,L"SP800_108_CTR_HMAC"},{7,L"SP800_56A_CONCAT"},{7,L"PBKDF2"},{7,L"CAPI_KDF"},{7,L"TLS1_1_KDF"},{7,L"TLS1_2_KDF"},{7,L"HKDF"} };
+    EXPECT_EQ(n, sizeof(ex) / sizeof(ex[0]));
+    for (ULONG i = 0; i < n && i < sizeof(ex) / sizeof(ex[0]); i++) {
+        t_label("alg[%lu]", (unsigned long)i);
+        EXPECT_EQ(l[i].dwClass, ex[i].cls);
+        EXPECT_WSTR(l[i].pszName, ex[i].nm);
+    }
     if (n) U(BCryptFreeBuffer)(l);
 }
 
@@ -260,7 +276,8 @@ TEST(ap_enumprov_single_allocation_and_order) {
     const UCHAR *strings = (const UCHAR *)(l + n);
     for (ULONG i = 0; i < n; i++) CHECK((const UCHAR *)l[i].pszProviderName >= strings);
     CHECK((const UCHAR *)l[0].pszProviderName == strings);
-    for (ULONG i = 0; i < n; i++) t_note("SHA256 provider[%lu]=%ls", (unsigned long)i, l[i].pszProviderName);
+    EXPECT_EQ(n, 1);
+    EXPECT_WSTR(l[0].pszProviderName, MS_PRIMITIVE_PROVIDER);
     U(BCryptFreeBuffer)(l);
 }
 TEST(ap_enumprov_listed_providers_open) {
@@ -295,16 +312,16 @@ TEST(ap_enumprov_unknown_algorithm) {
     NEED_PROV();
     ULONG n; BCRYPT_PROVIDER_NAME *l;
     NTSTATUS s = enum_prov(L"NoSuchAlgorithm", &n, &l);
-    t_note("EnumProviders(NoSuchAlgorithm) -> 0x%08lx count=%lu", (unsigned long)s, (unsigned long)n);
+    NT_EQ(s, AP_NOT_FOUND);
+    EXPECT_EQ(n, 0);                  /* the count is zeroed on failure */
     if (s >= 0 && n) U(BCryptFreeBuffer)(l);
-    else if (s >= 0) CHECK(1);
-    else NT_FAILED(s);
 }
 TEST(ap_enumprov_case_of_algorithm_name) {
     NEED_PROV();
     ULONG n; BCRYPT_PROVIDER_NAME *l;
     NTSTATUS s = enum_prov(L"aes", &n, &l);
-    t_note("EnumProviders(\"aes\") -> 0x%08lx count=%lu", (unsigned long)s, (unsigned long)n);
+    NT_OK(s);                         /* the algorithm name is matched case-insensitively here */
+    EXPECT_EQ(n, 1);
     if (s >= 0 && n) U(BCryptFreeBuffer)(l);
 }
 TEST(ap_enumprov_repeatable) {
@@ -323,7 +340,7 @@ TEST(ap_enumprov_platform_provider_optional) {
     NT_OK(enum_prov(L"RSA", &n, &l));
     int found = 0;
     for (ULONG i = 0; i < n; i++) if (!lstrcmpW(l[i].pszProviderName, MS_PLATFORM_CRYPTO_PROVIDER)) found = 1;
-    t_note("RSA providers=%lu, platform crypto provider registered=%d", (unsigned long)n, found);
+    if (!t_has_tpm()) { EXPECT_EQ(n, 1); EXPECT_EQ(found, 0); }   /* oracle has no TPM: only the primitive provider */
     if (n) U(BCryptFreeBuffer)(l);
 }
 TEST(ap_enumprov_nonzero_count_matches_resolve) {
@@ -334,7 +351,8 @@ TEST(ap_enumprov_nonzero_count_matches_resolve) {
     NT_OK(enum_prov(L"SHA256", &n, &l));
     ULONG cb = 0; PCRYPT_PROVIDER_REFS refs = NULL;
     NTSTATUS s = U(BCryptResolveProviders)(NULL, 0, L"SHA256", NULL, CRYPT_UM, CRYPT_ALL_FUNCTIONS, &cb, &refs);
-    t_note("ResolveProviders SHA256 -> 0x%08lx count=%lu (EnumProviders count %lu)", (unsigned long)s, (unsigned long)(refs ? refs->cProviders : 0), (unsigned long)n);
-    if (s >= 0 && refs) { EXPECT_EQ(refs->cProviders, n); U(BCryptFreeBuffer)(refs); }
+    NT_OK(s);
+    CHECK(refs != NULL);
+    if (s >= 0 && refs) { EXPECT_EQ(refs->cProviders, n); EXPECT_EQ(n, 1); U(BCryptFreeBuffer)(refs); }
     if (n) U(BCryptFreeBuffer)(l);
 }

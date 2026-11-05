@@ -106,20 +106,20 @@ TEST(pfxexport_empty_store_size_query) {
     CRYPT_DATA_BLOB b = {0, NULL};
     SET_ERR(0);
     BOOL r = U(PFXExportCertStoreEx)(s, &b, L"pw", NULL, 0);
-    t_note("empty store size query: ret=%d err=0x%lx cb=%lu", r, GetLastError(), b.cbData);
-    if (r) CHECK(b.cbData > 0);
+    EXPECT_EQ(r, 1);
+    EXPECT_EQ(b.cbData, 85);          /* size of an export of an empty store (random salts do not change the length) */
     pp_close(s);
 }
 TEST(pfxexport_empty_store_produces_valid_pfx) {
     NEED_EXPORT(); PP_WINE_NO_EXPORT();
     HCERTSTORE s = pp_memstore();
     CRYPT_DATA_BLOB b;
-    if (!pp_export_ex(s, &b, L"pw", NULL, 0)) { t_note("empty store export fails: 0x%lx", GetLastError()); pp_close(s); return; }
+    if (!pp_export_ex(s, &b, L"pw", NULL, 0)) { CHECKF(0, "export err 0x%lx", GetLastError()); pp_close(s); return; }
     if (b.pbData) {
         CHECK(U(PFXIsPFXBlob)(&b));
         if (U(PFXVerifyPassword)) { CHECK(U(PFXVerifyPassword)(&b, L"pw", 0)); CHECK(!U(PFXVerifyPassword)(&b, L"other", 0)); }
         HCERTSTORE s2 = U(PFXImportCertStore)(&b, L"pw", PP_NP);
-        t_note("empty pfx re-import: %s (err %lu)", s2 ? "store" : "NULL", GetLastError());
+        CHECKF(s2 != NULL, "err %lu", GetLastError());
         if (s2) EXPECT_EQ(pp_count(s2), 0);
         pp_close(s2);
         LocalFree(b.pbData);
@@ -130,8 +130,9 @@ TEST(pfxexport_empty_store_legacy_api) {
     NEED_EXPORT(); PP_WINE_NO_EXPORT();
     HCERTSTORE s = pp_memstore();
     CRYPT_DATA_BLOB b;
-    if (pp_export(s, &b, L"pw", 0) && b.pbData) { CHECK(U(PFXIsPFXBlob)(&b)); LocalFree(b.pbData); }
-    else t_note("empty store legacy export fails: 0x%lx", GetLastError());
+    BOOL r = pp_export(s, &b, L"pw", 0);
+    CHECKF(r && b.pbData, "err 0x%lx", GetLastError());
+    if (r && b.pbData) { CHECK(U(PFXIsPFXBlob)(&b)); LocalFree(b.pbData); }
     pp_close(s);
 }
 
@@ -150,8 +151,8 @@ TEST(pfxexport_ex_size_query_then_fill) {
     b.pbData = buf; b.cbData = need + 64;
     r = U(PFXExportCertStoreEx)(s, &b, L"rt", NULL, EXPORT_PRIVATE_KEYS);
     CHECKF(r, "fill err %lu", GetLastError());
-    CHECK(b.cbData <= need + 64);
-    t_note("size query %lu, final %lu", need, b.cbData);
+    EXPECT_EQ(b.cbData, need);        /* the filled export has exactly the size the query reported */
+    EXPECT_EQ(need, 1692);
     CHECK(U(PFXIsPFXBlob)(&b));
     /* bytes past the reported length are untouched */
     int untouched = 1;
@@ -160,7 +161,7 @@ TEST(pfxexport_ex_size_query_then_fill) {
     LocalFree(buf);
     pp_close(s);
 }
-TEST(pfxexport_ex_small_buffer_observed) {
+TEST(pfxexport_ex_small_buffer_fails_and_reports_size) {
     NEED_EXPORT(); PP_WINE_NO_EXPORT();
     HCERTSTORE s = leaf_store(1);
     if (!s) { CHECK(s != NULL); return; }
@@ -171,11 +172,15 @@ TEST(pfxexport_ex_small_buffer_observed) {
     b.pbData = buf; b.cbData = need - 1;
     SET_ERR(0);
     BOOL r = U(PFXExportCertStoreEx)(s, &b, L"rt", NULL, EXPORT_PRIVATE_KEYS);
-    t_note("buffer one byte short: ret=%d err=%lu cbData=%lu (need %lu)", r, GetLastError(), b.cbData, need);
+    EXPECT_EQ(r, 0);
+    EXPECT_ERR(0);                    /* Win10 22H2 fails without setting a last error */
+    EXPECT_EQ(b.cbData, need);
     b.cbData = 1;
     SET_ERR(0);
     r = U(PFXExportCertStoreEx)(s, &b, L"rt", NULL, EXPORT_PRIVATE_KEYS);
-    t_note("buffer of 1 byte: ret=%d err=%lu cbData=%lu", r, GetLastError(), b.cbData);
+    EXPECT_EQ(r, 0);
+    EXPECT_ERR(0);
+    EXPECT_EQ(b.cbData, need);
     LocalFree(buf);
     pp_close(s);
 }
@@ -385,17 +390,18 @@ TEST(pfxexport_report_not_able_to_export_private_key) {
     BOOL r = U(PFXExportCertStoreEx)(s, &b, L"x", NULL, EXPORT_PRIVATE_KEYS | REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY);
     CHECK(!r);
     DWORD e = GetLastError();
-    CHECKF(e == E_NTE_BAD_KEY || e == E_NTE_BAD_KEY_STATE || e == E_NTE_PERM, "err 0x%lx", e);
+    EXPECT_EQ(e, E_NTE_BAD_KEY);      /* 0x8009000b NTE_BAD_KEY_STATE */
     pp_close(s);
 }
-TEST(pfxexport_nonexportable_key_without_report_flag_observed) {
+TEST(pfxexport_nonexportable_key_without_report_flag_exports_without_key) {
     NEED_EXPORT(); PP_WINE_NO_EXPORT();
     HCERTSTORE s = leaf_store(0);
     if (!s) { CHECK(s != NULL); return; }
     CRYPT_DATA_BLOB b;
     SET_ERR(0);
     BOOL r = pp_export_ex(s, &b, L"x", NULL, EXPORT_PRIVATE_KEYS);
-    t_note("non-exportable key, EXPORT_PRIVATE_KEYS only: ret=%d err=0x%lx has_key=%d", r, GetLastError(), r ? reimport_has_key(&b, L"x") : -9);
+    EXPECT_EQ(r, 1);                  /* succeeds silently: the key is simply left out */
+    if (r) EXPECT_EQ(reimport_has_key(&b, L"x"), 0);
     if (r && b.pbData) LocalFree(b.pbData);
     pp_close(s);
 }
@@ -511,7 +517,7 @@ TEST(pfxexport_extended_properties_flag) {
         HCERTSTORE s2 = U(PFXImportCertStore)(&without, L"pw", PP_NP | PKCS12_INCLUDE_EXTENDED_PROPERTIES);
         if (s2) {
             PCCERT_CONTEXT c2 = U(CertEnumCertificatesInStore)(s2, NULL);
-            if (c2) { t_note("description prop without export flag present=%d", pp_has_prop(c2, CERT_DESCRIPTION_PROP_ID, NULL)); U(CertFreeCertificateContext)(c2); }
+            if (c2) { EXPECT_EQ(pp_has_prop(c2, CERT_DESCRIPTION_PROP_ID, NULL), 0); U(CertFreeCertificateContext)(c2); }
         }
         pp_close(s2);
     }
@@ -543,7 +549,8 @@ TEST(pfxexport_encrypt_certificates_flag_hides_certs_from_plain_reader) {
     if (b.pbData) {
         SET_ERR(0);
         HCERTSTORE s2 = U(PFXImportCertStore)(&b, NULL, PKCS12_ONLY_NOT_ENCRYPTED_CERTIFICATES | PKCS12_IMPORT_SILENT);
-        t_note("ONLY_NOT_ENCRYPTED on ENCRYPT_CERTIFICATES export: %s certs=%d err=0x%lx", s2 ? "store" : "NULL", pp_count(s2), GetLastError());
+        CHECK(s2 == NULL);
+        EXPECT_ERR(CRYPT_E_NOT_FOUND);
         pp_close(s2);
         HCERTSTORE s3 = U(PFXImportCertStore)(&b, L"pw", PP_NP);
         CHECK(s3 != NULL);
@@ -623,7 +630,7 @@ TEST(pfxexport_pbes2_flag_with_null_para_uses_default) {
     HCERTSTORE s = cert_only_store();
     CRYPT_DATA_BLOB b;
     BOOL r = pp_export_ex(s, &b, L"pw", NULL, PKCS12_EXPORT_PBES2_PARAMS);
-    t_note("PKCS12_EXPORT_PBES2_PARAMS with pvPara NULL: ret=%d err=0x%lx", r, GetLastError());
+    CHECKF(r, "err 0x%lx", GetLastError());
     if (r && b.pbData) LocalFree(b.pbData);
     pp_close(s);
 }
@@ -635,7 +642,8 @@ TEST(pfxexport_pbes2_unsupported_names) {
         CRYPT_DATA_BLOB b;
         SET_ERR(0);
         BOOL r = pbes2_export(s, &b, L"pw", names[i], 0);
-        t_note("PBES2 name \"%ls\": ret=%d err=%lu", names[i], r, GetLastError());
+        t_label("\"%ls\"", names[i]);
+        EXPECT_FAIL(r == 0, ERROR_NOT_SUPPORTED);
         if (r && b.pbData) LocalFree(b.pbData);
     }
     pp_close(s);

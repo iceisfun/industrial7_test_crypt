@@ -8,7 +8,6 @@ static void do_open(const struct algd *a, LPCWSTR impl) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = SENTINEL;
     NTSTATUS s = AP_OPEN(&h, a->id, impl, 0);
-    if (s < 0 && !a->hard) { t_note("%ls: open failed 0x%08lx (not mandatory)", a->id, (unsigned long)s); return; }
     NT_OK(s);
     if (s < 0) return;
     CHECK(h != NULL && h != SENTINEL);
@@ -73,9 +72,8 @@ TEST(ap_open_empty_algid) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = SENTINEL;
     NTSTATUS s = AP_OPEN(&h, L"", NULL, 0);
-    NT_FAILED(s);
-    t_note("empty algorithm id -> 0x%08lx", (unsigned long)s);
-    if (s >= 0) AP_CLOSE(h);
+    NT_EQ(s, AP_INVALID_PARAM);
+    CHECK(h == SENTINEL);
 }
 TEST(ap_open_unknown_algid) {
     NEED_CORE();
@@ -83,10 +81,9 @@ TEST(ap_open_unknown_algid) {
     for (unsigned i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         BCRYPT_ALG_HANDLE h = SENTINEL;
         NTSTATUS s = AP_OPEN(&h, bad[i], NULL, 0);
-        NT_FAILED(s);
+        t_label("%ls", bad[i]);
+        NT_EQ(s, AP_NOT_FOUND);       /* unknown algorithm: STATUS_NOT_FOUND (also for near-miss spellings) */
         CHECK(h == SENTINEL);
-        if (i == 0) NT_EQ(s, AP_NOT_FOUND);       /* unknown algorithm: STATUS_NOT_FOUND */
-        else t_note("%ls -> 0x%08lx", bad[i], (unsigned long)s);
         if (s >= 0) AP_CLOSE(h);
     }
 }
@@ -97,8 +94,8 @@ TEST(ap_open_long_algid_rejected) {
     big[599] = 0;
     BCRYPT_ALG_HANDLE h = SENTINEL;
     NTSTATUS s = AP_OPEN(&h, big, NULL, 0);
-    NT_FAILED(s);
-    t_note("599-char algorithm id -> 0x%08lx", (unsigned long)s);
+    NT_EQ(s, AP_NOT_FOUND);
+    CHECK(h == SENTINEL);
     if (s >= 0) AP_CLOSE(h);
 }
 TEST(ap_open_bogus_provider) {
@@ -107,8 +104,9 @@ TEST(ap_open_bogus_provider) {
     for (unsigned i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         BCRYPT_ALG_HANDLE h = SENTINEL;
         NTSTATUS s = AP_OPEN(&h, BCRYPT_AES_ALGORITHM, bad[i], 0);
-        NT_FAILED(s);
-        t_note("provider \"%ls\" -> 0x%08lx", bad[i], (unsigned long)s);
+        t_label("%ls", bad[i]);
+        NT_EQ(s, AP_NOT_FOUND);
+        CHECK(h == SENTINEL);
         if (s >= 0) AP_CLOSE(h);
     }
 }
@@ -116,46 +114,45 @@ TEST(ap_open_bogus_provider_bogus_alg) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = SENTINEL;
     NTSTATUS s = AP_OPEN(&h, L"NoSuchAlgorithm", L"Microsoft No Such Provider", 0);
-    NT_FAILED(s);
-    t_note("bogus alg + bogus provider -> 0x%08lx", (unsigned long)s);
+    NT_EQ(s, AP_NOT_FOUND);
 }
 TEST(ap_open_empty_provider) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = NULL;
     NTSTATUS s = AP_OPEN(&h, BCRYPT_AES_ALGORITHM, L"", 0);
-    t_note("empty provider string -> 0x%08lx", (unsigned long)s);
+    NT_OK(s);                           /* an empty provider string selects the default provider */
     if (s >= 0) { CHECK(h != NULL); AP_CLOSE(h); }
 }
 TEST(ap_open_provider_name_case) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = NULL;
     NTSTATUS s = AP_OPEN(&h, BCRYPT_AES_ALGORITHM, L"microsoft primitive provider", 0);
-    t_note("lower-case provider name -> 0x%08lx", (unsigned long)s);
+    NT_OK(s);                           /* provider names compare case-insensitively */
     if (s >= 0) AP_CLOSE(h);
     h = NULL;
     s = AP_OPEN(&h, L"aes", NULL, 0);
-    t_note("lower-case algorithm id -> 0x%08lx", (unsigned long)s);
+    NT_EQ(s, AP_NOT_SUPPORTED);         /* but "aes" is STATUS_NOT_SUPPORTED, not NOT_FOUND */
     if (s >= 0) AP_CLOSE(h);
 }
 TEST(ap_open_platform_crypto_provider) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = SENTINEL;
-    /* the Platform Crypto Provider needs a TPM: either outcome is legal, but it must not leak a handle on failure */
+    /* the Platform Crypto Provider needs a TPM: without one (oracle: tpm status 0x8028400f) STATUS_NOT_FOUND and no handle */
+    int notpm = !t_has_tpm();
     NTSTATUS s = AP_OPEN(&h, BCRYPT_RSA_ALGORITHM, MS_PLATFORM_CRYPTO_PROVIDER, 0);
-    t_note("MS_PLATFORM_CRYPTO_PROVIDER RSA -> 0x%08lx", (unsigned long)s);
+    if (notpm) NT_EQ(s, AP_NOT_FOUND);
     if (s >= 0) { CHECK(h != NULL && h != SENTINEL); NT_OK(AP_CLOSE(h)); }
     else CHECK(h == SENTINEL);
     h = SENTINEL;
     s = AP_OPEN(&h, BCRYPT_AES_ALGORITHM, MS_PLATFORM_CRYPTO_PROVIDER, 0);
-    t_note("MS_PLATFORM_CRYPTO_PROVIDER AES -> 0x%08lx", (unsigned long)s);
-    if (s >= 0) AP_CLOSE(h);
+    if (notpm) NT_EQ(s, AP_NOT_FOUND);
+    if (s >= 0) AP_CLOSE(h); else CHECK(h == SENTINEL);
 }
 TEST(ap_open_primitive_provider_unsupported_alg) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = SENTINEL;
     NTSTATUS s = AP_OPEN(&h, L"NoSuchAlgorithm", MS_PRIMITIVE_PROVIDER, 0);
-    NT_FAILED(s);
-    t_note("primitive provider + unknown alg -> 0x%08lx", (unsigned long)s);
+    NT_EQ(s, AP_NOT_FOUND);
 }
 
 /* ---------- flags ---------- */
@@ -191,7 +188,7 @@ TEST(ap_open_plain_hash_is_not_keyed) {
         NT_OK(AP_CLOSE(h));
     }
 }
-TEST(ap_open_hmac_objectlength_not_smaller_than_plain) {
+TEST(ap_open_hmac_objectlength_exact_values) {
     NEED_CORE();
     for (int i = 0; i < NHASH; i++) {
         BCRYPT_ALG_HANDLE hp = NULL, hm = NULL;
@@ -205,10 +202,10 @@ TEST(ap_open_hmac_objectlength_not_smaller_than_plain) {
             static const struct { const WCHAR *id; ULONG p, m; } ex[] = {
                 {L"MD2",310,310},{L"MD4",310,310},{L"MD5",310,374},{L"SHA1",326,422},
                 {L"SHA256",326,422},{L"SHA384",422,582},{L"SHA512",422,582}};
+            int hit = 0;
             for (size_t k = 0; k < sizeof(ex)/sizeof(ex[0]); k++)
-                if (!wcscmp(hash_algs[i]->id, ex[k].id)) { t_label("%ls", ex[k].id); EXPECT_EQ(lp, ex[k].p); EXPECT_EQ(lm, ex[k].m); t_label(NULL); }
-            CHECK(lp > 0);
-            CHECK(lm >= lp);
+                if (!wcscmp(hash_algs[i]->id, ex[k].id)) { hit++; t_label("%ls", ex[k].id); EXPECT_EQ(lp, ex[k].p); EXPECT_EQ(lm, ex[k].m); t_label(NULL); }
+            EXPECT_EQ(hit, 1);              /* every hash algorithm is pinned exactly */
         }
         if (hp) AP_CLOSE(hp);
         if (hm) AP_CLOSE(hm);
@@ -238,15 +235,17 @@ TEST(ap_open_hmac_and_reusable_combined) {
 }
 TEST(ap_open_hash_flags_on_nonhash_algs) {
     NEED_CORE();
-    static const struct { const WCHAR *id; ULONG fl; } c[] = {
-        { BCRYPT_AES_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG }, { BCRYPT_AES_ALGORITHM, BCRYPT_HASH_REUSABLE_FLAG },
-        { BCRYPT_RSA_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG }, { BCRYPT_RNG_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG },
-        { BCRYPT_ECDSA_P256_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG }, { BCRYPT_PBKDF2_ALGORITHM, BCRYPT_HASH_REUSABLE_FLAG },
+    /* observed on Win10 22H2: the HMAC flag (0x8) is silently accepted by AES only; everything else is INVALID_PARAMETER */
+    static const struct { const WCHAR *id; ULONG fl; NTSTATUS want; } c[] = {
+        { BCRYPT_AES_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG, AP_OK }, { BCRYPT_AES_ALGORITHM, BCRYPT_HASH_REUSABLE_FLAG, AP_INVALID_PARAM },
+        { BCRYPT_RSA_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG, AP_INVALID_PARAM }, { BCRYPT_RNG_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG, AP_INVALID_PARAM },
+        { BCRYPT_ECDSA_P256_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG, AP_INVALID_PARAM }, { BCRYPT_PBKDF2_ALGORITHM, BCRYPT_HASH_REUSABLE_FLAG, AP_INVALID_PARAM },
     };
     for (unsigned i = 0; i < sizeof(c) / sizeof(c[0]); i++) {
         BCRYPT_ALG_HANDLE h = SENTINEL;
         NTSTATUS s = AP_OPEN(&h, c[i].id, NULL, c[i].fl);
-        t_note("%ls flags=0x%lx -> 0x%08lx", c[i].id, (unsigned long)c[i].fl, (unsigned long)s);
+        t_label("%ls flags=0x%lx", c[i].id, (unsigned long)c[i].fl);
+        NT_EQ(s, c[i].want);
         if (s >= 0) AP_CLOSE(h); else CHECK(h == SENTINEL);
     }
 }
@@ -254,16 +253,18 @@ TEST(ap_open_capi_aes_flag) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = NULL;
     NTSTATUS s = AP_OPEN(&h, BCRYPT_AES_ALGORITHM, NULL, BCRYPT_CAPI_AES_FLAG);
-    t_note("AES + BCRYPT_CAPI_AES_FLAG -> 0x%08lx", (unsigned long)s);
+    NT_EQ(s, AP_INVALID_PARAM);
     if (s >= 0) { ULONG v, cb; NT_OK(ap_getdw(h, BCRYPT_BLOCK_LENGTH, &v, &cb)); EXPECT_EQ(v, 16); NT_OK(AP_CLOSE(h)); }
 }
 TEST(ap_open_unknown_flag_bits) {
     NEED_CORE();
-    static const ULONG fl[] = { 0x2, 0x4, 0x40, 0x80, 0x100, 0x80000000u };
+    /* observed: 0x4 is NOT_SUPPORTED, 0x40 is ignored, the rest INVALID_PARAMETER */
+    static const struct { ULONG fl; NTSTATUS want; } fl[] = { {0x2, AP_INVALID_PARAM}, {0x4, AP_NOT_SUPPORTED}, {0x40, AP_OK}, {0x80, AP_INVALID_PARAM}, {0x100, AP_INVALID_PARAM}, {0x80000000u, AP_INVALID_PARAM} };
     for (unsigned i = 0; i < sizeof(fl) / sizeof(fl[0]); i++) {
         BCRYPT_ALG_HANDLE h = SENTINEL;
-        NTSTATUS s = AP_OPEN(&h, BCRYPT_SHA256_ALGORITHM, NULL, fl[i]);
-        t_note("SHA256 flags=0x%lx -> 0x%08lx", (unsigned long)fl[i], (unsigned long)s);
+        NTSTATUS s = AP_OPEN(&h, BCRYPT_SHA256_ALGORITHM, NULL, fl[i].fl);
+        t_label("flags=0x%lx", (unsigned long)fl[i].fl);
+        NT_EQ(s, fl[i].want);
         if (s >= 0) AP_CLOSE(h); else CHECK(h == SENTINEL);
     }
 }
@@ -288,9 +289,8 @@ TEST(ap_close_double_close) {
     if (!h) return;
     NT_OK(AP_CLOSE(h));
     /* the object header is zeroed before it is freed, so a stale handle fails validation */
-    NTSTATUS s2 = AP_CLOSE(h);          /* stale heap memory: only the failure is guaranteed */
-    NT_FAILED(s2);
-    t_note("double close -> 0x%08lx", (unsigned long)s2);
+    NTSTATUS s2 = AP_CLOSE(h);          /* observed 3x3 on Win10: always INVALID_HANDLE */
+    NT_EQ(s2, AP_INVALID_HANDLE);
 }
 TEST(ap_close_then_getprop_and_setprop_fail) {
     NEED_CORE();

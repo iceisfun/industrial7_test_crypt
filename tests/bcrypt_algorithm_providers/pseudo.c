@@ -4,7 +4,7 @@
 struct ph {
     ULONG_PTR h;
     const char *tag;
-    const WCHAR *name;   /* AlgorithmName; NULL = observe only */
+    const WCHAR *name;   /* AlgorithmName (every pseudo handle reports its algorithm; HMAC handles report the hash name) */
     const WCHAR *mode;   /* ChainingMode for ciphers, NULL otherwise */
     int fam;             /* 1 cipher 2 hash 3 hmac 4 rng 5 rsa 6 rsasign 7 dsa 8 dh 9 ecc 10 kd 11 generic/observe */
     int blk, hlen, kmin, kmax, kinc;
@@ -24,17 +24,17 @@ static const struct ph g_ph[] = {
  { 0x061, "sha512",   L"SHA512", NULL, 2, 0, 64, -1,-1,-1 },
  { 0x071, "rc4",      L"RC4",    NULL, 1, -1, 0, -1,-1,-1 },
  { 0x081, "rng",      L"RNG",    NULL, 4, 0, 0, -1,-1,-1 },
- { 0x091, "hmac_md5", NULL,      NULL, 3, 0, 16, -1,-1,-1 },
- { 0x0a1, "hmac_sha1",NULL,      NULL, 3, 0, 20, -1,-1,-1 },
- { 0x0b1, "hmac_sha256",NULL,    NULL, 3, 0, 32, -1,-1,-1 },
- { 0x0c1, "hmac_sha384",NULL,    NULL, 3, 0, 48, -1,-1,-1 },
- { 0x0d1, "hmac_sha512",NULL,    NULL, 3, 0, 64, -1,-1,-1 },
+ { 0x091, "hmac_md5", L"MD5",      NULL, 3, 0, 16, -1,-1,-1 },
+ { 0x0a1, "hmac_sha1",L"SHA1",      NULL, 3, 0, 20, -1,-1,-1 },
+ { 0x0b1, "hmac_sha256",L"SHA256",    NULL, 3, 0, 32, -1,-1,-1 },
+ { 0x0c1, "hmac_sha384",L"SHA384",    NULL, 3, 0, 48, -1,-1,-1 },
+ { 0x0d1, "hmac_sha512",L"SHA512",    NULL, 3, 0, 64, -1,-1,-1 },
  { 0x0e1, "rsa",      L"RSA",    NULL, 5, 0, 0, 512, 16384, 8 },
- { 0x0f1, "ecdsa",    NULL,      NULL, 11, 0, 0, -1,-1,-1 },
- { 0x101, "aes_cmac", NULL,      NULL, 11, 0, 0, -1,-1,-1 },
- { 0x111, "aes_gmac", NULL,      NULL, 11, 0, 0, -1,-1,-1 },
- { 0x121, "hmac_md2", NULL,      NULL, 3, 0, 16, -1,-1,-1 },
- { 0x131, "hmac_md4", NULL,      NULL, 3, 0, 16, -1,-1,-1 },
+ { 0x0f1, "ecdsa",    L"ECDSA",      NULL, 11, 0, 0, -1,-1,-1 },
+ { 0x101, "aes_cmac", L"AES-CMAC",      NULL, 11, 0, 0, -1,-1,-1 },
+ { 0x111, "aes_gmac", L"AES-GMAC",      NULL, 11, 0, 0, -1,-1,-1 },
+ { 0x121, "hmac_md2", L"MD2",      NULL, 3, 0, 16, -1,-1,-1 },
+ { 0x131, "hmac_md4", L"MD4",      NULL, 3, 0, 16, -1,-1,-1 },
  { 0x141, "3des_cbc", L"3DES",   CBC, 1, 8, 0, 192,192,0 },
  { 0x151, "3des_ecb", L"3DES",   ECB, 1, 8, 0, 192,192,0 },
  { 0x161, "3des_cfb", L"3DES",   CFB, 1, 8, 0, 192,192,0 },
@@ -56,14 +56,14 @@ static const struct ph g_ph[] = {
  { 0x261, "rc2_ecb",  L"RC2",    ECB, 1, 8, 0, -1,-1,-1 },
  { 0x271, "rc2_cfb",  L"RC2",    CFB, 1, 8, 0, -1,-1,-1 },
  { 0x281, "dh",       L"DH",     NULL, 8, 0, 0, 512, 4096, 8 },
- { 0x291, "ecdh",     NULL,      NULL, 11, 0, 0, -1,-1,-1 },
- { 0x2a1, "ecdh256",  NULL,      NULL, 9, 0, 0, 256,256,0 },
- { 0x2b1, "ecdh384",  NULL,      NULL, 9, 0, 0, 384,384,0 },
- { 0x2c1, "ecdh521",  NULL,      NULL, 9, 0, 0, 521,521,0 },
+ { 0x291, "ecdh",     L"ECDH",      NULL, 11, 0, 0, -1,-1,-1 },
+ { 0x2a1, "ecdh256",  L"ECDH_P256",      NULL, 9, 0, 0, 256,256,0 },
+ { 0x2b1, "ecdh384",  L"ECDH_P384",      NULL, 9, 0, 0, 384,384,0 },
+ { 0x2c1, "ecdh521",  L"ECDH_P521",      NULL, 9, 0, 0, 521,521,0 },
  { 0x2d1, "dsa",      L"DSA",    NULL, 7, 0, 0, 512, 3072, 64 },
- { 0x2e1, "ecdsa256", NULL,      NULL, 9, 0, 0, 256,256,0 },
- { 0x2f1, "ecdsa384", NULL,      NULL, 9, 0, 0, 384,384,0 },
- { 0x301, "ecdsa521", NULL,      NULL, 9, 0, 0, 521,521,0 },
+ { 0x2e1, "ecdsa256", L"ECDSA_P256",      NULL, 9, 0, 0, 256,256,0 },
+ { 0x2f1, "ecdsa384", L"ECDSA_P384",      NULL, 9, 0, 0, 384,384,0 },
+ { 0x301, "ecdsa521", L"ECDSA_P521",      NULL, 9, 0, 0, 521,521,0 },
  { 0x311, "rsa_sign", L"RSA_SIGN", NULL, 6, 0, 0, 512, 16384, 8 },
  { 0x321, "capi_kdf", L"CAPI_KDF", NULL, 10, 0, 0, 0,16384,8 },
  { 0x331, "pbkdf2",   L"PBKDF2", NULL, 10, 0, 0, 0,16384,8 },
@@ -91,7 +91,6 @@ static void ph_check(const struct ph *p) {
     NTSTATUS s = ap_getstr(h, BCRYPT_ALGORITHM_NAME, nm, 64, &cb);
     NT_OK(s);
     if (s >= 0 && p->name) { CHECK(!lstrcmpW(nm, p->name)); EXPECT_EQ(cb, (lstrlenW(p->name) + 1) * 2); }
-    else if (s >= 0) t_note("%s: AlgorithmName=\"%ls\"", p->tag, nm);
     if (p->fam == 1) {
         if (p->blk > 0) { NT_OK(ap_getdw(h, BCRYPT_BLOCK_LENGTH, &v, &cb)); EXPECT_EQ(v, p->blk); }
         if (p->mode) CHECK(mode_eq(h, p->mode));
@@ -185,7 +184,6 @@ TEST(ap_pseudo_matches_real_handle) {
         ULONG a = 0, b = 0, cb;
         NT_OK(ap_getdw(h, BCRYPT_OBJECT_LENGTH, &a, &cb));
         NT_OK(ap_getdw((BCRYPT_ALG_HANDLE)c[i].p, BCRYPT_OBJECT_LENGTH, &b, &cb));
-        if (a != b) t_note("%ls ObjectLength real=%lu pseudo=%lu", c[i].id, (unsigned long)a, (unsigned long)b);
         EXPECT_EQ(a, b);
         AP_CLOSE(h);
     }
@@ -199,13 +197,14 @@ TEST(ap_pseudo_unmapped_values_invalid) {
         NT_EQ(AP_CLOSE((BCRYPT_ALG_HANDLE)bad[i]), AP_INVALID_HANDLE);
     }
 }
-TEST(ap_pseudo_just_past_table_observed) {
+TEST(ap_pseudo_just_past_table_invalid) {
     NEED_CORE();
     static const ULONG_PTR p[] = { 0x3a1, 0x3b1, 0x401, 0x451 };
     for (unsigned i = 0; i < 4; i++) {
         ULONG v = 0, cb = 0;
         NTSTATUS s = ap_getdw((BCRYPT_ALG_HANDLE)p[i], BCRYPT_OBJECT_LENGTH, &v, &cb);
-        t_note("pseudo 0x%lx -> 0x%08lx (invalid on 19041/19045, mapped on newer builds)", (unsigned long)p[i], (unsigned long)s);
+        t_label("pseudo 0x%lx", (unsigned long)p[i]);
+        NT_EQ(s, AP_INVALID_HANDLE);      /* Win10 19045: nothing past 0x391 is mapped (newer builds map more) */
     }
 }
 TEST(ap_pseudo_handle_in_getprop_argument_order) {

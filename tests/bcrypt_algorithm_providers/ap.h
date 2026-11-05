@@ -66,7 +66,7 @@ struct algd {
     const WCHAR *id;
     int cls;       /* expected PrimitiveType (BCRYPT_*_INTERFACE value), -1 = do not check */
     enum fam fam;
-    int hard;      /* 1 = every Win10 x64 build opens it with the default provider; 0 = observe only */
+    int hard;      /* 1 = Win10 22H2 opens it with the default provider (true for every listed algorithm, probed) */
     int blk;       /* BlockLength for ciphers, -1 unchecked */
     int hlen, hblk;/* HashDigestLength / HashBlockLength for hashes */
     int kmin, kmax, kinc; /* KeyLengths (bits), kmin == -1 unchecked */
@@ -103,8 +103,8 @@ struct algd {
  X(ecdh384,  L"ECDH_P384",       -1, F_ECDH,   1,  -1,  0,  0,   384,  384,  0, 0,            0,            384, L"nistP384") \
  X(ecdh521,  L"ECDH_P521",       -1, F_ECDH,   1,  -1,  0,  0,   521,  521,  0, 0,            0,            521, L"nistP521") \
  X(rng,      L"RNG",              6, F_RNG,    1,  -1,  0,  0,    -1,  -1, -1, 0,            0,              0, NULL) \
- X(fips186,  L"FIPS186DSARNG",    6, F_RNG,    0,  -1,  0,  0,    -1,  -1, -1, 0,            0,              0, NULL) \
- X(dualec,   L"DUALECRNG",        6, F_RNG,    0,  -1,  0,  0,    -1,  -1, -1, 0,            0,              0, NULL) \
+ X(fips186,  L"FIPS186DSARNG",    6, F_RNG,    1,  -1,  0,  0,    -1,  -1, -1, 0,            0,              0, NULL) \
+ X(dualec,   L"DUALECRNG",        6, F_RNG,    1,  -1,  0,  0,    -1,  -1, -1, 0,            0,              0, NULL) \
  X(sp800108, L"SP800_108_CTR_HMAC",7, F_KD,     1,  -1,  0,  0,     0,16384,  8, 0,            0,              0, NULL) \
  X(sp80056a, L"SP800_56A_CONCAT", 7, F_KD,     1,  -1,  0,  0,     0,16384,  8, 0,            0,              0, NULL) \
  X(pbkdf2,   L"PBKDF2",           7, F_KD,     1,  -1,  0,  0,     0,16384,  8, 0,            0,              0, NULL) \

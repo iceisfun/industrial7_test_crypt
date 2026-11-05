@@ -48,11 +48,20 @@ static NTSTATUS getdw_flags(BCRYPT_HANDLE h, LPCWSTR p, ULONG fl) {
     ULONG v = 0, c = 0;
     return U(BCryptGetProperty)(h, p, (PUCHAR)&v, 4, &c, fl);
 }
+struct idv { const WCHAR *id; ULONG v; };
+/* look up the value pinned for id in table t; a missing entry is a test failure (every algorithm is pinned) */
+static ULONG pinned(const struct idv *t, size_t n, const WCHAR *id) {
+    for (size_t i = 0; i < n; i++) if (!lstrcmpW(t[i].id, id)) return t[i].v;
+    t_check(0, __FILE__, __LINE__, "pinned value exists", "no pinned value for %ls", id);
+    return 0xffffffffu;
+}
+#define PINNED(tab, id) pinned((tab), sizeof(tab) / sizeof((tab)[0]), (id))
+
 static void with_alg(const struct algd *a, void (*fn)(const struct algd *, BCRYPT_ALG_HANDLE)) {
     NEED_CORE();
     BCRYPT_ALG_HANDLE h = NULL;
     NTSTATUS s = AP_OPEN(&h, a->id, NULL, 0);
-    if (s < 0) { if (a->hard) NT_OK(s); else t_note("%ls not available (0x%08lx)", a->id, (unsigned long)s); return; }
+    if (s < 0) { NT_OK(s); return; }
     fn(a, h);
     AP_CLOSE(h);
 }
@@ -65,8 +74,7 @@ static void f_name(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     NTSTATUS s = AP_GET(h, BCRYPT_ALGORITHM_NAME, NULL, 0, &res);
     NT_OK(s);
     if (a->fam == F_ECDSA || a->fam == F_ECDH || a->fam == F_DH) {
-        if (res != want) t_note("%ls AlgorithmName size %lu (expected %lu)", a->id, (unsigned long)res, (unsigned long)want);
-        want = res;
+        EXPECT_EQ(res, want);
     } else EXPECT_EQ(res, want);
     if (want == 0 || want > sizeof(buf)) return;
     memset(buf, 0xAA, sizeof(buf)); res = 0;
@@ -76,7 +84,7 @@ static void f_name(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     NT_OK(AP_GET(h, BCRYPT_ALGORITHM_NAME, buf, want, &res));
     EXPECT_EQ(res, want);
     CHECK(buf[want / 2 - 1] == 0);                  /* terminator is included in the count */
-    if (a->fam == F_ECDSA || a->fam == F_ECDH || a->fam == F_DH) { if (lstrcmpW(buf, a->id)) t_note("%ls AlgorithmName is \"%ls\"", a->id, buf); }
+    if (a->fam == F_ECDSA || a->fam == F_ECDH || a->fam == F_DH) { EXPECT_WSTR(buf, a->id); }
     else CHECK(!lstrcmpW(buf, a->id));
     memset(buf, 0xAA, sizeof(buf)); res = 0;
     NT_OK(AP_GET(h, BCRYPT_ALGORITHM_NAME, buf, sizeof(buf), &res));
@@ -87,7 +95,6 @@ static void f_ptype(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     NTSTATUS s = proto_dw(h, BCRYPT_PRIMITIVE_TYPE, &v);
     NT_OK(s);
     if (a->cls >= 0) EXPECT_EQ(v, a->cls);
-    else t_note("%ls PrimitiveType=%lu", a->id, (unsigned long)v);
     CHECK(v >= 1 && v <= 7);
 }
 static void f_provh(const struct algd *a, BCRYPT_ALG_HANDLE h) {
@@ -111,8 +118,7 @@ static void f_flags(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     static const ULONG fl[] = { 1, 2, 0x100, 0x80000000u };
     for (unsigned i = 0; i < sizeof(fl) / sizeof(fl[0]); i++) {
         NTSTATUS s = getdw_flags(h, BCRYPT_ALGORITHM_NAME, fl[i]);
-        if (a->fam == F_DH) { if (s != AP_INVALID_PARAM) t_note("DH flags=0x%lx -> 0x%08lx", (unsigned long)fl[i], (unsigned long)s); }
-        else NT_EQ(s, AP_INVALID_PARAM);
+        NT_EQ(s, AP_INVALID_PARAM);
     }
 }
 static void f_keylens(const struct algd *a, BCRYPT_ALG_HANDLE h) {
@@ -126,8 +132,14 @@ static void f_keylens(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     NT_OK(s);
     BCRYPT_KEY_LENGTHS_STRUCT kl; memcpy(&kl, raw, 12);
     if (a->kmin < 0) {
-        t_note("%ls KeyLengths min=%lu max=%lu inc=%lu", a->id, (unsigned long)kl.dwMinLength, (unsigned long)kl.dwMaxLength, (unsigned long)kl.dwIncrement);
-        CHECK(kl.dwMinLength <= kl.dwMaxLength);
+        /* algorithms whose range the table does not carry: observed on Win10 22H2 */
+        static const struct { const WCHAR *id; ULONG mn, mx, inc; } ex[] = { { L"RC2", 16, 128, 8 }, { L"RC4", 8, 512, 8 }, { L"XTS-AES", 256, 512, 128 } };
+        int found = 0;
+        for (unsigned i = 0; i < 3; i++) if (!lstrcmpW(ex[i].id, a->id)) {
+            found = 1;
+            EXPECT_EQ(kl.dwMinLength, ex[i].mn); EXPECT_EQ(kl.dwMaxLength, ex[i].mx); EXPECT_EQ(kl.dwIncrement, ex[i].inc);
+        }
+        CHECKF(found, "%ls", a->id);
         return;
     }
     EXPECT_EQ(kl.dwMinLength, a->kmin);
@@ -213,16 +225,16 @@ TEST(ap_getprop_hash_and_key_handle_types_accepted) {
 static void f_sym_block(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     ULONG v = 0;
     NT_OK(proto_dw(h, BCRYPT_BLOCK_LENGTH, &v));
-    if (a->blk >= 0) EXPECT_EQ(v, a->blk); else t_note("%ls BlockLength=%lu", a->id, (unsigned long)v);
-    CHECK(v >= 1);
+    ULONG want = a->blk >= 0 ? (ULONG)a->blk : 1;          /* RC4 is a stream cipher: BlockLength 1 */
+    EXPECT_EQ(v, want);
     NT_OK(proto_dw(h, BCRYPT_BLOCK_SIZE_LIST, &v));
-    if (a->blk >= 0 && v != (ULONG)a->blk) t_note("%ls BlockSizeList=%lu", a->id, (unsigned long)v);
+    EXPECT_EQ(v, want);
 }
 static void f_sym_objlen(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     ULONG v = 0;
     NT_OK(proto_dw(h, BCRYPT_OBJECT_LENGTH, &v));
-    CHECK(v > 0 && v < 65536);
-    t_note("%ls ObjectLength=%lu", a->id, (unsigned long)v);
+    static const struct idv ex[] = { {L"AES",654},{L"DES",542},{L"3DES",558},{L"3DES_112",542},{L"DESX",574},{L"RC2",414},{L"RC4",654} };
+    EXPECT_EQ(v, PINNED(ex, a->id));
 }
 static void f_sym_chain(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     WCHAR buf[64];
@@ -234,7 +246,7 @@ static void f_sym_chain(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     memcpy(buf, raw, 64);
     buf[31] = 0;
     if (a->fam == F_SYM && a->mok != 0) CHECK(!lstrcmpW(buf, BCRYPT_CHAIN_MODE_CBC));  /* default mode is CBC */
-    else t_note("%ls default ChainingMode=\"%ls\"", a->id, buf);
+    else CHECK(!lstrcmpW(buf, BCRYPT_CHAIN_MODE_NA));        /* RC4: ChainingModeN/A */
     ULONG res = 0;
     NT_EQ(AP_GET(h, BCRYPT_CHAINING_MODE, raw, 63, &res), AP_BUF_TOO_SMALL);
     EXPECT_EQ(res, 64);
@@ -250,7 +262,8 @@ static void f_sym_unsupported(const struct algd *a, BCRYPT_ALG_HANDLE h) {
 static void f_sym_msgblock(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     ULONG v = 0;
     NT_OK(proto_dw(h, BCRYPT_MESSAGE_BLOCK_LENGTH, &v));
-    t_note("%ls default MessageBlockLength=%lu", a->id, (unsigned long)v);
+    static const struct idv ex[] = { {L"AES",16},{L"DES",8},{L"3DES",8},{L"3DES_112",8},{L"DESX",8},{L"RC2",8},{L"RC4",1} };
+    EXPECT_EQ(v, PINNED(ex, a->id));
 }
 static void f_sym_authtag(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     UCHAR b[12]; ULONG res = 0;
@@ -264,7 +277,7 @@ static void f_sym_effkey(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     if (a->id[0] == L'R' && a->id[1] == L'C' && a->id[2] == L'2') {
         NT_OK(s);
         ULONG v = 0; NT_OK(proto_dw(h, BCRYPT_EFFECTIVE_KEY_LENGTH, &v));
-        t_note("RC2 default EffectiveKeyLength=%lu", (unsigned long)v);
+        EXPECT_EQ(v, 128);
     } else NT_EQ(s, AP_NOT_SUPPORTED);
 }
 #define GEN_SYM(tag) \
@@ -287,11 +300,10 @@ TEST(ap_aes_objectlength_by_mode) {
     for (int m = 0; m < 5; m++) {
         NT_OK(AP_SET(h, BCRYPT_CHAINING_MODE, (PUCHAR)ap_mode_names[m], (lstrlenW(ap_mode_names[m]) + 1) * 2));
         NT_OK(ap_getdw(h, BCRYPT_OBJECT_LENGTH, &len[m], NULL));
-        t_note("AES %ls ObjectLength=%lu", ap_mode_names[m], (unsigned long)len[m]);
     }
-    /* only GCM carries the large GHASH tables */
-    for (int m = 0; m < 4; m++) CHECK(len[m] == len[1]);
-    CHECK(len[4] > len[1]);
+    /* only GCM carries the large GHASH tables (exact Win10 22H2 values) */
+    for (int m = 0; m < 4; m++) { t_label("mode %d", m); EXPECT_EQ(len[m], 654); }
+    t_label("GCM"); EXPECT_EQ(len[4], 3262);
     AP_CLOSE(h);
 }
 TEST(ap_aes_authtaglength_by_mode) {
@@ -323,8 +335,8 @@ TEST(ap_aes_keylengths_flag_0x80) {
     if (!h) return;
     BCRYPT_KEY_LENGTHS_STRUCT kl = { 0 }; ULONG res = 0;
     NTSTATUS s = U(BCryptGetProperty)(h, BCRYPT_KEY_LENGTHS, (PUCHAR)&kl, sizeof(kl), &res, 0x80);
-    t_note("AES KeyLengths flags=0x80 -> 0x%08lx min=%lu max=%lu inc=%lu", (unsigned long)s, (unsigned long)kl.dwMinLength, (unsigned long)kl.dwMaxLength, (unsigned long)kl.dwIncrement);
-    CHECK(s == AP_OK || s == AP_INVALID_PARAM);
+    NT_OK(s);                         /* flag 0x80 is accepted for KeyLengths and returns the same range */
+    EXPECT_EQ(kl.dwMinLength, 128); EXPECT_EQ(kl.dwMaxLength, 256); EXPECT_EQ(kl.dwIncrement, 64);
     AP_CLOSE(h);
 }
 TEST(ap_aes_variants_share_keylengths_and_block) {
@@ -356,8 +368,8 @@ static void f_hash_len(const struct algd *a, BCRYPT_ALG_HANDLE h) {
 static void f_hash_objlen(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     ULONG v = 0;
     NT_OK(proto_dw(h, BCRYPT_OBJECT_LENGTH, &v));
-    CHECK(v > 0 && v < 65536);
-    t_note("%ls ObjectLength=%lu", a->id, (unsigned long)v);
+    static const struct idv ex[] = { {L"MD2",310},{L"MD4",310},{L"MD5",310},{L"SHA1",326},{L"SHA256",326},{L"SHA384",422},{L"SHA512",422} };
+    EXPECT_EQ(v, PINNED(ex, a->id));
 }
 static void f_hash_unsupported(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     static const WCHAR *const p[] = { BCRYPT_BLOCK_LENGTH, BCRYPT_KEY_LENGTHS, BCRYPT_CHAINING_MODE, BCRYPT_KEY_STRENGTH, BCRYPT_SIGNATURE_LENGTH, BCRYPT_PADDING_SCHEMES, BCRYPT_AUTH_TAG_LENGTH, NULL };
@@ -380,8 +392,11 @@ static void f_hash_oid(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     NT_OK(AP_GET(h, BCRYPT_HASH_OID_LIST, buf, need, &got));
     EXPECT_EQ(got, need);
     ULONG cnt; memcpy(&cnt, buf, 4);
-    t_note("%ls HashOIDList count=%lu bytes=%lu", a->id, (unsigned long)cnt, (unsigned long)need);
-    CHECK(cnt >= 1 && cnt < 8);
+    static const struct idv excnt[] = { {L"MD2",2},{L"MD4",2},{L"MD5",3},{L"SHA1",2},{L"SHA256",2},{L"SHA384",2},{L"SHA512",2} };
+    static const struct idv exlen[] = { {L"MD2",70},{L"MD4",70},{L"MD5",86},{L"SHA1",64},{L"SHA256",72},{L"SHA384",72},{L"SHA512",72} };
+    EXPECT_EQ(cnt, PINNED(excnt, a->id));
+    EXPECT_EQ(need, PINNED(exlen, a->id));
+    if (cnt >= 8) return;
     /* BCRYPT_OID_LIST { ULONG dwOIDCount; BCRYPT_OID *pOIDs } where BCRYPT_OID { ULONG cbOID; PUCHAR pbOID } */
     BCRYPT_OID_LIST *l = (BCRYPT_OID_LIST *)buf;
     CHECK((UCHAR *)l->pOIDs >= buf && (UCHAR *)(l->pOIDs + cnt) <= buf + need);
@@ -416,13 +431,16 @@ TEST(ap_hash_multiobjectlength) {
         if (!h) continue;
         UCHAR b[8]; ULONG res = 0xdeadbeef;
         NTSTATUS s = AP_GET(h, L"MultiObjectLength", NULL, 0, &res);
-        t_note("%ls MultiObjectLength size query -> 0x%08lx cb=%lu", g_algs[idx[i]].id, (unsigned long)s, (unsigned long)res);
+        t_label("%ls", g_algs[idx[i]].id);
+        NT_OK(s);
         if (s >= 0) {
             EXPECT_EQ(res, 8);
             NT_EQ(AP_GET(h, L"MultiObjectLength", b, 7, &res), AP_BUF_TOO_SMALL);
             NT_OK(AP_GET(h, L"MultiObjectLength", b, 8, &res));
             ULONG v[2]; memcpy(v, b, 8);
-            t_note("  per-object=%lu base=%lu", (unsigned long)v[0], (unsigned long)v[1]);
+            static const struct { ULONG per, base; } ex[7] = { {198,112},{198,112},{198,112},{198,128},{2676,264},{3188,360},{3188,360} };
+            EXPECT_EQ(v[0], ex[i].per);
+            EXPECT_EQ(v[1], ex[i].base);
         }
         AP_CLOSE(h);
     }
@@ -439,7 +457,7 @@ TEST(ap_hash_hmac_flag_properties_match_plain) {
         NT_OK(proto_dw(h, BCRYPT_HASH_BLOCK_LENGTH, &v)); EXPECT_EQ(v, g_algs[idx[i]].hblk);
         WCHAR nm[64]; ULONG cb;
         NT_OK(ap_getstr(h, BCRYPT_ALGORITHM_NAME, nm, 64, &cb));
-        if (lstrcmpW(nm, g_algs[idx[i]].id)) t_note("HMAC-flag %ls handle reports name \"%ls\"", g_algs[idx[i]].id, nm);
+        EXPECT_WSTR(nm, g_algs[idx[i]].id);
         NT_OK(proto_dw(h, BCRYPT_IS_KEYED_HASH, &v)); EXPECT_EQ(v, 1);
         AP_CLOSE(h);
     }
@@ -450,12 +468,13 @@ TEST(ap_hash_cmac_gmac_open) {
     for (int i = 0; i < 2; i++) {
         BCRYPT_ALG_HANDLE h = NULL;
         NTSTATUS s = AP_OPEN(&h, id[i], NULL, 0);
-        t_note("%ls open -> 0x%08lx", id[i], (unsigned long)s);
+        t_label("%ls", id[i]);
+        NT_OK(s);
         if (s < 0) continue;
         ULONG v = 0, cb = 0;
-        s = ap_getdw(h, BCRYPT_HASH_LENGTH, &v, &cb); t_note("  HashDigestLength 0x%08lx %lu", (unsigned long)s, (unsigned long)v);
-        s = ap_getdw(h, BCRYPT_IS_KEYED_HASH, &v, &cb); t_note("  IsKeyedHash 0x%08lx %lu", (unsigned long)s, (unsigned long)v);
-        s = ap_getdw(h, BCRYPT_OBJECT_LENGTH, &v, &cb); t_note("  ObjectLength 0x%08lx %lu", (unsigned long)s, (unsigned long)v);
+        NT_OK(ap_getdw(h, BCRYPT_HASH_LENGTH, &v, &cb)); EXPECT_EQ(v, 16);
+        NT_OK(ap_getdw(h, BCRYPT_IS_KEYED_HASH, &v, &cb)); EXPECT_EQ(v, 1);
+        NT_OK(ap_getdw(h, BCRYPT_OBJECT_LENGTH, &v, &cb)); EXPECT_EQ(v, i == 0 ? 806 : 2918);
         AP_CLOSE(h);
     }
 }
@@ -480,7 +499,8 @@ TEST(ap_rng_name_variants) {
     for (int i = 0; i < 3; i++) {
         BCRYPT_ALG_HANDLE h = NULL;
         NTSTATUS s = AP_OPEN(&h, r[i].id, NULL, 0);
-        if (s < 0) { t_note("%ls unavailable 0x%08lx", r[i].id, (unsigned long)s); continue; }
+        NT_OK(s);
+        if (s < 0) continue;
         WCHAR nm[40]; ULONG cb;
         NT_OK(ap_getstr(h, BCRYPT_ALGORITHM_NAME, nm, 40, &cb));
         CHECK(!lstrcmpW(nm, r[i].id));
@@ -617,14 +637,16 @@ TEST(ap_ecc_generic_algs) {
     for (int i = 0; i < 2; i++) {
         BCRYPT_ALG_HANDLE h = NULL;
         NTSTATUS s = AP_OPEN(&h, id[i], NULL, 0);
-        t_note("%ls open -> 0x%08lx", id[i], (unsigned long)s);
+        t_label("%ls", id[i]);
+        NT_OK(s);
         if (s < 0) continue;
         BCRYPT_KEY_LENGTHS_STRUCT kl = { 0 }; ULONG res = 0;
         s = AP_GET(h, BCRYPT_KEY_LENGTHS, &kl, sizeof(kl), &res);
-        t_note("  KeyLengths 0x%08lx min=%lu max=%lu inc=%lu", (unsigned long)s, (unsigned long)kl.dwMinLength, (unsigned long)kl.dwMaxLength, (unsigned long)kl.dwIncrement);
+        NT_OK(s);
+        EXPECT_EQ(kl.dwMinLength, 112); EXPECT_EQ(kl.dwMaxLength, 528); EXPECT_EQ(kl.dwIncrement, 1);
         WCHAR nm[40];
         s = AP_GET(h, BCRYPT_ECC_CURVE_NAME, nm, sizeof(nm), &res);
-        t_note("  ECCCurveName without curve -> 0x%08lx", (unsigned long)s);
+        NT_EQ(s, AP_INVALID_PARAM);
         AP_CLOSE(h);
     }
 }
@@ -634,7 +656,7 @@ TEST(ap_ecc_generic_algs) {
 static void f_kd_objlen(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     ULONG v = 0;
     NT_OK(proto_dw(h, BCRYPT_OBJECT_LENGTH, &v));
-    t_note("%ls ObjectLength=%lu", a->id, (unsigned long)v);
+    EXPECT_EQ(v, 702);                /* identical for every KDF algorithm */
 }
 static void f_kd_unsupported(const struct algd *a, BCRYPT_ALG_HANDLE h) {
     static const WCHAR *const p[] = { BCRYPT_BLOCK_LENGTH, BCRYPT_HASH_LENGTH, BCRYPT_CHAINING_MODE, BCRYPT_KEY_STRENGTH, BCRYPT_SIGNATURE_LENGTH, BCRYPT_PADDING_SCHEMES, NULL };
