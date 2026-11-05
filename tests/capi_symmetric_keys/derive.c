@@ -120,14 +120,15 @@ TEST(derive_invalid_algid) {
 }
 TEST(derive_invalid_flags) {
     NEED_CRYPT(); NEED_PROV(p); NEED_HASH();
-    /* decomp CPDeriveKey: (flags & 0xfbea) != 0 -> NTE_BAD_FLAGS; valid low bits are 0x1 0x4 0x10 0x400 */
+    /* Win10 probe: every undefined flag gives NTE_BAD_FLAGS except 0x8, which advapi32 rejects with 87 */
     static const DWORD fl[] = { 2, 8, 0x20, 0x40, 0x80, 0x100, 0x200, 0x800, 0x1000, 0x2000, 0x4000, 0x8000 };
     for (unsigned i = 0; i < SIZEOFA(fl); i++) {
         HCRYPTHASH h = pw_hash(p, CALG_SHA1); HCRYPTKEY k = 0; SET_ERR(0);
         if (!h) { CHECK(0); continue; }
         BOOL r = U(CryptDeriveKey)(p, CALG_AES_128, h, fl[i], &k);
+        t_label("flag 0x%lx", fl[i]);
         CHECKF(!r, "flag 0x%lx accepted", fl[i]);
-        if (r) U(CryptDestroyKey)(k); else EXPECT_ERR(NTE_BAD_FLAGS_);
+        if (r) U(CryptDestroyKey)(k); else EXPECT_ERR(fl[i] == 8 ? ERROR_INVALID_PARAMETER : NTE_BAD_FLAGS_);
         U(CryptDestroyHash)(h);
     }
     ck_release(p);

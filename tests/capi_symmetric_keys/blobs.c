@@ -230,20 +230,23 @@ TEST(blob_plaintext_import_illegal_key_lengths) {
         BYTE key[64]; memset(key, 0x33, sizeof key);
         HCRYPTKEY k = 0; SET_ERR(0);
         BOOL r = ck_import_plain(p, t[i].a, key, t[i].len, 0, &k);
+        t_label("alg 0x%x len %lu", t[i].a, t[i].len);
         CHECKF(!r, "alg 0x%x len %lu imported", t[i].a, t[i].len);
-        if (r) U(CryptDestroyKey)(k); else EXPECT_ERR(NTE_BAD_LEN_);
+        /* Win10 probe: DES with 7 bytes gives NTE_BAD_FLAGS, every other bad length NTE_BAD_LEN */
+        if (r) U(CryptDestroyKey)(k); else EXPECT_ERR(t[i].a == CALG_DES && t[i].len == 7 ? NTE_BAD_FLAGS_ : NTE_BAD_LEN_);
     }
     ck_release(p);
 }
 TEST(blob_plaintext_import_flags) {
     NEED_CRYPT(); NEED_PROV(p);
-    /* decomp CPImportKey: (flags & 0xffffdeac) -> NTE_BAD_FLAGS; valid: 0x1 0x2 0x10 0x40 0x100 0x2000 */
+    /* Win10 probe: undefined flags give NTE_BAD_FLAGS, except 0x8 which advapi32 rejects with 87 */
     static const DWORD bad[] = { 0x4, 0x8, 0x20, 0x80, 0x200, 0x400, 0x800, 0x1000, 0x4000, 0x8000, 0x10000 };
     for (unsigned i = 0; i < SIZEOFA(bad); i++) {
         HCRYPTKEY k = 0; SET_ERR(0);
         BOOL r = ck_import_plain(p, CALG_AES_128, sp_key128, 16, bad[i], &k);
+        t_label("flag 0x%lx", bad[i]);
         CHECKF(!r, "flag 0x%lx accepted", bad[i]);
-        if (r) U(CryptDestroyKey)(k); else EXPECT_ERR(NTE_BAD_FLAGS_);
+        if (r) U(CryptDestroyKey)(k); else EXPECT_ERR(bad[i] == 8 ? ERROR_INVALID_PARAMETER : NTE_BAD_FLAGS_);
     }
     static const DWORD good[] = { 0, CRYPT_EXPORTABLE, CRYPT_NO_SALT, CRYPT_EXPORTABLE | CRYPT_NO_SALT };
     for (unsigned i = 0; i < SIZEOFA(good); i++) {
@@ -420,7 +423,8 @@ TEST(blob_simple_import_with_public_key_handle_fails) {
     BYTE b[512]; DWORD n = sizeof b; CHECK(U(CryptExportKey)(k, pub, SIMPLEBLOB, 0, b, &n));
     SET_ERR(0);
     BOOL ok = U(CryptImportKey)(p, b, n, pub, 0, &r);
-    CHECK(!ok); if (ok) U(CryptDestroyKey)(r); else t_note("SIMPLEBLOB import with public-only handle -> 0x%lx", GetLastError());
+    CHECK(ok);   /* Win10 probe: accepted even with a public-only hPubKey */
+    if (ok) U(CryptDestroyKey)(r); else t_note("SIMPLEBLOB import with public-only handle -> 0x%lx", GetLastError());
     U(CryptDestroyKey)(k); U(CryptDestroyKey)(pub); U(CryptDestroyKey)(priv); ck_release(p);
 }
 TEST(blob_simple_import_without_hpubkey) {
@@ -431,7 +435,8 @@ TEST(blob_simple_import_without_hpubkey) {
     SET_ERR(0);
     BOOL ok = U(CryptImportKey)(p, b, n, 0, 0, &r);
     t_note("SIMPLEBLOB import with hPubKey=0 (ephemeral context, no AT_KEYEXCHANGE key): %s 0x%lx", ok ? "ok" : "fail", ok ? 0 : GetLastError());
-    CHECK(!ok); if (ok) U(CryptDestroyKey)(r);
+    CHECK(ok);   /* Win10 probe: accepted, the earlier private-key import serves as the context key */
+    if (ok) U(CryptDestroyKey)(r);
     U(CryptDestroyKey)(k); U(CryptDestroyKey)(pub); U(CryptDestroyKey)(priv); ck_release(p);
 }
 TEST(blob_simple_import_corrupt_ciphertext) {
@@ -456,7 +461,9 @@ TEST(blob_simple_import_truncated) {
     for (unsigned i = 0; i < SIZEOFA(lens); i++) {
         r = 0; SET_ERR(0);
         BOOL ok = U(CryptImportKey)(p, b, lens[i], priv, 0, &r);
-        CHECKF(!ok, "len %lu imported", lens[i]);
+        /* Win10 probe: the import is accepted at every truncated length (only the header is validated) */
+        t_label("len %lu", lens[i]);
+        CHECKF(ok, "len %lu import failed 0x%lx", lens[i], GetLastError());
         if (ok) U(CryptDestroyKey)(r); else t_note("simple blob len %lu -> 0x%lx", lens[i], GetLastError());
     }
     U(CryptDestroyKey)(k); U(CryptDestroyKey)(pub); U(CryptDestroyKey)(priv); ck_release(p);

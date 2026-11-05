@@ -265,8 +265,7 @@ TEST(genkey_two_keys_differ) {
 TEST(genkey_invalid_provider) {
     NEED_CRYPT();
     HCRYPTKEY k = 0xCC; SET_ERR(0);
-    BOOL r = U(CryptGenKey)(0, CALG_AES_128, 0, &k);
-    CHECK(!r); t_note("CryptGenKey(hProv=0) last error 0x%lx", GetLastError());
+    EXPECT_CAPI_FAIL(U(CryptGenKey)(0, CALG_AES_128, 0, &k), ERROR_INVALID_PARAMETER);
 }
 TEST(genkey_provider_without_aes_alg) {
     NEED_CRYPT();
