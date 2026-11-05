@@ -104,3 +104,11 @@ NTSTATUS ck_cs_decrypt(LONG et, const BYTE *key, ULONG keylen, ULONG usage, cons
     ((csx_fin_fn)c->Finish)(&st);
     return r;
 }
+
+static BYTE g_seq_base;
+static BOOLEAN WINAPI ck_rng_seq(PUCHAR buf, ULONG len) { for (ULONG i = 0; i < len; i++) buf[i] = (BYTE)(g_seq_base + i); return TRUE; }
+int ck_install_seq_rng(BYTE base) {
+    RNX r; memset(&r, 0, sizeof r);
+    r.Type = 0x7e57; r.P2 = (void *)ck_rng_seq; g_seq_base = base;
+    return CKP(CDRegisterRng) && CKP(CDRegisterRng)(&r) == TRUE;
+}
