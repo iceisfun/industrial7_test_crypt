@@ -33,3 +33,9 @@ for v in range(4):
     d=open('pe%d.bin'%v,'rb').read()
     for a,N in algs:
         print("static const unsigned char kat_pe%d_%s[] = %s;"%(v,a,carr(ac(d,a))))
+
+flat = bytes((i * 11 + 5) & 0xff for i in range(100))
+pe0 = open('pe0.bin', 'rb').read()
+for a, N in algs[:2]:
+    print("static const unsigned char kat_flat_%s[] = %s;" % (a, carr(hashlib.new(a, flat).hexdigest())))
+    print("static const unsigned char kat_flatpe0_%s[] = %s;" % (a, carr(hashlib.new(a, pe0).hexdigest())))
