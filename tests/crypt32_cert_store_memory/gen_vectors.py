@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+# Authoring-time generator for vectors.h (fixed certs/CRLs/CTLs/PKCS7/PKCS12). Output is checked in.
+import datetime, subprocess, os, tempfile, struct
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+
+D = datetime.datetime
+def key(): return rsa.generate_private_key(65537, 1024)
+def name(cn): return x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CryptT"), x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+der = lambda o: o.public_bytes(serialization.Encoding.DER)
+ca_k = key(); ca_n = name("CryptT Store CA")
+def cert(cn, k, serial, nb, issuer_key=ca_k, issuer=ca_n, na=D(2060,1,1)):
+    b = (x509.CertificateBuilder().subject_name(name(cn)).issuer_name(issuer).public_key(k.public_key())
+         .serial_number(serial).not_valid_before(nb).not_valid_after(na))
+    return b.sign(issuer_key, hashes.SHA256())
+ka, kb, kc = key(), key(), key()
+ca = cert("CryptT Store CA", ca_k, 1, D(2020,1,1))
+A = cert("CryptT Cert A", ka, 0x1001, D(2020,1,1))
+A2 = cert("CryptT Cert A", ka, 0x1001, D(2021,1,1))   # same issuer+serial, later NotBefore
+B = cert("CryptT Cert B", kb, 0x1002, D(2020,1,1))
+C = cert("CryptT Cert C", kc, 0x1003, D(2020,1,1))
+def crl(issuer_key, issuer, tu, nu, serials):
+    b = x509.CertificateRevocationListBuilder().issuer_name(issuer).last_update(tu).next_update(nu)
+    for s in serials:
+        b = b.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(s).revocation_date(D(2022,1,1)).build())
+    return b.sign(issuer_key, hashes.SHA256())
+crl1a = crl(ca_k, ca_n, D(2022,1,1), D(2060,1,1), [0x1001])
+crl1b = crl(ca_k, ca_n, D(2023,1,1), D(2060,1,1), [0x1001, 0x1002])
+crl2 = crl(kb, name("CryptT Cert B"), D(2022,1,1), D(2060,1,1), [])
+
+# ---- hand-built CTLs (PKCS#7 signedData wrapping the CTL; signed with a real RSA signature)
+def L(n):
+    if n < 0x80: return bytes([n])
+    b = n.to_bytes((n.bit_length()+7)//8, 'big'); return bytes([0x80|len(b)]) + b
+def T(tag, c): return bytes([tag]) + L(len(c)) + c
+def oid(s):
+    p = [int(x) for x in s.split('.')]; o = bytes([p[0]*40+p[1]])
+    for v in p[2:]:
+        e = [v & 0x7f]; v >>= 7
+        while v: e.append(0x80 | (v & 0x7f)); v >>= 7
+        o += bytes(reversed(e))
+    return T(6, o)
+def gt(d): return T(0x18, d.strftime("%Y%m%d%H%M%SZ").encode())
+def utc(d): return T(0x17, d.strftime("%y%m%d%H%M%SZ").encode())
+def integer(n):
+    b = n.to_bytes(n.bit_length()//8+1, 'big'); return T(2, b)
+SHA1 = T(0x30, oid("1.3.14.3.2.26") + b"\x05\x00")
+def ctl(listid, seq, tu, subjects_certs):
+    usage = T(0x30, oid("1.3.6.1.5.5.7.3.2"))
+    ents = b"".join(T(0x30, T(4, hashes.Hash(hashes.SHA1()) and __import__('hashlib').sha1(der(c)).digest())) for c in subjects_certs)
+    body = usage + T(4, listid) + integer(seq) + utc(tu) + SHA1 + (T(0x30, ents) if ents else b"")
+    return T(0x30, body)
+def signed(content):
+    ci = T(0x30, oid("1.3.6.1.4.1.311.10.1") + T(0xa0, content))
+    sig = ca_k.sign(content, padding.PKCS1v15(), hashes.SHA256())
+    issuer = der(ca).__class__ and ca.issuer.public_bytes()
+    si = T(0x30, integer(1) + T(0x30, issuer + integer(1)) + T(0x30, oid("2.16.840.1.101.3.4.2.1") + b"\x05\x00")
+           + T(0x30, oid("1.2.840.113549.1.1.1") + b"\x05\x00") + T(4, sig))
+    sd = T(0x30, integer(1) + T(0x31, T(0x30, oid("2.16.840.1.101.3.4.2.1") + b"\x05\x00")) + ci + T(0x31, si))
+    return T(0x30, oid("1.2.840.113549.1.7.2") + T(0xa0, sd))
+ctl1a = signed(ctl(b"CryptTList1", 1, D(2022,1,1), [A, B]))
+ctl1b = signed(ctl(b"CryptTList1", 2, D(2023,1,1), [A, B, C]))
+ctl2 = signed(ctl(b"CryptTList2", 1, D(2022,1,1), [C]))
+
+# ---- PKCS7 certs-only and PKCS12 via openssl
+tmp = tempfile.mkdtemp()
+def w(n, b): p = os.path.join(tmp, n); open(p, 'wb').write(b); return p
+pem = lambda o: o.public_bytes(serialization.Encoding.PEM)
+pa, pb, pc = w("a.pem", pem(A)), w("b.pem", pem(B)), w("c.pem", pem(C))
+allpem = w("all.pem", pem(A)+pem(B)+pem(C))
+p7 = subprocess.check_output(["openssl","crl2pkcs7","-nocrl","-certfile",allpem,"-outform","DER"])
+p7crl = subprocess.check_output(["openssl","crl2pkcs7","-in",w("crl.pem",pem(crl1a)),"-certfile",allpem,"-outform","DER"])
+kpem = w("ka.pem", ka.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+p12 = subprocess.check_output(["openssl","pkcs12","-export","-inkey",kpem,"-in",pa,"-certfile",w("ca.pem",pem(ca)),
+    "-passout","pass:","-keypbe","PBE-SHA1-3DES","-certpbe","PBE-SHA1-3DES","-macalg","sha1"])
+p12pw = subprocess.check_output(["openssl","pkcs12","-export","-inkey",kpem,"-in",pa,
+    "-passout","pass:cryptt","-keypbe","PBE-SHA1-3DES","-certpbe","PBE-SHA1-3DES","-macalg","sha1"])
+
+def arr(n, b):
+    return "static const BYTE %s[] = {%s};\n" % (n, ",".join("0x%02x" % x for x in b))
+out = "/* generated by gen_vectors.py - do not edit */\n"
+for n, b in [("v_cert_ca", der(ca)), ("v_cert_a", der(A)), ("v_cert_a2", der(A2)), ("v_cert_b", der(B)), ("v_cert_c", der(C)),
+             ("v_crl_1a", der(crl1a)), ("v_crl_1b", der(crl1b)), ("v_crl_2", der(crl2)),
+             ("v_ctl_1a", ctl1a), ("v_ctl_1b", ctl1b), ("v_ctl_2", ctl2),
+             ("v_p7_certs", p7), ("v_p7_certs_crl", p7crl), ("v_p12", p12), ("v_p12pw", p12pw)]:
+    out += arr(n, b)
+open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors.h"), "w").write(out)
