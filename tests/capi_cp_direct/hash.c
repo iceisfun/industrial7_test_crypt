@@ -705,8 +705,11 @@ TEST(cpd_destroyhash_hmac_and_mac_hashes) {
     OKAY(R.CreateHash(p, CALG_HMAC, k, 0, &h));
     if (h) OKAY(R.DestroyHash(p, h));
     h = 0;
-    OKAY(R.CreateHash(p, CALG_MAC, k, 0, &h));
+    BYTE dk[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    ULONG_PTR k2 = cp_key(&R, p, CALG_DES, dk, 8);
+    OKAY(R.CreateHash(p, CALG_MAC, k2, 0, &h));
     if (h) OKAY(R.DestroyHash(p, h));
+    if (k2) R.DestroyKey(p, k2);
     /* Destroying the hash must not destroy the key it was created from. */
     BOOL ok; cp_kp_dw(&R, p, k, KP_ALGID, &ok); CHECK(ok);
     R.DestroyKey(p, k);
