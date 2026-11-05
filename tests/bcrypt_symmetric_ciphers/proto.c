@@ -259,8 +259,11 @@ TEST(bsc_pad_dec_output_sizes) {
 }
 TEST(bsc_pad_dec_full_pad_block_yields_empty) {
     fx f; FX_OR_SKIP(f, L"AES", CBC, K);
-    BYTE ct[16], iv[16] = {0}, pt[16]; ULONG got = 0;
-    EXPECT_EQ(enc(f.k.h, NULL, 0, iv, 16, ct, 16, &got, BCRYPT_BLOCK_PADDING), 0); EXPECT_EQ(got, 16);
+    BYTE ct[16], iv[16] = {0}, pt[16], none = 0; ULONG got = 0;
+    /* a NULL input pointer is rejected even for a zero-length input; a valid pointer with length 0 encrypts one pad block */
+    EXPECT_EQ(enc(f.k.h, NULL, 0, iv, 16, ct, 16, &got, BCRYPT_BLOCK_PADDING), NS_INVALID_PARAM); EXPECT_EQ(got, 16);
+    memset(iv, 0, 16); got = 0;
+    EXPECT_EQ(enc(f.k.h, &none, 0, iv, 16, ct, 16, &got, BCRYPT_BLOCK_PADDING), 0); EXPECT_EQ(got, 16);
     memset(iv, 0, 16); got = 0xAAAA;
     EXPECT_EQ(dec(f.k.h, ct, 16, iv, 16, pt, 16, &got, BCRYPT_BLOCK_PADDING), 0); EXPECT_EQ(got, 0);
     memset(iv, 0, 16); got = 0xAAAA;

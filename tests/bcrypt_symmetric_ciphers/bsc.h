@@ -27,12 +27,6 @@
 #define BCRYPT_CHAIN_MODE_CCM L"ChainingModeCCM"
 #endif
 
-/* The harness EXPECT_EQ evaluates its arguments twice (once for the test, once for the message), which is wrong
- * for calls with side effects. Re-define it to evaluate once. */
-#undef EXPECT_EQ
-#define EXPECT_EQ(a, b) do { unsigned long long a_ = (unsigned long long)(ULONG_PTR)(a), b_ = (unsigned long long)(ULONG_PTR)(b); \
-    t_check(a_ == b_, __FILE__, __LINE__, #a " == " #b, "got 0x%llx want 0x%llx", a_, b_); } while (0)
-
 #define P_Open    U(BCryptOpenAlgorithmProvider)
 #define P_Close   U(BCryptCloseAlgorithmProvider)
 #define P_GetProp U(BCryptGetProperty)

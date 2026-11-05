@@ -571,7 +571,9 @@ TEST(bsc_dup_rc4_copies_state) {
     BCRYPT_ALG_HANDLE a = bsc_open(L"RC4", NULL); if (!a) { t_skip("RC4"); return; }
     bkey k; if (bsc_genhex(a, &k, "0102030405060708090a0b0c0d0e0f10") != 0) { bsc_close(a); t_skip("RC4"); return; }
     BYTE z[16] = {0}, o[16]; ULONG g = 0;
-    if (WINE_UNSUP(enc(k.h, z, 16, NULL, 0, o, 16, &g, 0))) { bsc_free(&k); bsc_close(a); t_skip("emulator"); return; }
+    NTSTATUS s0 = enc(k.h, z, 16, NULL, 0, o, 16, &g, 0);
+    if (WINE_UNSUP(s0)) { bsc_free(&k); bsc_close(a); t_skip("emulator"); return; }
+    EXPECT_EQ(s0, 0);
     BCRYPT_KEY_HANDLE d = SENTINEL;
     EXPECT_EQ(P_Dup(k.h, &d, NULL, 0, 0), 0);
     if (d != SENTINEL) {
@@ -579,8 +581,10 @@ TEST(bsc_dup_rc4_copies_state) {
         EXPECT_EQ(enc(k.h, z, 16, NULL, 0, o1, 16, &g, 0), 0);
         EXPECT_EQ(enc(d, z, 16, NULL, 0, o2, 16, &g, 0), 0);
         CHECK(same(o1, o2, 16));                   /* duplicate starts at the same keystream offset as the original */
-        BYTE first[16]; hx("9ac7cc9a609d1ef7b2932899cde41b97", first); CHECK(same(o, first, 16));
+        BYTE first[16], second[16]; hx("9ac7cc9a609d1ef7b2932899cde41b97", first); hx("5248c4959014126a6e8a84f11d1a9e1c", second);
+        CHECK(same(o, first, 16));                 /* keystream offset 0..15 */
         CHECK(!same(o1, first, 16));               /* offset 16, not 0 */
+        CHECK(same(o1, second, 16));
         P_Destroy(d);
     }
     bsc_free(&k); bsc_close(a);

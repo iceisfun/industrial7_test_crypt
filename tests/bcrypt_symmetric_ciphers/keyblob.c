@@ -276,20 +276,25 @@ TEST(bsc_import_other_algorithm_key_as_import_key) {
     bkey ak; EXPECT_EQ(bsc_gen(a, &ak, KEY, 16), 0);
     ULONG cb; BYTE *blob = mkblob(KEY, 8, BCRYPT_KEY_DATA_BLOB_MAGIC, 1, 8, &cb);
     BCRYPT_KEY_HANDLE k = SENT; ULONG ol = bsc_objlen(d); BYTE *obj = (BYTE *)calloc(1, ol + 64);
-    /* hImportKey of a different algorithm than hAlgorithm is only allowed for the AES key wrap blob */
-    EXPECT_EQ(P_Imp(d, ak.h, BCRYPT_KEY_DATA_BLOB, &k, obj, ol, blob, cb, 0), NS_INVALID_PARAM);
-    CHECK(k == SENT);
+    /* hImportKey of a different algorithm than hAlgorithm */
+    NTSTATUS s = P_Imp(d, ak.h, BCRYPT_KEY_DATA_BLOB, &k, obj, ol, blob, cb, 0);
+    EXPECT_EQ(s, 0); CHECK(k != SENT);   /* hImportKey is ignored for a plain key data blob */
+    if (s == 0 && k != SENT) P_Destroy(k);
+    k = SENT;
     /* hImportKey must be a symmetric key handle */
     EXPECT_EQ(P_Imp(d, (BCRYPT_KEY_HANDLE)a, BCRYPT_KEY_DATA_BLOB, &k, obj, ol, blob, cb, 0), NS_INVALID_HANDLE);
+    CHECK(k == SENT);
     free(obj); free(blob); bsc_free(&ak); bsc_close(d); bsc_close(a);
 }
-TEST(bsc_export_with_other_algorithm_export_key) {
+TEST(bsc_export_with_unrelated_export_key_handle) {
     WINE_SKIP("export-key validation differs");
     BCRYPT_ALG_HANDLE a = bsc_open(L"AES", ECB), d = bsc_open(L"DES", ECB);
     if (!a || !d) { bsc_close(a); bsc_close(d); t_skip("AES/DES"); return; }
     bkey ak, dk; EXPECT_EQ(bsc_gen(a, &ak, KEY, 16), 0); EXPECT_EQ(bsc_gen(d, &dk, KEY, 8), 0);
     ULONG got = 0xAAAA; BYTE out[64];
-    EXPECT_EQ(P_Exp(dk.h, ak.h, BCRYPT_KEY_DATA_BLOB, out, 64, &got, 0), NS_INVALID_PARAM);
+    /* hExportKey is ignored for a plain key data blob */
+    EXPECT_EQ(P_Exp(dk.h, ak.h, BCRYPT_KEY_DATA_BLOB, out, 64, &got, 0), 0); EXPECT_EQ(got, 20);
+    CHECK(same(out + 12, KEY, 8));
     EXPECT_EQ(P_Exp(dk.h, (BCRYPT_KEY_HANDLE)a, BCRYPT_KEY_DATA_BLOB, out, 64, &got, 0), NS_INVALID_HANDLE);
     bsc_free(&ak); bsc_free(&dk); bsc_close(a); bsc_close(d);
 }
@@ -404,7 +409,8 @@ TEST(bsc_opaque_keeps_chaining_mode) {
 
 /* ---- AES key wrap (RFC 3394 / BCRYPT_AES_WRAP_KEY_BLOB) ------------------------------------------------ */
 static void wrap_case(const char *kek, const char *data, const char *wrapped) {
-    BCRYPT_ALG_HANDLE a = bsc_open(L"AES", ECB); if (!a) { t_skip("AES"); return; }
+    /* the wrapping key must not come from an ECB algorithm handle (INVALID_PARAMETER); CBC handles work */
+    BCRYPT_ALG_HANDLE a = bsc_open(L"AES", CBC); if (!a) { t_skip("AES"); return; }
     bkey kk, dk;
     BYTE kekb[32], datab[32], wr[48]; ULONG nk = (ULONG)hx(kek, kekb), nd = (ULONG)hx(data, datab), nw = (ULONG)hx(wrapped, wr);
     EXPECT_EQ(bsc_gen(a, &kk, kekb, nk), 0); EXPECT_EQ(bsc_gen(a, &dk, datab, nd), 0);
@@ -436,22 +442,35 @@ TEST(bsc_wrap_rfc3394_192_in_128) { wrap_case("000102030405060708090A0B0C0D0E0F1
 TEST(bsc_wrap_rfc3394_256_in_256) { wrap_case("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", "00112233445566778899AABBCCDDEEFF000102030405060708090A0B0C0D0E0F", "28c9f404c4b810f4cbccb35cfb87f8263f5786e2d80ed326cbc7f0e71a99f43bfb988b9b7a02dd21"); }
 TEST(bsc_wrap_rfc3394_192_in_192) { wrap_case("000102030405060708090A0B0C0D0E0F1011121314151617", "00112233445566778899AABBCCDDEEFF0001020304050607", "031d33264e15d33268f24ec260743edce1c6c7ddee725a936ba814915c6762d2"); }
 TEST(bsc_wrap_rfc3394_256_in_192) { wrap_case("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", "00112233445566778899AABBCCDDEEFF0001020304050607", "a8f9bc1612c68b3ff6e6f4fbe30e71e4769c8b80a32cb8958cd5d17d6b254da1"); }
+TEST(bsc_wrap_kek_from_ecb_handle_rejected) {
+    BCRYPT_ALG_HANDLE e = bsc_open(L"AES", ECB), c = bsc_open(L"AES", CBC); if (!e || !c) { bsc_close(e); bsc_close(c); t_skip("AES"); return; }
+    BYTE kekb[16], datab[16], wr[24]; hx("000102030405060708090A0B0C0D0E0F", kekb); hx("00112233445566778899AABBCCDDEEFF", datab);
+    hx("1fa68b0a8112b447aef34bd8fb5a7b829d3e862371d2cfe5", wr);
+    bkey kk, dk; EXPECT_EQ(bsc_gen(e, &kk, kekb, 16), 0); EXPECT_EQ(bsc_gen(c, &dk, datab, 16), 0);
+    BYTE out[64]; ULONG got = 0xAAAA, need = 0;
+    EXPECT_EQ(P_Exp(dk.h, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, NULL, 0, &need, 0), 0); EXPECT_EQ(need, 24);
+    EXPECT_EQ(P_Exp(dk.h, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, out, 24, &got, 0), NS_INVALID_PARAM);
+    BCRYPT_KEY_HANDLE k2 = SENT;
+    EXPECT_EQ(P_Imp(c, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, &k2, NULL, 0, wr, 24, 0), NS_INVALID_PARAM);
+    CHECK(k2 == SENT);
+    bsc_free(&kk); bsc_free(&dk); bsc_close(e); bsc_close(c);
+}
 TEST(bsc_wrap_unwrap_tampered_blob_fails) {
-    BCRYPT_ALG_HANDLE a = bsc_open(L"AES", ECB); if (!a) { t_skip("AES"); return; }
+    BCRYPT_ALG_HANDLE a = bsc_open(L"AES", CBC); if (!a) { t_skip("AES"); return; }
     BYTE kekb[16], wr[24]; hx("000102030405060708090A0B0C0D0E0F", kekb); hx("1fa68b0a8112b447aef34bd8fb5a7b829d3e862371d2cfe5", wr);
     bkey kk; EXPECT_EQ(bsc_gen(a, &kk, kekb, 16), 0);
     BCRYPT_KEY_HANDLE k2 = SENT;
     for (int i = 0; i < 24; i += 7) {
         BYTE bad[24]; memcpy(bad, wr, 24); bad[i] ^= 1;
         NTSTATUS s = P_Imp(a, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, &k2, NULL, 0, bad, 24, 0);
-        CHECKF(s < 0, "tampered byte %d accepted", i);
+        CHECKF(s == NS_AUTH_TAG_MISMATCH, "tampered byte %d -> 0x%lx", i, (unsigned long)s);
         if (s == 0) P_Destroy(k2);
         k2 = SENT;
     }
     NTSTATUS s = P_Imp(a, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, &k2, NULL, 0, wr, 23, 0);
-    CHECK(s < 0);
+    EXPECT_EQ(s, NS_INVALID_PARAM);
     s = P_Imp(a, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, &k2, NULL, 0, wr, 16, 0);
-    CHECK(s < 0);
+    EXPECT_EQ(s, NS_AUTH_TAG_MISMATCH);
     bsc_free(&kk); bsc_close(a);
 }
 TEST(bsc_wrap_requires_export_key) {
@@ -465,7 +484,7 @@ TEST(bsc_wrap_requires_export_key) {
 }
 TEST(bsc_wrap_blob_type_not_available_to_non_aes) {
     BCRYPT_ALG_HANDLE d = bsc_open(L"DES", ECB); if (!d) { t_skip("DES"); return; }
-    BCRYPT_ALG_HANDLE a = bsc_open(L"AES", ECB);
+    BCRYPT_ALG_HANDLE a = bsc_open(L"AES", CBC);
     bkey dk, kk; EXPECT_EQ(bsc_gen(d, &dk, KEY, 8), 0); EXPECT_EQ(bsc_gen(a, &kk, KEY, 16), 0);
     ULONG need = 0xAAAA;
     NTSTATUS s = P_Exp(dk.h, kk.h, BCRYPT_AES_WRAP_KEY_BLOB, NULL, 0, &need, 0);
@@ -528,13 +547,19 @@ TEST(bsc_gen_key_length_must_follow_increment) {
     }
     bsc_close(a);
 }
-TEST(bsc_gen_des_requires_exactly_8_bytes) {
+TEST(bsc_gen_des_requires_at_least_8_bytes_and_uses_first_8) {
     BCRYPT_ALG_HANDLE d = bsc_open(L"DES", ECB); if (!d) { t_skip("DES"); return; }
     for (ULONG n = 1; n <= 24; n++) {
         bkey k; NTSTATUS s = bsc_gen(d, &k, KEY, n);
-        CHECKF(n == 8 ? s == 0 : s == NS_INVALID_PARAM, "len %lu -> 0x%lx", n, s);
+        CHECKF(n >= 8 ? s == 0 : s == NS_INVALID_PARAM, "len %lu -> 0x%lx", n, s);
         if (s == 0) bsc_free(&k); else free(k.obj);
     }
+    /* longer secrets are truncated to the 8-byte DES key */
+    bkey k8, k24; BYTE pt[8] = {0}, o8[8], o24[8]; ULONG g = 0;
+    EXPECT_EQ(bsc_gen(d, &k8, KEY, 8), 0); EXPECT_EQ(bsc_gen(d, &k24, KEY, 24), 0);
+    EXPECT_EQ(enc(k8.h, pt, 8, NULL, 0, o8, 8, &g, 0), 0); EXPECT_EQ(enc(k24.h, pt, 8, NULL, 0, o24, 8, &g, 0), 0);
+    CHECK(same(o8, o24, 8));
+    bsc_free(&k8); bsc_free(&k24);
     bsc_close(d);
 }
 
