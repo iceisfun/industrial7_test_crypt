@@ -19,7 +19,9 @@
 #define CC_E_REVOCATION_OFFLINE  ((DWORD)0x80092013)
 #define CC_E_NO_MATCH   ((DWORD)0x80092009)
 #define CC_E_BAD_MSG    ((DWORD)0x8009200D)
-#define CC_E_NOT_IN_REVOCATION_DATABASE ((DWORD)0x80092011)
+#define CC_E_NO_REVOCATION_DLL ((DWORD)0x80092011)
+#define CC_E_REVOKED ((DWORD)0x80092010)
+#define CC_E_NOT_IN_REVOCATION_DATABASE ((DWORD)0x80092014)
 
 HCERTSTORE cc_store(void);                 /* fresh memory store (CertOpenStore) */
 void cc_close(HCERTSTORE s);
