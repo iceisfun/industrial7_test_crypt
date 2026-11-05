@@ -325,8 +325,8 @@ TEST(gap1_import_hmac_alg_handle_not_supported) {
     REQUIRE(U(BCryptImportKey));
     BCRYPT_ALG_HANDLE a = open_alg(L"SHA256", BCRYPT_ALG_HANDLE_HMAC_FLAG); REQUIRE(a);
     BYTE key[16], blob[64]; seq(key, 16); ULONG cb = kdblob(blob, key, 16);
-    BCRYPT_KEY_HANDLE k = NULL;
-    NTSTATUS s = U(BCryptImportKey)(a, NULL, BCRYPT_KEY_DATA_BLOB, &k, NULL, 0, blob, cb, 0);
+    BCRYPT_KEY_HANDLE k = NULL; BYTE obj[2048];
+    NTSTATUS s = U(BCryptImportKey)(a, NULL, BCRYPT_KEY_DATA_BLOB, &k, obj, sizeof obj, blob, cb, 0);
     CHECK(s == ST_NOT_SUPPORTED);
     close_alg(a);
 }
