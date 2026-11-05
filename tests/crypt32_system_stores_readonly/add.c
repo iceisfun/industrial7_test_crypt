@@ -261,7 +261,7 @@ TEST(sss_phys_enum_same_thread) {
     CHECK(U(CertEnumPhysicalStore)(L"Root", CERT_SYSTEM_STORE_LOCAL_MACHINE, &c, sss_cb_phys));
     CHECK(c.n >= 1);
     EXPECT_EQ(c.tid_bad, 0);
-    for (int i = 0; i < c.n && i < 64; i++) EXPECT_EQ(c.flags[i], CERT_SYSTEM_STORE_LOCAL_MACHINE);
+    for (int i = 0; i < c.n && i < 64; i++) /* Win10 (probed, std and adm): callback flags are the location id plus bit 0x1 */ EXPECT_EQ(c.flags[i], CERT_SYSTEM_STORE_LOCAL_MACHINE | 1);
 }
 static BOOL WINAPI nest_phys(const void *s, DWORD f, LPCWSTR n, PCERT_PHYSICAL_STORE_INFO i, void *r, void *arg) {
     int *cnt = (int *)arg;

@@ -224,7 +224,7 @@ TEST(sss_phys_enum_callback_args) {
     EXPECT_EQ(c.resv_nonnull, 0);
     CHECK(!c.info_null);
     EXPECT_EQ(c.info_cb0, sizeof(CERT_PHYSICAL_STORE_INFO));
-    for (int i = 0; i < c.n && i < 64; i++) EXPECT_EQ(c.flags[i], CERT_SYSTEM_STORE_CURRENT_USER);
+    for (int i = 0; i < c.n && i < 64; i++) /* Win10 (probed, std and adm): callback flags are the location id plus bit 0x1 */ EXPECT_EQ(c.flags[i], CERT_SYSTEM_STORE_CURRENT_USER | 1);
 }
 TEST(sss_phys_enum_callback_false_stops) {
     REQUIRE(U(CertEnumPhysicalStore));
