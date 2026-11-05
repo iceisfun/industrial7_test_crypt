@@ -3,6 +3,12 @@
 
 typedef NTSTATUS (WINAPI *GetIf_pfn)(LPCWSTR provider, LPCWSTR algid, void **ppTable, ULONG flags);
 static GetIf_pfn rngi_get(const char *name) { return (GetIf_pfn)t_proc_in("bcryptprimitives.dll", name); }
+/* GetRngInterface takes three arguments (ignored first argument, output pointer in the SECOND position, flags);
+ * the other Get*Interface exports take (provider, algid, output, flags). Calling the RNG export with four
+ * arguments stores through the algid pointer and faults. */
+static LONG rngi_rng_call(GetIf_pfn f, LPCWSTR first, void **pp, ULONG flags) {
+    return ((LONG (WINAPI *)(LPCWSTR, void **, ULONG))(void *)f)(first, pp, flags);
+}
 
 typedef NTSTATUS (WINAPI *vt_open_t)(BCRYPT_ALG_HANDLE *, LPCWSTR, ULONG);
 typedef NTSTATUS (WINAPI *vt_getprop_t)(BCRYPT_ALG_HANDLE, LPCWSTR, PUCHAR, ULONG, ULONG *, ULONG);
@@ -23,7 +29,7 @@ static int rngi_code_in_module(const void *p) { return rngi_in_module(p); }
 static vt_t *rngi_table(const char *fn, const WCHAR *alg) {
     GetIf_pfn f = rngi_get(fn); void *t = (void *)(ULONG_PTR)0x1; LONG s;
     if (!f) return NULL;
-    s = f(NULL, alg, &t, 0);
+    s = !strcmp(fn, "GetRngInterface") ? rngi_rng_call(f, NULL, &t, 0) : f(NULL, alg, &t, 0);
     CHECKF(s == 0, "%s(%ls) = 0x%lx", fn, alg, (unsigned long)s);
     if (s) return NULL;
     CHECKF(t != NULL, "%s(%ls) table NULL", fn, alg);
@@ -33,7 +39,8 @@ static void rngi_check_table(const char *fn, const WCHAR *alg, vt_t *t) {
     int i;
     if (!t) return;
     CHECKF(rngi_in_module(t), "%s(%ls) table outside bcryptprimitives", fn, alg);
-    CHECKF(t->Version.MajorVersion == 1, "%s(%ls) major %u", fn, alg, t->Version.MajorVersion);
+    /* on Win10 22H2 the hash table is interface version 2, every other class is version 1 */
+    CHECKF(t->Version.MajorVersion == (strcmp(fn, "GetHashInterface") ? 1 : 2), "%s(%ls) major %u", fn, alg, t->Version.MajorVersion);
     if (t->Version.MinorVersion != 0) t_note("%s(%ls) minor version %u", fn, alg, t->Version.MinorVersion);
     /* Open, GetProperty, SetProperty, Close are the first four members of every provider table */
     for (i = 0; i < 4; i++) CHECKF(t->fn[i] != NULL && rngi_code_in_module(t->fn[i]), "%s(%ls) slot %d = %p", fn, alg, i, t->fn[i]);
@@ -67,7 +74,7 @@ TEST(rngi_exports_absent_from_bcrypt) {
     CHECK(GetProcAddress(m, "MSCryptConvertRsaPrivateBlobToFullRsaBlob") == NULL);
 }
 TEST(rngi_export_ordinals) {
-    /* ordinals are alphabetical-by-decomp-comment: asymmetric=1 cipher=2 hash=3 kdf=4 rng=5 agreement=6 signature=7 convert=8 */
+    /* ordinals are alphabetical by export name: asymmetric=1 cipher=2 hash=3 kdf=4 rng=5 agreement=6 signature=7 convert=8 */
     HMODULE m = t_module("bcryptprimitives.dll"); REQUIRE(m);
     if (t_is_wine()) { t_skip("emulator ordinals differ"); return; }
     static const struct { unsigned ord; const char *name; } e[] = {
@@ -89,22 +96,22 @@ TEST(rngi_rng_table) {
 TEST(rngi_rng_ignores_algid_and_provider) {
     GetIf_pfn f = rngi_get("GetRngInterface"); REQUIRE(f);
     void *a = NULL, *b = NULL, *c = NULL, *d = NULL;
-    EQ_NT(f(NULL, L"RNG", &a, 0), 0);
-    EQ_NT(f(L"Microsoft Primitive Provider", L"RNG", &b, 0), 0);
-    EQ_NT(f(NULL, L"NotAnAlgorithm", &c, 0), 0);        /* decomp: the algorithm id is not examined */
-    EQ_NT(f(NULL, L"RNG", &d, 0xFFFFFFFF), 0);          /* nor are the flags */
+    EQ_NT(rngi_rng_call(f, NULL, &a, 0), 0);
+    EQ_NT(rngi_rng_call(f, L"Microsoft Primitive Provider", &b, 0), 0);
+    EQ_NT(rngi_rng_call(f, L"NotAnAlgorithm", &c, 0), 0);   /* the first argument is not examined */
+    EQ_NT(rngi_rng_call(f, NULL, &d, 0xFFFFFFFF), 0);       /* nor are the flags */
     CHECK(a != NULL && a == b && a == c && a == d);
 }
 TEST(rngi_rng_table_stable_across_calls) {
     GetIf_pfn f = rngi_get("GetRngInterface"); REQUIRE(f);
     void *a = NULL, *b = NULL; int i;
-    EQ_NT(f(NULL, L"RNG", &a, 0), 0);
-    for (i = 0; i < 20; i++) { b = NULL; EQ_NT(f(NULL, L"RNG", &b, 0), 0); CHECK(a == b); }
+    EQ_NT(rngi_rng_call(f, NULL, &a, 0), 0);
+    for (i = 0; i < 20; i++) { b = NULL; EQ_NT(rngi_rng_call(f, NULL, &b, 0), 0); CHECK(a == b); }
 }
 CHILD(rngi_vt_rng) {
     GetIf_pfn f = rngi_get("GetRngInterface"); vt_t *t = NULL; BCRYPT_ALG_HANDLE h = NULL;
     unsigned char b1[48], b2[48]; LONG s;
-    if (!f || f(NULL, L"RNG", (void **)&t, 0) || !t) return 10;
+    if (!f || rngi_rng_call(f, NULL, (void **)&t, 0) || !t) return 10;
     s = ((vt_open_t)t->fn[0])(&h, L"RNG", 0);
     if (s) return 11;
     if (!h) return 12;
@@ -129,7 +136,7 @@ TEST(rngi_rng_vtable_open_generate_close) {
 CHILD(rngi_vt_rng_prop) {
     GetIf_pfn f = rngi_get("GetRngInterface"); vt_t *t = NULL; BCRYPT_ALG_HANDLE h = NULL;
     WCHAR nm[32] = {0}; ULONG got = 0;
-    if (!f || f(NULL, L"RNG", (void **)&t, 0) || !t) return 10;
+    if (!f || rngi_rng_call(f, NULL, (void **)&t, 0) || !t) return 10;
     if (((vt_open_t)t->fn[0])(&h, L"RNG", 0)) return 11;
     if (((vt_getprop_t)t->fn[1])(h, BCRYPT_ALGORITHM_NAME, (PUCHAR)nm, sizeof nm, &got, 0)) return 12;
     if (lstrcmpW(nm, L"RNG")) return 13;
@@ -405,7 +412,7 @@ TEST(rngi_tables_are_distinct_per_class) {
               d = rngi_get("GetAsymmetricEncryptionInterface"), e = rngi_get("GetSignatureInterface"),
               g = rngi_get("GetSecretAgreementInterface"), h = rngi_get("GetKeyDerivationInterface");
     REQUIRE(a); REQUIRE(b); REQUIRE(c); REQUIRE(d); REQUIRE(e); REQUIRE(g); REQUIRE(h);
-    EQ_NT(a(NULL, L"RNG", &rng, 0), 0); EQ_NT(b(NULL, L"SHA256", &hash, 0), 0); EQ_NT(c(NULL, L"AES", &ciph, 0), 0);
+    EQ_NT(rngi_rng_call(a, NULL, &rng, 0), 0); EQ_NT(b(NULL, L"SHA256", &hash, 0), 0); EQ_NT(c(NULL, L"AES", &ciph, 0), 0);
     EQ_NT(d(NULL, L"RSA", &asym, 0), 0); EQ_NT(e(NULL, L"DSA", &sig, 0), 0); EQ_NT(g(NULL, L"DH", &agr, 0), 0);
     EQ_NT(h(NULL, L"PBKDF2", &kdf, 0), 0);
     void *all[] = { rng, hash, ciph, asym, sig, agr, kdf }; int i, j;

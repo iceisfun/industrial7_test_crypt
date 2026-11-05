@@ -105,7 +105,7 @@ TEST(rngp_size_zero_leaves_buffer) {
 }
 TEST(rngp_size_zero_null_buffer) {
     ProcessPrng_pfn f = PRNG_BP(); REQUIRE(f);
-    CHECK(f(NULL, 0) == TRUE);   /* decomp: the generate loop is skipped for size 0 and 1 is returned */
+    CHECK(f(NULL, 0) == TRUE);   /* the generate loop is skipped for size 0 and 1 is returned */
 }
 TEST(rngp_size_one) {
     ProcessPrng_pfn f = PRNG_BP(); REQUIRE(f);

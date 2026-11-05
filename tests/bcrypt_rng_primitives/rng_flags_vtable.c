@@ -96,7 +96,8 @@ typedef struct { BCRYPT_INTERFACE_VERSION Version; void *fn[24]; } x_vt_t;
 
 static x_vt_t *x_table(void) {
     GetRngIf_pfn f = (GetRngIf_pfn)t_proc_in("bcryptprimitives.dll", "GetRngInterface"); void *t = NULL;
-    if (!f || f(NULL, L"RNG", &t, 0)) return NULL;
+    /* three arguments: ignored, output pointer, flags */
+    if (!f || ((LONG (WINAPI *)(LPCWSTR, void **, ULONG))(void *)f)(NULL, &t, 0)) return NULL;
     return (x_vt_t *)t;
 }
 

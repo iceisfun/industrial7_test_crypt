@@ -54,7 +54,7 @@ TEST(rngg_sysrng_zero_len_null_buffer) {
 }
 TEST(rngg_sysrng_with_handle_is_invalid_parameter) {
     if (t_is_wine()) { t_skip("emulator differs: flag/handle validation order"); return; }
-    /* decomp: flag 2 with a non-NULL handle fails before any handle validation */
+    /* flag 2 with a non-NULL handle fails before any handle validation */
     REQUIRE(U(BCryptGenRandom));
     unsigned char b[16];
     EQ_NT(GEN(BCRYPT_RNG_ALG_HANDLE, b, sizeof b, BCRYPT_USE_SYSTEM_PREFERRED_RNG), NS_INVALID_PARAMETER);
