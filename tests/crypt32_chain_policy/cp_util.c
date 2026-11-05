@@ -33,7 +33,7 @@ HCERTSTORE cp_addstore_crl(void) {
 static HCERTCHAINENGINE mkengine(HCERTSTORE roots, HCERTSTORE peers) {
     CERT_CHAIN_ENGINE_CONFIG cfg; HCERTCHAINENGINE e = NULL;
     memset(&cfg, 0, sizeof cfg);
-    cfg.cbSize = sizeof cfg;
+    cfg.cbSize = offsetof(CERT_CHAIN_ENGINE_CONFIG, dwExclusiveFlags);   /* Win7-sized config; dwExclusiveFlags not needed */
     cfg.hExclusiveRoot = roots;
     cfg.hExclusiveTrustedPeople = peers;
     cfg.dwUrlRetrievalTimeout = 0;
