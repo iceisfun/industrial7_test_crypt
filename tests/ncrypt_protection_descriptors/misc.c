@@ -185,7 +185,7 @@ TEST(npd_claim_create_software_ksp_unsupported) {
     if (!ephem_open(&e)) { t_skip("cannot create ephemeral key"); return; }
     DWORD cb = 0;
     EXPECT_SS(UN(NCryptCreateClaim)(e.key, 0, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_NOT_SUPPORTED);
-    EXPECT_SS(UN(NCryptCreateClaim)(0, e.key, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_NOT_SUPPORTED);
+    EXPECT_SS(UN(NCryptCreateClaim)(0, e.key, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_INVALID_HANDLE);  /* NULL authority key is rejected first */
     EXPECT_SS(UN(NCryptCreateClaim)(e.key, e.key, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_NOT_SUPPORTED);
     ephem_close(&e);
 }

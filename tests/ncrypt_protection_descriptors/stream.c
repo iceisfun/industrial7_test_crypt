@@ -391,7 +391,8 @@ static void stream_roundtrip(size_t n, size_t pchunk, size_t uchunk, int ex) {
         CHECKF(rc == 0, "unprotect n=%lu chunk=%lu ex=%d -> 0x%lx", (unsigned long)n, (unsigned long)uchunk, ex, (unsigned long)SS(rc));
         if (rc == 0) {
             CHECKF(u.len == n && (n == 0 || !memcmp(u.buf, in, n)), "n=%lu pchunk=%lu uchunk=%lu: plaintext mismatch (got %lu)", (unsigned long)n, (unsigned long)pchunk, (unsigned long)uchunk, (unsigned long)u.len);
-            CHECKF(u.final_calls == 1 && u.last_final == 1 && u.after_final == 0, "unprotect callback final accounting calls=%d final=%d", u.calls, u.final_calls);
+            CHECKF(u.final_calls == 1 && u.last_final == 1 && u.after_final == 0, "unprotect callback final accounting ex=%d calls=%d final=%d after=%d", ex, u.calls, u.final_calls, u.after_final);
+            if (ex) CHECKF(u.notif == 1 && !u.notif_bad, "Ex leading descriptor notification notif=%d bad=%d", u.notif, u.notif_bad);
         }
     }
     npd_sink_free(&p); npd_sink_free(&u); free(in);

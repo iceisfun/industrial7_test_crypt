@@ -410,16 +410,17 @@ TEST(npd_x_stream_roundtrip_empty_updates_interleaved) {
     npd_desc_close(d);
 }
 
-static int g_ex_calls, g_ex_desc_nonnull, g_ex_final;
+static int g_ex_calls, g_ex_desc_nonnull, g_ex_final, g_ex_first_cb, g_ex_first_fin, g_ex_first_desc;
 static LONG WINAPI ex_probe_cb(void *ctx, const BYTE *p, SIZE_T cb, void *hdesc, BOOL fin) {
     g_ex_calls++;
     if (hdesc) g_ex_desc_nonnull++;
     if (fin) g_ex_final++;
-    return npd_cb(ctx, p, cb, fin);
+    if (g_ex_calls == 1) { g_ex_first_cb = (int)cb; g_ex_first_fin = (int)fin; g_ex_first_desc = hdesc != NULL; }
+    return npd_cb_ex(ctx, p, cb, hdesc, fin);
 }
 
 TEST(npd_x_stream_unprotect_ex_callback_shape) {
-    /* the Ex callback has the descriptor handle before fFinal: final must still be reported exactly once */
+    /* the Ex callback has the descriptor handle before fFinal: the descriptor notification precedes the data and also carries fFinal */
     NREQ(UN(NCryptStreamOpenToProtect));
     NREQ(UN(NCryptStreamOpenToUnprotectEx));
     REQUIRE_WORKING();
@@ -436,7 +437,11 @@ TEST(npd_x_stream_unprotect_ex_callback_shape) {
         EXPECT_SS(UN(NCryptStreamClose)(hs), 0);
     }
     CHECK(u.len == 200 && !memcmp(u.buf, in, 200));
-    CHECK(g_ex_final == 1);
+    /* Win10: the first Ex callback is a descriptor notification (no data, descriptor set, fFinal TRUE),
+       then the data arrives in one more callback with fFinal TRUE */
+    CHECK(g_ex_calls == 2 && g_ex_final == 2);
+    CHECK(g_ex_first_cb == 0 && g_ex_first_fin == 1 && g_ex_first_desc == 1);
+    CHECK(u.notif == 1 && !u.notif_bad && u.final_calls == 1 && u.calls == 1);
     t_note("Ex callback: %d calls, descriptor handle non-NULL in %d", g_ex_calls, g_ex_desc_nonnull);
     npd_sink_free(&p); npd_sink_free(&u);
     npd_desc_close(d);

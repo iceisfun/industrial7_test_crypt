@@ -64,6 +64,7 @@ typedef struct {
     BYTE  *buf; size_t len, cap;
     int    calls, final_calls, after_final;
     int    last_final;
+    int    notif, notif_bad;   /* Ex: leading descriptor notification (no data); notif_bad if it was not cb==0 with a descriptor */
     size_t first_size;
     LONG   ret;            /* value the callback returns */
     int    fail_at;        /* 1-based call that returns fail_ret instead (0 = never) */
@@ -91,6 +92,12 @@ static LONG WINAPI npd_cb(void *ctx, const BYTE *p, SIZE_T cb, BOOL fin) {
     return s->ret;
 }
 static LONG WINAPI npd_cb_ex(void *ctx, const BYTE *p, SIZE_T cb, void *hdesc, BOOL fin) {
+    npd_sink *s = (npd_sink *)ctx;
+    if (!s->notif && !s->calls) {   /* Win10: the first Ex callback is a descriptor notification, not data */
+        s->notif = 1;
+        if (cb != 0 || !hdesc) s->notif_bad = 1;
+        return s->ret;
+    }
     return npd_cb(ctx, p, cb, fin);
 }
 static void npd_sink_free(npd_sink *s) { free(s->buf); memset(s, 0, sizeof *s); }
