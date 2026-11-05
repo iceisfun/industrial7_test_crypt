@@ -213,12 +213,15 @@ TEST(cpd_sign_ssl3_shamd5_requires_data) {
     ULONG_PTR h = cp_mkhash(&R, p, CALG_SSL3_SHAMD5); REQUIRE(h);
     BYTE sig[128]; DWORD n = sizeof sig;
     FAILS(R.SignHash(p, h, AT_KEYEXCHANGE, NULL, 0, sig, &n), CPE_BAD_HASH_STATE);
-    OKAY(R.HashData(p, h, cp_abc, 3, 0));
+    /* a SHAMD5 hash is not fed through HashData; its 36-byte value is set with HP_HASHVAL */
+    FAILS(R.HashData(p, h, cp_abc, 3, 0), ERROR_INVALID_HANDLE);
     n = sizeof sig;
-    SET_ERR(0);
-    BOOL r = R.SignHash(p, h, AT_KEYEXCHANGE, NULL, 0, sig, &n);
-    t_note("sign of a 36-byte SHAMD5 hash: %d err=0x%lx", r, GetLastError());
-    if (r) EXPECT_EQ(n, 128);
+    FAILS(R.SignHash(p, h, AT_KEYEXCHANGE, NULL, 0, sig, &n), CPE_BAD_HASH_STATE);
+    BYTE v36[36]; memset(v36, 0x5a, sizeof v36);
+    OKAY(R.SetHashParam(p, h, HP_HASHVAL, v36, 0));
+    n = sizeof sig;
+    OKAY(R.SignHash(p, h, AT_KEYEXCHANGE, NULL, 0, sig, &n));
+    EXPECT_EQ(n, 128);
     R.DestroyHash(p, h); R.DestroyKey(p, k);
     cp_rel(&R, p);
 }
@@ -269,7 +272,7 @@ TEST(cpd_verify_rsa_rejects_modified_inputs) {
     FAILS(R.VerifySignature(p, h, rsa_sig_sha1_abc, 128, pub, NULL, CRYPT_NOHASHOID), CPE_BAD_SIGNATURE);
     R.DestroyHash(p, h);
     h = abc_hash(&R, p, CALG_SHA1);
-    FAILS(R.VerifySignature(p, h, rsa_sig_sha1_abc_nooid, 128, pub, NULL, 0), CPE_BAD_SIGNATURE);
+    OKAY(R.VerifySignature(p, h, rsa_sig_sha1_abc_nooid, 128, pub, NULL, 0));   /* the OID-less form is also accepted without the flag */
     R.DestroyHash(p, h);
     R.DestroyKey(p, pub);
     cp_rel(&R, p);
@@ -391,17 +394,20 @@ static ULONG_PTR dss_gen(const cpf *f, ULONG_PTR p, DWORD bits) {
 TEST(cpd_dss_genkey_validation_order) {
     NEED_DSS(); ULONG_PTR p = dss_open(&D, PROV_DSS_DH); REQUIRE(p);
     ULONG_PTR k = 0x99;
-    /* NULL phKey is the very first check, then the context, then the flags */
-    FAILS(D.GenKey(p, AT_SIGNATURE, 0, NULL), ERROR_INVALID_PARAMETER);
-    FAILS(D.GenKey(0xdead0000, AT_SIGNATURE, 0x8, NULL), ERROR_INVALID_PARAMETER);
+    /* dssenh does not validate phKey or the context before it writes the result: a NULL phKey faults */
+    T_EXPECT_FAULT(D.GenKey(p, AT_SIGNATURE, 0, NULL));
+    T_EXPECT_FAULT(D.GenKey(p, AT_SIGNATURE, 0x8, NULL));
     DWORD bad[] = { 0x8, 0x20, 0x80, 0x100, 0x200, 0x800, 0x1000, 0x2000 };
     for (size_t i = 0; i < NELEM(bad); i++) FAILS(D.GenKey(p, AT_SIGNATURE, bad[i], &k), CPE_BAD_FLAGS);
     cp_rel(&D, p);
 }
 TEST(cpd_dss_genkey_unsupported_algorithms) {
     NEED_DSS(); ULONG_PTR p = dss_open(&D, PROV_DSS_DH); REQUIRE(p);
-    ALG_ID bad[] = { CALG_RC4, CALG_RC2, CALG_DES, CALG_MD5, CALG_SHA1, CALG_RSA_SIGN, CALG_RSA_KEYX, 0x1234, 0 };
+    ALG_ID bad[] = { CALG_MD5, CALG_SHA1, CALG_RSA_SIGN, CALG_RSA_KEYX, 0x1234, 0 };
     for (size_t i = 0; i < NELEM(bad); i++) { ULONG_PTR k = 0; FAILS(D.GenKey(p, bad[i], 0, &k), CPE_BAD_ALGID); }
+    /* the DSS/DH provider also generates RC4, RC2 and DES session keys */
+    ALG_ID ok[] = { CALG_RC4, CALG_RC2, CALG_DES };
+    for (size_t i = 0; i < NELEM(ok); i++) { ULONG_PTR k = 0; OKAY(D.GenKey(p, ok[i], 0, &k)); if (k) D.DestroyKey(p, k); }
     cp_rel(&D, p);
 }
 TEST(cpd_dss_genkey_wrong_context_kind) {

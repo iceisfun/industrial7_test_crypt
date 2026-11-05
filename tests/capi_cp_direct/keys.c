@@ -312,7 +312,7 @@ TEST(cpd_duplicatekey_wrong_kinds) {
     ULONG_PTR k = gen(&R, p, CALG_RC4, 0), h = cp_mkhash(&R, p, CALG_MD5), d = 0;
     REQUIRE(k && h);
     FAILS(R.DuplicateKey(p, h, NULL, 0, &d), CPE_BAD_KEY);
-    FAILS(R.DuplicateKey(p2, k, NULL, 0, &d), CPE_BAD_UID);
+    FAILS(R.DuplicateKey(p2, k, NULL, 0, &d), CPE_BAD_KEY);
     R.DestroyKey(p, k); R.DestroyHash(p, h);
     cp_rel(&R, p); cp_rel(&R, p2);
 }
@@ -388,7 +388,7 @@ TEST(cpd_getkeyparam_wrong_kinds) {
     if (k && h) {
         FAILS(R.GetKeyParam(k, k, KP_ALGID, b, &n, 0), CPE_BAD_UID);
         FAILS(R.GetKeyParam(p, h, KP_ALGID, b, &n, 0), CPE_BAD_KEY);
-        FAILS(R.GetKeyParam(p2, k, KP_ALGID, b, &n, 0), CPE_BAD_UID);
+        FAILS(R.GetKeyParam(p2, k, KP_ALGID, b, &n, 0), CPE_BAD_KEY);
     }
     if (k) R.DestroyKey(p, k);
     if (h) R.DestroyHash(p, h);
@@ -505,6 +505,7 @@ TEST(cpd_setkeyparam_mode_values) {
     NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     ULONG_PTR k = gen(&R, p, CALG_3DES, 0); REQUIRE(k);
     for (DWORD m = 1; m <= 4; m++) {
+        if (m == CRYPT_MODE_OFB) { FAILS(cp_set_mode(&R, p, k, m), 0x54f); continue; }   /* OFB: ERROR_INTERNAL_ERROR */
         OKAY(cp_set_mode(&R, p, k, m));
         BOOL ok; EXPECT_EQ(cp_kp_dw(&R, p, k, KP_MODE, &ok), m); CHECK(ok);
     }
@@ -629,7 +630,7 @@ TEST(cpd_setkeyparam_wrong_kinds) {
     if (k && h) {
         FAILS(R.SetKeyParam(k, k, KP_MODE, (BYTE *)&m, 0), CPE_BAD_UID);
         FAILS(R.SetKeyParam(p, h, KP_MODE, (BYTE *)&m, 0), CPE_BAD_KEY);
-        FAILS(R.SetKeyParam(p2, k, KP_MODE, (BYTE *)&m, 0), CPE_BAD_UID);
+        FAILS(R.SetKeyParam(p2, k, KP_MODE, (BYTE *)&m, 0), CPE_BAD_KEY);
     }
     if (k) R.DestroyKey(p, k);
     if (h) R.DestroyHash(p, h);
@@ -692,8 +693,11 @@ TEST(cpd_importkey_plaintext_bad_algid) {
         BOOL r = cp_import_plain(&R, p, bad[i], key, 16, 0, &k);
         CHECKF(!r, "alg 0x%x unexpectedly imported", bad[i]);
         if (!r) {
-            DWORD e = GetLastError();
-            CHECKF(e == (DWORD)CPE_BAD_ALGID || e == (DWORD)CPE_BAD_TYPE, "alg 0x%x err=0x%lx", bad[i], e);
+            /* the RSA ids pass the algorithm switch and then fail on the key length */
+            DWORD want = (bad[i] == CALG_RSA_KEYX || bad[i] == CALG_RSA_SIGN) ? (DWORD)CPE_BAD_LEN : (DWORD)CPE_BAD_ALGID;
+            t_label("alg 0x%x", bad[i]);
+            EXPECT_ERR(want);
+            t_label(NULL);
         } else R.DestroyKey(p, k);
     }
     cp_rel(&R, p);
@@ -713,7 +717,9 @@ TEST(cpd_importkey_plaintext_illegal_lengths) {
     struct { ALG_ID a; DWORD len; } bad[] = { { CALG_DES, 7 }, { CALG_DES, 9 }, { CALG_AES_128, 15 }, { CALG_AES_128, 17 },
         { CALG_AES_256, 16 }, { CALG_AES_192, 32 } };
     for (size_t i = 0; i < NELEM(bad); i++) {
-        FAILS(cp_import_plain(&R, p, bad[i].a, key, bad[i].len, 0, &k), CPE_BAD_LEN);
+        /* a 7-byte DES key is rejected with BAD_FLAGS, every other illegal length with BAD_LEN */
+        FAILS(cp_import_plain(&R, p, bad[i].a, key, bad[i].len, 0, &k),
+              (bad[i].a == CALG_DES && bad[i].len == 7) ? CPE_BAD_FLAGS : CPE_BAD_LEN);
     }
     cp_rel(&R, p);
 }
@@ -827,11 +833,10 @@ TEST(cpd_importkey_rsa_private_blob_truncated) {
     ULONG_PTR k = 0;
     SET_ERR(0);
     BOOL r = R.ImportKey(p, rsa_priv_blob, sizeof rsa_priv_blob - 1, 0, 0, &k);
-    CHECK(!r);
-    if (!r) t_note("truncated RSA private blob -> 0x%lx", GetLastError()); else R.DestroyKey(p, k);
-    r = R.ImportKey(p, rsa_priv_blob, 20, 0, 0, &k);
-    CHECK(!r);
-    if (!r) t_note("RSA private blob header only -> 0x%lx", GetLastError()); else R.DestroyKey(p, k);
+    /* a private blob one byte short still imports */
+    CHECK(r);
+    if (r) R.DestroyKey(p, k);
+    FAILS(R.ImportKey(p, rsa_priv_blob, 20, 0, 0, &k), ERROR_INVALID_DATA);
     cp_rel(&R, p);
 }
 

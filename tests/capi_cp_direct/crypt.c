@@ -482,7 +482,7 @@ TEST(cpd_encrypt_wrong_handle_kinds) {
     if (k && h) {
         n = 16; FAILS(R.Encrypt(k, k, 0, FALSE, 0, buf, &n, 48), CPE_BAD_UID);
         n = 16; FAILS(R.Encrypt(p, h, 0, FALSE, 0, buf, &n, 48), CPE_BAD_KEY);
-        n = 16; FAILS(R.Encrypt(p2, k, 0, FALSE, 0, buf, &n, 48), CPE_BAD_UID);
+        n = 16; FAILS(R.Encrypt(p2, k, 0, FALSE, 0, buf, &n, 48), CPE_BAD_KEY);
         n = 16; FAILS(R.Encrypt(p, p, 0, FALSE, 0, buf, &n, 48), CPE_BAD_KEY);
     }
     if (k) R.DestroyKey(p, k);
@@ -497,7 +497,7 @@ TEST(cpd_decrypt_wrong_handle_kinds) {
     if (k && h) {
         n = 16; FAILS(R.Decrypt(k, k, 0, FALSE, 0, buf, &n), CPE_BAD_UID);
         n = 16; FAILS(R.Decrypt(p, h, 0, FALSE, 0, buf, &n), CPE_BAD_KEY);
-        n = 16; FAILS(R.Decrypt(p2, k, 0, FALSE, 0, buf, &n), CPE_BAD_UID);
+        n = 16; FAILS(R.Decrypt(p2, k, 0, FALSE, 0, buf, &n), CPE_BAD_KEY);
     }
     if (k) R.DestroyKey(p, k);
     if (h) R.DestroyHash(p, h);
@@ -614,7 +614,7 @@ TEST(cpd_rsa_decrypt_tampered_ciphertext) {
         SET_ERR(0);
         BOOL r = R.Decrypt(p, k, 0, TRUE, 0, buf, &n);
         CHECKF(!r, "tampered byte %d decrypted", pos);
-        if (!r) EXPECT_ERR(CPE_BAD_DATA);
+        if (!r) EXPECT_ERR(ERROR_INVALID_PARAMETER);   /* rsaenh maps a bad PKCS#1 block to 87 here */
     }
     R.DestroyKey(p, k);
     cp_rel(&R, p);
@@ -674,7 +674,7 @@ TEST(cpd_rsa_encrypt_max_plaintext_lengths) {
     OKAY(R.Encrypt(p, k, 0, TRUE, CRYPT_OAEP, buf, &n, sizeof buf));
     EXPECT_EQ(n, 128);
     memset(buf, 'x', sizeof buf); n = 87;
-    FAILS(R.Encrypt(p, k, 0, TRUE, CRYPT_OAEP, buf, &n, sizeof buf), CPE_BAD_LEN);
+    FAILS(R.Encrypt(p, k, 0, TRUE, CRYPT_OAEP, buf, &n, sizeof buf), ERROR_INVALID_PARAMETER);   /* OAEP overlong: 87, not BAD_LEN */
     R.DestroyKey(p, k);
     cp_rel(&R, p);
 }
@@ -690,13 +690,20 @@ TEST(cpd_rsa_encrypt_public_key_only_roundtrip) {
     OKAY(R.Decrypt(p, priv, 0, TRUE, 0, buf, &n));
     EXPECT_EQ(n, 5);
     if (n == 5) SAMEBYTES(buf, "abcde", 5);
-    /* a public-only key cannot decrypt */
+    /* when the private half has been imported into the same context, the public handle decrypts too */
     memcpy(buf, rsa_ct_pkcs1_hello, 128); n = 128;
-    SET_ERR(0);
-    CHECK(!R.Decrypt(p, pub, 0, TRUE, 0, buf, &n));
-    t_note("Decrypt with a public-only key -> 0x%lx", GetLastError());
+    OKAY(R.Decrypt(p, pub, 0, TRUE, 0, buf, &n));
+    EXPECT_EQ(n, 9);
     R.DestroyKey(p, pub); R.DestroyKey(p, priv);
     cp_rel(&R, p);
+    /* in a context that only ever saw the public blob */
+    ULONG_PTR p3 = rsa_enh(&R); REQUIRE(p3);
+    ULONG_PTR pub3 = 0;
+    OKAY(R.ImportKey(p3, rsa_pub_blob, sizeof rsa_pub_blob, 0, 0, &pub3)); REQUIRE(pub3);
+    memcpy(buf, rsa_ct_pkcs1_hello, 128); n = 128;
+    FAILS(R.Decrypt(p3, pub3, 0, TRUE, 0, buf, &n), CPE_NO_KEY);
+    R.DestroyKey(p3, pub3);
+    cp_rel(&R, p3);
 }
 TEST(cpd_rsa_decrypt_no_padding_check_flag) {
     NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);

@@ -255,8 +255,13 @@ TEST(cpd_createhash_wrong_handle_kind_provider) {
 }
 TEST(cpd_createhash_unsupported_algorithms) {
     NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
-    ALG_ID bad[] = { CALG_RC4, CALG_RC2, CALG_DES, CALG_RSA_SIGN, CALG_RSA_KEYX, 0, 1, 0x1234, CALG_AES_128,
-                     CALG_SHA_256, CALG_SHA_384, CALG_SHA_512, 0x8006, 0x8007, 0x8010, 0xffffffff };
+    /* cipher and key-exchange ids are recognised ALG_IDs but not hashes: ERROR_NOT_SUPPORTED */
+    ALG_ID ns[] = { CALG_RC4, CALG_RC2, CALG_DES, CALG_RSA_SIGN, CALG_RSA_KEYX, CALG_AES_128 };
+    for (size_t i = 0; i < NELEM(ns); i++) {
+        ULONG_PTR h = 0x99;
+        FAILS(R.CreateHash(p, ns[i], 0, 0, &h), ERROR_NOT_SUPPORTED);
+    }
+    ALG_ID bad[] = { 0, 1, 0x1234, CALG_SHA_256, CALG_SHA_384, CALG_SHA_512, 0x8006, 0x8007, 0x8010, 0xffffffff };
     for (size_t i = 0; i < NELEM(bad); i++) {
         ULONG_PTR h = 0x99;
         FAILS(R.CreateHash(p, bad[i], 0, 0, &h), CPE_BAD_ALGID);
@@ -278,11 +283,13 @@ TEST(cpd_createhash_sha2_needs_aes_provider_type) {
 TEST(cpd_createhash_plain_hash_rejects_key) {
     NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     ULONG_PTR k = 0; OKAY(R.GenKey(p, CALG_RC4, 0, &k)); REQUIRE(k);
-    ALG_ID algs[] = { CALG_MD5, CALG_SHA1, CALG_MD2, CALG_MD4, CALG_SSL3_SHAMD5 };
+    ALG_ID algs[] = { CALG_MD5, CALG_SHA1, CALG_MD2, CALG_MD4 };
     for (size_t i = 0; i < NELEM(algs); i++) {
         ULONG_PTR h = 0;
         FAILS(R.CreateHash(p, algs[i], k, 0, &h), CPE_BAD_KEY);
     }
+    /* SSL3_SHAMD5 ignores the key argument */
+    { ULONG_PTR h = 0; OKAY(R.CreateHash(p, CALG_SSL3_SHAMD5, k, 0, &h)); if (h) R.DestroyHash(p, h); }
     R.DestroyKey(p, k);
     cp_rel(&R, p);
 }

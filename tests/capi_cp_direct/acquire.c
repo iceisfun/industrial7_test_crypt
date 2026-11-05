@@ -640,9 +640,12 @@ TEST(cpd_rsa_setprov_unknown_bad_type) {
 TEST(cpd_rsa_setprov_hwnd_flags) {
     NEED_RSA();
     ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
-    OKAY(R.SetProvParam(p, PP_CLIENT_HWND, NULL, 0));
-    FAILS(R.SetProvParam(p, PP_CLIENT_HWND, NULL, 1), CPE_BAD_FLAGS);
-    FAILS(R.SetProvParam(p, PP_CLIENT_HWND, NULL, 0x80), CPE_BAD_FLAGS);
+    /* rsaenh does not implement PP_CLIENT_HWND for SetProvParam: BAD_TYPE whatever the flags or data */
+    HWND w = NULL; DWORD fl[] = { 0, 1, 0x80 };
+    for (size_t i = 0; i < NELEM(fl); i++) {
+        FAILS(R.SetProvParam(p, PP_CLIENT_HWND, NULL, fl[i]), CPE_BAD_TYPE);
+        FAILS(R.SetProvParam(p, PP_CLIENT_HWND, (BYTE *)&w, fl[i]), CPE_BAD_TYPE);
+    }
     cp_rel(&R, p);
 }
 TEST(cpd_rsa_setprov_ui_prompt) {
