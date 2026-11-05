@@ -120,7 +120,10 @@ TEST(wcfg_cat_add_missing_file) {
     if (t_is_wine()) { t_skip("emulator differs"); U(CryptCATAdminReleaseContext)(a, 0); return; }
     SET_ERR(0);
     CHECK(U(CryptCATAdminAddCatalog)(a, L"C:\\cryptt_no_such_dir\\none.cat", NULL, 0) == NULL);
-    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
+    EXPECT_ERR(ERROR_BAD_FORMAT);                          /* missing directory: probed on Win10 */
+    SET_ERR(0);
+    CHECK(U(CryptCATAdminAddCatalog)(a, L"C:\\Windows\\cryptt_no_such_file.cat", NULL, 0) == NULL);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);                      /* existing directory, missing file */
     U(CryptCATAdminReleaseContext)(a, 0);
 }
 TEST(wcfg_cat_add_non_catalog_file_is_bad_format) {
@@ -157,32 +160,30 @@ static int build_catalog(catfix_t *f, int tweak) {
     DeleteFileA(f->cat);
     HANDLE h = CreateFileA(f->member, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (h == INVALID_HANDLE_VALUE) return 0;
-    f->cbHash = 0;
+    f->cbHash = 0; t_label("calc-hash-size");
     BOOL ok = U(CryptCATAdminCalcHashFromFileHandle)(h, &f->cbHash, NULL, 0);
     if (!ok || !f->cbHash || f->cbHash > sizeof f->hash) { t_note("calc hash size query failed %d err %lu", ok, GetLastError()); CloseHandle(h); return 0; }
-    ok = U(CryptCATAdminCalcHashFromFileHandle)(h, &f->cbHash, f->hash, 0);
+    t_label("calc-hash"); ok = U(CryptCATAdminCalcHashFromFileHandle)(h, &f->cbHash, f->hash, 0);
     CloseHandle(h);
     if (!ok) return 0;
     for (DWORD i = 0; i < f->cbHash; i++) swprintf(f->tag + 2 * i, 4, L"%02X", f->hash[i]);
-    /* SPC_INDIRECT_DATA_CONTENT: { {1.3.6.1.4.1.311.2.1.15} , { sha1 , digest } } */
-    BYTE ind[200]; int k = 0;
-    static const BYTE data_part[] = { 0x30, 0x0C, 0x06, 0x0A, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x02, 0x01, 0x0F };
-    static const BYTE alg[] = { 0x30, 0x09, 0x06, 0x05, 0x2B, 0x0E, 0x03, 0x02, 0x1A, 0x05, 0x00 };
+    /* CryptCATPutMemberInfo takes a SIP_INDIRECT_DATA structure (the output of CryptSIPCreateIndirectData), not its encoding */
+    static BYTE data_val[2] = { 0x30, 0x00 };
+    static BYTE alg_par[2] = { 0x05, 0x00 };
     if (f->cbHash != 20) return 0;
-    ind[k++] = 0x30; ind[k++] = (BYTE)(sizeof data_part + 2 + sizeof alg + 2 + 22);
-    memcpy(ind + k, data_part, sizeof data_part); k += sizeof data_part;
-    ind[k++] = 0x30; ind[k++] = (BYTE)(sizeof alg + 22);
-    memcpy(ind + k, alg, sizeof alg); k += sizeof alg;
-    ind[k++] = 0x04; ind[k++] = 20; memcpy(ind + k, f->hash, 20); k += 20;
-    HANDLE cat = U(CryptCATOpen)(f->wcat, CRYPTCAT_OPEN_CREATENEW, 0, CRYPTCAT_VERSION_1, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING);
+    SIP_INDIRECT_DATA sid; memset(&sid, 0, sizeof sid);
+    sid.Data.pszObjId = (LPSTR)"1.3.6.1.4.1.311.2.1.15"; sid.Data.Value.cbData = sizeof data_val; sid.Data.Value.pbData = data_val;
+    sid.DigestAlgorithm.pszObjId = (LPSTR)"1.3.14.3.2.26"; sid.DigestAlgorithm.Parameters.cbData = sizeof alg_par; sid.DigestAlgorithm.Parameters.pbData = alg_par;
+    sid.Digest.cbData = f->cbHash; sid.Digest.pbData = f->hash;
+    t_label("cat-open"); HANDLE cat = U(CryptCATOpen)(f->wcat, CRYPTCAT_OPEN_CREATENEW, 0, CRYPTCAT_VERSION_1, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING);
     if (!cat || cat == INVALID_HANDLE_VALUE) { t_note("CryptCATOpen failed err %lu", GetLastError()); return 0; }
     GUID pe = { 0xC689AAB8, 0x8E78, 0x11D0, { 0x8C, 0x47, 0x00, 0xC0, 0x4F, 0xC2, 0x95, 0xEE } };
     wchar_t mem[80]; narrow2wide(strrchr(f->member, '\\') + 1, mem, 80);
-    CRYPTCATMEMBER *m = U(CryptCATPutMemberInfo)(cat, mem, f->tag, &pe, 0x200, k, ind);
+    t_label("put-member"); CRYPTCATMEMBER *m = U(CryptCATPutMemberInfo)(cat, mem, f->tag, &pe, 0x200, sizeof sid, (BYTE *)&sid);
     if (!m) t_note("PutMemberInfo failed err %lx", GetLastError());
-    BOOL pers = m ? U(CryptCATPersistStore)(cat) : FALSE;
+    t_label("persist"); BOOL pers = m ? U(CryptCATPersistStore)(cat) : FALSE;
     if (m && !pers) t_note("PersistStore failed err %lx", GetLastError());
-    U(CryptCATClose)(cat);
+    t_label("close"); U(CryptCATClose)(cat); t_label(NULL);
     return m != NULL && pers && GetFileAttributesA(f->cat) != INVALID_FILE_ATTRIBUTES;
 }
 #define FIXSETUP(f, tw) REQUIRE(U(CryptCATAdminAddCatalog)); REQUIRE(U(CryptCATOpen)); REQUIRE(U(CryptCATPutMemberInfo)); \
@@ -249,9 +250,16 @@ TEST(wcfg_cat_add_enum_resolve_remove) {
     /* remove */
     SET_ERR(0);
     CHECK(U(CryptCATAdminRemoveCatalog)(a, installed_leaf, 0));
+    /* observed on Win10 (stable across 10 polls over 5 s): the catalog file is deleted, but the hash database still
+     * resolves the member hash to the removed catalog's path until the database is rebuilt */
     HCATINFO after = U(CryptCATAdminEnumCatalogFromHash)(a, f.hash, f.cbHash, 0, NULL);
-    CHECK(after == NULL);
-    if (after) U(CryptCATAdminReleaseCatalogContext)(a, after, 0);
+    CHECK(after != NULL);
+    if (after) {
+        CATALOG_INFO ai; memset(&ai, 0, sizeof ai); ai.cbStruct = sizeof ai;
+        CHECK(U(CryptCATCatalogInfoFromContext)(after, &ai, 0));
+        CHECK(!_wcsicmp(ai.wszCatalogFile, info.wszCatalogFile));
+        U(CryptCATAdminReleaseCatalogContext)(a, after, 0);
+    }
     CHECK(GetFileAttributesW(info.wszCatalogFile) == INVALID_FILE_ATTRIBUTES);
     U(CryptCATAdminRemoveCatalog)(a, installed_leaf, 0);      /* belt and braces */
     U(CryptCATAdminReleaseContext)(a, 0);

@@ -199,36 +199,127 @@ TEST(wcfg_sip_remove_leaves_function_set_keys) {
     wcfg_end();
 }
 
-/* ---- CryptSIPLoad ---- */
-TEST(wcfg_sip_load_registered_subject) {
-    SSETUP(CryptSIPLoad); GUID g; wcfg_guid(&g, 430); wchar_t dll[MAX_PATH]; wcfg_selfpath(dll, MAX_PATH);
-    SIP_ADD_NEWPROVIDER_EX a; wcfg_sip_fill(&a, &g, dll); CHECK(addp(&a));
-    SIP_DISPATCH_INFO d; memset(&d, 0xCC, sizeof d); d.cbSize = sizeof d;
-    SET_ERR(0);
-    CHECK(U(CryptSIPLoad)(&g, 0, &d));
-    CHECK(d.hSIP == NULL);
-    HMODULE c32 = GetModuleHandleA("crypt32.dll");
-    CHECK(d.pfGet == (void *)GetProcAddress(c32, "CryptSIPGetSignedDataMsg"));
-    CHECK(d.pfPut == (void *)GetProcAddress(c32, "CryptSIPPutSignedDataMsg"));
-    CHECK(d.pfCreate == (void *)GetProcAddress(c32, "CryptSIPCreateIndirectData"));
-    CHECK(d.pfVerify == (void *)GetProcAddress(c32, "CryptSIPVerifyIndirectData"));
-    CHECK(d.pfRemove == (void *)GetProcAddress(c32, "CryptSIPRemoveSignedDataMsg"));
-    wcfg_end();
+
+/* ---- registered-SIP lookups run in fresh child processes ----
+ * crypt32 reads the registered SIP function sets once per process (at the first lookup) and never again: a subject
+ * registered after that is not found, and a removal is not noticed.  The parent registers; a fresh child looks up. */
+#define CK(c) do { if (!(c)) { printf("  child check line %d: %s\n", __LINE__, #c); fflush(stdout); bad++; } } while (0)
+#define CNOTE(...) do { printf("  NOTE (child) " __VA_ARGS__); printf("\n"); fflush(stdout); } while (0)
+static int run_iso(unsigned mode) {
+    char args[48]; sprintf(args, "%lu %u", GetCurrentProcessId(), mode);
+    HANDLE o = NULL, e = NULL; PROCESS_INFORMATION pi; DWORD code = 0xDEAD0000;
+    DuplicateHandle(GetCurrentProcess(), GetStdHandle(STD_OUTPUT_HANDLE), GetCurrentProcess(), &o, 0, TRUE, DUPLICATE_SAME_ACCESS);
+    DuplicateHandle(GetCurrentProcess(), GetStdHandle(STD_ERROR_HANDLE), GetCurrentProcess(), &e, 0, TRUE, DUPLICATE_SAME_ACCESS);
+    HANDLE h = t_spawn_child("wcfg_sip_iso", args, 0, NULL, o, e, TRUE, NULL, &pi);
+    if (h) {
+        if (WaitForSingleObject(h, 30000) != WAIT_OBJECT_0) { TerminateProcess(h, 1); WaitForSingleObject(h, 5000); code = 0xDEAD0001; }
+        else GetExitCodeProcess(h, &code);
+        CloseHandle(pi.hThread); CloseHandle(h);
+    }
+    if (o) CloseHandle(o);
+    if (e) CloseHandle(e);
+    return (int)code;
 }
+enum { M_LOAD = 1, M_LOAD_REMOVED, M_LOAD_BADPUT, M_LOAD_PUTONLY, M_GET, M_PUT, M_CREATE, M_VERIFY, M_REMOVE, M_CAPS, M_TABLE, M_WINTRUST };
+static SIP_SUBJECTINFO *mkinfo(SIP_SUBJECTINFO *si, GUID *g);
+CHILD(wcfg_sip_iso) {
+    if (argc < 3) return 90;
+    GUID g; unsigned mode = (unsigned)strtoul(argv[2], NULL, 10); DWORD ppid = (DWORD)strtoul(argv[1], NULL, 10); int bad = 0;
+    static const unsigned slot[] = { 0, 430, 432, 434, 435, 440, 441, 442, 443, 444, 445, 446, 450 };
+    if (mode < 1 || mode >= sizeof slot / sizeof slot[0]) return 91;
+    wcfg_guid_for(&g, slot[mode], ppid); wcfg_sip_reset();
+    SIP_SUBJECTINFO si; mkinfo(&si, &g);
+    SIP_DISPATCH_INFO d; memset(&d, 0xCC, sizeof d); d.cbSize = sizeof d;
+    DWORD cb = 0x55, enc = 0, idx = 3; BYTE msg[4] = { 1, 2, 3, 4 }; SIP_INDIRECT_DATA id; BYTE caps[64] = { 0 };
+    switch (mode) {
+    case M_LOAD: {
+        SetLastError(0); BOOL r = U(CryptSIPLoad)(&g, 0, &d);
+        CK(r); CK(d.hSIP == NULL);
+        HMODULE c32 = GetModuleHandleA("crypt32.dll");
+        CK(d.pfGet == (void *)GetProcAddress(c32, "CryptSIPGetSignedDataMsg"));
+        CK(d.pfPut == (void *)GetProcAddress(c32, "CryptSIPPutSignedDataMsg"));
+        CK(d.pfCreate == (void *)GetProcAddress(c32, "CryptSIPCreateIndirectData"));
+        CK(d.pfVerify == (void *)GetProcAddress(c32, "CryptSIPVerifyIndirectData"));
+        CK(d.pfRemove == (void *)GetProcAddress(c32, "CryptSIPRemoveSignedDataMsg"));
+        break; }
+    case M_LOAD_REMOVED: {
+        memset(&d, 0, sizeof d);
+        CK(U(CryptSIPLoad)(&g, 0, &d));
+        CK(U(CryptSIPRemoveProvider)(&g));
+        SetLastError(0); BOOL r = U(CryptSIPLoad)(&g, 0, &d); DWORD e = GetLastError();
+        (void)e; CK(r);                       /* the registered set is cached per process: the removal is not noticed */
+        break; }
+    case M_LOAD_BADPUT: {
+        memset(&d, 0, sizeof d); SetLastError(0);
+        CK(!U(CryptSIPLoad)(&g, 0, &d)); CK(GetLastError() == CK_TRUST_E_SUBJECT_FORM_UNKNOWN);
+        break; }
+    case M_LOAD_PUTONLY: {
+        memset(&d, 0, sizeof d); SetLastError(0);
+        CK(U(CryptSIPLoad)(&g, 0, &d));
+        break; }
+    case M_GET:
+        CK(UIN("crypt32.dll", CryptSIPGetSignedDataMsg)(&si, &enc, 7, &cb, NULL) == TRUE);
+        CK(wcfg_sipc[SC_GET].n == 1); CK(wcfg_sipc[SC_GET].info == &si); CK(wcfg_sipc[SC_GET].p1 == &enc);
+        CK(wcfg_sipc[SC_GET].a == 7); CK(wcfg_sipc[SC_GET].p2 == &cb);
+        wcfg_sipc[SC_GET].ret = FALSE;
+        CK(UIN("crypt32.dll", CryptSIPGetSignedDataMsg)(&si, &enc, 0, &cb, NULL) == FALSE); CK(wcfg_sipc[SC_GET].n == 2);
+        break;
+    case M_PUT:
+        CK(UIN("crypt32.dll", CryptSIPPutSignedDataMsg)(&si, 0x10001, &idx, sizeof msg, msg) == TRUE);
+        CK(wcfg_sipc[SC_PUT].n == 1); CK(wcfg_sipc[SC_PUT].info == &si); CK(wcfg_sipc[SC_PUT].a == 0x10001);
+        CK(wcfg_sipc[SC_PUT].p1 == &idx); CK(wcfg_sipc[SC_PUT].b == 4);
+        CK(wcfg_sipc[SC_PUT].p2 == msg);
+        break;
+    case M_CREATE:
+        CK(UIN("crypt32.dll", CryptSIPCreateIndirectData)(&si, &cb, &id) == TRUE);
+        CK(wcfg_sipc[SC_CREATE].n == 1); CK(wcfg_sipc[SC_CREATE].info == &si); CK(wcfg_sipc[SC_CREATE].p1 == &cb); CK(wcfg_sipc[SC_CREATE].p2 == &id);
+        break;
+    case M_VERIFY:
+        CK(UIN("crypt32.dll", CryptSIPVerifyIndirectData)(&si, &id) == TRUE);
+        CK(wcfg_sipc[SC_VERIFY].n == 1); CK(wcfg_sipc[SC_VERIFY].info == &si); CK(wcfg_sipc[SC_VERIFY].p2 == &id);
+        wcfg_sipc[SC_VERIFY].ret = FALSE;
+        CK(UIN("crypt32.dll", CryptSIPVerifyIndirectData)(&si, &id) == FALSE);
+        break;
+    case M_REMOVE:
+        CK(UIN("crypt32.dll", CryptSIPRemoveSignedDataMsg)(&si, 9) == TRUE);
+        CK(wcfg_sipc[SC_REMOVE].n == 1); CK(wcfg_sipc[SC_REMOVE].info == &si); CK(wcfg_sipc[SC_REMOVE].a == 9);
+        break;
+    case M_CAPS: {
+        CK(C32CAPS(&si, caps) == TRUE);
+        CK(wcfg_sipc[SC_CAPS].n == 1); CK(wcfg_sipc[SC_CAPS].info == &si);
+        break; }
+    case M_TABLE:
+        memset(&d, 0, sizeof d);
+        CK(U(CryptSIPLoad)(&g, 0, &d));
+        if (d.pfCreate && d.pfVerify && d.pfRemove) {
+            CK(d.pfCreate(&si, &cb, &id)); CK(d.pfVerify(&si, &id)); CK(d.pfRemove(&si, 1));
+            CK(wcfg_sipc[SC_CREATE].n == 1); CK(wcfg_sipc[SC_VERIFY].n == 1); CK(wcfg_sipc[SC_REMOVE].n == 1);
+        } else CK(0);
+        break;
+    case M_WINTRUST: {
+        memset(&d, 0, sizeof d);
+        CK(U(CryptSIPLoad)(&g, 0, &d));
+        /* wintrust's own entry points only know the built-in subject types */
+        SetLastError(0);
+        BOOL r = UIN("wintrust.dll", CryptSIPCreateIndirectData)(&si, &cb, NULL);
+        CK(!r); CK(GetLastError() == CK_TRUST_E_SUBJECT_FORM_UNKNOWN);
+        break; }
+    }
+    return bad;
+}
+/* the parent registers slot's SIP (variants via the callback) and runs the child */
+static int iso_with(unsigned slot, unsigned mode, void (*mod)(SIP_ADD_NEWPROVIDER_EX *)) {
+    GUID g; wcfg_guid(&g, slot); wchar_t dll[MAX_PATH]; wcfg_selfpath(dll, MAX_PATH);
+    SIP_ADD_NEWPROVIDER_EX a; wcfg_sip_fill(&a, &g, dll); if (mod) mod(&a);
+    if (!addp(&a)) return 0xBAD0;
+    return run_iso(mode);
+}
+/* ---- CryptSIPLoad ---- */
 TEST(wcfg_sip_load_unregistered_subject) {
     SSETUP(CryptSIPLoad); GUID g; wcfg_guid(&g, 431);
     SIP_DISPATCH_INFO d; memset(&d, 0, sizeof d);
     SET_ERR(0); CHECK(!U(CryptSIPLoad)(&g, 0, &d)); EXPECT_ERR(CK_TRUST_E_SUBJECT_FORM_UNKNOWN);
     CHECK(d.pfGet == NULL);
-    wcfg_end();
-}
-TEST(wcfg_sip_load_after_remove_fails) {
-    SSETUP(CryptSIPLoad); GUID g; wcfg_guid(&g, 432); wchar_t dll[MAX_PATH]; wcfg_selfpath(dll, MAX_PATH);
-    SIP_ADD_NEWPROVIDER_EX a; wcfg_sip_fill(&a, &g, dll); CHECK(addp(&a));
-    SIP_DISPATCH_INFO d; memset(&d, 0, sizeof d);
-    CHECK(U(CryptSIPLoad)(&g, 0, &d));
-    remp(&g);
-    SET_ERR(0); CHECK(!U(CryptSIPLoad)(&g, 0, &d)); EXPECT_ERR(CK_TRUST_E_SUBJECT_FORM_UNKNOWN);
     wcfg_end();
 }
 TEST(wcfg_sip_load_invalid_arguments) {
@@ -239,22 +330,6 @@ TEST(wcfg_sip_load_invalid_arguments) {
     SET_ERR(0); CHECK(!U(CryptSIPLoad)(&g, 0, NULL)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
     SET_ERR(0); CHECK(!U(CryptSIPLoad)(&g, 1, &d)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
     SET_ERR(0); CHECK(!U(CryptSIPLoad)(&g, 0x80000000, &d)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
-    wcfg_end();
-}
-TEST(wcfg_sip_load_bad_put_function_name_fails) {
-    SSETUP(CryptSIPLoad); GUID g; wcfg_guid(&g, 434); wchar_t dll[MAX_PATH]; wcfg_selfpath(dll, MAX_PATH);
-    SIP_ADD_NEWPROVIDER_EX a; wcfg_sip_fill(&a, &g, dll); a.pwszPutFuncName = L"cryptt_NoSuchExport";
-    CHECK(addp(&a));
-    SIP_DISPATCH_INFO d; memset(&d, 0, sizeof d);
-    SET_ERR(0); CHECK(!U(CryptSIPLoad)(&g, 0, &d)); EXPECT_ERR(CK_TRUST_E_SUBJECT_FORM_UNKNOWN);
-    wcfg_end();
-}
-TEST(wcfg_sip_load_checks_only_put_function) {
-    SSETUP(CryptSIPLoad); GUID g; wcfg_guid(&g, 435); wchar_t dll[MAX_PATH]; wcfg_selfpath(dll, MAX_PATH);
-    SIP_ADD_NEWPROVIDER_EX a; wcfg_sip_fill(&a, &g, dll); a.pwszGetFuncName = L"cryptt_NoSuchExport"; a.pwszVerifyFuncName = L"cryptt_NoSuchExport";
-    CHECK(addp(&a));
-    SIP_DISPATCH_INFO d; memset(&d, 0, sizeof d);
-    CHECK(U(CryptSIPLoad)(&g, 0, &d));
     wcfg_end();
 }
 TEST(wcfg_sip_load_builtin_subjects) {
@@ -273,79 +348,8 @@ TEST(wcfg_sip_load_builtin_subjects) {
 }
 
 /* ---- dispatch through crypt32 into the registered in-exe SIP ---- */
-static void dispatch_setup(GUID *g, unsigned slot) {
-    wcfg_guid(g, slot);
-    wchar_t dll[MAX_PATH]; wcfg_selfpath(dll, MAX_PATH);
-    SIP_ADD_NEWPROVIDER_EX a; wcfg_sip_fill(&a, g, dll);
-    CHECK(addp(&a));
-    wcfg_sip_reset();
-}
 static SIP_SUBJECTINFO *mkinfo(SIP_SUBJECTINFO *si, GUID *g) { memset(si, 0, sizeof *si); si->cbSize = sizeof *si; si->pgSubjectType = g; return si; }
 
-TEST(wcfg_sip_dispatch_get_signed_data_msg) {
-    SSETUP(CryptSIPGetSignedDataMsg); GUID g; dispatch_setup(&g, 440); SIP_SUBJECTINFO si; mkinfo(&si, &g);
-    DWORD enc = 0, cb = 0x55;
-    BOOL r = UIN("crypt32.dll", CryptSIPGetSignedDataMsg)(&si, &enc, 7, &cb, NULL);
-    CHECK(r == TRUE);
-    EXPECT_EQ(wcfg_sipc[SC_GET].n, 1);
-    CHECK(wcfg_sipc[SC_GET].info == &si); CHECK(wcfg_sipc[SC_GET].p1 == &enc); EXPECT_EQ(wcfg_sipc[SC_GET].a, 7); CHECK(wcfg_sipc[SC_GET].p2 == &cb);
-    wcfg_sipc[SC_GET].ret = FALSE;
-    r = UIN("crypt32.dll", CryptSIPGetSignedDataMsg)(&si, &enc, 0, &cb, NULL);
-    CHECK(r == FALSE); EXPECT_EQ(wcfg_sipc[SC_GET].n, 2);
-    wcfg_end();
-}
-TEST(wcfg_sip_dispatch_put_signed_data_msg) {
-    SSETUP(CryptSIPPutSignedDataMsg); GUID g; dispatch_setup(&g, 441); SIP_SUBJECTINFO si; mkinfo(&si, &g);
-    DWORD idx = 3; BYTE msg[4] = { 1, 2, 3, 4 };
-    BOOL r = UIN("crypt32.dll", CryptSIPPutSignedDataMsg)(&si, 0x10001, &idx, sizeof msg, msg);
-    CHECK(r == TRUE); EXPECT_EQ(wcfg_sipc[SC_PUT].n, 1);
-    CHECK(wcfg_sipc[SC_PUT].info == &si); EXPECT_EQ(wcfg_sipc[SC_PUT].a, 0x10001); CHECK(wcfg_sipc[SC_PUT].p1 == &idx); EXPECT_EQ(wcfg_sipc[SC_PUT].b, 4);
-    if (wcfg_sipc[SC_PUT].p2 != msg) t_note("fifth argument not forwarded verbatim");
-    else CHECK(1);
-    wcfg_end();
-}
-TEST(wcfg_sip_dispatch_create_indirect_data) {
-    SSETUP(CryptSIPCreateIndirectData); GUID g; dispatch_setup(&g, 442); SIP_SUBJECTINFO si; mkinfo(&si, &g);
-    DWORD cb = 0; SIP_INDIRECT_DATA id;
-    BOOL r = UIN("crypt32.dll", CryptSIPCreateIndirectData)(&si, &cb, &id);
-    CHECK(r == TRUE); EXPECT_EQ(wcfg_sipc[SC_CREATE].n, 1);
-    CHECK(wcfg_sipc[SC_CREATE].info == &si); CHECK(wcfg_sipc[SC_CREATE].p1 == &cb); CHECK(wcfg_sipc[SC_CREATE].p2 == &id);
-    wcfg_end();
-}
-TEST(wcfg_sip_dispatch_verify_indirect_data) {
-    SSETUP(CryptSIPVerifyIndirectData); GUID g; dispatch_setup(&g, 443); SIP_SUBJECTINFO si; mkinfo(&si, &g);
-    SIP_INDIRECT_DATA id;
-    BOOL r = UIN("crypt32.dll", CryptSIPVerifyIndirectData)(&si, &id);
-    CHECK(r == TRUE); EXPECT_EQ(wcfg_sipc[SC_VERIFY].n, 1);
-    CHECK(wcfg_sipc[SC_VERIFY].info == &si); CHECK(wcfg_sipc[SC_VERIFY].p2 == &id);
-    wcfg_sipc[SC_VERIFY].ret = FALSE;
-    CHECK(UIN("crypt32.dll", CryptSIPVerifyIndirectData)(&si, &id) == FALSE);
-    wcfg_end();
-}
-TEST(wcfg_sip_dispatch_remove_signed_data_msg) {
-    SSETUP(CryptSIPRemoveSignedDataMsg); GUID g; dispatch_setup(&g, 444); SIP_SUBJECTINFO si; mkinfo(&si, &g);
-    BOOL r = UIN("crypt32.dll", CryptSIPRemoveSignedDataMsg)(&si, 9);
-    CHECK(r == TRUE); EXPECT_EQ(wcfg_sipc[SC_REMOVE].n, 1);
-    CHECK(wcfg_sipc[SC_REMOVE].info == &si); EXPECT_EQ(wcfg_sipc[SC_REMOVE].a, 9);
-    wcfg_end();
-}
-TEST(wcfg_sip_dispatch_get_caps) {
-    REQUIRE(C32CAPS); SSETUP(CryptSIPAddProvider); GUID g; dispatch_setup(&g, 445); SIP_SUBJECTINFO si; mkinfo(&si, &g);
-    BYTE caps[64] = { 0 };
-    BOOL r = C32CAPS(&si, caps);
-    CHECK(r == TRUE); EXPECT_EQ(wcfg_sipc[SC_CAPS].n, 1);
-    CHECK(wcfg_sipc[SC_CAPS].info == &si);
-    wcfg_end();
-}
-TEST(wcfg_sip_dispatch_via_loaded_dispatch_table) {
-    SSETUP(CryptSIPLoad); GUID g; dispatch_setup(&g, 446); SIP_SUBJECTINFO si; mkinfo(&si, &g);
-    SIP_DISPATCH_INFO d; memset(&d, 0, sizeof d);
-    CHECK(U(CryptSIPLoad)(&g, 0, &d));
-    DWORD cb = 0; SIP_INDIRECT_DATA id;
-    CHECK(d.pfCreate(&si, &cb, &id)); CHECK(d.pfVerify(&si, &id)); CHECK(d.pfRemove(&si, 1));
-    EXPECT_EQ(wcfg_sipc[SC_CREATE].n, 1); EXPECT_EQ(wcfg_sipc[SC_VERIFY].n, 1); EXPECT_EQ(wcfg_sipc[SC_REMOVE].n, 1);
-    wcfg_end();
-}
 TEST(wcfg_sip_dispatch_unknown_subject) {
     SSETUP(CryptSIPGetSignedDataMsg); GUID g; wcfg_guid(&g, 447); SIP_SUBJECTINFO si; mkinfo(&si, &g);
     DWORD enc, cb; BYTE caps[64]; SIP_INDIRECT_DATA id; DWORD idx;
@@ -377,26 +381,6 @@ TEST(wcfg_sip_dispatch_null_arguments) {
 }
 
 /* ---- the subject registered with wintrust's own PE implementation names ---- */
-TEST(wcfg_sip_register_with_wintrust_export_names) {
-    SSETUP(CryptSIPLoad); GUID g; wcfg_guid(&g, 450);
-    SIP_ADD_NEWPROVIDER_EX a; memset(&a, 0, sizeof a);
-    a.cbStruct = SIP_ADD_BASE_SIZE; a.pgSubject = &g; a.pwszDLLFileName = L"WINTRUST.DLL"; a.pwszMagicNumber = L"MZ";
-    a.pwszGetFuncName = L"CryptSIPGetSignedDataMsg"; a.pwszPutFuncName = L"CryptSIPPutSignedDataMsg";
-    a.pwszCreateFuncName = L"CryptSIPCreateIndirectData"; a.pwszVerifyFuncName = L"CryptSIPVerifyIndirectData";
-    a.pwszRemoveFuncName = L"CryptSIPRemoveSignedDataMsg";
-    CHECK(addp(&a));
-    wchar_t d[300], f[300];
-    CHECK(wcfg_sip_key_present(FS_PUT, &g, d, f)); CHECK(!wcscmp(d, L"WINTRUST.DLL")); CHECK(!wcscmp(f, L"CryptSIPPutSignedDataMsg"));
-    CHECK(wcfg_sip_key_present(FS_CREATE, &g, d, f)); CHECK(!wcscmp(f, L"CryptSIPCreateIndirectData"));
-    SIP_DISPATCH_INFO di; memset(&di, 0, sizeof di);
-    CHECK(U(CryptSIPLoad)(&g, 0, &di));
-    /* wintrust's own entry points only know the built-in subject types */
-    SIP_SUBJECTINFO si; mkinfo(&si, &g); DWORD cb = 0;
-    SET_ERR(0);
-    BOOL r = UIN("wintrust.dll", CryptSIPCreateIndirectData)(&si, &cb, NULL);
-    t_note("wintrust!CryptSIPCreateIndirectData with an alias subject: %d err 0x%lx", r, GetLastError());
-    wcfg_end();
-}
 
 /* ---- CryptSIPRetrieveSubjectGuid: runs in fresh child processes (the IsMyFileType list is read once per process) ---- */
 static void make_file(const char *path, const char *magic8, int extra) {
@@ -513,5 +497,37 @@ TEST(wcfg_sip_retrieve_subject_guid_list_cached_per_process) {
     SSETUP(CryptSIPRetrieveSubjectGuid);
     int rc = run_retrieve_child("wcfg_sip_retrieve_cache", 0);
     CHECKF(rc == 0, "child step %d failed", rc);
+    wcfg_end();
+}
+
+static void bad_put(SIP_ADD_NEWPROVIDER_EX *a) { a->pwszPutFuncName = L"cryptt_NoSuchExport"; }
+static void put_only(SIP_ADD_NEWPROVIDER_EX *a) { a->pwszGetFuncName = L"cryptt_NoSuchExport"; a->pwszVerifyFuncName = L"cryptt_NoSuchExport"; }
+#define ISO_TEST(NAME, FN, SLOT, MODE, MOD) TEST(NAME) { SSETUP(FN); int rc = iso_with(SLOT, MODE, MOD); EXPECT_EQ(rc, 0); wcfg_end(); }
+ISO_TEST(wcfg_sip_load_registered_subject, CryptSIPLoad, 430, M_LOAD, NULL)
+ISO_TEST(wcfg_sip_load_after_remove_uses_process_cache, CryptSIPLoad, 432, M_LOAD_REMOVED, NULL)
+ISO_TEST(wcfg_sip_load_bad_put_function_name_fails, CryptSIPLoad, 434, M_LOAD_BADPUT, bad_put)
+ISO_TEST(wcfg_sip_load_checks_only_put_function, CryptSIPLoad, 435, M_LOAD_PUTONLY, put_only)
+ISO_TEST(wcfg_sip_dispatch_get_signed_data_msg, CryptSIPGetSignedDataMsg, 440, M_GET, NULL)
+ISO_TEST(wcfg_sip_dispatch_put_signed_data_msg, CryptSIPPutSignedDataMsg, 441, M_PUT, NULL)
+ISO_TEST(wcfg_sip_dispatch_create_indirect_data, CryptSIPCreateIndirectData, 442, M_CREATE, NULL)
+ISO_TEST(wcfg_sip_dispatch_verify_indirect_data, CryptSIPVerifyIndirectData, 443, M_VERIFY, NULL)
+ISO_TEST(wcfg_sip_dispatch_remove_signed_data_msg, CryptSIPRemoveSignedDataMsg, 444, M_REMOVE, NULL)
+ISO_TEST(wcfg_sip_dispatch_via_loaded_dispatch_table, CryptSIPLoad, 446, M_TABLE, NULL)
+TEST(wcfg_sip_dispatch_get_caps) { REQUIRE(C32CAPS); SSETUP(CryptSIPAddProvider); int rc = iso_with(445, M_CAPS, NULL); EXPECT_EQ(rc, 0); wcfg_end(); }
+static void wt_names(SIP_ADD_NEWPROVIDER_EX *a) {
+    memset(a, 0, sizeof *a);
+    a->cbStruct = SIP_ADD_BASE_SIZE; a->pgSubject = NULL; a->pwszDLLFileName = L"WINTRUST.DLL"; a->pwszMagicNumber = L"MZ";
+    a->pwszGetFuncName = L"CryptSIPGetSignedDataMsg"; a->pwszPutFuncName = L"CryptSIPPutSignedDataMsg";
+    a->pwszCreateFuncName = L"CryptSIPCreateIndirectData"; a->pwszVerifyFuncName = L"CryptSIPVerifyIndirectData";
+    a->pwszRemoveFuncName = L"CryptSIPRemoveSignedDataMsg";
+}
+TEST(wcfg_sip_register_with_wintrust_export_names) {
+    SSETUP(CryptSIPLoad); GUID g; wcfg_guid(&g, 450);
+    SIP_ADD_NEWPROVIDER_EX a; wt_names(&a); a.pgSubject = &g;
+    CHECK(addp(&a));
+    wchar_t d[300], f[300];
+    CHECK(wcfg_sip_key_present(FS_PUT, &g, d, f)); CHECK(!wcscmp(d, L"WINTRUST.DLL")); CHECK(!wcscmp(f, L"CryptSIPPutSignedDataMsg"));
+    CHECK(wcfg_sip_key_present(FS_CREATE, &g, d, f)); CHECK(!wcscmp(f, L"CryptSIPCreateIndirectData"));
+    int rc = run_iso(M_WINTRUST); EXPECT_EQ(rc, 0);
     wcfg_end();
 }

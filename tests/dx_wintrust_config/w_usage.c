@@ -103,11 +103,25 @@ TEST(wcfg_usage_add_oid_length_limits) {
     SET_ERR(0); CHECK(!U(WintrustAddDefaultForUsage)(longo, &u.r)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
     wcfg_end();
 }
+/* Win10 accepts the empty usage OID: the registration lands on the Usages key itself (its DefaultId value).  The test
+ * restores that value (absent before) so no state is left behind. */
 TEST(wcfg_usage_add_empty_oid) {
     USETUP(x); ureg_t u; ufill(&u, 307, 0, 0, 0);
+    const wchar_t *base = L"" WCFG_TRUST L"\\Usages";
+    wchar_t b0[100] = L"", b[100] = L""; DWORD t = 0, cb = 0;
+    LONG before = wcfg_get_str(base, L"DefaultId", b0, 100, NULL, NULL);
+    EXPECT_EQ(before, ERROR_FILE_NOT_FOUND);
     SET_ERR(0); BOOL r = U(WintrustAddDefaultForUsage)("", &u.r);
-    t_note("empty usage oid: %d (err %lu)", r, GetLastError());
-    CHECK(!r);
+    EXPECT_EQ(r, TRUE);
+    wchar_t gs[48]; wcfg_guid_str(&u.g, gs);
+    EXPECT_EQ(wcfg_get_str(base, L"DefaultId", b, 100, &t, &cb), 0);
+    EXPECT_EQ(t, REG_SZ);
+    CHECK(!wcscmp(b, gs));
+    if (before != 0) {                                    /* remove what the call added */
+        HKEY k;
+        if (!RegOpenKeyExW(HKEY_LOCAL_MACHINE, base, 0, KEY_WRITE, &k)) { RegDeleteValueW(k, L"DefaultId"); RegCloseKey(k); }
+    }
+    EXPECT_EQ(wcfg_get_str(base, L"DefaultId", b, 100, NULL, NULL), ERROR_FILE_NOT_FOUND);
     wcfg_end();
 }
 TEST(wcfg_usage_add_second_call_overwrites_default_id) {
