@@ -246,12 +246,12 @@ C_ASSERT(offsetof(UTIME, diff) == 8);
  X(ASN1char16string_free, void, (C16STR *)) \
  X(ASN1char32string_cmp, int, (C32STR *, C32STR *)) \
  X(ASN1char32string_free, void, (C32STR *)) \
- X(ASN1ztcharstring_cmp, int, (char **, char **)) \
- X(ASN1ztcharstring_free, void, (char **)) \
- X(ASN1ztchar16string_cmp, int, (WCHAR **, WCHAR **)) \
- X(ASN1ztchar16string_free, void, (WCHAR **)) \
- X(ASN1ztchar32string_cmp, int, (DWORD **, DWORD **)) \
- X(ASN1ztchar32string_free, void, (DWORD **)) \
+ X(ASN1ztcharstring_cmp, int, (const char *, const char *)) \
+ X(ASN1ztcharstring_free, void, (void *)) \
+ X(ASN1ztchar16string_cmp, int, (const WCHAR *, const WCHAR *)) \
+ X(ASN1ztchar16string_free, void, (void *)) \
+ X(ASN1ztchar32string_cmp, int, (const DWORD *, const DWORD *)) \
+ X(ASN1ztchar32string_free, void, (void *)) \
  X(ASN1utf8string_free, void, (LV *)) \
  X(ASN1generalizedtime_cmp, int, (GTIME *, GTIME *)) \
  X(ASN1utctime_cmp, int, (UTIME *, UTIME *)) \
@@ -288,8 +288,14 @@ void expect_bytes(const char *file, int line, const void *got, size_t gl, const 
 /* check the encoder content (after BEREncFlush) */
 void expect_enc(const char *file, int line, Rig *r, const void *want, size_t wl);
 #define EXPECT_ENC(r, w, wl) expect_enc(__FILE__, __LINE__, (r), (w), (wl))
+/* single-evaluation comparison (EXPECT_EQ of the harness evaluates its arguments twice) */
+#define XEQ(a, b) do { long long a_ = (long long)(a); long long b_ = (long long)(b); t_check(a_ == b_, __FILE__, __LINE__, #a " == " #b, "got %lld (0x%llx) want %lld", a_, (unsigned long long)a_, b_); } while (0)
 #define OK8(v) (((U64)(v) & 0xff) != 0)
 #define NEED(fn) do { if (!A.fn) { t_skip("missing export: " #fn); return; } } while (0)
+
+typedef struct { DWORD arcs[16]; DWORD n; BYTE enc[24]; DWORD en; } OIDV;
+extern const OIDV k_oid[];
+extern const unsigned k_oid_n;
 
 /* counters / hooks used by the PDU stubs */
 extern int g_freecalls[4];

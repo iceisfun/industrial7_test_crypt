@@ -62,20 +62,20 @@ TEST(be_length_reserves_room_for_the_contents) {
     NEED(ASN1BEREncLength);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(OK8(A.ASN1BEREncLength(r.e, 3000)));
-    CHECK(r.e->buf != NULL); EXPECT_EQ(r.e->size, 3000 + 3);
+    CHECK(r.e->buf != NULL); XEQ(r.e->size, 3000 + 3);
     rig_done(&r);
 }
 TEST(be_length_overflow_in_caller_buffer) {
     NEED(ASN1BEREncLength); NEED(ASN1_CreateEncoder); NEED(ASN1_CloseEncoder); NEED(ASN1_CloseModule);
     MOD *m = rig_module(R_DER, 0); ENC *e = NULL; BYTE buf[4];
     CHECK(m != NULL); if (!m) return;
-    EXPECT_EQ(A.ASN1_CreateEncoder(m, &e, buf, sizeof buf, NULL), 0);
+    XEQ(A.ASN1_CreateEncoder(m, &e, buf, sizeof buf, NULL), 0);
     if (e) {
         CHECK(!OK8(A.ASN1BEREncLength(e, 4)));                  /* 1 header byte + 4 contents > 4 */
-        EXPECT_EQ(e->err, E_OVERFLOW); EXPECT_EQ(e->len, 0);
-        EXPECT_EQ(A.ASN1EncSetError(e, 0), 0);
+        XEQ(e->err, E_OVERFLOW); XEQ(e->len, 0);
+        XEQ(A.ASN1EncSetError(e, 0), 0);
         CHECK(OK8(A.ASN1BEREncLength(e, 3)));                   /* 1 + 3 fits */
-        EXPECT_EQ(e->err, 0); CHECK(buf[0] == 3);
+        XEQ(e->err, 0); CHECK(buf[0] == 3);
         A.ASN1_CloseEncoder(e);
     }
     A.ASN1_CloseModule(m);
@@ -86,7 +86,7 @@ TEST(be_check_zero_does_not_allocate) {
     NEED(ASN1BEREncCheck);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(OK8(A.ASN1BEREncCheck(r.e, 0)));
-    CHECK(r.e->buf == NULL); EXPECT_EQ(r.e->size, 0);
+    CHECK(r.e->buf == NULL); XEQ(r.e->size, 0);
     rig_done(&r);
 }
 TEST(be_check_minimum_allocation_is_1024) {
@@ -95,19 +95,19 @@ TEST(be_check_minimum_allocation_is_1024) {
     for (int i = 0; i < 5; i++) {
         Rig r; if (!rig_enc(&r, R_DER)) return;
         CHECK(OK8(A.ASN1BEREncCheck(r.e, want[i][0])));
-        CHECK(r.e->buf != NULL); CHECK(r.e->pos == r.e->buf); EXPECT_EQ(r.e->size, want[i][1]);
+        CHECK(r.e->buf != NULL); CHECK(r.e->pos == r.e->buf); XEQ(r.e->size, want[i][1]);
         rig_done(&r);
     }
 }
 TEST(be_check_grows_by_the_larger_of_request_and_size) {
     NEED(ASN1BEREncCheck);
     Rig r; if (!rig_enc(&r, R_DER)) return;
-    CHECK(OK8(A.ASN1BEREncCheck(r.e, 1)));  EXPECT_EQ(r.e->size, 0x400);
-    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x400)));  EXPECT_EQ(r.e->size, 0x400);   /* still fits */
-    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x500)));  EXPECT_EQ(r.e->size, 0x900);   /* 0x400 + 0x500 */
+    CHECK(OK8(A.ASN1BEREncCheck(r.e, 1)));  XEQ(r.e->size, 0x400);
+    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x400)));  XEQ(r.e->size, 0x400);   /* still fits */
+    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x500)));  XEQ(r.e->size, 0x900);   /* 0x400 + 0x500 */
     CHECK(r.e->pos == r.e->buf);                                               /* position follows the move */
-    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x900)));  EXPECT_EQ(r.e->size, 0x900);
-    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x901)));  EXPECT_EQ(r.e->size, 0x900 + 0x901);
+    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x900)));  XEQ(r.e->size, 0x900);
+    CHECK(OK8(A.ASN1BEREncCheck(r.e, 0x901)));  XEQ(r.e->size, 0x900 + 0x901);
     rig_done(&r);
 }
 TEST(be_check_growth_keeps_written_bytes) {
@@ -117,7 +117,7 @@ TEST(be_check_growth_keeps_written_bytes) {
     CHECK(OK8(A.ASN1BEREncOctetString(r.e, T_OCT, sizeof a, a)));
     CHECK(OK8(A.ASN1BEREncOctetString(r.e, T_OCT, sizeof b, b)));
     CHECK(OK8(A.ASN1BEREncFlush(r.e)));
-    EXPECT_EQ(r.e->len, 4 + 1000 + 4 + 3000);
+    XEQ(r.e->len, 4 + 1000 + 4 + 3000);
     CHECK(r.e->buf[0] == 4 && r.e->buf[1] == 0x82 && r.e->buf[2] == 0x03 && r.e->buf[3] == 0xe8);
     CHECK(r.e->buf[4] == 0xa1 && r.e->buf[1003] == 0xa1);
     CHECK(r.e->buf[1004] == 4 && r.e->buf[1005] == 0x82 && r.e->buf[1006] == 0x0b && r.e->buf[1007] == 0xb8);
@@ -128,12 +128,12 @@ TEST(be_check_fixed_buffer_overflow) {
     NEED(ASN1BEREncCheck); NEED(ASN1_CreateEncoder); NEED(ASN1_CloseEncoder); NEED(ASN1_CloseModule);
     MOD *m = rig_module(R_DER, 0); ENC *e = NULL; BYTE buf[16];
     CHECK(m != NULL); if (!m) return;
-    EXPECT_EQ(A.ASN1_CreateEncoder(m, &e, buf, sizeof buf, NULL), 0);
+    XEQ(A.ASN1_CreateEncoder(m, &e, buf, sizeof buf, NULL), 0);
     if (e) {
         CHECK(OK8(A.ASN1BEREncCheck(e, 16)));
-        EXPECT_EQ(e->err, 0);
+        XEQ(e->err, 0);
         CHECK(!OK8(A.ASN1BEREncCheck(e, 17)));
-        EXPECT_EQ(e->err, E_OVERFLOW); CHECK(e->buf == buf); EXPECT_EQ(e->size, 16);
+        XEQ(e->err, E_OVERFLOW); CHECK(e->buf == buf); XEQ(e->size, 16);
         A.ASN1_CloseEncoder(e);
     }
     A.ASN1_CloseModule(m);
@@ -142,26 +142,26 @@ TEST(be_flush_on_fresh_encoder_allocates_and_reports_empty) {
     NEED(ASN1BEREncFlush);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(OK8(A.ASN1BEREncFlush(r.e)));
-    CHECK(r.e->buf != NULL); EXPECT_EQ(r.e->len, 0);
+    CHECK(r.e->buf != NULL); XEQ(r.e->len, 0);
     rig_done(&r);
 }
 TEST(be_flush_sets_length_to_bytes_written) {
     NEED(ASN1BEREncFlush); NEED(ASN1BEREncNull);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(OK8(A.ASN1BEREncNull(r.e, T_NULL)));
-    EXPECT_EQ(r.e->len, 0);                 /* nothing visible before a flush */
-    CHECK(OK8(A.ASN1BEREncFlush(r.e))); EXPECT_EQ(r.e->len, 2);
-    CHECK(OK8(A.ASN1BEREncFlush(r.e))); EXPECT_EQ(r.e->len, 2);   /* idempotent */
+    XEQ(r.e->len, 0);                 /* nothing visible before a flush */
+    CHECK(OK8(A.ASN1BEREncFlush(r.e))); XEQ(r.e->len, 2);
+    CHECK(OK8(A.ASN1BEREncFlush(r.e))); XEQ(r.e->len, 2);   /* idempotent */
     CHECK(OK8(A.ASN1BEREncNull(r.e, T_NULL)));
-    CHECK(OK8(A.ASN1BEREncFlush(r.e))); EXPECT_EQ(r.e->len, 4);
+    CHECK(OK8(A.ASN1BEREncFlush(r.e))); XEQ(r.e->len, 4);
     rig_done(&r);
 }
 TEST(be_flush_of_an_empty_allocated_buffer_appends_a_zero_byte) {
     /* quirk: with buf == pos, Flush stores a 0 byte and advances (an empty PDU is encoded as one 00 byte) */
     NEED(ASN1BEREncFlush);
     Rig r; if (!rig_enc(&r, R_DER)) return;
-    CHECK(OK8(A.ASN1BEREncFlush(r.e))); EXPECT_EQ(r.e->len, 0);
-    CHECK(OK8(A.ASN1BEREncFlush(r.e))); EXPECT_EQ(r.e->len, 1);
+    CHECK(OK8(A.ASN1BEREncFlush(r.e))); XEQ(r.e->len, 0);
+    CHECK(OK8(A.ASN1BEREncFlush(r.e))); XEQ(r.e->len, 1);
     CHECK(r.e->buf[0] == 0);
     rig_done(&r);
 }
@@ -271,7 +271,7 @@ static void enc_str_len(int which, DWORD n)
     else if (n < 0x100) { hdr[h++] = 0x81; hdr[h++] = (BYTE)n; }
     else if (n < 0x10000) { hdr[h++] = 0x82; hdr[h++] = (BYTE)(n >> 8); hdr[h++] = (BYTE)n; }
     else { hdr[h++] = 0x83; hdr[h++] = (BYTE)(n >> 16); hdr[h++] = (BYTE)(n >> 8); hdr[h++] = (BYTE)n; }
-    EXPECT_EQ(r.e->len, h + n);
+    XEQ(r.e->len, h + n);
     if (r.e->len == h + n) { CHECK(memcmp(r.e->buf, hdr, h) == 0); CHECK(n == 0 || memcmp(r.e->buf + h, body, n) == 0); }
     free(body); rig_done(&r);
 }
@@ -321,14 +321,14 @@ TEST(be_char16string_too_long_is_large) {
     NEED(ASN1BEREncChar16String);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(!OK8(A.ASN1BEREncChar16String(r.e, T_BMP, 0x7fffffff, NULL)));
-    EXPECT_EQ(r.e->err, E_LARGE);
+    XEQ(r.e->err, E_LARGE);
     rig_done(&r);
 }
 TEST(be_char32string_too_long_is_large) {
     NEED(ASN1BEREncChar32String);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(!OK8(A.ASN1BEREncChar32String(r.e, 28, 0x3fffffff, NULL)));
-    EXPECT_EQ(r.e->err, E_LARGE);
+    XEQ(r.e->err, E_LARGE);
     rig_done(&r);
 }
 TEST(be_char16string_reports_success_even_when_the_length_failed) {
@@ -336,10 +336,10 @@ TEST(be_char16string_reports_success_even_when_the_length_failed) {
     NEED(ASN1BEREncChar16String); NEED(ASN1_CreateEncoder); NEED(ASN1_CloseEncoder); NEED(ASN1_CloseModule);
     MOD *m = rig_module(R_DER, 0); ENC *e = NULL; BYTE buf[3];
     CHECK(m != NULL); if (!m) return;
-    EXPECT_EQ(A.ASN1_CreateEncoder(m, &e, buf, sizeof buf, NULL), 0);
+    XEQ(A.ASN1_CreateEncoder(m, &e, buf, sizeof buf, NULL), 0);
     if (e) {
         U64 rv = A.ASN1BEREncChar16String(e, T_BMP, 2, u16_a);
-        CHECK(OK8(rv)); EXPECT_EQ(e->err, E_OVERFLOW);
+        CHECK(OK8(rv)); XEQ(e->err, E_OVERFLOW);
         A.ASN1_CloseEncoder(e);
     }
     A.ASN1_CloseModule(m);
@@ -364,7 +364,7 @@ TEST(be_utf8_long_string_header) {
     WCHAR w[100]; for (int i = 0; i < 100; i++) w[i] = 0x20ac;          /* 300 bytes */
     CHECK(OK8(A.ASN1BEREncUTF8String(r.e, T_UTF8, 100, w)));
     CHECK(OK8(A.ASN1BEREncFlush(r.e)));
-    EXPECT_EQ(r.e->len, 4 + 300);
+    XEQ(r.e->len, 4 + 300);
     static const BYTE h[] = { 0x0c, 0x82, 0x01, 0x2c, 0xe2, 0x82, 0xac };
     EXPECT_BYTES(r.e->buf, sizeof h, h, sizeof h);
     rig_done(&r);
@@ -412,7 +412,7 @@ TEST(be_bitstring_too_many_bits_is_large) {
     NEED(ASN1BEREncBitString);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(!OK8(A.ASN1BEREncBitString(r.e, T_BITS, 0xfffffff7, NULL)));
-    EXPECT_EQ(r.e->err, E_LARGE);
+    XEQ(r.e->err, E_LARGE);
     rig_done(&r);
 }
 static DWORD ref_rzb(DWORD n, const BYTE *d)
@@ -438,7 +438,7 @@ TEST(be_removezerobits_ignores_bits_beyond_the_length) {
     NEED(ASN1BEREncRemoveZeroBits);
     DWORD n = 5; const BYTE d[1] = { 0x07 };       /* only the unused low bits are set */
     CHECK(OK8(A.ASN1BEREncRemoveZeroBits(&n, d)));
-    EXPECT_EQ(n, 0);
+    XEQ(n, 0);
 }
 TEST(be_removezerobits2_keeps_a_minimum) {
     NEED(ASN1BEREncRemoveZeroBits2);
@@ -455,33 +455,9 @@ TEST(be_removezerobits2_keeps_a_minimum) {
 }
 
 /* ---------------------------------------------------------------- OBJECT IDENTIFIER */
-typedef struct { DWORD arcs[16]; DWORD n; BYTE enc[24]; DWORD en; } OIDV;
-static const OIDV k_oid[] = {
-    { { 2, 5, 4, 3 }, 4, { 0x06, 0x03, 0x55, 0x04, 0x03 }, 5 },
-    { { 1, 2, 840, 113549 }, 4, { 0x06, 0x06, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d }, 8 },
-    { { 1, 2, 840, 113549, 1, 1, 11 }, 7, { 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b }, 11 },
-    { { 1, 3, 6, 1, 5, 5, 7, 3, 1 }, 9, { 0x06, 0x08, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01 }, 10 },
-    { { 2, 16, 840, 1, 101, 3, 4, 2, 1 }, 9, { 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01 }, 11 },
-    { { 2, 100, 3 }, 3, { 0x06, 0x03, 0x81, 0x34, 0x03 }, 5 },
-    { { 0, 0 }, 2, { 0x06, 0x01, 0x00 }, 3 }, { { 1, 39 }, 2, { 0x06, 0x01, 0x4f }, 3 }, { { 0, 39 }, 2, { 0x06, 0x01, 0x27 }, 3 },
-    { { 2, 999 }, 2, { 0x06, 0x02, 0x88, 0x37 }, 4 }, { { 2, 47 }, 2, { 0x06, 0x01, 0x7f }, 3 },
-    { { 2, 48 }, 2, { 0x06, 0x02, 0x81, 0x00 }, 4 },
-    { { 1, 2, 127 }, 3, { 0x06, 0x02, 0x2a, 0x7f }, 4 }, { { 1, 2, 128 }, 3, { 0x06, 0x03, 0x2a, 0x81, 0x00 }, 5 },
-    { { 1, 2, 16383 }, 3, { 0x06, 0x03, 0x2a, 0xff, 0x7f }, 5 }, { { 1, 2, 16384 }, 3, { 0x06, 0x04, 0x2a, 0x81, 0x80, 0x00 }, 6 },
-    { { 1, 2, 0x1fffff }, 3, { 0x06, 0x04, 0x2a, 0xff, 0xff, 0x7f }, 6 },
-    { { 1, 2, 0x200000 }, 3, { 0x06, 0x05, 0x2a, 0x81, 0x80, 0x80, 0x00 }, 7 },
-    { { 1, 2, 0xfffffff }, 3, { 0x06, 0x05, 0x2a, 0xff, 0xff, 0xff, 0x7f }, 7 },
-    { { 1, 2, 0x10000000 }, 3, { 0x06, 0x06, 0x2a, 0x81, 0x80, 0x80, 0x80, 0x00 }, 8 },
-    { { 1, 2, 0xffffffff }, 3, { 0x06, 0x06, 0x2a, 0x8f, 0xff, 0xff, 0xff, 0x7f }, 8 },
-    { { 1 }, 1, { 0x06, 0x01, 0x01 }, 3 }, { { 0 }, 1, { 0x06, 0x01, 0x00 }, 3 },
-    { { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }, 16,
-      { 0x06, 0x0f, 0x2a, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }, 17 },
-    { { 2, 5, 29, 15 }, 4, { 0x06, 0x03, 0x55, 0x1d, 0x0f }, 5 },
-};
-#define NOIDV (sizeof k_oid / sizeof k_oid[0])
 TEST(be_oid_linked_list_table) {
     NEED(ASN1BEREncObjectIdentifier);
-    for (unsigned i = 0; i < NOIDV; i++) {
+    for (unsigned i = 0; i < k_oid_n; i++) {
         Rig r; if (!rig_enc(&r, R_DER)) return;
         OIDN nodes[16];
         for (DWORD k = 0; k < k_oid[i].n; k++) { nodes[k].value = k_oid[i].arcs[k]; nodes[k].next = k + 1 < k_oid[i].n ? &nodes[k + 1] : NULL; }
@@ -493,7 +469,7 @@ TEST(be_oid_linked_list_table) {
 }
 TEST(be_oid2_array_table) {
     NEED(ASN1BEREncObjectIdentifier2);
-    for (unsigned i = 0; i < NOIDV; i++) {
+    for (unsigned i = 0; i < k_oid_n; i++) {
         Rig r; if (!rig_enc(&r, R_DER)) return;
         OID2 o; memset(&o, 0, sizeof o); o.count = (WORD)k_oid[i].n; memcpy(o.value, k_oid[i].arcs, sizeof(DWORD) * k_oid[i].n);
         CHECKF(OK8(A.ASN1BEREncObjectIdentifier2(r.e, T_OID, &o)), "case %u", i);
@@ -556,11 +532,11 @@ TEST(be_dotval2eoid_table) {
         U64 rv = A.ASN1BERDotVal2Eoid(r.e, k_dot[i].s, &eo);
         CHECKF(OK8(rv), "%s", k_dot[i].s);
         if (OK8(rv)) {
-            EXPECT_EQ(eo.length, k_dot[i].n);
+            XEQ(eo.length, k_dot[i].n);
             CHECK(eo.value != NULL); if (eo.value) EXPECT_BYTES(eo.value, eo.length, k_dot[i].v, k_dot[i].n);
             A.ASN1BEREoid_free(&eo);
         }
-        EXPECT_EQ(r.e->err, 0);
+        XEQ(r.e->err, 0);
         rig_done(&r);
     }
 }
@@ -572,7 +548,7 @@ TEST(be_dotval2eoid_rejects_malformed_strings) {
         EOID eo; memset(&eo, 0, sizeof eo);
         U64 rv = A.ASN1BERDotVal2Eoid(r.e, bad[i], &eo);
         CHECKF(!OK8(rv), "\"%s\" accepted", bad[i]);
-        EXPECT_EQ(r.e->err, E_BADARGS);
+        XEQ(r.e->err, E_BADARGS);
         rig_done(&r);
     }
 }
@@ -581,7 +557,7 @@ TEST(be_dotval2eoid_null_string) {
     Rig r; if (!rig_enc(&r, R_DER)) return;
     EOID eo; memset(&eo, 0, sizeof eo);
     CHECK(!OK8(A.ASN1BERDotVal2Eoid(r.e, NULL, &eo)));
-    EXPECT_EQ(r.e->err, E_BADARGS);
+    XEQ(r.e->err, E_BADARGS);
     rig_done(&r);
 }
 
@@ -618,9 +594,9 @@ TEST(be_explicittag_reports_length_offset) {
     Rig r; if (!rig_enc(&r, R_DER)) return;
     DWORD p1 = 99, p2 = 99;
     CHECK(OK8(A.ASN1BEREncExplicitTag(r.e, T_SEQ, &p1)));        /* 30 <len> */
-    EXPECT_EQ(p1, 1);
+    XEQ(p1, 1);
     CHECK(OK8(A.ASN1BEREncExplicitTag(r.e, TG_CTX(1), &p2)));    /* A1 <len> */
-    EXPECT_EQ(p2, 3);
+    XEQ(p2, 3);
     rig_done(&r);
 }
 TEST(be_explicittag_high_tag_number_offset) {
@@ -628,7 +604,7 @@ TEST(be_explicittag_high_tag_number_offset) {
     Rig r; if (!rig_enc(&r, R_DER)) return;
     DWORD p = 99;
     CHECK(OK8(A.ASN1BEREncExplicitTag(r.e, TG_CTX(200), &p)));   /* BF 81 48 <len> */
-    EXPECT_EQ(p, 3);
+    XEQ(p, 3);
     rig_done(&r);
 }
 TEST(be_explicittag_endofcontents_short) {
@@ -778,7 +754,7 @@ TEST(be_double_family_is_not_implemented) {
     NEED(ASN1BEREncDouble);
     Rig r; if (!rig_enc(&r, R_DER)) return;
     U64 rv = A.ASN1BEREncDouble(r.e, 9, 1.5);
-    EXPECT_EQ((int)rv, E_NYI);
+    XEQ((int)rv, E_NYI);
     EXPECT_ENC(&r, "", 0);                                     /* nothing was written */
     rig_done(&r);
 }
@@ -787,13 +763,13 @@ TEST(be_cer_string_encoders_are_not_implemented) {
     NEED(ASN1CEREncChar16String); NEED(ASN1CEREncChar32String); NEED(ASN1CEREncMultibyteString); NEED(ASN1CEREncZeroMultibyteString);
     Rig r; if (!rig_enc(&r, R_CER)) return;
     CSTR cs = { 3, "abc" };
-    EXPECT_EQ((int)A.ASN1CEREncOctetString(r.e, T_OCT, 3, "abc"), E_NYI);
-    EXPECT_EQ((int)A.ASN1CEREncBitString(r.e, T_BITS, 8, "a"), E_NYI);
-    EXPECT_EQ((int)A.ASN1CEREncCharString(r.e, T_IA5, 3, "abc"), E_NYI);
-    EXPECT_EQ((int)A.ASN1CEREncChar16String(r.e, T_BMP, 1, u16_a), E_NYI);
-    EXPECT_EQ((int)A.ASN1CEREncChar32String(r.e, 28, 1, u32_a), E_NYI);
-    EXPECT_EQ((int)A.ASN1CEREncMultibyteString(r.e, T_IA5, &cs), E_NYI);
-    EXPECT_EQ((int)A.ASN1CEREncZeroMultibyteString(r.e, T_IA5, "abc"), E_NYI);
+    XEQ((int)A.ASN1CEREncOctetString(r.e, T_OCT, 3, "abc"), E_NYI);
+    XEQ((int)A.ASN1CEREncBitString(r.e, T_BITS, 8, "a"), E_NYI);
+    XEQ((int)A.ASN1CEREncCharString(r.e, T_IA5, 3, "abc"), E_NYI);
+    XEQ((int)A.ASN1CEREncChar16String(r.e, T_BMP, 1, u16_a), E_NYI);
+    XEQ((int)A.ASN1CEREncChar32String(r.e, 28, 1, u32_a), E_NYI);
+    XEQ((int)A.ASN1CEREncMultibyteString(r.e, T_IA5, &cs), E_NYI);
+    XEQ((int)A.ASN1CEREncZeroMultibyteString(r.e, T_IA5, "abc"), E_NYI);
     EXPECT_ENC(&r, "", 0);
     rig_done(&r);
 }
@@ -898,10 +874,10 @@ TEST(be_block_element_encoders_share_the_parent_error_state) {
     CHECK(OK8(A.ASN1DEREncNewBlkElement(blk, &sub)));
     CHECK(sub != NULL);
     if (sub) {
-        CHECK(sub->parent == r.e); CHECK(r.e->child == sub); EXPECT_EQ(sub->magic, 0x44434e45u);
-        EXPECT_EQ(sub->rule, R_DER);
+        CHECK(sub->parent == r.e); CHECK(r.e->child == sub); XEQ(sub->magic, 0x44434e45u);
+        XEQ(sub->rule, R_DER);
         A.ASN1EncSetError(sub, E_CORRUPT);
-        EXPECT_EQ(r.e->err, E_CORRUPT);
+        XEQ(r.e->err, E_CORRUPT);
         A.ASN1EncSetError(sub, 0);
     }
     CHECK(OK8(A.ASN1DEREncEndBlk(blk)));
