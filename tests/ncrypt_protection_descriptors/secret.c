@@ -20,7 +20,7 @@ static LONG do_unprotect(const BYTE *blob, ULONG cb, BYTE **out, ULONG *cbOut, v
 TEST(npd_secret_protect_null_data) {
     NREQ(UN(NCryptProtectSecret));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     BYTE *blob = (BYTE *)(ULONG_PTR)1; ULONG cb = 77;
     LONG rc = UN(NCryptProtectSecret)(d, 0, NULL, 4, NULL, NULL, &blob, &cb);
     EXPECT_SS(rc, NPD_NTE_INVALID_PARAM);
@@ -32,7 +32,7 @@ TEST(npd_secret_protect_null_data) {
 TEST(npd_secret_protect_zero_length) {
     NREQ(UN(NCryptProtectSecret));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     BYTE one = 1, *blob = (BYTE *)(ULONG_PTR)1; ULONG cb = 77;
     EXPECT_SS(UN(NCryptProtectSecret)(d, 0, &one, 0, NULL, NULL, &blob, &cb), NPD_NTE_INVALID_PARAM);
     CHECK(blob == NULL && cb == 0);
@@ -54,7 +54,7 @@ TEST(npd_secret_protect_flags_checked_before_handle) {
 TEST(npd_secret_protect_bad_flags) {
     NREQ(UN(NCryptProtectSecret));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     static const DWORD bad[] = { 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x80, 0x100, 0x1000, 0x80000000u, 0xFFFFFFFFu };
     BYTE data[4] = {1,2,3,4};
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
@@ -77,7 +77,7 @@ TEST(npd_secret_protect_wrong_handle_type) {
     NREQ(UN(NCryptProtectSecret));
     NREQ(UN(NCryptOpenKeyProtector));
     void *kp = NULL;
-    if (UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0) != 0) { t_skip("no LOCAL protector"); return; }
+    REQUIRE_EQ(UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0), 0);
     BYTE data[4] = {1,2,3,4}, *blob = NULL; ULONG cb = 0;
     EXPECT_SS(UN(NCryptProtectSecret)(kp, 0, data, 4, NULL, NULL, &blob, &cb), NPD_NTE_INVALID_HANDLE);
     UN(NCryptCloseKeyProtector)(kp);
@@ -125,9 +125,10 @@ TEST(npd_secret_unprotect_garbage_blob) {
     for (size_t i = 0; i < sizeof c / sizeof *c; i++) {
         BYTE *out = (BYTE *)(ULONG_PTR)5; ULONG cbo = 5; void *desc = (void *)(ULONG_PTR)5;
         LONG rc = UN(NCryptUnprotectSecret)(&desc, NPD_SILENT_FLAG, c[i].p, c[i].n, NULL, NULL, &out, &cbo);
-        CHECKF(rc != 0, "junk %u unexpectedly succeeded", (unsigned)i);
+        static const DWORD want[] = { 0x8009310B, 0x80093102, 0x80090029, 0x80093104, 0x80093104 };   /* probed */
+        t_label("junk %u", (unsigned)i);
+        EXPECT_SS(rc, want[i]);
         CHECKF(out == NULL && cbo == 0 && desc == NULL, "junk %u: outputs not cleared", (unsigned)i);
-        t_note("junk blob %u -> 0x%lx", (unsigned)i, (unsigned long)SS(rc));
     }
 }
 
@@ -148,13 +149,12 @@ TEST(npd_secret_unprotect_null_desc_pointer_ok) {
 
 static void roundtrip(const wchar_t *desc, DWORD pflags, DWORD uflags, ULONG n, unsigned seed, int note_only) {
     void *d = npd_desc(desc);
-    if (!d) { t_note("%ls: cannot create", desc); return; }
+    if (!t_require(d != NULL, __FILE__, __LINE__, "descriptor created")) return;
     BYTE *in = (BYTE *)malloc(n), *blob = NULL, *out = NULL; ULONG cb = 0, co = 0;
     npd_fill(in, n, seed);
     LONG rc = do_protect(d, pflags, in, n, &blob, &cb);
     if (rc != 0) {
-        if (note_only) t_note("%ls n=%lu protect -> 0x%lx", desc, (unsigned long)n, (unsigned long)SS(rc));
-        else CHECKF(0, "%ls n=%lu protect -> 0x%lx", desc, (unsigned long)n, (unsigned long)SS(rc));
+        CHECKF(0, "%ls n=%lu protect -> 0x%lx", desc, (unsigned long)n, (unsigned long)SS(rc));
         goto out_;
     }
     CHECKF(blob != NULL && cb > n, "%ls n=%lu: blob=%p cb=%lu", desc, (unsigned long)n, blob, (unsigned long)cb);
@@ -164,8 +164,7 @@ static void roundtrip(const wchar_t *desc, DWORD pflags, DWORD uflags, ULONG n, 
         void *d2 = NULL;
         rc = UN(NCryptUnprotectSecret)(&d2, uflags, blob, cb, NULL, NULL, &out, &co);
         if (rc != 0) {
-            if (note_only) t_note("%ls n=%lu unprotect -> 0x%lx", desc, (unsigned long)n, (unsigned long)SS(rc));
-            else CHECKF(0, "%ls n=%lu unprotect -> 0x%lx", desc, (unsigned long)n, (unsigned long)SS(rc));
+            CHECKF(0, "%ls n=%lu unprotect -> 0x%lx", desc, (unsigned long)n, (unsigned long)SS(rc));
         } else {
             CHECKF(co == n, "%ls: plaintext length %lu want %lu", desc, (unsigned long)co, (unsigned long)n);
             CHECKF(out && co == n && !memcmp(out, in, n), "%ls n=%lu: plaintext mismatch", desc, (unsigned long)n);
@@ -220,15 +219,15 @@ TEST(npd_secret_roundtrip_all_zero_and_all_ff) {
 TEST(npd_secret_roundtrip_machine_logon_observed) {
     NREQ(UN(NCryptProtectSecret));
     REQUIRE_WORKING();
-    roundtrip(L"LOCAL=machine", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 3, 1);
-    roundtrip(L"LOCAL=logon", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 4, 1);
+    roundtrip(L"LOCAL=machine", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 3, 0);
+    roundtrip(L"LOCAL=logon", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 4, 0);
 }
 
 TEST(npd_secret_roundtrip_compound_observed) {
     NREQ(UN(NCryptProtectSecret));
     REQUIRE_WORKING();
-    roundtrip(L"LOCAL=user OR LOCAL=machine", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 5, 1);
-    roundtrip(L"LOCAL=user AND LOCAL=machine", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 6, 1);
+    roundtrip(L"LOCAL=user OR LOCAL=machine", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 5, 0);
+    roundtrip(L"LOCAL=user AND LOCAL=machine", NPD_SILENT_FLAG, NPD_SILENT_FLAG, 48, 6, 0);
 }
 
 TEST(npd_secret_roundtrip_via_second_descriptor_handle) {
@@ -303,12 +302,12 @@ TEST(npd_secret_blob_der_length_observed) {
     if (blob) {
         CHECK(blob[0] == 0x30);
         long tot = npd_der_total(blob, cb);
-        t_note("blob cb=%lu header-declared total=%ld", (unsigned long)cb, tot);
+        EXPECT_EQ(tot, (long)cb);   /* probed: the DER header declares exactly the returned size */
         /* contains the CMS enveloped-data OID 1.2.840.113549.1.7.3 ? */
         static const BYTE oid[] = { 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x03 };
         int has = 0;
         for (ULONG i = 0; i + sizeof oid <= cb; i++) if (!memcmp(blob + i, oid, sizeof oid)) has = 1;
-        t_note("blob contains envelopedData OID: %d", has);
+        EXPECT_EQ(has, 1);
         LocalFree(blob);
     }
     npd_desc_close(d);
@@ -319,11 +318,13 @@ TEST(npd_secret_blob_size_growth_observed) {
     REQUIRE_WORKING();
     void *d = npd_desc(L"LOCAL=user");
     static const ULONG sizes[] = { 1, 16, 100, 255, 256, 1000, 70000 };
+    static const long overheads[] = { 471, 471, 472, 475, 475, 475, 480 };
     ULONG prev = 0;
     for (size_t i = 0; i < sizeof sizes / sizeof *sizes; i++) {
         BYTE *in = (BYTE *)calloc(1, sizes[i]), *blob; ULONG cb;
         EXPECT_SS(do_protect(d, 0, in, sizes[i], &blob, &cb), 0);
-        t_note("plain=%lu protected=%lu overhead=%ld", (unsigned long)sizes[i], (unsigned long)cb, (long)cb - (long)sizes[i]);
+        t_label("plain %lu", (unsigned long)sizes[i]);
+        EXPECT_EQ((long)cb - (long)sizes[i], overheads[i]);   /* probed on the oracle */
         CHECK(cb > sizes[i]);
         CHECK(cb >= prev);
         prev = cb;
@@ -345,9 +346,8 @@ TEST(npd_secret_tamper_last_byte) {
     if (blob) {
         blob[cb - 1] ^= 0x01;
         LONG rc = do_unprotect(blob, cb, &out, &co, NULL);
-        CHECK(rc != 0);
+        EXPECT_SS(rc, 0xC000A002);   /* probed: STATUS_AUTH_TAG_MISMATCH */
         CHECK(out == NULL && co == 0);
-        t_note("flipped last byte -> 0x%lx", (unsigned long)SS(rc));
         if (out) LocalFree(out);
         LocalFree(blob);
     }
@@ -390,7 +390,9 @@ TEST(npd_secret_truncated_blob) {
         for (size_t i = 0; i < sizeof cuts / sizeof *cuts; i++) {
             void *dd = (void *)(ULONG_PTR)5;
             LONG rc = UN(NCryptUnprotectSecret)(&dd, 0, blob, cuts[i], NULL, NULL, &out, &co);
-            CHECKF(rc != 0, "truncation to %lu accepted", (unsigned long)cuts[i]);
+            /* probed: 0x80093102 for every cut except a 2-byte blob (0x80093103) */
+            t_label("cut %lu", (unsigned long)cuts[i]);
+            EXPECT_SS(rc, cuts[i] == 2 ? 0x80093103 : 0x80093102);
             CHECKF(dd == NULL, "truncation to %lu: descriptor not cleared", (unsigned long)cuts[i]);
             if (rc == 0 && out) LocalFree(out);
         }
@@ -410,7 +412,8 @@ TEST(npd_secret_trailing_garbage_observed) {
         BYTE *big = (BYTE *)malloc(cb + 8);
         memcpy(big, blob, cb); memset(big + cb, 0xEE, 8);
         LONG rc = do_unprotect(big, cb + 8, &out, &co, NULL);
-        t_note("blob + 8 trailing bytes -> 0x%lx", (unsigned long)SS(rc));
+        EXPECT_SS(rc, 0);   /* probed: bytes after the DER structure are ignored */
+        CHECK(co == 40 && out && !memcmp(out, in, 40));
         if (out) LocalFree(out);
         free(big); LocalFree(blob);
     }
@@ -449,15 +452,19 @@ TEST(npd_secret_unprotect_returned_descriptor_info) {
         void *d = npd_desc(rules[i]);
         BYTE in[8] = {1,2,3,4,5,6,7,8};
         BYTE *blob, *out; ULONG cb, co;
-        if (do_protect(d, NPD_SILENT_FLAG, in, 8, &blob, &cb) != 0) { t_note("%ls: protect failed", rules[i]); npd_desc_close(d); continue; }
+        t_label("%ls", rules[i]);
+        REQUIRE_NOTNULL(d);
+        EXPECT_SS(do_protect(d, NPD_SILENT_FLAG, in, 8, &blob, &cb), 0);
+        REQUIRE_NOTNULL(blob);
         void *dd = NULL;
-        if (UN(NCryptUnprotectSecret)(&dd, NPD_UNPROTECT_NO_DECRYPT | NPD_SILENT_FLAG, blob, cb, NULL, NULL, &out, &co) == 0 && dd) {
+        EXPECT_SS(UN(NCryptUnprotectSecret)(&dd, NPD_UNPROTECT_NO_DECRYPT | NPD_SILENT_FLAG, blob, cb, NULL, NULL, &out, &co), 0);
+        REQUIRE_NOTNULL(dd);
+        {
             void *s = NULL;
-            if (UN(NCryptGetProtectionDescriptorInfo)(dd, NULL, 1, &s) == 0 && s) {
-                t_note("%ls recovered as \"%ls\"", rules[i], (wchar_t *)s);
-                CHECK(!lstrcmpW((wchar_t *)s, rules[i]));
-                LocalFree(s);
-            }
+            EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(dd, NULL, 1, &s), 0);
+            REQUIRE_NOTNULL(s);
+            EXPECT_WSTR((wchar_t *)s, rules[i]);
+            LocalFree(s);
             UN(NCryptCloseProtectionDescriptor)(dd);
         }
         LocalFree(blob);

@@ -28,7 +28,7 @@ TEST(dsa_provider_key_lengths) {
     EXPECT_EQ(U(BCryptGetProperty)(g_a, BCRYPT_KEY_LENGTHS, (PUCHAR)&kl, sizeof kl, &n, 0), ST_SUCCESS);
     EXPECT_EQ(kl.dwMinLength, 512);
     EXPECT_EQ(kl.dwMaxLength, 3072);
-    t_note("DSA KeyLengths min=%lu max=%lu inc=%lu", kl.dwMinLength, kl.dwMaxLength, kl.dwIncrement);
+    EXPECT_EQ(kl.dwIncrement, 64);
     END();
 }
 TEST(dsa_provider_gen_wrong_alg_types) {
@@ -64,8 +64,7 @@ TEST(dsa_gen_2048_fips186_3) {
         NTSTATUS ps;
         EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 2048);
         ULONG sl = rd_getdw(k, BCRYPT_SIGNATURE_LENGTH, &ps);
-        t_note("DSA-2048 signature length %lu", sl);
-        CHECK(sl == 64);
+        EXPECT_EQ(sl, 64);
         UCHAR *b; ULONG l;
         EXPECT_EQ(rd_export(k, BCRYPT_DSA_PUBLIC_BLOB, &b, &l), ST_SUCCESS);
         if (b) {
@@ -75,7 +74,7 @@ TEST(dsa_gen_2048_fips186_3) {
             EXPECT_EQ(h->cbGroupSize, 32);
             EXPECT_EQ(h->standardVersion, DSA_FIPS186_3);
             EXPECT_EQ(l, sizeof *h + h->cbSeedLength + h->cbGroupSize + 3 * 256);
-            t_note("v2 hash alg=%lu seed len=%lu", (unsigned long)h->hashAlgorithm, h->cbSeedLength);
+            EXPECT_EQ(h->hashAlgorithm, 1); EXPECT_EQ(h->cbSeedLength, 32);   /* probed: SHA-256, 32-byte seed */
             free(b);
         }
         rd_destroy(k);
@@ -91,7 +90,6 @@ TEST(dsa_gen_invalid_lengths_fail) {
         NTSTATUS sg = U(BCryptGenerateKeyPair)(g_a, &k, bad[i], 0), sf = 0;
         if (sg == 0) sf = U(BCryptFinalizeKeyPair)(k, 0);
         EXPECT_EQ(sg, ST_INVALID_PARAMETER);
-        t_note("DSA bits=%lu gen=0x%lx fin=0x%lx", bad[i], (unsigned long)sg, (unsigned long)sf);
         if (sg == 0) rd_destroy(k);
     }
     END();
@@ -105,7 +103,10 @@ TEST(dsa_gen_default_and_valid_odd_lengths) {
         if (k) {
             EXPECT_EQ(U(BCryptFinalizeKeyPair)(k, 0), ST_SUCCESS);
             NTSTATUS ps; ULONG kl = rd_getdw(k, BCRYPT_KEY_LENGTH, &ps);
-            t_note("DSA gen %lu -> KeyLength %lu (st 0x%lx) sig %lu", ok[i], kl, (unsigned long)ps, rd_getdw(k, BCRYPT_SIGNATURE_LENGTH, &ps));
+            t_label("request %lu", ok[i]);
+            EXPECT_EQ(ps, 0);
+            EXPECT_EQ(kl, ok[i] ? ok[i] : 1024);   /* probed: 0 selects 1024 */
+            EXPECT_EQ(rd_getdw(k, BCRYPT_SIGNATURE_LENGTH, &ps), ok[i] ? 64 : 40);
             rd_destroy(k);
         }
     }
@@ -118,8 +119,8 @@ TEST(dsa_gen_unfinalized_unusable) {
     if (k) {
         UCHAR sig[64], h[20] = {1}; ULONG n = 0;
         /* BCryptSignHash on an unfinalized DSA key dereferences a null key body inside the provider on Win10 (access
-           violation), so it is deliberately not called here; export reports STATUS_UNSUCCESSFUL. */
-        (void)sig; (void)h; (void)n;
+           violation): contained and asserted as a fault; export reports STATUS_UNSUCCESSFUL. */
+        T_EXPECT_FAULT(U(BCryptSignHash)(k, NULL, h, 20, sig, sizeof sig, &n, 0));
         UCHAR *b = NULL; ULONG l = 0;
         NTSTATUS s = rd_export(k, BCRYPT_DSA_PUBLIC_BLOB, &b, &l);
         EXPECT_EQ(s, 0xC0000001); if (!s) free(b);
@@ -215,7 +216,7 @@ TEST(dsa_export_rsa_blob_type_fails) {
     BCRYPT_KEY_HANDLE k = rd_gen(g_a, 512); CHECK(k); if (!k) { END(); return; }
     UCHAR buf[1024]; ULONG n = 0;
     NTSTATUS s = U(BCryptExportKey)(k, NULL, BCRYPT_RSAPUBLIC_BLOB, buf, sizeof buf, &n, 0);
-    CHECK(s != 0); t_note("RSA blob type from DSA key: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);
     rd_destroy(k); END();
 }
 
@@ -234,7 +235,7 @@ TEST(dsa_import_v1_public) {
             CHECK(!memcmp(o, b, 8));                         /* magic, cbKey */
             CHECK(!memcmp(o + 32, b + 32, 20));              /* q */
             CHECK(!memcmp(o + 52, b + 52, 3 * 128));         /* P, G, Y */
-            if (memcmp(o, b, n)) t_note("public export differs from input in Count/Seed");
+            CHECK(!memcmp(o, b, n));   /* probed: byte for byte identical, Count and Seed included */
         }
         free(o);
         rd_destroy(k);
@@ -270,7 +271,7 @@ TEST(dsa_import_public_key_cannot_export_private) {
     UCHAR buf[1024]; ULONG n = 0;
     if (k) {
         NTSTATUS s = U(BCryptExportKey)(k, NULL, BCRYPT_DSA_PRIVATE_BLOB, buf, sizeof buf, &n, 0);
-        CHECK(s != 0); t_note("public-only DSA key private export: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
         rd_destroy(k);
     }
     END();
@@ -290,44 +291,44 @@ TEST(dsa_import_truncated_fails) {
     for (size_t i = 0; i < sizeof cuts / sizeof *cuts; i++) {
         BCRYPT_KEY_HANDLE k = NULL;
         NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, cuts[i], &k);
-        CHECKF(s != 0, "public blob cut to %lu imported", cuts[i]);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
         if (!s) rd_destroy(k);
     }
     n = rd_dsa1_blob(b, 1);
     for (size_t i = 0; i < sizeof cuts / sizeof *cuts; i++) {
         BCRYPT_KEY_HANDLE k = NULL;
         NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PRIVATE_BLOB, b, cuts[i], &k);
-        CHECKF(s != 0, "private blob cut to %lu imported", cuts[i]);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
         if (!s) rd_destroy(k);
     }
     n = n - 1;
-    { BCRYPT_KEY_HANDLE k = NULL; NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PRIVATE_BLOB, b, n, &k); CHECK(s != 0); if (!s) rd_destroy(k); }
+    { BCRYPT_KEY_HANDLE k = NULL; NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PRIVATE_BLOB, b, n, &k); EXPECT_EQ(s, ST_INVALID_PARAMETER); if (!s) rd_destroy(k); }
     END();
 }
 TEST(dsa_import_wrong_magic_fails) {
     BEGIN();
     UCHAR b[1024]; ULONG n = rd_dsa1_blob(b, 0); BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PRIVATE_BLOB, b, n, &k);   /* public magic under the private type */
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER); if (!s) rd_destroy(k);
     ((BCRYPT_DSA_KEY_BLOB *)b)->dwMagic = 0x41424344;
     s = rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER); if (!s) rd_destroy(k);
     END();
 }
 TEST(dsa_import_rsa_blob_fails) {
     BEGIN();
     UCHAR b[RD_RSA_BLOB_MAX]; ULONG n = rd_rsa_blob(b, BCRYPT_RSAPUBLIC_MAGIC, 0); BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = rd_import(g_a, BCRYPT_RSAPUBLIC_BLOB, b, n, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER); if (!s) rd_destroy(k);
     s = rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER); if (!s) rd_destroy(k);
     END();
 }
 TEST(dsa_import_into_rsa_provider_fails) {
     BEGIN();
     BCRYPT_ALG_HANDLE r = rd_alg(BCRYPT_RSA_ALGORITHM); CHECK(r);
     UCHAR b[1024]; ULONG n = rd_dsa1_blob(b, 0); BCRYPT_KEY_HANDLE k = NULL;
-    if (r) { NTSTATUS s = rd_import(r, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k); CHECK(s != 0); if (!s) rd_destroy(k); rd_closealg(r); }
+    if (r) { NTSTATUS s = rd_import(r, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k); EXPECT_EQ(s, ST_NOT_SUPPORTED); if (!s) rd_destroy(k); rd_closealg(r); }
     END();
 }
 
@@ -387,13 +388,13 @@ TEST(dsa_import_v2_hash_alg_variants) {
     for (int i = 0; i < 3; i++) {
         UCHAR b[2048]; ULONG n = rd_dsa2_blob(b, 0, algs[i]); BCRYPT_KEY_HANDLE k = NULL;
         NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k);
-        t_note("v2 public import with hashAlgorithm=%lu: 0x%lx", (unsigned long)algs[i], (unsigned long)s);
-        if (algs[i] == DSA_HASH_ALGORITHM_SHA256) CHECK(s == 0);
+        t_label("hashAlgorithm %lu", (unsigned long)algs[i]);
+        EXPECT_EQ(s, algs[i] == DSA_HASH_ALGORITHM_SHA256 ? ST_SUCCESS : ST_INVALID_PARAMETER);   /* probed: only SHA-256 is accepted */
         if (!s) rd_destroy(k);
     }
     DWORD bad = 77; UCHAR b[2048]; ULONG n = rd_dsa2_blob(b, 0, bad); BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k);
-    t_note("v2 import with invalid hashAlgorithm 77: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     if (!s) rd_destroy(k);
     END();
 }
@@ -404,7 +405,7 @@ TEST(dsa_import_v2_truncated_fails) {
     for (size_t i = 0; i < sizeof cuts / sizeof *cuts; i++) {
         BCRYPT_KEY_HANDLE k = NULL;
         NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, cuts[i], &k);
-        CHECKF(s != 0, "v2 blob cut to %lu imported", cuts[i]);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
         if (!s) rd_destroy(k);
     }
     END();
@@ -417,7 +418,7 @@ TEST(dsa_legacy_public_export_header) {
     if (k) {
         UCHAR *o; ULONG ol;
         NTSTATUS s = rd_export(k, LEGACY_DSA_PUBLIC_BLOB, &o, &ol);
-        if (s) t_note("legacy DSA public export: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_SUCCESS);
         if (!s) {
             EXPECT_EQ(o[0], 6); EXPECT_EQ(o[1], 3);      /* version 3 blob */
             EXPECT_EQ(*(DWORD *)(o + 4), 0x2200);        /* CALG_DSS_SIGN */
@@ -440,7 +441,7 @@ TEST(dsa_legacy_private_export_header) {
     if (k) {
         UCHAR *o; ULONG ol;
         NTSTATUS s = rd_export(k, LEGACY_DSA_PRIVATE_BLOB, &o, &ol);
-        if (s) t_note("legacy DSA private export: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_SUCCESS);
         if (!s) {
             EXPECT_EQ(o[0], 7); EXPECT_EQ(o[1], 3);      /* version 3 blob */
             EXPECT_EQ(*(DWORD *)(o + 4), 0x2200);
@@ -517,8 +518,8 @@ TEST(dsa_verify_signature_length) {
         ULONG lens[] = { 0, 1, 20, 39, 41, 64, 80 };
         for (int i = 0; i < 7; i++) {
             NTSTATUS s = verify(pub, kHash_sha1, 20, big, lens[i], 0);
-            if (lens[i] < 40) CHECKF(s != 0, "signature length %lu verified", lens[i]);
-            t_note("DSA verify with signature length %lu: 0x%lx", lens[i], (unsigned long)s);
+            t_label("signature length %lu", lens[i]);
+            EXPECT_EQ(s, ST_INVALID_PARAMETER);   /* probed: every length but 40 is a parameter error */
         }
     }
     rd_destroy(pub); END();
@@ -567,9 +568,9 @@ TEST(dsa_sign_roundtrip_fixed_key_2048) {
         EXPECT_EQ(verify(pub, kHash_sha256, 32, s1, 64, 0), ST_INVALID_SIGNATURE);
         UCHAR sh[64];
         NTSTATUS s = sign(prv, kHash_sha1, 20, sh, sizeof sh, &n, 0);
-        t_note("2048/256 key signing a 20-byte hash: 0x%lx n=%lu", (unsigned long)s, n);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER); EXPECT_EQ(n, 64);   /* probed: only a 32-byte hash is accepted; the size is still reported */
         s = sign(prv, kHash_sha512, 64, sh, sizeof sh, &n, 0);
-        t_note("2048/256 key signing a 64-byte hash: 0x%lx n=%lu", (unsigned long)s, n);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER); EXPECT_EQ(n, 64);
     }
     rd_destroy(pub); rd_destroy(prv); END();
 }
@@ -603,7 +604,7 @@ TEST(dsa_sign_public_only_key_fails) {
     if (pub) {
         UCHAR sig[64]; ULONG n = 0;
         NTSTATUS s = sign(pub, kHash_sha1, 20, sig, sizeof sig, &n, 0);
-        CHECK(s != 0); t_note("DSA sign with public-only key: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_INVALID_HANDLE);
     }
     rd_destroy(pub); END();
 }
@@ -616,9 +617,9 @@ TEST(dsa_sign_hash_lengths_v1) {
         ULONG lens[] = { 0, 1, 16, 19, 20, 21, 32, 64 };
         for (int i = 0; i < 8; i++) {
             NTSTATUS s = sign(prv, h, lens[i], sig, sizeof sig, &n, 0);
-            t_note("DSA-1024/160 sign hash length %lu: 0x%lx", lens[i], (unsigned long)s);
-            if (lens[i] == 20) CHECK(s == 0);
-            if (s == 0) { NTSTATUS v = verify(pub, h, lens[i], sig, n, 0); CHECK(v == 0); }
+            t_label("hash length %lu", lens[i]);
+            EXPECT_EQ(s, lens[i] == 20 ? ST_SUCCESS : ST_INVALID_PARAMETER);   /* probed: only a 20-byte hash */
+            if (s == 0) EXPECT_EQ(verify(pub, h, lens[i], sig, n, 0), ST_SUCCESS);
         }
     }
     rd_destroy(prv); rd_destroy(pub); END();
@@ -669,11 +670,12 @@ TEST(dsa_sign_flags_and_padding_info) {
         ULONG fl[] = { BCRYPT_PAD_PKCS1, BCRYPT_PAD_PSS, BCRYPT_PAD_NONE, 0x80000000 };
         for (int i = 0; i < 4; i++) {
             NTSTATUS s = sign(prv, kHash_sha1, 20, sig, sizeof sig, &n, fl[i]);
-            t_note("DSA sign with flags 0x%lx: 0x%lx", fl[i], (unsigned long)s);
+            t_label("flags 0x%lx", fl[i]);
+            EXPECT_EQ(s, ST_INVALID_PARAMETER);
         }
         BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA1_ALGORITHM };
         NTSTATUS s = U(BCryptSignHash)(prv, &pi, (PUCHAR)kHash_sha1, 20, sig, sizeof sig, &n, 0);
-        t_note("DSA sign with padding info and flags 0: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_SUCCESS);   /* probed: padding info is ignored with flags 0 */
     }
     rd_destroy(prv); END();
 }
@@ -683,9 +685,9 @@ TEST(dsa_encrypt_not_supported) {
     if (pub) {
         UCHAR in[8] = { 1 }, out[256]; ULONG n = 0;
         NTSTATUS s = U(BCryptEncrypt)(pub, in, sizeof in, NULL, NULL, 0, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-        CHECK(s != 0); t_note("DSA BCryptEncrypt: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_NOT_SUPPORTED);
         s = U(BCryptDecrypt)(pub, in, sizeof in, NULL, NULL, 0, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-        CHECK(s != 0);
+        EXPECT_EQ(s, ST_NOT_SUPPORTED);
     }
     rd_destroy(pub); END();
 }
@@ -695,7 +697,7 @@ TEST(dsa_key_properties) {
     if (k) {
         NTSTATUS ps;
         EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 1024); EXPECT_EQ(ps, 0);
-        { ULONG ks = rd_getdw(k, BCRYPT_KEY_STRENGTH, &ps); t_note("DSA KeyStrength=%lu st=0x%lx", ks, (unsigned long)ps); }
+        EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_STRENGTH, &ps), 1024); EXPECT_EQ(ps, 0);
         WCHAR name[32] = {0}; ULONG n = 0;
         EXPECT_EQ(U(BCryptGetProperty)(k, BCRYPT_ALGORITHM_NAME, (PUCHAR)name, sizeof name, &n, 0), ST_SUCCESS);
         EXPECT_WSTR(name, L"DSA");

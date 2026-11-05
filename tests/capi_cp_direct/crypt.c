@@ -130,7 +130,7 @@ TEST(cpd_encrypt_cfb8_vector) {
     CHECKF(r, "cfb encrypt err=0x%lx", GetLastError());
     if (r) {
         CHECK(n == 30);
-        if (n == 30) { int same = !memcmp(buf, v_aes128_cfb8_ct, 30); CHECK(same); if (!same) t_note("CFB with the default feedback size differs from CFB-8"); }
+        if (n == 30) SAMEBYTES(buf, v_aes128_cfb8_ct, 30);
     }
     R.DestroyKey(p, k);
     cp_rel(&R, p);
@@ -141,7 +141,7 @@ TEST(cpd_encrypt_cfb_default_mode_bits_note) {
     ULONG_PTR k = cp_key(&R, p, CALG_AES_128, key, 16); REQUIRE(k);
     BOOL ok; DWORD v = cp_kp_dw(&R, p, k, KP_MODE_BITS, &ok);
     CHECK(ok);
-    t_note("default KP_MODE_BITS of an AES key: %lu", v);
+    EXPECT_EQ(v, 0);  /* probed: 0 until a mode-bits value is set */
     R.DestroyKey(p, k);
     cp_rel(&R, p);
 }
@@ -247,7 +247,7 @@ TEST(cpd_encrypt_rc2_roundtrip_and_openssl_note) {
     BYTE buf[64]; memcpy(buf, cp_pt30, 30); DWORD n = 30;
     OKAY(R.Encrypt(p, k, 0, TRUE, 0, buf, &n, sizeof buf));
     EXPECT_EQ(n, 32);
-    t_note("RC2-128 CBC (default effective length) matches the openssl reference: %s", n == 32 && !memcmp(buf, v_rc2_cbc_ct, 32) ? "yes" : "no");
+    SAMEBYTES(buf, v_rc2_cbc_ct, 32);  /* probed: matches the independent reference */
     ULONG_PTR k2 = mk(&R, p, CALG_RC2, "0102030405060708090a0b0c0d0e0f10", CRYPT_MODE_CBC, "0001020304050607");
     OKAY(R.Decrypt(p, k2, 0, TRUE, 0, buf, &n));
     EXPECT_EQ(n, 30);
@@ -390,8 +390,8 @@ TEST(cpd_encrypt_nonfinal_unaligned_longer_data_note) {
     ULONG_PTR k = cp_key(&R, p, CALG_AES_128, key, 16);
     BYTE buf[48] = { 0 }; DWORD n = 20;
     SET_ERR(0);
-    BOOL r = R.Encrypt(p, k, 0, FALSE, 0, buf, &n, sizeof buf);
-    t_note("non-final encrypt of 20 bytes (AES): %d err=0x%lx n=%lu", r, GetLastError(), n);
+    FAILS(R.Encrypt(p, k, 0, FALSE, 0, buf, &n, sizeof buf), CPE_BAD_DATA);
+    EXPECT_EQ(n, 20);
     R.DestroyKey(p, k);
     cp_rel(&R, p);
 }
@@ -545,9 +545,7 @@ TEST(cpd_encrypt_with_wrong_kind_as_hash_fails) {
     ULONG_PTR k = cp_key(&R, p, CALG_AES_128, key, 16); REQUIRE(k);
     BYTE buf[48]; memcpy(buf, cp_pt30, 30); DWORD n = 30;
     SET_ERR(0);
-    BOOL r = R.Encrypt(p, k, k, TRUE, 0, buf, &n, sizeof buf);
-    CHECK(!r);
-    if (!r) t_note("Encrypt with a key handle as hHash -> 0x%lx", GetLastError());
+    FAILS(R.Encrypt(p, k, k, TRUE, 0, buf, &n, sizeof buf), CPE_BAD_HASH);
     R.DestroyKey(p, k);
     cp_rel(&R, p);
 }
@@ -625,10 +623,9 @@ TEST(cpd_rsa_decrypt_wrong_length) {
     DWORD lens[] = { 1, 127, 129, 256 };
     for (size_t i = 0; i < NELEM(lens); i++) {
         BYTE buf[300]; memset(buf, 1, sizeof buf); DWORD n = lens[i];
-        SET_ERR(0);
-        BOOL r = R.Decrypt(p, k, 0, TRUE, 0, buf, &n);
-        CHECKF(!r, "length %lu decrypted", lens[i]);
-        if (!r) t_note("RSA decrypt of %lu bytes -> 0x%lx", lens[i], GetLastError());
+        t_label("length %lu", lens[i]);
+        /* probed: shorter than the modulus -> BAD_DATA, longer -> ERROR_INVALID_PARAMETER */
+        FAILS(R.Decrypt(p, k, 0, TRUE, 0, buf, &n), lens[i] < 128 ? CPE_BAD_DATA : ERROR_INVALID_PARAMETER);
     }
     R.DestroyKey(p, k);
     cp_rel(&R, p);
@@ -709,13 +706,13 @@ TEST(cpd_rsa_decrypt_no_padding_check_flag) {
     NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     ULONG_PTR k = rsa_import_priv(&R, p); REQUIRE(k);
     BYTE buf[128]; memcpy(buf, rsa_ct_pkcs1_hello, 128); DWORD n = 128;
-    SET_ERR(0);
-    BOOL r = R.Decrypt(p, k, 0, TRUE, CRYPT_DECRYPT_RSA_NO_PADDING_CHECK, buf, &n);
-    if (r) {
-        EXPECT_EQ(n, 128);
-        CHECK(buf[0] == 0 || buf[127] == 0);
-        t_note("NO_PADDING_CHECK decrypt returns %lu bytes", n);
-    } else t_note("NO_PADDING_CHECK decrypt fails 0x%lx", GetLastError());
+    OKAY(R.Decrypt(p, k, 0, TRUE, CRYPT_DECRYPT_RSA_NO_PADDING_CHECK, buf, &n));
+    EXPECT_EQ(n, 128);
+    { /* probed: the raw block, 00 02, fixed padding string of the vector, 00, message */
+        BYTE want[128];
+        hx("00020ed95e62d6a29e0d2f88a5931e4dd04c08748621f3d884c0a1a2288229dd6b5c0b25ca73ce290b656144176ff69a1ab97aca25575c0a178bc9cb1e72853fcc4b40f365cc0c77276ecc448acf3a753e8f5d667c3c509a5666ac5e218d7e6f99fc499d2dc4f0cc4266d442c9e34bf6cb9184fa5f4d0068656c6c6f20637370", want);
+        SAMEBYTES(buf, want, 128);
+    }
     memcpy(buf, rsa_ct_pkcs1_hello, 128); n = 128;
     FAILS(R.Decrypt(p, k, 0, TRUE, CRYPT_DECRYPT_RSA_NO_PADDING_CHECK | CRYPT_OAEP, buf, &n), CPE_BAD_FLAGS);
     R.DestroyKey(p, k);

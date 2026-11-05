@@ -138,8 +138,7 @@ TEST(npd_create_quoted_value) {
     NREQ(UN(NCryptCreateProtectionDescriptor));
     void *h = NULL;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(L"LOCAL=\"user\"", 0, &h);
-    if (rc != 0) t_note("quoted value rejected 0x%lx", (unsigned long)SS(rc));
-    CHECK(rc == 0);
+    EXPECT_SS(rc, 0);
     npd_desc_close(h);
 }
 
@@ -147,7 +146,7 @@ TEST(npd_create_case_of_rule_name) {
     NREQ(UN(NCryptCreateProtectionDescriptor));
     void *h = NULL;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(L"local=user", 0, &h);
-    t_note("lower-case rule name -> 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0);   /* probed: rule names are matched case-insensitively */
     npd_desc_close(h);
 }
 
@@ -156,8 +155,8 @@ TEST(npd_create_value_not_validated_at_create) {
     NREQ(UN(NCryptCreateProtectionDescriptor));
     void *h = NULL;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(L"LOCAL=bogusvalue", 0, &h);
-    t_note("LOCAL=bogusvalue -> 0x%lx", (unsigned long)SS(rc));
-    if (rc == 0) npd_desc_close(h);
+    EXPECT_SS(rc, 0);
+    npd_desc_close(h);
 }
 
 /* ---- parser errors (verified on Windows 10) -------------------------------------- */
@@ -191,9 +190,8 @@ TEST(npd_create_unknown_provider_fails) {
     NREQ(UN(NCryptCreateProtectionDescriptor));
     void *h = (void *)(ULONG_PTR)1;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(L"CRYPTTNOSUCHRULE=x", 0, &h);
-    CHECK(rc != 0);
+    EXPECT_SS(rc, 0xC0000225);   /* probed: STATUS_NOT_FOUND from the provider lookup */
     CHECK(h == NULL);
-    t_note("unknown rule name -> 0x%lx", (unsigned long)SS(rc));
 }
 
 TEST(npd_create_certificate_twice_not_supported) {
@@ -204,8 +202,8 @@ TEST(npd_create_certificate_twice_not_supported) {
     EXPECT_SS(rc, NPD_NTE_NOT_SUPPORTED);
     CHECK(h == NULL);
     rc = UN(NCryptCreateProtectionDescriptor)(L"certificate=a OR certificate=b", 0, &h);
-    t_note("certificate twice across OR -> 0x%lx", (unsigned long)SS(rc));
-    if (rc == 0) npd_desc_close(h);
+    EXPECT_SS(rc, NPD_NTE_NOT_SUPPORTED);
+    CHECK(h == NULL);
 }
 
 static void build_chain(wchar_t *out, size_t cap, int n, const wchar_t *conn) {
@@ -229,8 +227,8 @@ TEST(npd_create_eight_and_rules_parse) {
     wchar_t s[512]; void *h = NULL;
     build_chain(s, 512, 8, L"AND");
     LONG rc = UN(NCryptCreateProtectionDescriptor)(s, 0, &h);
-    t_note("8 AND-ed rules -> 0x%lx", (unsigned long)SS(rc));
-    if (rc == 0) npd_desc_close(h);
+    EXPECT_SS(rc, 0);
+    npd_desc_close(h);
 }
 
 TEST(npd_create_nine_or_clauses_rejected) {
@@ -246,8 +244,8 @@ TEST(npd_create_eight_or_clauses_parse) {
     wchar_t s[512]; void *h = NULL;
     build_chain(s, 512, 8, L"OR");
     LONG rc = UN(NCryptCreateProtectionDescriptor)(s, 0, &h);
-    t_note("8 OR-ed clauses -> 0x%lx", (unsigned long)SS(rc));
-    if (rc == 0) npd_desc_close(h);
+    EXPECT_SS(rc, 0);
+    npd_desc_close(h);
 }
 
 /* ---- directory/domain rules: only observed ---------------------------------- */
@@ -261,12 +259,15 @@ TEST(npd_create_domain_rules_observed) {
     for (size_t i = 0; i < sizeof r / sizeof *r; i++) {
         void *h = NULL;
         LONG rc = UN(NCryptCreateProtectionDescriptor)(r[i], 0, &h);
-        t_note("create \"%ls\" -> 0x%lx", r[i], (unsigned long)SS(rc));
-        if (rc == 0) {
+        t_label("%ls", r[i]);
+        /* probed: every known rule name is accepted with any value, an unknown one is NOT_FOUND */
+        if (i == 5) {
+            EXPECT_SS(rc, 0xC0000225);
+            CHECK(h == NULL);
+        } else {
+            EXPECT_SS(rc, 0);
             CHECK(h != NULL);
             npd_desc_close(h);
-        } else {
-            CHECK(h == NULL);
         }
     }
 }
@@ -305,7 +306,7 @@ TEST(npd_close_null) {
 TEST(npd_close_valid_returns_zero) {
     NREQ(UN(NCryptCreateProtectionDescriptor));
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     EXPECT_SS(UN(NCryptCloseProtectionDescriptor)(h), 0);
 }
 
@@ -313,7 +314,7 @@ TEST(npd_close_does_not_accept_key_protector_handle) {
     /* a key-protector handle (tag 0x48) is not a descriptor handle (tag 0x28) */
     NREQ(UN(NCryptOpenKeyProtector));
     void *kp = NULL;
-    if (UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0) != 0 || !kp) { t_skip("LOCAL protector unavailable"); return; }
+    REQUIRE_EQ(UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0), 0);
     EXPECT_SS(UN(NCryptCloseProtectionDescriptor)(kp), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptCloseKeyProtector)(kp), 0);
 }
@@ -323,7 +324,7 @@ TEST(npd_close_does_not_accept_stream_handle) {
     NREQ(UN(NCryptCloseKeyProtector));
     /* descriptor handle given to the stream close: wrong tag */
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     EXPECT_SS(UN(NCryptStreamClose)(h), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptCloseKeyProtector)(h), NPD_NTE_INVALID_HANDLE);
     npd_desc_close(h);
@@ -334,7 +335,7 @@ TEST(npd_close_does_not_accept_stream_handle) {
 TEST(npd_info_null_output) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(h, NULL, NPD_INFO_DESCRIPTOR_STRING, NULL), NPD_NTE_INVALID_PARAM);
     npd_desc_close(h);
 }
@@ -354,7 +355,7 @@ TEST(npd_info_null_handle) {
 TEST(npd_info_bad_type) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     static const DWORD types[] = { 0, 2, 3, 0x100, 0xFFFFFFFFu };
     for (size_t i = 0; i < sizeof types / sizeof *types; i++) {
         void *out = (void *)(ULONG_PTR)1;
@@ -368,7 +369,7 @@ TEST(npd_info_bad_type) {
 TEST(npd_info_string_local_user) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     void *out = NULL;
     LONG rc = UN(NCryptGetProtectionDescriptorInfo)(h, NULL, NPD_INFO_DESCRIPTOR_STRING, &out);
     EXPECT_SS(rc, 0);
@@ -385,10 +386,11 @@ TEST(npd_info_string_each_local_rule) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     for (size_t i = 0; i < sizeof local_rules / sizeof *local_rules; i++) {
         void *h = npd_desc(local_rules[i]);
-        if (!h) { t_note("%ls not creatable", local_rules[i]); continue; }
+        REQUIRE_NOTNULL(h);
         void *out = NULL;
         EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(h, NULL, NPD_INFO_DESCRIPTOR_STRING, &out), 0);
-        if (out) { CHECKF(!lstrcmpW((wchar_t *)out, local_rules[i]), "%ls -> %ls", local_rules[i], (wchar_t *)out); }
+        REQUIRE_NOTNULL(out);
+        CHECKF(!lstrcmpW((wchar_t *)out, local_rules[i]), "%ls -> %ls", local_rules[i], (wchar_t *)out);
         free_info(out);
         npd_desc_close(h);
     }
@@ -397,10 +399,11 @@ TEST(npd_info_string_each_local_rule) {
 TEST(npd_info_string_normalizes_whitespace) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"  LOCAL =  user  ");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     void *out = NULL;
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(h, NULL, NPD_INFO_DESCRIPTOR_STRING, &out), 0);
-    if (out) EXPECT_WSTR((wchar_t *)out, L"LOCAL=user");
+    REQUIRE_NOTNULL(out);
+    EXPECT_WSTR((wchar_t *)out, L"LOCAL=user");
     free_info(out);
     npd_desc_close(h);
 }
@@ -408,10 +411,11 @@ TEST(npd_info_string_normalizes_whitespace) {
 TEST(npd_info_string_quotes_dropped) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"LOCAL=\"user\"");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     void *out = NULL;
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(h, NULL, NPD_INFO_DESCRIPTOR_STRING, &out), 0);
-    if (out) t_note("quoted descriptor rendered as \"%ls\"", (wchar_t *)out);
+    REQUIRE_NOTNULL(out);
+    EXPECT_WSTR((wchar_t *)out, L"LOCAL=user");   /* probed: quotes are dropped */
     free_info(out);
     npd_desc_close(h);
 }
@@ -421,11 +425,15 @@ TEST(npd_info_string_compound_observed) {
     static const wchar_t *const v[] = { L"LOCAL=user AND LOCAL=machine", L"LOCAL=user OR LOCAL=logon", L"LOCAL=user AND LOCAL=logon OR LOCAL=machine" };
     for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
         void *h = npd_desc(v[i]);
-        if (!h) { t_note("\"%ls\" not creatable", v[i]); continue; }
+        REQUIRE_NOTNULL(h);
         void *out = NULL;
         LONG rc = UN(NCryptGetProtectionDescriptorInfo)(h, NULL, NPD_INFO_DESCRIPTOR_STRING, &out);
         EXPECT_SS(rc, 0);
-        if (out) t_note("\"%ls\" rendered as \"%ls\"", v[i], (wchar_t *)out);
+        /* probed: the connectors are rendered without separating spaces */
+        static const wchar_t *const want[] = { L"LOCAL=userANDLOCAL=machine", L"LOCAL=userORLOCAL=logon", L"LOCAL=userANDLOCAL=logonORLOCAL=machine" };
+        t_label("%ls", v[i]);
+        REQUIRE_NOTNULL(out);
+        EXPECT_WSTR((wchar_t *)out, want[i]);
         free_info(out);
         npd_desc_close(h);
     }
@@ -434,7 +442,7 @@ TEST(npd_info_string_compound_observed) {
 TEST(npd_info_string_independent_allocations) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     void *a = NULL, *b = NULL;
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(h, NULL, 1, &a), 0);
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(h, NULL, 1, &b), 0);
@@ -450,7 +458,7 @@ static void WINAPI my_free(PVOID p) { g_free_calls++; LocalFree(p); }
 TEST(npd_info_custom_allocator) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     NPD_ALLOC_PARA ap = { sizeof ap, my_alloc, my_free };
     g_alloc_calls = g_free_calls = 0; g_alloc_size = 0;
     void *out = NULL;
@@ -468,7 +476,7 @@ static PVOID WINAPI failing_alloc(SIZE_T n) { g_alloc_calls++; return NULL; }
 TEST(npd_info_allocator_failure) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = npd_desc(L"LOCAL=user");
-    if (!h) { t_skip("cannot create descriptor"); return; }
+    REQUIRE_NOTNULL(h);
     NPD_ALLOC_PARA ap = { sizeof ap, failing_alloc, my_free };
     g_alloc_calls = 0;
     void *out = (void *)(ULONG_PTR)1;
@@ -482,10 +490,11 @@ TEST(npd_info_allocator_failure) {
 TEST(npd_info_after_machine_flag_create) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *h = NULL;
-    if (UN(NCryptCreateProtectionDescriptor)(L"LOCAL=machine", NPD_MACHINE_FLAG, &h) != 0) { t_skip("cannot create"); return; }
+    REQUIRE_EQ(UN(NCryptCreateProtectionDescriptor)(L"LOCAL=machine", NPD_MACHINE_FLAG, &h), 0);
     void *out = NULL;
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(h, NULL, 1, &out), 0);
-    if (out) EXPECT_WSTR((wchar_t *)out, L"LOCAL=machine");
+    REQUIRE_NOTNULL(out);
+    EXPECT_WSTR((wchar_t *)out, L"LOCAL=machine");
     free_info(out);
     npd_desc_close(h);
 }

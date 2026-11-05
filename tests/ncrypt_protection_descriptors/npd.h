@@ -132,7 +132,8 @@ static int npd_works(void) {
     npd_desc_close(d);
     return state;
 }
-#define REQUIRE_WORKING() do { if (!npd_works()) { t_skip("DPAPI-NG LOCAL=user not functional here"); return; } } while (0)
+/* on Windows 10 LOCAL=user protect/unprotect must work (a failure is counted, not skipped); only an emulator skips */
+#define REQUIRE_WORKING() do { if (t_is_wine()) { t_skip("not implemented under wine"); return; } if (!t_require(npd_works(), __FILE__, __LINE__, "LOCAL=user protect/unprotect works")) return; } while (0)
 
 /* length of a DER/BER TLV header + definite content, -1 if not definite or short */
 static long npd_der_total(const BYTE *p, size_t n) {

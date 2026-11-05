@@ -16,9 +16,8 @@ TEST(npd_kp_open_unknown_name) {
     NREQ(UN(NCryptOpenKeyProtector));
     void *h = (void *)(ULONG_PTR)5;
     LONG rc = UN(NCryptOpenKeyProtector)(&h, L"CRYPTTNOSUCHPROTECTOR", 0);
-    CHECK(rc != 0);
+    EXPECT_SS(rc, 0xC0000225);           /* probed: STATUS_NOT_FOUND */
     CHECK(h == NULL);                    /* cleared before the provider lookup */
-    t_note("unknown protector -> 0x%lx", (unsigned long)SS(rc));
 }
 
 TEST(npd_kp_open_local) {
@@ -46,7 +45,9 @@ TEST(npd_kp_open_names_observed) {
     for (size_t i = 0; i < sizeof n / sizeof *n; i++) {
         void *h = NULL;
         LONG rc = UN(NCryptOpenKeyProtector)(&h, n[i], 0);
-        t_note("OpenKeyProtector(\"%ls\") -> 0x%lx", n[i], (unsigned long)SS(rc));
+        t_label("%ls", n[i]);
+        /* probed: the six provider names (case-insensitive) open; anything else is NOT_FOUND */
+        EXPECT_SS(rc, i < 6 ? 0 : 0xC0000225);
         if (rc == 0) { CHECK(h != NULL); UN(NCryptCloseKeyProtector)(h); } else CHECK(h == NULL);
     }
 }
@@ -61,7 +62,7 @@ TEST(npd_kp_close_null) {
 TEST(npd_kp_close_rejects_descriptor_handle) {
     NREQ(UN(NCryptCloseKeyProtector));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     EXPECT_SS(UN(NCryptCloseKeyProtector)(d), NPD_NTE_INVALID_HANDLE);
     npd_desc_close(d);
 }
@@ -76,7 +77,7 @@ TEST(npd_kp_duplicate_null_args) {
 TEST(npd_kp_duplicate_null_output) {
     NREQ(UN(NCryptDuplicateKeyProtectorHandle));
     void *h = NULL;
-    if (UN(NCryptOpenKeyProtector)(&h, L"LOCAL", 0) != 0) { t_skip("no LOCAL protector"); return; }
+    REQUIRE_EQ(UN(NCryptOpenKeyProtector)(&h, L"LOCAL", 0), 0);
     EXPECT_SS(UN(NCryptDuplicateKeyProtectorHandle)(h, NULL, 0), NPD_NTE_INVALID_PARAM);
     EXPECT_SS(UN(NCryptCloseKeyProtector)(h), 0);   /* the failed duplicate must not have added a reference */
 }
@@ -84,7 +85,7 @@ TEST(npd_kp_duplicate_null_output) {
 TEST(npd_kp_duplicate_wrong_type) {
     NREQ(UN(NCryptDuplicateKeyProtectorHandle));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     void *dup = (void *)(ULONG_PTR)5;
     EXPECT_SS(UN(NCryptDuplicateKeyProtectorHandle)(d, &dup, 0), NPD_NTE_INVALID_HANDLE);
     CHECK(dup == (void *)(ULONG_PTR)5);
@@ -94,7 +95,7 @@ TEST(npd_kp_duplicate_wrong_type) {
 TEST(npd_kp_duplicate_is_refcount) {
     NREQ(UN(NCryptDuplicateKeyProtectorHandle));
     void *h = NULL;
-    if (UN(NCryptOpenKeyProtector)(&h, L"LOCAL", 0) != 0) { t_skip("no LOCAL protector"); return; }
+    REQUIRE_EQ(UN(NCryptOpenKeyProtector)(&h, L"LOCAL", 0), 0);
     void *dup = NULL;
     EXPECT_SS(UN(NCryptDuplicateKeyProtectorHandle)(h, &dup, 0), 0);
     CHECK(dup == h);                                 /* duplicate adds a reference to the same object */
@@ -124,7 +125,7 @@ TEST(npd_kp_protectkey_wrong_handle_type) {
     NREQ(UN(NCryptProtectKey));
     NREQ(UN(NCryptUnprotectKey));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     EXPECT_SS(UN(NCryptProtectKey)(d, NULL, NULL, 0, NULL, NULL, NULL, 0), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptUnprotectKey)(d, NULL, NULL, NULL, NULL, NULL, 0), NPD_NTE_INVALID_HANDLE);
     npd_desc_close(d);
@@ -143,7 +144,7 @@ TEST(npd_claim_create_null_keys) {
 TEST(npd_claim_create_non_key_handles) {
     NREQ(UN(NCryptCreateClaim));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     DWORD cb = 0;
     EXPECT_SS(UN(NCryptCreateClaim)((ULONG_PTR)d, 0, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptCreateClaim)(0, (ULONG_PTR)d, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_INVALID_HANDLE);
@@ -160,7 +161,7 @@ TEST(npd_claim_verify_null_subject) {
 TEST(npd_claim_verify_non_key_handles) {
     NREQ(UN(NCryptVerifyClaim));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     char out[32] = {0};
     EXPECT_SS(UN(NCryptVerifyClaim)((ULONG_PTR)d, 0, 1, NULL, NULL, 0, out, 0), NPD_NTE_INVALID_HANDLE);
     npd_desc_close(d);
@@ -182,7 +183,7 @@ static void ephem_close(ephem *e) {
 TEST(npd_claim_create_software_ksp_unsupported) {
     NREQ(UN(NCryptCreateClaim));
     ephem e;
-    if (!ephem_open(&e)) { t_skip("cannot create ephemeral key"); return; }
+    if (!t_require(ephem_open(&e), __FILE__, __LINE__, "ephemeral key created")) return;
     DWORD cb = 0;
     EXPECT_SS(UN(NCryptCreateClaim)(e.key, 0, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_NOT_SUPPORTED);
     EXPECT_SS(UN(NCryptCreateClaim)(0, e.key, 1, NULL, NULL, 0, &cb, 0), NPD_NTE_INVALID_HANDLE);  /* NULL authority key is rejected first */
@@ -193,7 +194,7 @@ TEST(npd_claim_create_software_ksp_unsupported) {
 TEST(npd_claim_verify_software_ksp_unsupported) {
     NREQ(UN(NCryptVerifyClaim));
     ephem e;
-    if (!ephem_open(&e)) { t_skip("cannot create ephemeral key"); return; }
+    if (!t_require(ephem_open(&e), __FILE__, __LINE__, "ephemeral key created")) return;
     BYTE claim[8] = {0};
     struct { ULONG v, c; void *p; } outbuf = { 0, 0, NULL };
     EXPECT_SS(UN(NCryptVerifyClaim)(e.key, 0, 1, NULL, claim, 8, &outbuf, 0), NPD_NTE_NOT_SUPPORTED);
@@ -203,7 +204,7 @@ TEST(npd_claim_verify_software_ksp_unsupported) {
 TEST(npd_claim_verify_null_output_with_valid_key) {
     NREQ(UN(NCryptVerifyClaim));
     ephem e;
-    if (!ephem_open(&e)) { t_skip("cannot create ephemeral key"); return; }
+    if (!t_require(ephem_open(&e), __FILE__, __LINE__, "ephemeral key created")) return;
     EXPECT_SS(UN(NCryptVerifyClaim)(e.key, 0, 1, NULL, NULL, 0, NULL, 0), NPD_NTE_INVALID_PARAM);
     ephem_close(&e);
 }
@@ -211,7 +212,7 @@ TEST(npd_claim_verify_null_output_with_valid_key) {
 TEST(npd_claim_verify_bad_authority_handle) {
     NREQ(UN(NCryptVerifyClaim));
     ephem e;
-    if (!ephem_open(&e)) { t_skip("cannot create ephemeral key"); return; }
+    if (!t_require(ephem_open(&e), __FILE__, __LINE__, "ephemeral key created")) return;
     void *d = npd_desc(L"LOCAL=user");
     if (d) {
         char out[32] = {0};

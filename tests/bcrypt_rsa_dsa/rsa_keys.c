@@ -83,11 +83,11 @@ TEST(rsa_keys_provider_padding_schemes) {
     BCRYPT_ALG_HANDLE a = rd_alg(BCRYPT_RSA_ALGORITHM); CHECK(a); if (!a) return;
     ULONG v = 0, n = 0;
     NTSTATUS s = U(BCryptGetProperty)(a, BCRYPT_PADDING_SCHEMES, (PUCHAR)&v, sizeof v, &n, 0);
-    t_note("RSA PaddingSchemes status=0x%lx value=0x%lx", (unsigned long)s, v);
+    EXPECT_EQ(s, ST_SUCCESS); EXPECT_EQ(n, 4); EXPECT_EQ(v, 0x1e);  /* probed: PKCS1|OAEP|PSS|(0x10) bits as reported by the provider */
     rd_closealg(a);
     a = rd_alg(BCRYPT_DSA_ALGORITHM); CHECK(a); if (!a) return;
     s = U(BCryptGetProperty)(a, BCRYPT_PADDING_SCHEMES, (PUCHAR)&v, sizeof v, &n, 0);
-    CHECK(s != 0); t_note("DSA PaddingSchemes status=0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);
     rd_closealg(a);
 }
 
@@ -141,7 +141,7 @@ TEST(rsa_keys_gen_valid_lengths) {
         CHECKF(s == 0, "finalize %lu -> 0x%lx", bits, (unsigned long)s);
         NTSTATUS ps;
         EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), bits); EXPECT_EQ(ps, 0);
-        { ULONG ks = rd_getdw(k, BCRYPT_KEY_STRENGTH, &ps); t_note("KeyStrength(%lu)=%lu st=0x%lx", bits, ks, (unsigned long)ps); }
+        EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_STRENGTH, &ps), bits); EXPECT_EQ(ps, 0);
         EXPECT_EQ(rd_getdw(k, BCRYPT_SIGNATURE_LENGTH, &ps), bits / 8); EXPECT_EQ(ps, 0);
         rd_destroy(k);
     }
@@ -164,9 +164,8 @@ TEST(rsa_keys_gen_invalid_lengths_fail) {
         ULONG bits = g_bad_bits[i]; BCRYPT_KEY_HANDLE k = NULL;
         NTSTATUS sg = U(BCryptGenerateKeyPair)(a, &k, bits, 0), sf = 0;
         if (sg == 0) { sf = U(BCryptFinalizeKeyPair)(k, 0); }
-        CHECKF(sg != 0 || sf != 0, "bits %lu unexpectedly generated", bits);
+        t_label("bits %lu", bits);
         EXPECT_EQ(sg, ST_INVALID_PARAMETER);
-        t_note("RSA bits=%lu gen=0x%lx finalize=0x%lx", bits, (unsigned long)sg, (unsigned long)sf);
         if (sg == 0) rd_destroy(k);
     }
     rd_closealg(a);
@@ -182,7 +181,7 @@ TEST(rsa_keys_gen_increment_8_bits) {
         NTSTATUS ps; EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 1000);
         UCHAR *b; ULONG l;
         EXPECT_EQ(rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &b, &l), ST_SUCCESS);
-        if (b) { const BCRYPT_RSAKEY_BLOB *h = (const BCRYPT_RSAKEY_BLOB *)b; t_note("1000-bit key BitLength=%lu cbModulus=%lu", (unsigned long)h->BitLength, (unsigned long)h->cbModulus); free(b); }
+        if (b) { const BCRYPT_RSAKEY_BLOB *h = (const BCRYPT_RSAKEY_BLOB *)b; EXPECT_EQ(h->BitLength, 1000); EXPECT_EQ(h->cbModulus, 125); free(b); }
         rd_destroy(k);
     }
     rd_closealg(a);
@@ -196,13 +195,12 @@ TEST(rsa_keys_gen_unfinalized_ops_fail) {
     UCHAR in[16] = {1}, out[64]; ULONG n = 0;
     /* an unfinalized key cannot be used to encrypt */
     NTSTATUS se = U(BCryptEncrypt)(k, in, sizeof in, NULL, NULL, 0, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-    CHECK(se != 0); t_note("unfinalized encrypt=0x%lx", (unsigned long)se);
+    EXPECT_EQ(se, ST_INVALID_HANDLE);
     NTSTATUS s = U(BCryptSignHash)(k, NULL, in, 20, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0);
+    EXPECT_EQ(s, ST_INVALID_HANDLE);
     UCHAR *b; ULONG bl;
     s = rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &b, &bl);
-    CHECK(s != 0); if (!s) free(b);
-    t_note("unfinalized sign=0x%lx export=0x%lx", 0ul, (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_HANDLE); if (!s) free(b);
     rd_destroy(k); rd_closealg(a);
 }
 TEST(rsa_keys_finalize_null_handle) {
@@ -220,8 +218,8 @@ TEST(rsa_keys_finalize_twice) {
     BCRYPT_ALG_HANDLE a = rd_alg(BCRYPT_RSA_ALGORITHM); CHECK(a); if (!a) return;
     BCRYPT_KEY_HANDLE k = rd_gen(a, 512); CHECK(k); if (!k) { rd_closealg(a); return; }
     NTSTATUS s = U(BCryptFinalizeKeyPair)(k, 0);
-    t_note("second FinalizeKeyPair status=0x%lx", (unsigned long)s);
-    /* key must remain usable either way */
+    EXPECT_EQ(s, ST_INVALID_HANDLE);  /* probed: a finalized key cannot be finalized again */
+    /* key must remain usable */
     NTSTATUS ps; EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 512); EXPECT_EQ(ps, 0);
     rd_destroy(k); rd_closealg(a);
 }
@@ -245,7 +243,7 @@ TEST(rsa_keys_key_survives_alg_close) {
     BCRYPT_KEY_HANDLE k = rd_gen(a, 512); CHECK(k); if (!k) { rd_closealg(a); return; }
     rd_closealg(a);
     NTSTATUS ps; ULONG v = rd_getdw(k, BCRYPT_KEY_LENGTH, &ps);
-    t_note("KeyLength after alg close: status=0x%lx v=%lu", (unsigned long)ps, v);
+    EXPECT_EQ(ps, 0); EXPECT_EQ(v, 512);
     UCHAR *b; ULONG bl;
     EXPECT_EQ(rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &b, &bl), ST_SUCCESS);
     free(b);
@@ -273,8 +271,8 @@ TEST(rsa_keys_set_key_length_before_finalize) {
     NTSTATUS s = U(BCryptSetProperty)(k, BCRYPT_KEY_LENGTH, (PUCHAR)&want, sizeof want, 0);
     NTSTATUS f = U(BCryptFinalizeKeyPair)(k, 0);
     NTSTATUS ps; ULONG got = rd_getdw(k, BCRYPT_KEY_LENGTH, &ps);
-    t_note("set KeyLength(1024) on 512 key: set=0x%lx finalize=0x%lx now=%lu", (unsigned long)s, (unsigned long)f, got);
-    if (s == 0 && f == 0) CHECK(got == 1024 || got == 512);
+    /* probed: the new length is accepted before finalize and takes effect */
+    EXPECT_EQ(s, ST_SUCCESS); EXPECT_EQ(f, ST_SUCCESS); EXPECT_EQ(ps, 0); EXPECT_EQ(got, 1024);
     rd_destroy(k); rd_closealg(a);
 }
 TEST(rsa_keys_set_property_after_finalize) {
@@ -417,12 +415,10 @@ TEST(rsa_keys_export_size_protocol) {
         t_label("%d", i);
         NTSTATUS bts = (i >= 3) ? (NTSTATUS)0x80090028 : ST_BUFFER_TOO_SMALL;   /* legacy CAPI blobs report NTE_BUFFER_TOO_SMALL */   /* pinned per type from the probe */
         NTSTATUS s1 = U(BCryptExportKey)(k, NULL, types[i], buf, need - 1, &n, 0);
-        t_note("export type %d cb=need-1: 0x%lx n=%lu need=%lu", i, (unsigned long)s1, n, need);
         EXPECT_EQ(s1, bts);
         EXPECT_EQ(n, need);
         n = 0;
         s1 = U(BCryptExportKey)(k, NULL, types[i], buf, 0, &n, 0);
-        t_note("export type %d cb=0: 0x%lx n=%lu", i, (unsigned long)s1, n);
         EXPECT_EQ(s1, bts);
         n = 0;
         EXPECT_EQ(U(BCryptExportKey)(k, NULL, types[i], buf, need, &n, 0), ST_SUCCESS);
@@ -444,10 +440,9 @@ TEST(rsa_keys_export_param_validation) {
     EXPECT_EQ(U(BCryptExportKey)(NULL, NULL, NULL, buf, sizeof buf, &n, 0), ST_INVALID_PARAMETER);
     EXPECT_EQ(U(BCryptExportKey)((BCRYPT_KEY_HANDLE)a, NULL, BCRYPT_RSAPUBLIC_BLOB, buf, sizeof buf, &n, 0), ST_INVALID_HANDLE);
     NTSTATUS s = U(BCryptExportKey)(k, NULL, L"NoSuchBlobType", buf, sizeof buf, &n, 0);
-    CHECK(s != 0);
-    t_note("export unknown blob type: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);
     s = U(BCryptExportKey)(k, NULL, BCRYPT_DSA_PUBLIC_BLOB, buf, sizeof buf, &n, 0);
-    t_note("export DSA blob type from RSA key: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);
     rd_destroy(k); rd_closealg(a);
 }
 TEST(rsa_keys_export_blob_type_case) {
@@ -456,7 +451,7 @@ TEST(rsa_keys_export_blob_type_case) {
     BCRYPT_KEY_HANDLE k = rd_gen(a, 512); CHECK(k); if (!k) { rd_closealg(a); return; }
     ULONG n = 0;
     NTSTATUS s = U(BCryptExportKey)(k, NULL, L"rsapublicblob", NULL, 0, &n, 0);
-    t_note("blob type is case-%s", s == 0 ? "insensitive" : "sensitive");
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);  /* probed: blob type names are case sensitive */
     EXPECT_EQ(U(BCryptExportKey)(k, NULL, L"RSAPUBLICBLOB", NULL, 0, &n, 0), ST_SUCCESS);
     rd_destroy(k); rd_closealg(a);
 }
@@ -503,14 +498,12 @@ TEST(rsa_keys_import_private_export_forms) {
     il = rd_rsa_blob(in, BCRYPT_RSAPRIVATE_MAGIC, 0);
     EXPECT_EQ(rd_export(k, BCRYPT_RSAPRIVATE_BLOB, &o, &ol), ST_SUCCESS);
     CHECK(ol == il);
-    if (o && ol == il && memcmp(o, in, il)) t_note("private blob export differs from input bytes");
-    if (o) { CHECK(!memcmp(o, in, 24 + 3 + 128)); free(o); }   /* header, exponent, modulus */
+    if (o) { CHECK(!memcmp(o, in, il)); free(o); }   /* probed: the export reproduces the imported blob byte for byte */
     il = rd_rsa_blob(in, BCRYPT_RSAFULLPRIVATE_MAGIC, 1);
     EXPECT_EQ(rd_export(k, BCRYPT_RSAFULLPRIVATE_BLOB, &o, &ol), ST_SUCCESS);
     CHECK(ol == il);
     if (o && ol == il) {
-        if (memcmp(o, in, il)) t_note("full private export differs from authoring-time CRT values");
-        CHECK(!memcmp(o, in, 24 + 3 + 128 + 128));
+        CHECK(!memcmp(o, in, il));  /* probed: identical to the authoring-time blob, CRT values included */
         free(o);
     }
     EXPECT_EQ(rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &o, &ol), ST_SUCCESS);
@@ -538,9 +531,9 @@ TEST(rsa_keys_import_private_key_can_export_after_all_blob_types) {
         UCHAR *o; ULONG ol;
         /* a public-only key can only export public data; private exports require private material */
         NTSTATUS s = rd_export(k, BCRYPT_RSAPRIVATE_BLOB, &o, &ol); if (!s) free(o);
-        if (i == 0) { CHECK(s != 0); t_note("public-only key RSAPRIVATEBLOB export: 0x%lx", (unsigned long)s); } else EXPECT_EQ(s, ST_SUCCESS);
+        if (i == 0) EXPECT_EQ(s, ST_INVALID_PARAMETER); else EXPECT_EQ(s, ST_SUCCESS);
         s = rd_export(k, BCRYPT_RSAFULLPRIVATE_BLOB, &o, &ol); if (!s) free(o);
-        if (i == 0) { CHECK(s != 0); } else EXPECT_EQ(s, ST_SUCCESS);
+        if (i == 0) EXPECT_EQ(s, ST_INVALID_PARAMETER); else EXPECT_EQ(s, ST_SUCCESS);
         s = rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &o, &ol); if (!s) free(o);
         EXPECT_EQ(s, ST_SUCCESS);
         rd_destroy(k);
@@ -570,7 +563,12 @@ TEST(rsa_keys_import_truncated_blobs_fail) {
         for (size_t c = 0; c < sizeof cuts / sizeof *cuts; c++) {
             BCRYPT_KEY_HANDLE k = NULL;
             NTSTATUS s = rd_import(a, ty[i], in, cuts[c], &k);
-            CHECKF(s != 0, "type %d truncated to %lu imported", i, cuts[c]);
+            /* probed: a zero-length blob is INVALID_PARAMETER (NTE_INVALID_PARAMETER for the full private blob, as is any
+             * cut shorter than its 24-byte header); every other truncation is NTE_BAD_DATA */
+            t_label("type %d cut %lu", i, cuts[c]);
+            NTSTATUS want = (cuts[c] == 0 && i < 2) ? ST_INVALID_PARAMETER
+                          : (i == 2 && cuts[c] < 24) ? (NTSTATUS)0x80090027 : (NTSTATUS)0x80090005;
+            EXPECT_EQ(s, want);
             if (s == 0) rd_destroy(k);
         }
     }
@@ -583,15 +581,13 @@ TEST(rsa_keys_import_wrong_magic_fails) {
     BCRYPT_KEY_HANDLE k = NULL;
     /* public magic under the private type and vice versa */
     NTSTATUS s = rd_import(a, BCRYPT_RSAPRIVATE_BLOB, in, il, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
-    t_note("public-magic blob as RSAPRIVATEBLOB: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, (NTSTATUS)0x80090005); if (!s) rd_destroy(k);
     il = rd_rsa_blob(in, BCRYPT_RSAPRIVATE_MAGIC, 0);
     s = rd_import(a, BCRYPT_RSAPUBLIC_BLOB, in, il, &k);
-    t_note("private-magic blob as RSAPUBLICBLOB: 0x%lx", (unsigned long)s);
-    if (!s) rd_destroy(k);
+    EXPECT_EQ(s, (NTSTATUS)0x80090005); if (!s) rd_destroy(k);
     ((BCRYPT_RSAKEY_BLOB *)in)->Magic = 0x41424344;
     s = rd_import(a, BCRYPT_RSAPRIVATE_BLOB, in, il, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, (NTSTATUS)0x80090005); if (!s) rd_destroy(k);
     rd_closealg(a);
 }
 TEST(rsa_keys_import_to_dsa_alg_fails) {
@@ -600,7 +596,7 @@ TEST(rsa_keys_import_to_dsa_alg_fails) {
     UCHAR in[RD_RSA_BLOB_MAX]; ULONG il = rd_rsa_blob(in, BCRYPT_RSAPUBLIC_MAGIC, 0);
     BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = rd_import(a, BCRYPT_RSAPUBLIC_BLOB, in, il, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER); if (!s) rd_destroy(k);
     rd_closealg(a);
 }
 TEST(rsa_keys_import_into_sign_alg) {
@@ -619,16 +615,16 @@ TEST(rsa_keys_import_rejects_small_exponent_modulus_mismatch) {
     /* BitLength smaller than the modulus bytes: record observed behaviour */
     h->BitLength = 512;
     NTSTATUS s = rd_import(a, BCRYPT_RSAPUBLIC_BLOB, in, il, &k);
-    t_note("public blob with BitLength=512 but 128-byte modulus: 0x%lx", (unsigned long)s);
-    if (!s) { NTSTATUS ps; t_note("resulting KeyLength=%lu", rd_getdw(k, BCRYPT_KEY_LENGTH, &ps)); rd_destroy(k); }
+    EXPECT_EQ(s, ST_SUCCESS);  /* probed: accepted, the modulus size wins */
+    if (!s) { NTSTATUS ps; EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 1024); EXPECT_EQ(ps, 0); rd_destroy(k); }
     /* cbPublicExp zero */
     h->BitLength = 1024; h->cbPublicExp = 0;
     s = rd_import(a, BCRYPT_RSAPUBLIC_BLOB, in, il, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, (NTSTATUS)0x80090005); if (!s) rd_destroy(k);
     /* cbModulus zero */
     h->cbPublicExp = 3; h->cbModulus = 0;
     s = rd_import(a, BCRYPT_RSAPUBLIC_BLOB, in, il, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, (NTSTATUS)0x80090005); if (!s) rd_destroy(k);
     rd_closealg(a);
 }
 TEST(rsa_keys_import_fixed_exponent_variants) {
@@ -651,10 +647,10 @@ TEST(rsa_keys_import_fixed_exponent_variants) {
     /* exponent with leading zero byte: 00 01 00 01 */
     p = in + sizeof *h; h->cbPublicExp = 4; *p++ = 0; *p++ = 1; *p++ = 0; *p++ = 1; memcpy(p, kRsaN, 128); p += 128;
     s = rd_import(a, BCRYPT_RSAPUBLIC_BLOB, in, (ULONG)(p - in), &k);
-    t_note("exponent with leading zero: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_SUCCESS);
     if (!s) {
         UCHAR *o; ULONG ol;
-        if (!rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &o, &ol)) { t_note("re-exported cbPublicExp=%lu", ((BCRYPT_RSAKEY_BLOB *)o)->cbPublicExp); free(o); }
+        if (!rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &o, &ol)) { EXPECT_EQ(((BCRYPT_RSAKEY_BLOB *)o)->cbPublicExp, 3); free(o); }  /* leading zero stripped */
         rd_destroy(k);
     }
     rd_closealg(a);
@@ -757,7 +753,7 @@ TEST(rsa_keys_legacy_import_public_blob_as_private_type_fails) {
     UCHAR in[1024]; ULONG il = capi_blob(in, 0);
     BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = rd_import(a, LEGACY_RSAPRIVATE_BLOB, in, il, &k);
-    CHECK(s != 0); if (!s) rd_destroy(k);
+    EXPECT_EQ(s, (NTSTATUS)0x80090005); if (!s) rd_destroy(k);
     rd_closealg(a);
 }
 

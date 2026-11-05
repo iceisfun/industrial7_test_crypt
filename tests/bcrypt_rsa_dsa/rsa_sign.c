@@ -94,8 +94,9 @@ TEST(rsa_sign_pkcs1_null_alg_id_arbitrary_hash_length) {
     ULONG lens[] = { 1, 16, 20, 33, 40 };
     for (int i = 0; i < 5; i++) {
         NTSTATUS s = sign(k, &pi, in, lens[i], sig, sizeof sig, &n, BCRYPT_PAD_PKCS1);
-        t_note("bare PKCS1 sign of %lu-byte input: 0x%lx", lens[i], (unsigned long)s);
-        if (s == 0) EXPECT_EQ(verify(k, &pi, in, lens[i], sig, 128, BCRYPT_PAD_PKCS1), ST_SUCCESS);
+        t_label("input %lu bytes", lens[i]);
+        EXPECT_EQ(s, ST_SUCCESS);  /* probed: any length signs with a NULL algorithm id */
+        EXPECT_EQ(verify(k, &pi, in, lens[i], sig, 128, BCRYPT_PAD_PKCS1), ST_SUCCESS);
     }
     rd_destroy(k); END();
 }
@@ -158,10 +159,10 @@ TEST(rsa_sign_pss_salt_too_large_fails) {
     BCRYPT_PSS_PADDING_INFO p = { BCRYPT_SHA256_ALGORITHM, 95 };
     UCHAR sig[128]; ULONG n = 0;
     NTSTATUS s = sign(k, &p, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PSS);
-    t_note("PSS salt 95 on 1024-bit/SHA-256: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     p.cbSalt = 1000;
     s = sign(k, &p, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PSS);
-    t_note("PSS salt 1000 on 1024-bit/SHA-256: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_pss_randomised_vs_zero_salt) {
@@ -271,8 +272,7 @@ TEST(rsa_sign_null_key) {
     BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
     UCHAR sig[128]; ULONG n = 0;
     NTSTATUS s = sign(NULL, &pi, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0);
-    t_note("BCryptSignHash(NULL key): 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_HANDLE);
     EXPECT_EQ(verify(NULL, &pi, kHash_sha256, 32, kSigPkcs1_sha256, 128, BCRYPT_PAD_PKCS1), ST_INVALID_HANDLE);
     END();
 }
@@ -281,7 +281,7 @@ TEST(rsa_sign_algorithm_handle_as_key) {
     BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
     UCHAR sig[128]; ULONG n = 0;
     NTSTATUS s = sign((BCRYPT_KEY_HANDLE)g_a, &pi, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0);
+    EXPECT_EQ(s, ST_INVALID_HANDLE);
     EXPECT_EQ(verify((BCRYPT_KEY_HANDLE)g_a, &pi, kHash_sha256, 32, kSigPkcs1_sha256, 128, BCRYPT_PAD_PKCS1), ST_INVALID_HANDLE);
     END();
 }
@@ -311,7 +311,7 @@ TEST(rsa_sign_flags_zero_rejected) {
     NTSTATUS s = sign(k, &pi, kHash_sha256, 32, sig, sizeof sig, &n, 0);
     EXPECT_EQ(s, ST_SUCCESS);
     EXPECT_EQ(n, 128);
-    t_note("flags-0 signature equals PKCS1 signature: %d", !memcmp(sig, kSigPkcs1_sha256, 128));
+    CHECK(memcmp(sig, kSigPkcs1_sha256, 128) != 0);  /* probed: not the PKCS#1 signature */
     n = 0;
     EXPECT_EQ(sign(k, NULL, kHash_sha256, 32, sig, sizeof sig, &n, 0), ST_INVALID_PARAMETER);
     EXPECT_EQ(verify(k, &pi, kHash_sha256, 32, kSigPkcs1_sha256, 128, 0), ST_INVALID_PARAMETER);
@@ -331,7 +331,7 @@ TEST(rsa_sign_flag_combinations_rejected) {
     }
     /* both bits set: PKCS1 takes precedence in the padding step */
     NTSTATUS s = sign(k, &pi, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1 | BCRYPT_PAD_PSS);
-    t_note("sign flags PKCS1|PSS -> 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_SUCCESS); EXPECT_EQ(n, 128); CHECK(!memcmp(sig, kSigPkcs1_sha256, 128));  /* probed: PKCS1 wins */
     rd_destroy(k); END();
 }
 TEST(rsa_sign_non_hash_alg_id_not_supported) {
@@ -343,7 +343,7 @@ TEST(rsa_sign_non_hash_alg_id_not_supported) {
     EXPECT_EQ(verify(k, &pi, kHash_sha256, 32, kSigPkcs1_sha256, 128, BCRYPT_PAD_PKCS1), ST_NOT_SUPPORTED);
     pi.pszAlgId = L"NOSUCHHASH";
     NTSTATUS s = sign(k, &pi, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0); t_note("unknown hash name: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_hash_length_mismatch) {
@@ -357,7 +357,7 @@ TEST(rsa_sign_hash_length_mismatch) {
     pi.pszAlgId = BCRYPT_SHA1_ALGORITHM;
     EXPECT_EQ(sign(k, &pi, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1), ST_INVALID_PARAMETER);
     NTSTATUS s = verify(k, &pi, kHash_sha256, 32, kSigPkcs1_sha1, 128, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0); t_note("verify with hash length != alg digest size: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_zero_length_hash) {
@@ -365,7 +365,7 @@ TEST(rsa_sign_zero_length_hash) {
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPRIVATE_MAGIC); CHECK(k);
     UCHAR sig[128]; ULONG n = 0;
     BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
-    CHECK(sign(k, &pi, kHash_sha256, 0, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1) != 0);
+    EXPECT_EQ(sign(k, &pi, kHash_sha256, 0, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1), ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_with_public_only_key_fails) {
@@ -374,12 +374,11 @@ TEST(rsa_sign_with_public_only_key_fails) {
     BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
     UCHAR sig[128]; ULONG n = 0;
     NTSTATUS s = sign(k, &pi, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0);
-    t_note("sign with public-only key: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     s = sign(k, &pi, kHash_sha256, 32, NULL, 0, &n, BCRYPT_PAD_PKCS1);
-    t_note("size query with public-only key: 0x%lx n=%lu", (unsigned long)s, n);
+    EXPECT_EQ(s, ST_SUCCESS); EXPECT_EQ(n, 128);  /* probed: the size query does not need the private key */
     BCRYPT_PSS_PADDING_INFO pp = { BCRYPT_SHA256_ALGORITHM, 32 };
-    CHECK(sign(k, &pp, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PSS) != 0);
+    EXPECT_EQ(sign(k, &pp, kHash_sha256, 32, sig, sizeof sig, &n, BCRYPT_PAD_PSS), ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 
@@ -393,8 +392,8 @@ TEST(rsa_sign_tamper_each_signature_byte_region) {
         UCHAR sig[128]; memcpy(sig, kSigPkcs1_sha256, 128);
         sig[pos[i]] ^= 0x01;
         NTSTATUS s = verify(k, &pi, kHash_sha256, 32, sig, 128, BCRYPT_PAD_PKCS1);
-        if (pos[i] == 0) { CHECKF(s != 0, "flip byte 0 verified"); t_note("flip byte 0 -> 0x%lx", (unsigned long)s); }
-        else CHECKF(s == (NTSTATUS)ST_INVALID_SIGNATURE, "flip byte %lu -> 0x%lx", pos[i], (unsigned long)s);
+        t_label("flip byte %lu", pos[i]);
+        EXPECT_EQ(s, ST_INVALID_SIGNATURE);  /* probed for every position, byte 0 included */
     }
     rd_destroy(k); END();
 }
@@ -416,8 +415,9 @@ TEST(rsa_sign_signature_wrong_length) {
     ULONG lens[] = { 0, 1, 64, 127, 129, 256 };
     for (int i = 0; i < 6; i++) {
         NTSTATUS s = verify(k, &pi, kHash_sha256, 32, big, lens[i], BCRYPT_PAD_PKCS1);
-        CHECKF(s != 0, "sig length %lu verified", lens[i]);
-        t_note("verify with signature length %lu: 0x%lx", lens[i], (unsigned long)s);
+        /* probed: lengths below the modulus size are INVALID_PARAMETER, longer ones fail the signature check */
+        t_label("sig length %lu", lens[i]);
+        EXPECT_EQ(s, lens[i] < 128 ? ST_INVALID_PARAMETER : ST_INVALID_SIGNATURE);
     }
     rd_destroy(k); END();
 }
@@ -427,10 +427,10 @@ TEST(rsa_sign_signature_not_below_modulus) {
     BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
     UCHAR sig[128]; memset(sig, 0xff, 128);
     NTSTATUS s = verify(k, &pi, kHash_sha256, 32, sig, 128, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0); t_note("signature 0xFF..FF (>= modulus): 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     memset(sig, 0, 128);
     s = verify(k, &pi, kHash_sha256, 32, sig, 128, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0); t_note("signature all-zero: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_SIGNATURE);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_verify_with_other_key_fails) {
@@ -466,8 +466,7 @@ TEST(rsa_sign_generated_key_roundtrip_table) {
             EXPECT_EQ(n, c->bits / 8);
             if (s == 0) EXPECT_EQ(verify(k, &pi, c->h, c->hl, sig, n, BCRYPT_PAD_PKCS1), ST_SUCCESS);
         } else {
-            CHECKF(s != 0, "%lu/%ls should not fit", c->bits, c->alg);
-            t_note("%lu-bit key with %ls: 0x%lx", c->bits, c->alg, (unsigned long)s);
+            EXPECT_EQ(s, ST_INVALID_PARAMETER);
         }
         rd_destroy(k);
     }

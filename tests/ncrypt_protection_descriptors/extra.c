@@ -18,7 +18,7 @@ TEST(npd_x_create_flag_bit_sweep) {
 TEST(npd_x_protect_secret_flag_bit_sweep) {
     NREQ(UN(NCryptProtectSecret));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     BYTE data[4] = {1,2,3,4};
     BIT_SWEEP_BEGIN(0x40u)
         BYTE *blob = (BYTE *)(ULONG_PTR)1; ULONG cb = 9;
@@ -59,7 +59,7 @@ TEST(npd_x_stream_open_flag_bit_sweep) {
     NREQ(UN(NCryptStreamOpenToUnprotect));
     NREQ(UN(NCryptStreamOpenToUnprotectEx));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     npd_sink s; memset(&s, 0, sizeof s);
     NPD_STREAM_INFO si = { npd_cb, &s };
     NPD_STREAM_INFO_EX sx = { npd_cb_ex, &s };
@@ -92,15 +92,15 @@ TEST(npd_x_stream_open_flag_0x80_observed) {
     NPD_STREAM_INFO_EX sx = { npd_cb_ex, &s };
     void *hs = NULL;
     LONG rc = UN(NCryptStreamOpenToUnprotect)(&si, 0x80, NULL, &hs);
-    t_note("OpenToUnprotect flags 0x80 -> 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0);
     if (rc == 0 && hs) UN(NCryptStreamClose)(hs);
     hs = NULL;
     rc = UN(NCryptStreamOpenToUnprotectEx)(&sx, 0x80, NULL, &hs);
-    t_note("OpenToUnprotectEx flags 0x80 -> 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0);
     if (rc == 0 && hs) UN(NCryptStreamClose)(hs);
     hs = NULL;
     rc = UN(NCryptStreamOpenToUnprotectEx)(&sx, 0x1, NULL, &hs);
-    t_note("OpenToUnprotectEx flags 0x1 -> 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0);
     if (rc == 0 && hs) UN(NCryptStreamClose)(hs);
 }
 
@@ -126,7 +126,9 @@ TEST(npd_x_create_trailing_connector_observed) {
     for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
         void *h = NULL;
         LONG rc = UN(NCryptCreateProtectionDescriptor)(v[i], 0, &h);
-        t_note("\"%ls\" -> 0x%lx", v[i], (unsigned long)SS(rc));
+        t_label("%ls", v[i]);
+        /* probed: a trailing AND or trailing blanks are accepted, a trailing OR and AND followed by blanks are BAD_DATA */
+        EXPECT_SS(rc, (i == 0 || i == 3) ? 0 : NPD_NTE_BAD_DATA);
         if (rc == 0) npd_desc_close(h);
     }
 }
@@ -138,9 +140,9 @@ TEST(npd_x_create_connector_case_and_tab) {
     for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
         void *h = (void *)(ULONG_PTR)1;
         LONG rc = UN(NCryptCreateProtectionDescriptor)(v[i], 0, &h);
-        CHECKF(rc != 0, "\"%ls\" accepted", v[i]);
+        t_label("%ls", v[i]);
+        EXPECT_SS(rc, NPD_NTE_BAD_DATA);
         CHECKF(h == NULL, "\"%ls\": handle not cleared", v[i]);
-        t_note("\"%ls\" -> 0x%lx", v[i], (unsigned long)SS(rc));
     }
 }
 
@@ -186,8 +188,8 @@ TEST(npd_x_create_rule_name_only_spaces_before_equals) {
     void *h = (void *)(ULONG_PTR)1;
     /* "=user": empty rule name */
     LONG rc = UN(NCryptCreateProtectionDescriptor)(L"=user", 0, &h);
-    t_note("\"=user\" -> 0x%lx", (unsigned long)SS(rc));
-    if (rc == 0) npd_desc_close(h); else CHECK(h == NULL);
+    EXPECT_SS(rc, 0x80090027);   /* probed: NTE_INVALID_PARAMETER */
+    CHECK(h == NULL);
 }
 
 TEST(npd_x_create_long_value_bounded) {
@@ -199,8 +201,9 @@ TEST(npd_x_create_long_value_bounded) {
     s[1006] = 0;
     void *h = (void *)(ULONG_PTR)1;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(s, 0, &h);
-    t_note("1000-character LOCAL value -> 0x%lx", (unsigned long)SS(rc));
-    if (rc == 0) npd_desc_close(h); else CHECK(h == NULL);
+    EXPECT_SS(rc, 0);
+    CHECK(h != NULL);
+    npd_desc_close(h);
 }
 
 TEST(npd_x_info_rejects_after_close_type_confusion) {
@@ -208,7 +211,7 @@ TEST(npd_x_info_rejects_after_close_type_confusion) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     NREQ(UN(NCryptOpenKeyProtector));
     void *kp = NULL;
-    if (UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0) != 0) { t_skip("no LOCAL protector"); return; }
+    REQUIRE_EQ(UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0), 0);
     void *out = (void *)(ULONG_PTR)3;
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(kp, NULL, 1, &out), NPD_NTE_INVALID_HANDLE);
     CHECK(out == (void *)(ULONG_PTR)3);
@@ -218,7 +221,7 @@ TEST(npd_x_info_rejects_after_close_type_confusion) {
 TEST(npd_x_info_bad_type_with_allocator_not_called) {
     NREQ(UN(NCryptGetProtectionDescriptorInfo));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     NPD_ALLOC_PARA ap = { sizeof ap, NULL, NULL };   /* never used for an unsupported info type */
     void *out = (void *)(ULONG_PTR)3;
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(d, &ap, 2, &out), NPD_NTE_NOT_SUPPORTED);
@@ -249,7 +252,7 @@ TEST(npd_x_no_decrypt_ignores_ciphertext_damage) {
         /* and a real unprotect of the same blob still fails */
         void *d2 = (void *)(ULONG_PTR)1;
         LONG rc = UN(NCryptUnprotectSecret)(&d2, 0, blob, cb, NULL, NULL, &out, &co);
-        CHECK(rc != 0);
+        EXPECT_SS(rc, 0xC000A002);   /* probed: STATUS_AUTH_TAG_MISMATCH */
         CHECK(d2 == NULL && out == NULL && co == 0);
         LocalFree(blob);
     }
@@ -261,7 +264,7 @@ TEST(npd_x_no_decrypt_garbage_rejected) {
     BYTE junk[16]; memset(junk, 0xff, sizeof junk);
     void *dd = (void *)(ULONG_PTR)1; BYTE *out = (BYTE *)(ULONG_PTR)1; ULONG co = 1;
     LONG rc = UN(NCryptUnprotectSecret)(&dd, NPD_UNPROTECT_NO_DECRYPT, junk, sizeof junk, NULL, NULL, &out, &co);
-    CHECK(rc != 0);
+    EXPECT_SS(rc, 0x80093104);   /* probed */
     CHECK(dd == NULL && out == NULL && co == 0);
 }
 
@@ -301,9 +304,8 @@ TEST(npd_x_unprotect_allocator_failure_leaves_outputs_clear) {
     NPD_ALLOC_PARA ap = { sizeof ap, x_null_alloc, x_free };
     BYTE *out = (BYTE *)(ULONG_PTR)1; ULONG co = 5; void *dd = (void *)(ULONG_PTR)1;
     LONG rc = blob ? UN(NCryptUnprotectSecret)(&dd, 0, blob, cb, &ap, NULL, &out, &co) : -1;
-    CHECK(rc != 0);
+    EXPECT_SS(rc, 0x8009000E);   /* probed: NTE_NO_MEMORY */
     CHECK(out == NULL && co == 0 && dd == NULL);
-    t_note("unprotect with failing allocator -> 0x%lx", (unsigned long)SS(rc));
     if (blob) LocalFree(blob);
     npd_desc_close(d);
 }
@@ -316,9 +318,8 @@ TEST(npd_x_protect_allocator_failure_leaves_outputs_clear) {
     NPD_ALLOC_PARA ap = { sizeof ap, x_null_alloc, x_free };
     BYTE *blob = (BYTE *)(ULONG_PTR)1; ULONG cb = 5;
     LONG rc = UN(NCryptProtectSecret)(d, 0, in, 16, &ap, NULL, &blob, &cb);
-    CHECK(rc != 0);
+    EXPECT_SS(rc, 0x8009000E);   /* probed: NTE_NO_MEMORY */
     CHECK(blob == NULL && cb == 0);
-    t_note("protect with failing allocator -> 0x%lx", (unsigned long)SS(rc));
     npd_desc_close(d);
 }
 
@@ -343,7 +344,7 @@ TEST(npd_x_stream_failed_final_update_marks_stream_finished) {
     EXPECT_SS(UN(NCryptStreamOpenToUnprotect)(&si, 0, NULL, &hs), 0);
     BYTE g[16]; memset(g, 0xff, 16);
     LONG rc = UN(NCryptStreamUpdate)(hs, g, 16, TRUE);
-    CHECK(rc != 0);
+    EXPECT_SS(rc, 0x80093104);   /* probed */
     EXPECT_SS(UN(NCryptStreamUpdate)(hs, g, 16, FALSE), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptStreamUpdate)(hs, g, 1, TRUE), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptStreamClose)(hs), 0);
@@ -432,17 +433,16 @@ TEST(npd_x_stream_unprotect_ex_callback_shape) {
     void *hs = NULL;
     g_ex_calls = g_ex_desc_nonnull = g_ex_final = 0;
     EXPECT_SS(UN(NCryptStreamOpenToUnprotectEx)(&sx, 0, NULL, &hs), 0);
-    if (hs) {
-        EXPECT_SS(UN(NCryptStreamUpdate)(hs, p.buf, p.len, TRUE), 0);
-        EXPECT_SS(UN(NCryptStreamClose)(hs), 0);
-    }
+    REQUIRE_NOTNULL(hs);
+    EXPECT_SS(UN(NCryptStreamUpdate)(hs, p.buf, p.len, TRUE), 0);
+    EXPECT_SS(UN(NCryptStreamClose)(hs), 0);
     CHECK(u.len == 200 && !memcmp(u.buf, in, 200));
     /* Win10: the first Ex callback is a descriptor notification (no data, descriptor set, fFinal TRUE),
        then the data arrives in one more callback with fFinal TRUE */
     CHECK(g_ex_calls == 2 && g_ex_final == 2);
     CHECK(g_ex_first_cb == 0 && g_ex_first_fin == 1 && g_ex_first_desc == 1);
     CHECK(u.notif == 1 && !u.notif_bad && u.final_calls == 1 && u.calls == 1);
-    t_note("Ex callback: %d calls, descriptor handle non-NULL in %d", g_ex_calls, g_ex_desc_nonnull);
+    EXPECT_EQ(g_ex_desc_nonnull, 2);   /* probed: the descriptor handle is set in both callbacks */
     npd_sink_free(&p); npd_sink_free(&u);
     npd_desc_close(d);
 }

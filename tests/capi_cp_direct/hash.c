@@ -220,7 +220,7 @@ TEST(cpd_mac_des_cbc_hashsize_is_block_size) {
     DWORD bl = 8;
     OKAY(R.SetKeyParam(p, k2, KP_MODE, (BYTE *)&(DWORD){ CRYPT_MODE_ECB }, 0));
     OKAY(R.Encrypt(p, k2, 0, FALSE, 0, blk, &bl, sizeof blk));
-    t_note("DES CBC-MAC of one block %s the single-block ECB encryption", memcmp(mac, blk, 8) ? "differs from" : "equals");
+    CHECK(memcmp(mac, blk, 8) != 0);  /* probed: the CBC-MAC of one block differs from the plain ECB block */
     R.DestroyKey(p, k2);
     R.DestroyHash(p, h); R.DestroyKey(p, k);
     cp_rel(&R, p);
@@ -571,7 +571,7 @@ TEST(cpd_sethashparam_hashval_after_finish_bad_hash_state) {
     ULONG_PTR h = cp_mkhash(&R, p, CALG_SHA1); REQUIRE(h);
     BYTE v[20] = { 1 }, g[20]; DWORD n = sizeof g;
     OKAY(R.GetHashParam(p, h, HP_HASHVAL, g, &n, 0));
-    t_note("SetHashParam(HP_HASHVAL) after a finished SHA1: %d err=0x%lx", R.SetHashParam(p, h, HP_HASHVAL, v, 0), GetLastError());
+    FAILS(R.SetHashParam(p, h, HP_HASHVAL, v, 0), CPE_BAD_HASH_STATE);  /* probed */
     R.DestroyHash(p, h);
     cp_rel(&R, p);
 }
@@ -617,13 +617,12 @@ TEST(cpd_duplicatehash_of_finished_hash) {
     BYTE a[20], b[20]; DWORD n = 20;
     OKAY(R.GetHashParam(p, h, HP_HASHVAL, a, &n, 0));
     ULONG_PTR d = 0; SET_ERR(0);
-    BOOL r = R.DuplicateHash(p, h, NULL, 0, &d);
-    t_note("DuplicateHash of finished hash: %d err=0x%lx", r, GetLastError());
-    if (r && d) {
-        n = 20;
-        if (R.GetHashParam(p, d, HP_HASHVAL, b, &n, 0)) SAMEBYTES(a, b, 20);
-        R.DestroyHash(p, d);
-    }
+    OKAY(R.DuplicateHash(p, h, NULL, 0, &d));  /* probed: a finished hash can be duplicated */
+    REQUIRE(d);
+    n = 20;
+    OKAY(R.GetHashParam(p, d, HP_HASHVAL, b, &n, 0));
+    SAMEBYTES(a, b, 20);
+    R.DestroyHash(p, d);
     R.DestroyHash(p, h);
     cp_rel(&R, p);
 }
@@ -679,15 +678,16 @@ TEST(cpd_duplicatehash_hmac) {
     OKAY(R.SetHashParam(p, h, HP_HMAC_INFO, (BYTE *)&hi, 0));
     OKAY(R.HashData(p, h, (const BYTE *)"Hi ", 3, 0));
     SET_ERR(0);
-    BOOL r = R.DuplicateHash(p, h, NULL, 0, &d);
-    if (r && d) {
+    OKAY(R.DuplicateHash(p, h, NULL, 0, &d));  /* probed: HMAC hashes can be duplicated */
+    REQUIRE(d);
+    {
         OKAY(R.HashData(p, d, (const BYTE *)"There", 5, 0));
         BYTE g[20], w[20]; DWORD n = 20;
         OKAY(R.GetHashParam(p, d, HP_HASHVAL, g, &n, 0));
         hx("b617318655057264e28bc0b6fb378c8ef146be00", w);
         SAMEBYTES(g, w, 20);
         R.DestroyHash(p, d);
-    } else t_note("DuplicateHash of an HMAC hash fails err=0x%lx", GetLastError());
+    }
     R.DestroyHash(p, h); R.DestroyKey(p, k);
     cp_rel(&R, p);
 }
@@ -737,16 +737,14 @@ TEST(cpd_hashsessionkey_hashes_key_material) {
     DWORD n = 16;
     OKAY(R.GetHashParam(p, h, HP_HASHVAL, got, &n, 0));
     int f = !memcmp(got, fwd, 16), r = !memcmp(got, rev, 16);
-    CHECK(f || r);
-    t_note("HashSessionKey flags 0 hashes the key bytes in %s order", f ? "stored" : (r ? "reversed" : "unknown"));
+    CHECK(r && !f);  /* probed: flags 0 hashes the key bytes in reversed order */
     R.DestroyHash(p, h);
     h = cp_mkhash(&R, p, CALG_MD5);
     OKAY(R.HashSessionKey(p, h, k, CRYPT_LITTLE_ENDIAN));
     n = 16;
     OKAY(R.GetHashParam(p, h, HP_HASHVAL, got, &n, 0));
     int f2 = !memcmp(got, fwd, 16), r2 = !memcmp(got, rev, 16);
-    CHECK(f2 || r2);
-    CHECK(f2 != f);  /* the flag flips the byte order */
+    CHECK(f2 && !r2);  /* probed: CRYPT_LITTLE_ENDIAN hashes the bytes in stored order */
     R.DestroyHash(p, h); R.DestroyKey(p, k);
     cp_rel(&R, p);
 }
@@ -784,11 +782,14 @@ TEST(cpd_hashsessionkey_matches_hashdata_of_deskey) {
     BYTE key[24]; for (int i = 0; i < 24; i++) key[i] = (BYTE)(i * 11 + 1);
     ULONG_PTR k = cp_key(&R, p, CALG_3DES, key, 24); REQUIRE(k);
     ULONG_PTR h = cp_mkhash(&R, p, CALG_SHA1); REQUIRE(h);
-    if (R.HashSessionKey(p, h, k, 0)) {
-        BYTE g[20]; DWORD n = 20;
+    OKAY(R.HashSessionKey(p, h, k, 0));  /* probed: succeeds on a plaintext-imported 3DES key */
+    {
+        BYTE g[20], w[20]; DWORD n = 20;
         OKAY(R.GetHashParam(p, h, HP_HASHVAL, g, &n, 0));
-        t_note("HashSessionKey on a plaintext-imported 3DES key succeeds (digest length %lu)", n);
-    } else t_note("HashSessionKey on a plaintext-imported 3DES key fails 0x%lx", GetLastError());
+        EXPECT_EQ(n, 20);
+        hx("16d4a2a1b0cf91ef4010812f7e3e718e600c90db", w);  /* SHA-1 of the odd-parity-adjusted key bytes in reversed order */
+        SAMEBYTES(g, w, 20);
+    }
     R.DestroyHash(p, h); R.DestroyKey(p, k);
     cp_rel(&R, p);
 }

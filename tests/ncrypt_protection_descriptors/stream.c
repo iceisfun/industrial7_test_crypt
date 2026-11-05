@@ -51,7 +51,7 @@ static LONG stream_unprotect(const BYTE *blob, size_t n, size_t chunk, int ex, D
 TEST(npd_stream_protect_open_null_args) {
     NREQ(UN(NCryptStreamOpenToProtect));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     npd_sink s; memset(&s, 0, sizeof s);
     NPD_STREAM_INFO si = { npd_cb, &s }, nocb = { NULL, &s };
     void *hs = (void *)(ULONG_PTR)5;
@@ -85,7 +85,7 @@ TEST(npd_stream_protect_open_handle_before_flags) {
 TEST(npd_stream_protect_open_bad_flags) {
     NREQ(UN(NCryptStreamOpenToProtect));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     static const DWORD bad[] = { 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x100, 0x200, 0x1000, 0x10000, 0x80000000u };
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
         npd_sink s; memset(&s, 0, sizeof s);
@@ -101,7 +101,7 @@ TEST(npd_stream_protect_open_wrong_handle_type) {
     NREQ(UN(NCryptStreamOpenToProtect));
     NREQ(UN(NCryptOpenKeyProtector));
     void *kp = NULL;
-    if (UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0) != 0) { t_skip("no LOCAL protector"); return; }
+    REQUIRE_EQ(UN(NCryptOpenKeyProtector)(&kp, L"LOCAL", 0), 0);
     npd_sink s; memset(&s, 0, sizeof s);
     void *hs = NULL;
     EXPECT_SS(open_protect(kp, 0, &s, &hs), NPD_NTE_INVALID_HANDLE);
@@ -206,7 +206,7 @@ TEST(npd_stream_update_null) {
 TEST(npd_stream_update_rejects_descriptor_handle) {
     NREQ(UN(NCryptStreamUpdate));
     void *d = npd_desc(L"LOCAL=user");
-    if (!d) { t_skip("no descriptor"); return; }
+    REQUIRE_NOTNULL(d);
     BYTE b[4] = {1,2,3,4};
     EXPECT_SS(UN(NCryptStreamUpdate)(d, b, 4, FALSE), NPD_NTE_INVALID_HANDLE);
     npd_desc_close(d);
@@ -217,7 +217,7 @@ TEST(npd_stream_handle_is_not_a_descriptor) {
     npd_sink s; memset(&s, 0, sizeof s);
     NPD_STREAM_INFO si = { npd_cb, &s };
     void *hs = NULL;
-    if (UN(NCryptStreamOpenToUnprotect)(&si, 0, NULL, &hs) != 0) { t_skip("open failed"); return; }
+    REQUIRE_EQ(UN(NCryptStreamOpenToUnprotect)(&si, 0, NULL, &hs), 0);
     EXPECT_SS(UN(NCryptCloseProtectionDescriptor)(hs), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptGetProtectionDescriptorInfo)(hs, NULL, 1, &(void *){NULL}), NPD_NTE_INVALID_HANDLE);
     EXPECT_SS(UN(NCryptStreamClose)(hs), 0);
@@ -350,7 +350,7 @@ TEST(npd_stream_protect_zero_length_update) {
     EXPECT_SS(open_protect(d, 0, &s, &hs), 0);
     BYTE b = 0;
     LONG rc = UN(NCryptStreamUpdate)(hs, &b, 0, FALSE);
-    t_note("zero-length non-final update -> 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0);
     BYTE in[10]; npd_fill(in, 10, 9);
     EXPECT_SS(UN(NCryptStreamUpdate)(hs, in, 10, TRUE), 0);
     UN(NCryptStreamClose)(hs);
@@ -368,8 +368,7 @@ TEST(npd_stream_protect_callback_failure_during_update) {
     EXPECT_SS(open_protect(d, 0, &s, &hs), 0);
     BYTE in[300]; npd_fill(in, 300, 12);
     LONG rc = feed(hs, in, 300, 50, TRUE);
-    CHECK(rc != 0);
-    t_note("callback failure at call 2 surfaced as 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0x80004005);   /* the callback's own status is returned unchanged */
     UN(NCryptStreamClose)(hs);
     npd_sink_free(&s);
     npd_desc_close(d);
@@ -534,8 +533,7 @@ TEST(npd_stream_unprotect_garbage_final) {
     EXPECT_SS(UN(NCryptStreamOpenToUnprotect)(&si, 0, NULL, &hs), 0);
     BYTE g[16]; memset(g, 0xff, 16);
     LONG rc = UN(NCryptStreamUpdate)(hs, g, 16, TRUE);
-    CHECK(rc != 0);
-    t_note("0xff garbage -> 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0x80093104);   /* probed */
     CHECK(s.calls == 0);
     UN(NCryptStreamClose)(hs);
 }
@@ -566,14 +564,13 @@ TEST(npd_stream_unprotect_truncated) {
     BYTE in[100]; npd_fill(in, 100, 14);
     npd_sink p; memset(&p, 0, sizeof p);
     EXPECT_SS(stream_protect(d, in, 100, 100, 0, &p), 0);
-    /* a stream may end in framing bytes that a decoder tolerates losing: small cuts are only observed;
-       a cut that reaches into the authentication tag must never succeed */
+    /* probed: no cut is tolerated, the missing end always shows as an authentication failure */
     static const size_t cuts[] = { 1, 2, 10, 24, 40 };
     for (size_t i = 0; i < 5; i++) {
         npd_sink u; memset(&u, 0, sizeof u);
         LONG rc = stream_unprotect(p.buf, p.len - cuts[i], 64, 0, 0, &u);
-        if (cuts[i] >= 24) CHECKF(rc != 0, "blob missing %lu trailing bytes accepted", (unsigned long)cuts[i]);
-        else t_note("blob missing %lu trailing bytes -> 0x%lx", (unsigned long)cuts[i], (unsigned long)SS(rc));
+        t_label("missing %lu trailing bytes", (unsigned long)cuts[i]);
+        EXPECT_SS(rc, 0xC000A002);   /* probed: every cut, even one byte, fails with STATUS_AUTH_TAG_MISMATCH */
         npd_sink_free(&u);
     }
     npd_sink_free(&p);
@@ -592,8 +589,9 @@ TEST(npd_stream_unprotect_tampered_payload) {
         /* inside the payload that follows the header: framing or ciphertext, either way it must not decode */
         p.buf[p.first_size + 10] ^= 0x40;
         LONG rc = stream_unprotect(p.buf, p.len, 64, 0, 0, &u);
-        CHECK(rc != 0);
-        t_note("tampered stream: status 0x%lx, plaintext bytes delivered before failure: %lu, final callbacks %d", (unsigned long)SS(rc), (unsigned long)u.len, u.final_calls);
+        EXPECT_SS(rc, 0xC000A002);   /* probed: STATUS_AUTH_TAG_MISMATCH */
+        EXPECT_EQ(u.len, 32);        /* probed: plaintext already delivered before the failure is detected */
+        EXPECT_EQ(u.final_calls, 0);
     }
     npd_sink_free(&p); npd_sink_free(&u);
     npd_desc_close(d);
@@ -608,8 +606,7 @@ TEST(npd_stream_unprotect_callback_failure) {
     EXPECT_SS(stream_protect(d, in, 100, 100, 0, &p), 0);
     u.fail_at = 1; u.fail_ret = (LONG)0x80004005;
     LONG rc = stream_unprotect(p.buf, p.len, 1000, 0, 0, &u);
-    CHECK(rc != 0);
-    t_note("callback failure while unprotecting -> 0x%lx", (unsigned long)SS(rc));
+    EXPECT_SS(rc, 0x80004005);
     npd_sink_free(&p); npd_sink_free(&u);
     npd_desc_close(d);
 }
@@ -625,7 +622,8 @@ TEST(npd_stream_interop_secret_blob_to_stream_observed) {
     EXPECT_SS(UN(NCryptProtectSecret)(d, 0, in, 64, NULL, NULL, &blob, &cb), 0);
     npd_sink u; memset(&u, 0, sizeof u);
     LONG rc = blob ? stream_unprotect(blob, cb, 100, 0, 0, &u) : -1;
-    t_note("ProtectSecret blob through stream unprotect -> 0x%lx, %lu plaintext bytes, match=%d", (unsigned long)SS(rc), (unsigned long)u.len, u.len == 64 && !memcmp(u.buf, in, 64));
+    EXPECT_SS(rc, 0);   /* probed: the secret blob is accepted by the stream decoder */
+    CHECK(u.len == 64 && !memcmp(u.buf, in, 64));
     if (blob) LocalFree(blob);
     npd_sink_free(&u);
     npd_desc_close(d);
@@ -640,7 +638,8 @@ TEST(npd_stream_interop_stream_blob_to_secret_observed) {
     EXPECT_SS(stream_protect(d, in, 64, 64, 0, &p), 0);
     BYTE *out = NULL; ULONG co = 0;
     LONG rc = UN(NCryptUnprotectSecret)(NULL, 0, p.buf, (ULONG)p.len, NULL, NULL, &out, &co);
-    t_note("stream blob through UnprotectSecret -> 0x%lx, %lu bytes, match=%d", (unsigned long)SS(rc), (unsigned long)co, rc == 0 && co == 64 && !memcmp(out, in, 64));
+    EXPECT_SS(rc, 0);   /* probed: and the other way round */
+    CHECK(co == 64 && out && !memcmp(out, in, 64));
     if (out) LocalFree(out);
     npd_sink_free(&p);
     npd_desc_close(d);

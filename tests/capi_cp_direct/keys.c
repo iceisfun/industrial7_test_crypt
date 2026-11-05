@@ -197,9 +197,7 @@ TEST(cpd_genkey_rsa_user_protected_verifycontext) {
     NEED_RSA(); ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     ULONG_PTR k = 0;
     SET_ERR(0);
-    BOOL r = R.GenKey(p, AT_KEYEXCHANGE, (512u << 16) | CRYPT_USER_PROTECTED, &k);
-    CHECK(!r);
-    if (!r) t_note("CRYPT_USER_PROTECTED RSA GenKey in VERIFYCONTEXT fails 0x%lx", GetLastError());
+    FAILS(R.GenKey(p, AT_KEYEXCHANGE, (512u << 16) | CRYPT_USER_PROTECTED, &k), 0x80090022L /* NTE_SILENT_CONTEXT */);
     cp_rel(&R, p);
 }
 TEST(cpd_genkey_wrong_provider_handle_kinds) {
@@ -215,13 +213,8 @@ TEST(cpd_genkey_sig_provider_rejects_session_keys) {
     NEED_RSA(); ULONG_PTR p = rsa_open(&R, PROV_RSA_SIG, N_SIG); REQUIRE(p);
     ULONG_PTR k = 0;
     SET_ERR(0);
-    BOOL r = R.GenKey(p, CALG_RC4, 0, &k);
-    t_note("RSA_SIG provider GenKey(RC4): %d err=0x%lx", r, GetLastError());
-    if (r && k) R.DestroyKey(p, k);
-    SET_ERR(0);
-    r = R.GenKey(p, AT_KEYEXCHANGE, (512u << 16), &k);
-    t_note("RSA_SIG provider GenKey(AT_KEYEXCHANGE): %d err=0x%lx", r, GetLastError());
-    if (r && k) R.DestroyKey(p, k);
+    FAILS(R.GenKey(p, CALG_RC4, 0, &k), CPE_BAD_ALGID);
+    FAILS(R.GenKey(p, AT_KEYEXCHANGE, (512u << 16), &k), CPE_BAD_ALGID);
     cp_rel(&R, p);
 }
 
@@ -606,7 +599,7 @@ TEST(cpd_setkeyparam_permissions) {
     ULONG_PTR k = gen(&R, p, CALG_DES, CRYPT_EXPORTABLE); REQUIRE(k);
     BOOL ok;
     DWORD perm = cp_kp_dw(&R, p, k, KP_PERMISSIONS, &ok); CHECK(ok);
-    t_note("default permissions of an exportable DES key: 0x%lx", perm);
+    EXPECT_EQ(perm, 0x3f);  /* probed: all of ENCRYPT|DECRYPT|EXPORT|READ|WRITE|MAC */
     DWORD bad = 0x1000;
     FAILS(R.SetKeyParam(p, k, KP_PERMISSIONS, (BYTE *)&bad, 0), CPE_BAD_FLAGS);
     bad = 0x10000;
@@ -768,11 +761,8 @@ TEST(cpd_importkey_unknown_blob_type) {
     FAILS(R.ImportKey(p, blob, sizeof blob, 0, 0, &k), CPE_BAD_TYPE);
     BYTE odd[] = { 0, 2, 3, 4, 5, 0xa, 0xd, 0x55, 0xff };
     for (size_t i = 0; i < NELEM(odd); i++) {
-        blob[0] = odd[i]; SET_ERR(0);
-        BOOL r = R.ImportKey(p, blob, sizeof blob, 0, 0, &k);
-        CHECKF(!r, "blob type 0x%x unexpectedly imported", odd[i]);
-        if (!r) t_note("blob type 0x%x -> 0x%lx", odd[i], GetLastError());
-        else R.DestroyKey(p, k);
+        blob[0] = odd[i]; t_label("blob type 0x%x", odd[i]);
+        FAILS(R.ImportKey(p, blob, sizeof blob, 0, 0, &k), CPE_BAD_TYPE);
     }
     cp_rel(&R, p);
 }
@@ -901,9 +891,7 @@ TEST(cpd_exportkey_wrong_kinds) {
         n = sizeof out; FAILS(R.ExportKey(p2, k, 0, PLAINTEXTKEYBLOB, 0, out, &n), CPE_BAD_UID);
         n = sizeof out;
         SET_ERR(0);
-        BOOL r = R.ExportKey(p, h, 0, PLAINTEXTKEYBLOB, 0, out, &n);
-        CHECK(!r);
-        if (!r) t_note("ExportKey with a hash handle as the key -> 0x%lx", GetLastError());
+        FAILS(R.ExportKey(p, h, 0, PLAINTEXTKEYBLOB, 0, out, &n), CPE_BAD_KEY_STATE);
     }
     if (k) R.DestroyKey(p, k);
     if (h) R.DestroyHash(p, h);
@@ -989,42 +977,22 @@ TEST(cpd_exportkey_simpleblob_requires_rsa_keyx) {
     REQUIRE(sk && other && ks);
     BYTE blob[300]; DWORD n = sizeof blob;
     SET_ERR(0);
-    BOOL r = R.ExportKey(p, sk, 0, SIMPLEBLOB, 0, blob, &n);
-    CHECK(!r);
-    if (!r) t_note("SIMPLEBLOB without a wrapping key -> 0x%lx", GetLastError());
-    n = sizeof blob; SET_ERR(0);
-    r = R.ExportKey(p, sk, other, SIMPLEBLOB, 0, blob, &n);
-    CHECK(!r);
-    if (!r) t_note("SIMPLEBLOB wrapped with a session key -> 0x%lx", GetLastError());
-    n = sizeof blob; SET_ERR(0);
-    r = R.ExportKey(p, sk, ks, SIMPLEBLOB, 0, blob, &n);
-    CHECK(!r);
-    if (!r) t_note("SIMPLEBLOB wrapped with a signature key -> 0x%lx", GetLastError());
+    FAILS(R.ExportKey(p, sk, 0, SIMPLEBLOB, 0, blob, &n), CPE_NO_KEY);
+    n = sizeof blob;
+    FAILS(R.ExportKey(p, sk, other, SIMPLEBLOB, 0, blob, &n), CPE_BAD_KEY);
+    n = sizeof blob;
+    FAILS(R.ExportKey(p, sk, ks, SIMPLEBLOB, 0, blob, &n), CPE_BAD_KEY);
     R.DestroyKey(p, sk); R.DestroyKey(p, other); R.DestroyKey(p, ks);
     cp_rel(&R, p);
 }
-TEST(cpd_exportkey_symmetric_wrap_blob_roundtrip) {
+TEST(cpd_exportkey_symmetric_wrap_blob_unsupported) {
     NEED_RSA(); ULONG_PTR p = rsa_aes(&R); REQUIRE(p);
     BYTE wk[16]; for (int i = 0; i < 16; i++) wk[i] = (BYTE)(0x21 + i);
     BYTE sk_[16]; for (int i = 0; i < 16; i++) sk_[i] = (BYTE)(0x61 + i);
     ULONG_PTR wrap = cp_key(&R, p, CALG_AES_128, wk, 16), sess = cp_key(&R, p, CALG_AES_128, sk_, 16); REQUIRE(wrap && sess);
     BYTE blob[100]; DWORD n = sizeof blob;
-    SET_ERR(0);
-    BOOL r = R.ExportKey(p, sess, wrap, SYMMETRICWRAPKEYBLOB, 0, blob, &n);
-    if (!r) { t_note("SYMMETRICWRAPKEYBLOB export fails 0x%lx", GetLastError()); }
-    else {
-        CHECK(blob[0] == SYMMETRICWRAPKEYBLOB);
-        ULONG_PTR ik = 0;
-        OKAY(R.ImportKey(p, blob, n, wrap, CRYPT_EXPORTABLE, &ik));
-        if (ik) {
-            BYTE a[16], b[16]; DWORD la = 16, lb = 16;
-            memcpy(a, cp_pt30, 16); memcpy(b, cp_pt30, 16);
-            R.Encrypt(p, sess, 0, FALSE, 0, a, &la, sizeof a);
-            R.Encrypt(p, ik, 0, FALSE, 0, b, &lb, sizeof b);
-            SAMEBYTES(a, b, 16);
-            R.DestroyKey(p, ik);
-        }
-    }
+    /* probed: the provider does not export SYMMETRICWRAPKEYBLOB (the wrapping key kind is rejected) */
+    FAILS(R.ExportKey(p, sess, wrap, SYMMETRICWRAPKEYBLOB, 0, blob, &n), CPE_BAD_KEY);
     R.DestroyKey(p, wrap); R.DestroyKey(p, sess);
     cp_rel(&R, p);
 }
@@ -1135,7 +1103,7 @@ TEST(cpd_derivekey_des_parity_and_length) {
                 int bits = 0; for (int b = 0; b < 8; b++) bits += (out[12 + i] >> b) & 1;
                 odd += bits & 1;
             }
-            t_note("derived DES key: %d of 8 bytes have odd parity", odd);
+            EXPECT_EQ(odd, 8);  /* probed: every derived DES key byte has odd parity */
         }
         R.DestroyKey(p, k);
     }

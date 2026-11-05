@@ -398,10 +398,7 @@ TEST(cpd_rsa_pp_container_verifycontext) {
     NEED_RSA();
     ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     char buf[512]; DWORD n = sizeof buf;
-    SET_ERR(0);
-    BOOL r = R.GetProvParam(p, PP_CONTAINER, (BYTE *)buf, &n, 0);
-    if (r) t_note("PP_CONTAINER on VERIFYCONTEXT succeeds, \"%s\"", buf);
-    else t_note("PP_CONTAINER on VERIFYCONTEXT fails 0x%lx", GetLastError());
+    FAILS(R.GetProvParam(p, PP_CONTAINER, (BYTE *)buf, &n, 0), CPE_BAD_TYPE);  /* probed: no container name in VERIFYCONTEXT */
     n = sizeof buf;
     FAILS(R.GetProvParam(p, PP_CONTAINER, (BYTE *)buf, &n, 1), CPE_BAD_FLAGS);
     cp_rel(&R, p);
@@ -410,9 +407,8 @@ TEST(cpd_rsa_pp_unique_container_verifycontext_note) {
     NEED_RSA();
     ULONG_PTR p = rsa_enh(&R); REQUIRE(p);
     char buf[512]; DWORD n = sizeof buf;
-    SET_ERR(0);
-    BOOL r = R.GetProvParam(p, PP_UNIQUE_CONTAINER, (BYTE *)buf, &n, 0);
-    t_note("PP_UNIQUE_CONTAINER on VERIFYCONTEXT: %d err=0x%lx", r, GetLastError());
+    OKAY(R.GetProvParam(p, PP_UNIQUE_CONTAINER, (BYTE *)buf, &n, 0));  /* probed: succeeds */
+    EXPECT_EQ(n, 1); EXPECT_EQ(buf[0], 0);  /* probed: an empty (NUL-only) name */
     n = sizeof buf;
     FAILS(R.GetProvParam(p, PP_UNIQUE_CONTAINER, (BYTE *)buf, &n, 1), CPE_BAD_FLAGS);
     cp_rel(&R, p);
@@ -620,7 +616,7 @@ TEST(cpd_rsa_enumalgs_ex_aes_key_ranges) {
         if (e.alg == CALG_AES_128) { EXPECT_EQ(e.def, 128); EXPECT_EQ(e.min, 128); EXPECT_EQ(e.max, 128); seen++; }
         if (e.alg == CALG_AES_192) { EXPECT_EQ(e.def, 192); EXPECT_EQ(e.max, 192); seen++; }
         if (e.alg == CALG_AES_256) { EXPECT_EQ(e.def, 256); EXPECT_EQ(e.max, 256); seen++; }
-        if (e.alg == CALG_RSA_KEYX) { t_note("RSA_KEYX min %lu def %lu max %lu", e.min, e.def, e.max); seen++; }
+        if (e.alg == CALG_RSA_KEYX) { EXPECT_EQ(e.min, 384); EXPECT_EQ(e.def, 1024); EXPECT_EQ(e.max, 16384); seen++; }
         if (e.alg == CALG_SHA1) { EXPECT_EQ(e.def, 160); seen++; }
         if (i > 100) break;
     }
@@ -713,7 +709,7 @@ TEST(cpd_dss_acquire_version0_defaults_to_dss_dh) {
     if (!r) return;
     char buf[128]; DWORD n = sizeof buf;
     OKAY(D.GetProvParam(p, PP_NAME, (BYTE *)buf, &n, 0));
-    t_note("dss default provider name at Version 0: %s", buf);
+    EXPECT_STR(buf, N_DSS_ENH);
     cp_rel(&D, p);
 }
 TEST(cpd_dss_acquire_bad_flag_bits) {
@@ -745,7 +741,7 @@ TEST(cpd_dss_pp_name_by_type) {
         SET_ERR(0);
         BOOL r = D.GetProvParam(p, PP_NAME, (BYTE *)buf, &n, 0);
         CHECKF(r, "type %lu err=0x%lx", t[i].type, GetLastError());
-        if (r) t_note("dss type %lu PP_NAME \"%s\"", t[i].type, buf);
+        if (r) EXPECT_STR(buf, t[i].name);
         cp_rel(&D, p);
     }
 }
@@ -755,7 +751,7 @@ TEST(cpd_dss_pp_dword_values) {
     BOOL ok;
     EXPECT_EQ(cp_pp_dw(&D, p, PP_IMPTYPE, &ok), CRYPT_IMPL_SOFTWARE); CHECK(ok);
     EXPECT_EQ(cp_pp_dw(&D, p, PP_PROVTYPE, &ok), PROV_DSS_DH); CHECK(ok);
-    cp_pp_dw(&D, p, PP_VERSION, &ok); t_note("dss PP_VERSION ok=%d", ok);
+    EXPECT_EQ(cp_pp_dw(&D, p, PP_VERSION, &ok), 0x100); CHECK(ok);
     cp_rel(&D, p);
 }
 TEST(cpd_dss_pp_enumalgs) {

@@ -61,11 +61,11 @@ TEST(rsa_crypt_decrypt_oaep_sha256_label_known_answer) {
     UCHAR bad[3] = { 'l', 'b', 'x' };
     pi.pbLabel = bad;
     NTSTATUS s = dec(k, kCtOaepSha256Lbl, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP);
-    CHECK(s != 0); t_note("OAEP wrong label: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     pi.pbLabel = NULL; pi.cbLabel = 0;
-    CHECK(dec(k, kCtOaepSha256Lbl, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP) != 0);
+    EXPECT_EQ(dec(k, kCtOaepSha256Lbl, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP), ST_INVALID_PARAMETER);
     pi.pbLabel = label; pi.cbLabel = 2;
-    CHECK(dec(k, kCtOaepSha256Lbl, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP) != 0);
+    EXPECT_EQ(dec(k, kCtOaepSha256Lbl, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP), ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_crypt_decrypt_oaep_wrong_hash_fails) {
@@ -74,9 +74,9 @@ TEST(rsa_crypt_decrypt_oaep_wrong_hash_fails) {
     UCHAR out[128]; ULONG n = 0;
     BCRYPT_OAEP_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM, NULL, 0 };
     NTSTATUS s = dec(k, kCtOaepSha1, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP);
-    CHECK(s != 0); t_note("OAEP sha1 ciphertext with sha256 info: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     pi.pszAlgId = BCRYPT_SHA1_ALGORITHM;
-    CHECK(dec(k, kCtOaepSha256, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP) != 0);
+    EXPECT_EQ(dec(k, kCtOaepSha256, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP), ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_crypt_decrypt_cross_padding_fails) {
@@ -84,8 +84,8 @@ TEST(rsa_crypt_decrypt_cross_padding_fails) {
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPRIVATE_MAGIC); CHECK(k);
     UCHAR out[128]; ULONG n = 0;
     BCRYPT_OAEP_PADDING_INFO pi = { BCRYPT_SHA1_ALGORITHM, NULL, 0 };
-    CHECK(dec(k, kCtPkcs1, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP) != 0);
-    CHECK(dec(k, kCtOaepSha1, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_PKCS1) != 0);
+    EXPECT_EQ(dec(k, kCtPkcs1, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP), ST_INVALID_PARAMETER);
+    EXPECT_EQ(dec(k, kCtOaepSha1, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_PKCS1), ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_crypt_no_padding_known_answer) {
@@ -117,7 +117,6 @@ TEST(rsa_crypt_no_padding_input_at_least_modulus_fails) {
     EXPECT_EQ(s, ST_INVALID_PARAMETER);
     memcpy(in, kRsaN, 128);   /* exactly the modulus */
     s = enc(pub, in, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
-    t_note("no-padding input equal to the modulus: 0x%lx", (unsigned long)s);
     EXPECT_EQ(s, ST_INVALID_PARAMETER);
     UCHAR big[129]; memset(big, 1, sizeof big);
     n = 0;
@@ -126,7 +125,7 @@ TEST(rsa_crypt_no_padding_input_at_least_modulus_fails) {
     EXPECT_EQ(s, ST_SUCCESS); EXPECT_EQ(n, 128);
     { UCHAR out2[128]; ULONG n2 = 0;
       NTSTATUS s2 = enc(pub, big, 128, NULL, out2, sizeof out2, &n2, BCRYPT_PAD_NONE);
-      t_note("129-byte input same as first 128 bytes: s2=0x%lx same=%d", (unsigned long)s2, !memcmp(out, out2, 128)); }
+      EXPECT_EQ(s2, ST_SUCCESS); CHECK(!memcmp(out, out2, 128)); }  /* probed: only the first 128 bytes are used */
     rd_destroy(pub); END();
 }
 TEST(rsa_crypt_no_padding_short_input) {
@@ -135,14 +134,8 @@ TEST(rsa_crypt_no_padding_short_input) {
     UCHAR in[16], out[128], back[128]; ULONG n = 0, m = 0;
     for (int i = 0; i < 16; i++) in[i] = (UCHAR)(0x90 + i);
     NTSTATUS s = enc(pub, in, sizeof in, NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
-    t_note("no-padding 16-byte input: 0x%lx n=%lu", (unsigned long)s, n);
-    if (s == 0) {
-        EXPECT_EQ(n, 128);
-        EXPECT_EQ(dec(prv, out, n, NULL, back, sizeof back, &m, BCRYPT_PAD_NONE), ST_SUCCESS);
-        /* the integer value is preserved: the 16 input bytes are the least significant bytes of the result */
-        if (m >= 16) CHECK(!memcmp(back + m - 16, in, 16));
-        t_note("no-padding decrypt of short input returned %lu bytes", m);
-    }
+    /* probed: input shorter than the modulus is rejected without padding; the size is still reported */
+    EXPECT_EQ(s, ST_INVALID_PARAMETER); EXPECT_EQ(n, 128);
     rd_destroy(pub); rd_destroy(prv); END();
 }
 
@@ -161,7 +154,7 @@ TEST(rsa_crypt_encrypt_size_query_all_paddings) {
         EXPECT_EQ(n, sizes[i] / 8);
         n = 0xdead;
         { NTSTATUS sn = enc(k, in, sizeof in, NULL, NULL, 0, &n, BCRYPT_PAD_NONE);
-          t_note("PAD_NONE size query (16-byte input, %lu-bit key): 0x%lx n=%lu", sizes[i], (unsigned long)sn, n); }
+          EXPECT_EQ(sn, ST_SUCCESS); EXPECT_EQ(n, sizes[i] / 8); }  /* probed: the query does not check the input length */
         rd_destroy(k);
     }
     END();
@@ -188,8 +181,7 @@ TEST(rsa_crypt_decrypt_size_query_pkcs1) {
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPRIVATE_MAGIC); CHECK(k);
     ULONG n = 0xdead;
     EXPECT_EQ(dec(k, kCtPkcs1, 128, NULL, NULL, 0, &n, BCRYPT_PAD_PKCS1), ST_SUCCESS);
-    t_note("PKCS1 decrypt size query returns %lu (plaintext is %lu)", n, (ULONG)sizeof kPlain);
-    CHECK(n >= sizeof kPlain && n <= 128);
+    EXPECT_EQ(n, sizeof kPlain);  /* probed: the exact plaintext size */
     rd_destroy(k); END();
 }
 TEST(rsa_crypt_decrypt_size_query_oaep) {
@@ -199,8 +191,7 @@ TEST(rsa_crypt_decrypt_size_query_oaep) {
     ULONG n = 0xdead;
     NTSTATUS s = dec(k, kCtOaepSha1, 128, &pi, NULL, 0, &n, BCRYPT_PAD_OAEP);
     EXPECT_EQ(s, ST_SUCCESS);
-    t_note("OAEP decrypt size query returns %lu (plaintext is %lu)", n, (ULONG)sizeof kPlain);
-    CHECK(n >= sizeof kPlain && n <= 128);
+    EXPECT_EQ(n, sizeof kPlain);  /* probed: the exact plaintext size */
     rd_destroy(k); END();
 }
 TEST(rsa_crypt_decrypt_buffer_too_small) {
@@ -208,10 +199,9 @@ TEST(rsa_crypt_decrypt_buffer_too_small) {
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPRIVATE_MAGIC); CHECK(k);
     UCHAR out[128]; ULONG n = 0;
     NTSTATUS s = dec(k, kCtPkcs1, 128, NULL, out, sizeof kPlain - 1, &n, BCRYPT_PAD_PKCS1);
-    if (s == 0) t_note("short PKCS1 decrypt buffer accepted (seen on Windows 10 1809)");
-    else { EXPECT_EQ(s, ST_BUFFER_TOO_SMALL); EXPECT_EQ(n, sizeof kPlain); }
+    EXPECT_EQ(s, ST_BUFFER_TOO_SMALL); EXPECT_EQ(n, sizeof kPlain);
     s = dec(k, kCtPkcs1, 128, NULL, out, 0, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s == (NTSTATUS)ST_BUFFER_TOO_SMALL || s == 0);
+    EXPECT_EQ(s, ST_BUFFER_TOO_SMALL);
     memset(out, 0xcc, sizeof out);
     s = dec(k, kCtPkcs1, 128, NULL, out, sizeof kPlain, &n, BCRYPT_PAD_PKCS1);
     EXPECT_EQ(s, ST_SUCCESS);
@@ -244,8 +234,7 @@ TEST(rsa_crypt_pkcs1_message_too_long) {
     ULONG lens[] = { 118, 119, 128, 129, 200 };
     for (int i = 0; i < 5; i++) {
         NTSTATUS s = enc(k, in, lens[i], NULL, ct, sizeof ct, &n, BCRYPT_PAD_PKCS1);
-        CHECKF(s != 0, "len %lu encrypted", lens[i]);
-        t_note("PKCS1 encrypt of %lu bytes on 1024-bit key: 0x%lx", lens[i], (unsigned long)s);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
     }
     rd_destroy(k); END();
 }
@@ -270,13 +259,14 @@ TEST(rsa_crypt_pkcs1_encrypt_decrypts_with_known_key) {
     /* PKCS#1 v1.5 encryption block: 00 02 <non-zero padding> 00 <msg>; check via raw decrypt */
     UCHAR raw[128];
     EXPECT_EQ(dec(prv, ct, n, NULL, raw, sizeof raw, &m, BCRYPT_PAD_NONE), ST_SUCCESS);
-    if (m == 128) {
+    EXPECT_EQ(m, 128);
+    {
         CHECK(raw[0] == 0x00 && raw[1] == 0x02);
         int z = 2; while (z < 128 && raw[z] != 0) z++;
         CHECK(z >= 10 && z < 128);
         CHECK(128 - (z + 1) == (int)sizeof kPlain && !memcmp(raw + z + 1, kPlain, sizeof kPlain));
         CHECK(z - 2 == 128 - 3 - (int)sizeof kPlain);   /* padding string fills the block */
-    } else t_note("raw decrypt returned %lu bytes", m);
+    }
     EXPECT_EQ(dec(prv, ct, n, NULL, pt, sizeof pt, &m, BCRYPT_PAD_PKCS1), ST_SUCCESS);
     CHECK(m == sizeof kPlain && !memcmp(pt, kPlain, m));
     rd_destroy(pub); rd_destroy(prv); END();
@@ -294,8 +284,8 @@ TEST(rsa_crypt_oaep_roundtrip_hashes_and_max_length) {
         ULONG lens[] = { 0, 1, maxm / 2, maxm };
         for (int c = 0; c < 4; c++) {
             NTSTATUS s = enc(k, in, lens[c], &pi, ct, sizeof ct, &n, BCRYPT_PAD_OAEP);
-            if (lens[c] == 0) { t_note("OAEP %ls zero-length message: 0x%lx", g_oc[i].h, (unsigned long)s); if (s) continue; }
-            else CHECKF(s == 0, "%ls len %lu: 0x%lx", g_oc[i].h, lens[c], (unsigned long)s);
+            t_label("%ls len %lu", g_oc[i].h, lens[c]);   /* probed: a zero-length message encrypts too */
+            EXPECT_EQ(s, ST_SUCCESS);
             if (s) continue;
             EXPECT_EQ(n, 256);
             s = dec(k, ct, n, &pi, pt, sizeof pt, &m, BCRYPT_PAD_OAEP);
@@ -303,8 +293,7 @@ TEST(rsa_crypt_oaep_roundtrip_hashes_and_max_length) {
             CHECK(m == lens[c] && !memcmp(pt, in, m));
         }
         NTSTATUS s = enc(k, in, maxm + 1, &pi, ct, sizeof ct, &n, BCRYPT_PAD_OAEP);
-        CHECKF(s != 0, "%ls len %lu should be too long", g_oc[i].h, maxm + 1);
-        t_note("OAEP %ls max=%lu, max+1 -> 0x%lx", g_oc[i].h, maxm, (unsigned long)s);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
     }
     rd_destroy(k); END();
 }
@@ -314,7 +303,7 @@ TEST(rsa_crypt_oaep_hash_too_large_for_key) {
     BCRYPT_OAEP_PADDING_INFO pi = { BCRYPT_SHA512_ALGORITHM, NULL, 0 };   /* 128 - 2*64 - 2 < 0 */
     UCHAR in[1] = { 1 }, ct[128]; ULONG n = 0;
     NTSTATUS s = enc(k, in, 1, &pi, ct, sizeof ct, &n, BCRYPT_PAD_OAEP);
-    CHECK(s != 0); t_note("OAEP SHA-512 on 1024-bit key: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_crypt_oaep_label_roundtrip) {
@@ -330,7 +319,7 @@ TEST(rsa_crypt_oaep_label_roundtrip) {
         CHECK(m == sizeof kPlain && !memcmp(pt, kPlain, m));
         if (ll[i]) {
             pi.pbLabel = NULL; pi.cbLabel = 0;
-            CHECK(dec(k, ct, n, &pi, pt, sizeof pt, &m, BCRYPT_PAD_OAEP) != 0);
+            EXPECT_EQ(dec(k, ct, n, &pi, pt, sizeof pt, &m, BCRYPT_PAD_OAEP), ST_INVALID_PARAMETER);
         }
     }
     rd_destroy(k); END();
@@ -343,8 +332,8 @@ TEST(rsa_crypt_oaep_default_label_equals_null_label) {
     BCRYPT_OAEP_PADDING_INFO pi = { BCRYPT_SHA1_ALGORITHM, dummy, 0 };
     UCHAR out[128]; ULONG n = 0;
     NTSTATUS s = dec(k, kCtOaepSha1, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP);
-    t_note("OAEP pbLabel set, cbLabel 0: 0x%lx", (unsigned long)s);
-    if (s == 0) CHECK(n == sizeof kPlain && !memcmp(out, kPlain, n));
+    EXPECT_EQ(s, ST_SUCCESS);
+    CHECK(n == sizeof kPlain && !memcmp(out, kPlain, n));
     rd_destroy(k); END();
 }
 TEST(rsa_crypt_tampered_ciphertext_fails) {
@@ -354,10 +343,10 @@ TEST(rsa_crypt_tampered_ciphertext_fails) {
     BCRYPT_OAEP_PADDING_INFO pi = { BCRYPT_SHA1_ALGORITHM, NULL, 0 };
     memcpy(ct, kCtOaepSha1, 128); ct[64] ^= 1;
     NTSTATUS s = dec(k, ct, 128, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP);
-    CHECK(s != 0); t_note("tampered OAEP ciphertext: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     memcpy(ct, kCtPkcs1, 128); ct[10] ^= 1;
     s = dec(k, ct, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0); t_note("tampered PKCS1 ciphertext: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 
@@ -408,10 +397,10 @@ TEST(rsa_crypt_oaep_non_hash_alg) {
     UCHAR out[128]; ULONG n = 0;
     BCRYPT_OAEP_PADDING_INFO pi = { BCRYPT_AES_ALGORITHM, NULL, 0 };
     NTSTATUS s = enc(pub, kPlain, sizeof kPlain, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP);
-    CHECK(s != 0); t_note("OAEP with AES as hash: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     pi.pszAlgId = NULL;
     s = enc(pub, kPlain, sizeof kPlain, &pi, out, sizeof out, &n, BCRYPT_PAD_OAEP);
-    CHECK(s != 0); t_note("OAEP with NULL hash id: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(pub); END();
 }
 TEST(rsa_crypt_flags_zero_and_invalid) {
@@ -419,11 +408,11 @@ TEST(rsa_crypt_flags_zero_and_invalid) {
     BCRYPT_KEY_HANDLE pub = fx(BCRYPT_RSAPUBLIC_MAGIC); CHECK(pub);
     UCHAR out[128]; ULONG n = 0;
     NTSTATUS s = enc(pub, kPlain, sizeof kPlain, NULL, out, sizeof out, &n, 0);
-    t_note("RSA encrypt flags=0: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     s = enc(pub, kPlain, sizeof kPlain, NULL, out, sizeof out, &n, BCRYPT_PAD_PSS);
-    CHECK(s != 0); t_note("RSA encrypt with PSS flag: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     s = enc(pub, kPlain, sizeof kPlain, NULL, out, sizeof out, &n, 0x80000000);
-    CHECK(s != 0); t_note("RSA encrypt with bogus flag: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(pub); END();
 }
 TEST(rsa_crypt_decrypt_with_public_key_only_fails) {
@@ -431,9 +420,9 @@ TEST(rsa_crypt_decrypt_with_public_key_only_fails) {
     BCRYPT_KEY_HANDLE pub = fx(BCRYPT_RSAPUBLIC_MAGIC); CHECK(pub);
     UCHAR out[128]; ULONG n = 0;
     NTSTATUS s = dec(pub, kCtPkcs1, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-    CHECK(s != 0); t_note("decrypt with public-only key: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     s = dec(pub, kRawCt, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
-    CHECK(s != 0);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(pub); END();
 }
 TEST(rsa_crypt_iv_ignored_for_rsa) {
@@ -441,7 +430,7 @@ TEST(rsa_crypt_iv_ignored_for_rsa) {
     BCRYPT_KEY_HANDLE pub = fx(BCRYPT_RSAPUBLIC_MAGIC); CHECK(pub);
     UCHAR out[128], iv[16] = { 0 }; ULONG n = 0;
     NTSTATUS s = U(BCryptEncrypt)(pub, (PUCHAR)kPlain, sizeof kPlain, NULL, iv, sizeof iv, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-    t_note("RSA encrypt with IV supplied: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_SUCCESS);  /* probed: the IV is ignored for RSA */
     rd_destroy(pub); END();
 }
 TEST(rsa_crypt_cross_key_decrypt_fails) {
@@ -450,8 +439,7 @@ TEST(rsa_crypt_cross_key_decrypt_fails) {
     UCHAR out[128]; ULONG n = 0;
     if (other) {
         NTSTATUS s = dec(other, kCtPkcs1, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-        CHECK(s != 0 || n != sizeof kPlain || memcmp(out, kPlain, n));
-        t_note("decrypt with unrelated key: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
     }
     rd_destroy(other); END();
 }
@@ -463,8 +451,7 @@ TEST(rsa_crypt_unfinalized_decrypt_invalid_handle) {
     if (k) {
         NTSTATUS sd = dec(k, in, 64, NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
         NTSTATUS se = enc(k, in, 16, NULL, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-        CHECK(sd != 0 && se != 0);
-        t_note("unfinalized decrypt=0x%lx encrypt=0x%lx", (unsigned long)sd, (unsigned long)se);
+        EXPECT_EQ(sd, ST_INVALID_HANDLE); EXPECT_EQ(se, ST_INVALID_HANDLE);
         rd_destroy(k);
     }
     END();
@@ -475,15 +462,16 @@ TEST(rsa_crypt_in_place_pkcs1) {
     UCHAR buf[128]; ULONG n = 0;
     memcpy(buf, kCtPkcs1, 128);
     NTSTATUS s = dec(prv, buf, 128, NULL, buf, sizeof buf, &n, BCRYPT_PAD_PKCS1);
-    t_note("in-place decrypt: 0x%lx n=%lu", (unsigned long)s, n);
-    if (s == 0) CHECK(n == sizeof kPlain && !memcmp(buf, kPlain, n));
+    EXPECT_EQ(s, ST_SUCCESS);  /* probed: input and output may overlap */
+    CHECK(n == sizeof kPlain && !memcmp(buf, kPlain, n));
     rd_destroy(prv); END();
 }
 TEST(rsa_crypt_legacy_key_encrypt_decrypt) {
     BEGIN();
     BCRYPT_KEY_HANDLE k = rd_gen(g_a, 1024); CHECK(k); if (!k) { END(); return; }
     UCHAR *b; ULONG bl; BCRYPT_KEY_HANDLE k2 = NULL;
-    if (rd_export(k, LEGACY_RSAPRIVATE_BLOB, &b, &bl) == 0) {
+    EXPECT_EQ(rd_export(k, LEGACY_RSAPRIVATE_BLOB, &b, &bl), ST_SUCCESS);
+    if (b) {
         if (rd_import(g_a, LEGACY_RSAPRIVATE_BLOB, b, bl, &k2) == 0) {
             UCHAR ct[128], pt[128]; ULONG n = 0, m = 0;
             EXPECT_EQ(enc(k2, kPlain, sizeof kPlain, NULL, ct, sizeof ct, &n, BCRYPT_PAD_PKCS1), ST_SUCCESS);
@@ -492,6 +480,6 @@ TEST(rsa_crypt_legacy_key_encrypt_decrypt) {
             rd_destroy(k2);
         } else CHECK(0);
         free(b);
-    } else t_note("legacy private export unavailable");
+    }
     rd_destroy(k); END();
 }

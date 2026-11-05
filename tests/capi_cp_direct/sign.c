@@ -180,12 +180,10 @@ TEST(cpd_sign_wrong_handle_kinds) {
     FAILS(R.SignHash(h, h, AT_KEYEXCHANGE, NULL, 0, sig, &n), CPE_BAD_UID);
     n = sizeof sig;
     SET_ERR(0);
-    CHECK(!R.SignHash(p, k, AT_KEYEXCHANGE, NULL, 0, sig, &n));
-    t_note("SignHash with a key handle as the hash -> 0x%lx", GetLastError());
+    FAILS(R.SignHash(p, k, AT_KEYEXCHANGE, NULL, 0, sig, &n), CPE_FAIL);
     n = sizeof sig;
     SET_ERR(0);
-    CHECK(!R.SignHash(p2, h, AT_KEYEXCHANGE, NULL, 0, sig, &n));
-    t_note("SignHash with a hash from another context (no key there) -> 0x%lx", GetLastError());
+    FAILS(R.SignHash(p2, h, AT_KEYEXCHANGE, NULL, 0, sig, &n), CPE_BAD_KEYSET);
     R.DestroyHash(p, h); R.DestroyKey(p, k);
     cp_rel(&R, p); cp_rel(&R, p2);
 }
@@ -505,8 +503,8 @@ TEST(cpd_dss_md5_hash) {
     NEED_DSS(); ULONG_PTR p = dss_open(&D, PROV_DSS_DH); REQUIRE(p);
     BYTE d[16], want[16];
     DWORD n = cp_hash(&D, p, CALG_MD5, "abc", 3, d, 16);
-    t_note("dssenh CALG_MD5 hash length %lu", n);
-    if (n == 16) { hx("900150983cd24fb0d6963f7d28e17f72", want); SAMEBYTES(d, want, 16); }
+    EXPECT_EQ(n, 16);
+    hx("900150983cd24fb0d6963f7d28e17f72", want); SAMEBYTES(d, want, 16);
     cp_rel(&D, p);
 }
 TEST(cpd_dss_hashdata_state_rules) {
@@ -540,9 +538,7 @@ TEST(cpd_dss_getuserkey_without_key) {
     NEED_DSS(); ULONG_PTR p = dss_open(&D, PROV_DSS_DH); REQUIRE(p);
     ULONG_PTR k = 0;
     SET_ERR(0);
-    BOOL r = D.GetUserKey(p, AT_SIGNATURE, &k);
-    CHECK(!r);
-    if (!r) t_note("dssenh GetUserKey(AT_SIGNATURE) without key -> 0x%lx", GetLastError());
+    FAILS(D.GetUserKey(p, AT_SIGNATURE, &k), CPE_NO_KEY);
     cp_rel(&D, p);
 }
 TEST(cpd_dss_genrandom) {
@@ -560,9 +556,9 @@ TEST(cpd_dss_destroy_and_duplicate_key) {
     ULONG_PTR k = dss_gen(&D, p, 512); REQUIRE(k);
     ULONG_PTR d = 0;
     SET_ERR(0);
-    BOOL r = D.DuplicateKey(p, k, NULL, 0, &d);
-    t_note("dssenh DuplicateKey of a DSS key: %d err=0x%lx", r, GetLastError());
-    if (r && d) OKAY(D.DestroyKey(p, d));
+    OKAY(D.DuplicateKey(p, k, NULL, 0, &d));  /* probed: succeeds */
+    CHECK(d != 0 && d != k);
+    if (d) OKAY(D.DestroyKey(p, d));
     OKAY(D.DestroyKey(p, k));
     cp_rel(&D, p);
 }

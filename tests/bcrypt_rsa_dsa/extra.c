@@ -51,24 +51,14 @@ TEST(rsa_extra_pkcs1_sign_deterministic) {
     }
     END();
 }
-TEST(rsa_extra_duplicate_key) {
+TEST(rsa_extra_duplicate_key_not_supported) {
     BEGIN();
     if (!U(BCryptDuplicateKey)) { t_skip("no BCryptDuplicateKey"); END(); return; }
     BCRYPT_KEY_HANDLE k = rd_fixed_rsa(g_a, BCRYPT_RSAPRIVATE_MAGIC), d = NULL; CHECK(k);
     if (k) {
         NTSTATUS s = U(BCryptDuplicateKey)(k, &d, NULL, 0, 0);
-        t_note("BCryptDuplicateKey(RSA) = 0x%lx", (unsigned long)s);
-        if (s == 0 && d) {
-            CHECK(d != k);
-            rd_destroy(k); k = NULL;
-            BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
-            UCHAR sig[128]; ULONG n = 0;
-            EXPECT_EQ(U(BCryptSignHash)(d, &pi, (PUCHAR)kHash_sha256, 32, sig, 128, &n, BCRYPT_PAD_PKCS1), ST_SUCCESS);
-            CHECK(!memcmp(sig, kSigPkcs1_sha256, 128));
-            rd_destroy(d);
-        } else if (s != 0) {
-            t_note("duplicate not supported for asymmetric keys on this build");
-        }
+        EXPECT_EQ(s, ST_NOT_SUPPORTED);   /* probed: asymmetric keys cannot be duplicated */
+        CHECK(d == NULL);
         rd_destroy(k);
     }
     END();
@@ -99,7 +89,7 @@ TEST(rsa_extra_pss_all_hashes_roundtrip) {
         EXPECT_EQ(U(BCryptVerifySignature)(pub, &p, (PUCHAR)t[i].h, t[i].hl, sig, 128, BCRYPT_PAD_PSS), ST_SUCCESS);
         /* a PSS signature is not a valid PKCS#1 signature */
         BCRYPT_PKCS1_PADDING_INFO pk = { t[i].alg };
-        CHECK(U(BCryptVerifySignature)(pub, &pk, (PUCHAR)t[i].h, t[i].hl, sig, 128, BCRYPT_PAD_PKCS1) != 0);
+        EXPECT_EQ(U(BCryptVerifySignature)(pub, &pk, (PUCHAR)t[i].h, t[i].hl, sig, 128, BCRYPT_PAD_PKCS1), ST_INVALID_SIGNATURE);
     }
     rd_destroy(prv); rd_destroy(pub); END();
 }
@@ -111,8 +101,8 @@ TEST(rsa_extra_key_survives_alg_close_sign) {
         BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
         UCHAR sig[128]; ULONG n = 0;
         NTSTATUS s = U(BCryptSignHash)(k, &pi, (PUCHAR)kHash_sha256, 32, sig, 128, &n, BCRYPT_PAD_PKCS1);
-        t_note("sign after algorithm handle closed: 0x%lx", (unsigned long)s);
-        if (s == 0) CHECK(!memcmp(sig, kSigPkcs1_sha256, 128));
+        EXPECT_EQ(s, ST_SUCCESS);
+        CHECK(!memcmp(sig, kSigPkcs1_sha256, 128));
         rd_destroy(k);
     }
 }
@@ -123,7 +113,7 @@ TEST(rsa_extra_rsa_sign_alg_encrypt) {
     if (k) {
         UCHAR out[128]; ULONG n = 0;
         NTSTATUS s = U(BCryptEncrypt)(k, (PUCHAR)kPlain, sizeof kPlain, NULL, NULL, 0, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-        t_note("encrypt with RSA_SIGN-provider key: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_NOT_SUPPORTED);
         rd_destroy(k);
     }
     rd_closealg(as); END();
@@ -151,27 +141,22 @@ TEST(rsa_extra_import_wrong_blob_for_alg_type) {
     /* a DSA blob type name given to the RSA provider */
     UCHAR b[RD_RSA_BLOB_MAX]; ULONG n = rd_rsa_blob(b, BCRYPT_RSAPUBLIC_MAGIC, 0); BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k);
-    CHECK(s != 0); t_note("RSA provider, DSAPUBLICBLOB type: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);
     if (!s) rd_destroy(k);
     s = rd_import(g_a, L"NoSuchBlobTypeXyz", b, n, &k);
-    CHECK(s != 0); t_note("RSA provider, unknown blob type: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_NOT_SUPPORTED);
     if (!s) rd_destroy(k);
     END();
 }
-TEST(dsa_extra_duplicate_key) {
+TEST(dsa_extra_duplicate_key_not_supported) {
     NEED_BCRYPT();
     if (!U(BCryptDuplicateKey)) { t_skip("no BCryptDuplicateKey"); return; }
     g_a = rd_alg(BCRYPT_DSA_ALGORITHM); if (!g_a) { t_skip("no DSA"); return; }
     UCHAR b[1024]; ULONG n = rd_dsa1_blob(b, 1); BCRYPT_KEY_HANDLE k = NULL, d = NULL;
     if (rd_import(g_a, BCRYPT_DSA_PRIVATE_BLOB, b, n, &k) == 0) {
         NTSTATUS s = U(BCryptDuplicateKey)(k, &d, NULL, 0, 0);
-        t_note("BCryptDuplicateKey(DSA) = 0x%lx", (unsigned long)s);
-        if (s == 0 && d) {
-            UCHAR sig[40]; ULONG m = 0;
-            EXPECT_EQ(U(BCryptSignHash)(d, NULL, (PUCHAR)kHash_sha1, 20, sig, 40, &m, 0), ST_SUCCESS);
-            EXPECT_EQ(U(BCryptVerifySignature)(k, NULL, (PUCHAR)kHash_sha1, 20, sig, 40, 0), ST_SUCCESS);
-            rd_destroy(d);
-        }
+        EXPECT_EQ(s, ST_NOT_SUPPORTED);   /* probed: DSA keys cannot be duplicated either */
+        CHECK(d == NULL);
         rd_destroy(k);
     }
     END();
@@ -182,7 +167,7 @@ TEST(dsa_extra_verify_known_answer_hash_mismatch) {
     UCHAR b[1024]; ULONG n = rd_dsa1_blob(b, 0); BCRYPT_KEY_HANDLE k = NULL;
     if (rd_import(g_a, BCRYPT_DSA_PUBLIC_BLOB, b, n, &k) == 0) {
         NTSTATUS s = U(BCryptVerifySignature)(k, NULL, (PUCHAR)kHash_sha256, 32, (PUCHAR)kDsa1_Sig, 40, 0);
-        CHECK(s != 0); t_note("1024/160 key verifying a 32-byte hash: 0x%lx", (unsigned long)s);
+        EXPECT_EQ(s, ST_INVALID_PARAMETER);
         rd_destroy(k);
     }
     END();
