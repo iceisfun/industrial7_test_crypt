@@ -98,14 +98,14 @@ TEST(pfxverify_wrong_password_sets_invalid_password) {
     CRYPT_DATA_BLOB b = pp_blob_of(fx_leg3des, sizeof fx_leg3des);
     SET_ERR(0);
     BOOL r = U(PFXVerifyPassword)(&b, L"wrong", 0);
-    EXPECT_FAIL(r, PP_ERR_INVALID_PASSWORD);
+    EXPECT_FAIL(!r, PP_ERR_INVALID_PASSWORD);
 }
 TEST(pfxverify_password_is_case_sensitive) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
     CRYPT_DATA_BLOB b = pp_blob_of(fx_leg3des, sizeof fx_leg3des);
     SET_ERR(0);
     BOOL r = U(PFXVerifyPassword)(&b, L"TEST", 0);
-    EXPECT_FAIL(r, PP_ERR_INVALID_PASSWORD);
+    EXPECT_FAIL(!r, PP_ERR_INVALID_PASSWORD);
     CHECK(!U(PFXVerifyPassword)(&b, L"Test", 0));
     CHECK(!U(PFXVerifyPassword)(&b, L"test ", 0));
     CHECK(!U(PFXVerifyPassword)(&b, L" test", 0));
@@ -116,10 +116,10 @@ TEST(pfxverify_null_or_empty_password_on_protected_pfx_fails) {
     CRYPT_DATA_BLOB b = pp_blob_of(fx_leg3des, sizeof fx_leg3des);
     SET_ERR(0);
     BOOL r = U(PFXVerifyPassword)(&b, NULL, 0);
-    EXPECT_FAIL(r, PP_ERR_INVALID_PASSWORD);
+    EXPECT_FAIL(!r, PP_ERR_INVALID_PASSWORD);
     SET_ERR(0);
     r = U(PFXVerifyPassword)(&b, L"", 0);
-    EXPECT_FAIL(r, PP_ERR_INVALID_PASSWORD);
+    EXPECT_FAIL(!r, PP_ERR_INVALID_PASSWORD);
 }
 TEST(pfxverify_empty_password_pfx_accepts_null_and_empty) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
@@ -133,13 +133,13 @@ TEST(pfxverify_empty_password_pfx_rejects_nonempty) {
     CRYPT_DATA_BLOB b = pp_blob_of(fx_legempty, sizeof fx_legempty);
     SET_ERR(0);
     BOOL r = U(PFXVerifyPassword)(&b, L"x", 0);
-    EXPECT_FAIL(r, PP_ERR_INVALID_PASSWORD);
+    EXPECT_FAIL(!r, PP_ERR_INVALID_PASSWORD);
 }
 TEST(pfxverify_null_blob_is_invalid_parameter) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
     SET_ERR(0);
     BOOL r = U(PFXVerifyPassword)(NULL, L"test", 0);
-    EXPECT_FAIL(r, ERROR_INVALID_PARAMETER);
+    EXPECT_FAIL(!r, ERROR_INVALID_PARAMETER);
 }
 TEST(pfxverify_flags_are_ignored) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();

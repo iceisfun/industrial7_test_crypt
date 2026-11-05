@@ -7,6 +7,8 @@
 
 /* the emulator's PFXVerifyPassword is a stub that always fails */
 #define PP_WINE_NO_VERIFY() do { if (t_is_wine()) { t_skip("emulator stubs PFXVerifyPassword"); return; } } while (0)
+/* the emulator's PFX import lacks these features (flags, friendly names, error mapping) */
+#define PP_WINE_SKIP(why) do { if (t_is_wine()) { t_skip("emulator: " why); return; } } while (0)
 #define PP_FIX(a) pp_blob_of(a, sizeof(a))
 #define PP_ERR_INVALID_PASSWORD 86
 #ifndef PKCS12_IMPORT_SILENT
@@ -34,7 +36,8 @@ static inline HCERTSTORE pp_import(const BYTE *p, size_t n, LPCWSTR pw, DWORD fl
     return U(PFXImportCertStore)(&b, pw, flags);
 }
 #define PP_IMPORT(fx, pw, fl) pp_import(fx, sizeof(fx), pw, fl)
-#define PP_NP (PKCS12_NO_PERSIST_KEY | PKCS12_IMPORT_SILENT)
+/* silent: nothing here can prompt, the emulator just rejects the flag */
+#define PP_NP (PKCS12_NO_PERSIST_KEY | (t_is_wine() ? 0 : PKCS12_IMPORT_SILENT))
 
 static inline int pp_count(HCERTSTORE s) {
     int n = 0; PCCERT_CONTEXT c = NULL;
