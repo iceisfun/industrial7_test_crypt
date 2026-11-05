@@ -14,7 +14,7 @@
 #define E_CRYPT_E_UNKNOWN_ALGO 0x80091002u
 #define E_CRYPT_E_NOT_FOUND 0x80092004u
 #define E_CRYPT_E_NO_MATCH 0x80092009u
-#define E_CRYPT_E_INVALID_MSG_TYPE 0x8009200Au
+#define E_CRYPT_E_UNEXPECTED_MSG_TYPE 0x8009200Au
 #define E_CRYPT_E_NO_DECRYPT_CERT 0x8009200Cu
 #define E_CRYPT_E_NO_SIGNER 0x8009200Eu
 
@@ -67,4 +67,6 @@ int mh_has(const BYTE *hay, DWORD n, const void *needle, DWORD m);
 /* hex {ASN} text / base64 text encodings of a blob (malloc'ed, caller frees) */
 char *mh_to_b64(const BYTE *p, DWORD cb, DWORD strflags, DWORD *pcch);
 char *mh_to_asnhex(const BYTE *p, DWORD cb, DWORD *pcch);
+#define CERT_IS(ctx, vec) ((ctx) != NULL && (ctx)->cbCertEncoded == sizeof(vec) && !memcmp((ctx)->pbCertEncoded, (vec), sizeof(vec)))
+#define FREE_CERT(c) do { if (c) U(CertFreeCertificateContext)(c); (c) = NULL; } while (0)
 #endif

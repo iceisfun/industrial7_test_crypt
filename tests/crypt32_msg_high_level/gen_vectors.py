@@ -66,6 +66,29 @@ M["m_env_r2"] = smime_enc("-aes128", ("r2",))
 allpem = w("all.pem", pem(certs["s1"]) + pem(certs["s2"]))
 M["m_certs_only"] = ossl("crl2pkcs7","-nocrl","-certfile",allpem,"-outform","DER")
 
+def L(n):
+    if n < 0x80: return bytes([n])
+    b = n.to_bytes((n.bit_length()+7)//8, 'big'); return bytes([0x80|len(b)]) + b
+def T(tag, c): return bytes([tag]) + L(len(c)) + c
+def oid(s):
+    p = [int(x) for x in s.split('.')]; o = bytes([p[0]*40+p[1]])
+    for v in p[2:]:
+        e = [v & 0x7f]; v >>= 7
+        while v: e.append(0x80 | (v & 0x7f)); v >>= 7
+        o += bytes(reversed(e))
+    return T(6, o)
+def integer(n): return T(2, n.to_bytes(n.bit_length()//8+1, 'big'))
+
+# digested-data (hashed) messages, hand built: version 0, digestAlgorithm, contentInfo, digest
+def hashed(alg_oid, h, detach=False):
+    algid = T(0x30, oid(alg_oid) + b"\x05\x00")
+    ci = T(0x30, oid("1.2.840.113549.1.7.1") + (b"" if detach else T(0xa0, T(4, PAYLOAD))))
+    dd = T(0x30, integer(0) + algid + ci + T(4, h(PAYLOAD).digest()))
+    return T(0x30, oid("1.2.840.113549.1.7.5") + T(0xa0, dd))
+M["m_hashed_sha256"] = hashed("2.16.840.1.101.3.4.2.1", hashlib.sha256)
+M["m_hashed_sha1"] = hashed("1.3.14.3.2.26", hashlib.sha1)
+M["m_hashed_sha256_det"] = hashed("2.16.840.1.101.3.4.2.1", hashlib.sha256, True)
+
 # object samples
 def crl(tu, serials):
     b = x509.CertificateRevocationListBuilder().issuer_name(ca_n).last_update(tu).next_update(D(2060,1,1))
@@ -81,18 +104,6 @@ M["o_p10"] = der(csr)
 M["o_pfx"] = ossl("pkcs12","-export","-inkey",files["s1_key"],"-in",files["s1_cert"],"-certfile",files["ca"],
     "-passout","pass:cryptt","-keypbe","PBE-SHA1-3DES","-certpbe","PBE-SHA1-3DES","-macalg","sha1")
 
-def L(n):
-    if n < 0x80: return bytes([n])
-    b = n.to_bytes((n.bit_length()+7)//8, 'big'); return bytes([0x80|len(b)]) + b
-def T(tag, c): return bytes([tag]) + L(len(c)) + c
-def oid(s):
-    p = [int(x) for x in s.split('.')]; o = bytes([p[0]*40+p[1]])
-    for v in p[2:]:
-        e = [v & 0x7f]; v >>= 7
-        while v: e.append(0x80 | (v & 0x7f)); v >>= 7
-        o += bytes(reversed(e))
-    return T(6, o)
-def integer(n): return T(2, n.to_bytes(n.bit_length()//8+1, 'big'))
 M["o_pair"] = T(0x30, T(0xa0, der(certs["s1"])) + T(0xa1, der(certs["s2"])))
 M["o_pair_fwd"] = T(0x30, T(0xa0, der(certs["s1"])))
 SHA256A = T(0x30, oid("2.16.840.1.101.3.4.2.1") + b"\x05\x00")
