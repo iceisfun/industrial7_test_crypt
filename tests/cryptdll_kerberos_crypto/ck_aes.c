@@ -139,12 +139,19 @@ TEST(ckaes_cts_short_message_rejected) {
 
 TEST(ckaes_cts_invalid_key_lengths) {
     CK_NEED(aesCTSEncryptMsg); CK_NEED(aesCTSDecryptMsg);
-    static const ULONG bad[] = { 1, 8, 15, 17, 23, 25, 31, 33, 48, 64 };
+    /* Win10 probed: key lengths below 32 that are not 16/24 are rejected; lengths above 32 are accepted (status 0). */
+    static const ULONG bad[] = { 1, 8, 15, 17, 23, 25, 31 };
+    static const ULONG over[] = { 33, 48, 64 };
     BYTE key[64] = {7}, iv[16] = {0};
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
         BYTE buf[32] = {0};
         EXPECT_NS(CKP(aesCTSEncryptMsg)(bad[i], key, 32, buf, iv), NS_INVALID_PARAM);
         EXPECT_NS(CKP(aesCTSDecryptMsg)(bad[i], key, 32, buf, iv), NS_INVALID_PARAM);
+    }
+    for (size_t i = 0; i < sizeof over / sizeof over[0]; i++) {
+        BYTE buf[32] = {0};
+        EXPECT_NS(CKP(aesCTSEncryptMsg)(over[i], key, 32, buf, iv), 0);
+        EXPECT_NS(CKP(aesCTSDecryptMsg)(over[i], key, 32, buf, iv), 0);
     }
     BYTE buf[32] = {0};
     NTSTATUS st = CKP(aesCTSEncryptMsg)(0, key, 32, buf, iv);

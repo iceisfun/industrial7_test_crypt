@@ -47,12 +47,8 @@ TEST(ckexp_ordinals_are_contiguous_1_to_20) {
     HMODULE h = t_module(CK_DLL);
     if (!h) { t_skip("no cryptdll"); return; }
     for (unsigned o = 1; o <= 20; o++) CHECKF(GetProcAddress(h, MAKEINTRESOURCEA(o)) != NULL, "ordinal %u", o);
-    SET_ERR(0);
-    CHECK(GetProcAddress(h, MAKEINTRESOURCEA(21)) == NULL);
-    EXPECT_ERR(ERROR_PROC_NOT_FOUND);
-    SET_ERR(0);
-    CHECK(GetProcAddress(h, MAKEINTRESOURCEA(0xFFFF)) == NULL);
-    EXPECT_ERR(ERROR_PROC_NOT_FOUND);
+    EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(21));
+    EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(0xFFFF));
 }
 
 TEST(ckexp_md5_exports_forward_to_ntdll) {
