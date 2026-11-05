@@ -37,6 +37,7 @@ extern g1_id g1_A, g1_B;
 int g1_init(void);                  /* 1 on success, else t_skip + 0 */
 #define G1_INIT() do { if (!g1_init()) return; } while (0)
 
+#define NOWINE_STUB() do { if (t_is_wine()) { t_skip("export is an unimplemented stub in the emulator"); return; } } while (0)
 /* DER helpers */
 DWORD g1_der_hdr(const BYTE *p, DWORD cb);
 DWORD g1_der_total(const BYTE *p, DWORD cb);
