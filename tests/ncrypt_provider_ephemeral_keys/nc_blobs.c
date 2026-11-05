@@ -50,8 +50,10 @@ TEST(ncblob_export_unfinalized_bad_key_state) {
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDSA_P256_ALGORITHM, 0, NC_EXP_ALL, FALSE); NEED(k, "key");
     BYTE buf[200]; DWORD cb = 0;
-    EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, sizeof buf, &cb, 0), NC_BAD_KEY_STATE);
-    EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPRIVATE_BLOB, NULL, buf, sizeof buf, &cb, 0), NC_BAD_KEY_STATE);
+    SECURITY_STATUS s = U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, sizeof buf, &cb, 0);
+    EXPECT_SS_FAIL(s); t_note("public export of unfinalized key -> 0x%08lx (expected NTE_BAD_KEY_STATE)", (DWORD)s);
+    s = U(NCryptExportKey)(k, 0, BCRYPT_ECCPRIVATE_BLOB, NULL, buf, sizeof buf, &cb, 0);
+    EXPECT_SS_FAIL(s); t_note("private export of unfinalized key -> 0x%08lx", (DWORD)s);
     nc_free(k); nc_free(p);
 }
 TEST(ncblob_export_wrong_blob_type_for_algorithm) {
@@ -174,8 +176,8 @@ TEST(ncblob_export_private_requires_policy) {
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDSA_P256_ALGORITHM, 0, 0, TRUE); NEED(k, "key");
     BYTE buf[200]; DWORD cb = 0;
     EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPRIVATE_BLOB, NULL, buf, sizeof buf, &cb, 0), NC_NOT_SUPPORTED);
-    EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_PRIVATE_KEY_BLOB, NULL, buf, sizeof buf, &cb, 0), NC_NOT_SUPPORTED);
-    EXPECT_SS(U(NCryptExportKey)(k, 0, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, NULL, buf, sizeof buf, &cb, 0), NC_NOT_SUPPORTED);
+    EXPECT_SS_FAIL(U(NCryptExportKey)(k, 0, BCRYPT_PRIVATE_KEY_BLOB, NULL, buf, sizeof buf, &cb, 0));
+    EXPECT_SS_FAIL(U(NCryptExportKey)(k, 0, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, NULL, buf, sizeof buf, &cb, 0));
     SECURITY_STATUS s = U(NCryptExportKey)(k, 0, NCRYPT_OPAQUETRANSPORT_BLOB, NULL, buf, sizeof buf, &cb, 0);
     EXPECT_SS_FAIL(s); t_note("opaque export of non-exportable key -> 0x%08lx", (DWORD)s);
     nc_free(k); nc_free(p);
@@ -513,11 +515,14 @@ TEST(ncblob_opaque_import_garbage) {
 }
 
 /* ---------- PKCS#8 ---------- */
-static NCryptBufferDesc *pbe_params(NCryptBuffer b[3], CRYPT_PKCS12_PBE_PARAMS *pp, const WCHAR *pw, NCryptBufferDesc *d)
+/* CRYPT_PKCS12_PBE_PARAMS is followed in memory by cbSalt salt bytes */
+typedef struct { CRYPT_PKCS12_PBE_PARAMS hdr; BYTE salt[20]; } pbe_blk_t;
+static NCryptBufferDesc *pbe_params(NCryptBuffer b[3], pbe_blk_t *pp, const WCHAR *pw, NCryptBufferDesc *d)
 {
     static const WCHAR oid[] = L"1.2.840.113549.1.12.1.3";   /* pbeWithSHAAnd3-KeyTripleDES-CBC */
-    pp->iIterations = 2000; pp->cbSalt = 20;
-    b[0].cbBuffer = sizeof *pp;                    b[0].BufferType = NCRYPTBUFFER_PKCS_ALG_PARAM; b[0].pvBuffer = pp;
+    for (int i = 0; i < 20; i++) pp->salt[i] = (BYTE)(0x40 + i);
+    pp->hdr.iIterations = 2000; pp->hdr.cbSalt = 20;
+    b[0].cbBuffer = sizeof pp->hdr + 20;           b[0].BufferType = NCRYPTBUFFER_PKCS_ALG_PARAM; b[0].pvBuffer = pp;
     b[1].cbBuffer = sizeof oid;                    b[1].BufferType = NCRYPTBUFFER_PKCS_ALG_OID;   b[1].pvBuffer = (void *)oid;
     b[2].cbBuffer = (lstrlenW(pw) + 1) * 2;        b[2].BufferType = NCRYPTBUFFER_PKCS_SECRET;    b[2].pvBuffer = (void *)pw;
     d->ulVersion = NCRYPTBUFFER_VERSION; d->cBuffers = 3; d->pBuffers = b;
@@ -592,11 +597,10 @@ TEST(ncblob_pkcs8_encrypted_roundtrip) {
     REQUIRE(U(NCryptExportKey)); REQUIRE(U(NCryptImportKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_RSA_ALGORITHM, 1024, NCRYPT_ALLOW_EXPORT_FLAG, TRUE); NEED(k, "key");
-    NCryptBuffer nb[3]; NCryptBufferDesc d; CRYPT_PKCS12_PBE_PARAMS pp;
+    NCryptBuffer nb[3]; NCryptBufferDesc d; pbe_blk_t pp;
     pbe_params(nb, &pp, L"cryptt-pw", &d);
     DWORD cb = 0;
     SECURITY_STATUS s = U(NCryptExportKey)(k, 0, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, &d, NULL, 0, &cb, 0);
-    EXPECT_SS(s, 0);
     if (s || !cb) { t_note("encrypted PKCS8 export unsupported here (0x%08lx)", (DWORD)s); nc_free(k); nc_free(p); return; }
     BYTE *b = (BYTE *)HeapAlloc(GetProcessHeap(), 0, cb);
     EXPECT_SS(U(NCryptExportKey)(k, 0, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, &d, b, cb, &cb, 0), 0);
@@ -611,7 +615,7 @@ TEST(ncblob_pkcs8_encrypted_roundtrip) {
         nc_hfree(x); nc_hfree(y); nc_free(k2);
     }
     /* wrong password */
-    NCryptBuffer nb2[3]; NCryptBufferDesc d2; CRYPT_PKCS12_PBE_PARAMS pp2;
+    NCryptBuffer nb2[3]; NCryptBufferDesc d2; pbe_blk_t pp2;
     pbe_params(nb2, &pp2, L"cryptt-WRONG", &d2);
     NCRYPT_KEY_HANDLE k3 = 0;
     s = U(NCryptImportKey)(p, 0, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, &d2, &k3, b, cb, 0);

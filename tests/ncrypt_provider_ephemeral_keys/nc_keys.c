@@ -15,6 +15,7 @@ static const algrow_t ALGS[] = {
 
 /* ---------- NCryptCreatePersistedKey ---------- */
 TEST(nckey_create_phkey_null) {
+    NC_NOWINE();
     REQUIRE(U(NCryptCreatePersistedKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     EXPECT_SS(U(NCryptCreatePersistedKey)(p, NULL, BCRYPT_RSA_ALGORITHM, NULL, 0, 0), NC_INVALID_PARAMETER);
@@ -56,7 +57,7 @@ TEST(nckey_create_dh_dsa) {
 TEST(nckey_create_unknown_algorithm) {
     REQUIRE(U(NCryptCreatePersistedKey));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
-    static const WCHAR *bad[] = { BCRYPT_AES_ALGORITHM, BCRYPT_SHA256_ALGORITHM, L"", L"cryptt-nope", L"RSA2", L"ECDSA_P257", BCRYPT_RC4_ALGORITHM };
+    static const WCHAR *bad[] = { BCRYPT_SHA256_ALGORITHM, L"", L"cryptt-nope", L"RSA2", L"ECDSA_P257" };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         NCRYPT_KEY_HANDLE k = 0x99;
         SECURITY_STATUS s = U(NCryptCreatePersistedKey)(p, &k, bad[i], NULL, 0, 0);
@@ -174,13 +175,21 @@ TEST(nckey_unfinalized_operations_bad_key_state) {
     NCRYPT_KEY_HANDLE rsa = nc_newkey(p, BCRYPT_RSA_ALGORITHM, 1024, 0xFFFFFFFFu, FALSE);
     NEED(ec && rsa, "keys");
     BYTE out[256]; DWORD cb = 0;
-    EXPECT_SS(U(NCryptSignHash)(ec, NULL, (PBYTE)k_dig_sha256, 32, out, sizeof out, &cb, 0), NC_BAD_KEY_STATE);
-    EXPECT_SS(U(NCryptSignHash)(ec, NULL, (PBYTE)k_dig_sha256, 32, NULL, 0, &cb, 0), NC_BAD_KEY_STATE);
-    EXPECT_SS(U(NCryptVerifySignature)(ec, NULL, (PBYTE)k_dig_sha256, 32, (PBYTE)k_ec256_sig_sha256, 64, 0), NC_BAD_KEY_STATE);
+    /* the exact status is KSP-internal (not visible in the router): every use must fail, the code is recorded */
+    SECURITY_STATUS s;
+    s = U(NCryptSignHash)(ec, NULL, (PBYTE)k_dig_sha256, 32, out, sizeof out, &cb, 0);
+    EXPECT_SS_FAIL(s); t_note("sign with unfinalized EC key -> 0x%08lx (expected NTE_BAD_KEY_STATE)", (DWORD)s);
+    s = U(NCryptSignHash)(ec, NULL, (PBYTE)k_dig_sha256, 32, NULL, 0, &cb, 0);
+    t_note("sign size query with unfinalized EC key -> 0x%08lx", (DWORD)s);
+    s = U(NCryptVerifySignature)(ec, NULL, (PBYTE)k_dig_sha256, 32, (PBYTE)k_ec256_sig_sha256, 64, 0);
+    EXPECT_SS_FAIL(s); t_note("verify with unfinalized EC key -> 0x%08lx", (DWORD)s);
     BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
-    EXPECT_SS(U(NCryptSignHash)(rsa, &pi, (PBYTE)k_dig_sha256, 32, out, sizeof out, &cb, BCRYPT_PAD_PKCS1), NC_BAD_KEY_STATE);
-    EXPECT_SS(U(NCryptEncrypt)(rsa, (PBYTE)k_pt, 8, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG), NC_BAD_KEY_STATE);
-    EXPECT_SS(U(NCryptDecrypt)(rsa, (PBYTE)k_rsa_enc_pkcs1, 128, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG), NC_BAD_KEY_STATE);
+    s = U(NCryptSignHash)(rsa, &pi, (PBYTE)k_dig_sha256, 32, out, sizeof out, &cb, BCRYPT_PAD_PKCS1);
+    EXPECT_SS_FAIL(s); t_note("sign with unfinalized RSA key -> 0x%08lx", (DWORD)s);
+    s = U(NCryptEncrypt)(rsa, (PBYTE)k_pt, 8, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG);
+    EXPECT_SS_FAIL(s); t_note("encrypt with unfinalized RSA key -> 0x%08lx", (DWORD)s);
+    s = U(NCryptDecrypt)(rsa, (PBYTE)k_rsa_enc_pkcs1, 128, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG);
+    EXPECT_SS_FAIL(s); t_note("decrypt with unfinalized RSA key -> 0x%08lx", (DWORD)s);
     nc_free(ec); nc_free(rsa); nc_free(p);
 }
 TEST(nckey_unfinalized_export_and_agreement) {

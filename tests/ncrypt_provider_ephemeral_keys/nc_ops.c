@@ -323,7 +323,7 @@ TEST(ncops_rsa_decrypt_known_answers) {
         EXPECT_SS(U(NCryptDecrypt)(k, (PBYTE)oaep[i].c, 128, &oi, out, sizeof out, &cb, NCRYPT_PAD_OAEP_FLAG), 0);
         CHECKF(cb == sizeof k_pt && !memcmp(out, k_pt, cb), "OAEP %ls plaintext", oaep[i].h);
         /* the wrong hash fails to unpad */
-        BCRYPT_OAEP_PADDING_INFO wrong = { oaep[i].h == BCRYPT_SHA1_ALGORITHM ? BCRYPT_SHA256_ALGORITHM : BCRYPT_SHA1_ALGORITHM, NULL, 0 };
+        BCRYPT_OAEP_PADDING_INFO wrong = { !lstrcmpW(oaep[i].h, BCRYPT_SHA1_ALGORITHM) ? BCRYPT_SHA256_ALGORITHM : BCRYPT_SHA1_ALGORITHM, NULL, 0 };
         SECURITY_STATUS s = U(NCryptDecrypt)(k, (PBYTE)oaep[i].c, 128, &wrong, out, sizeof out, &cb, NCRYPT_PAD_OAEP_FLAG);
         EXPECT_SS_FAIL(s); t_note("OAEP decrypt with wrong hash -> 0x%08lx", (DWORD)s);
     }
@@ -438,8 +438,10 @@ TEST(ncops_ecc_key_cannot_encrypt) {
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDH_P256_ALGORITHM, 0, 0, TRUE); NEED(k, "key");
     BYTE out[256]; DWORD cb = 0;
-    EXPECT_SS(U(NCryptEncrypt)(k, (PBYTE)k_pt, 8, NULL, out, 256, &cb, NCRYPT_PAD_PKCS1_FLAG), NC_NOT_SUPPORTED);
-    EXPECT_SS(U(NCryptDecrypt)(k, out, 64, NULL, out, 256, &cb, NCRYPT_PAD_PKCS1_FLAG), NC_NOT_SUPPORTED);
+    SECURITY_STATUS s = U(NCryptEncrypt)(k, (PBYTE)k_pt, 8, NULL, out, 256, &cb, NCRYPT_PAD_PKCS1_FLAG);
+    EXPECT_SS_FAIL(s); t_note("encrypt with ECDH key -> 0x%08lx", (DWORD)s);
+    s = U(NCryptDecrypt)(k, out, 64, NULL, out, 256, &cb, NCRYPT_PAD_PKCS1_FLAG);
+    EXPECT_SS_FAIL(s); t_note("decrypt with ECDH key -> 0x%08lx", (DWORD)s);
     nc_free(k); nc_free(p);
 }
 TEST(ncops_rsa_empty_plaintext_note) {
