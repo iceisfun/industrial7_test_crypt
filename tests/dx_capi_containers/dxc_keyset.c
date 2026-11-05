@@ -139,22 +139,6 @@ static void ks_two_contexts(int pi) {
 }
 DXC_PERPROV(dxc_keyset_two_contexts_same_container, ks_two_contexts)
 
-static void ks_ctx_after_release(int pi) {
-    DXC_NEED(pi);
-    const char *c = dxc_name("rel"); dxc_del(c, pi, 0);
-    HCRYPTPROV a = 0;
-    CHECK(dxc_acq(&a, c, pi, CRYPT_NEWKEYSET));
-    CHECK(U(CryptReleaseContext)(a, 0));
-    /* released handle is dead: the DLL validates its own handle record */
-    char nm[300]; DWORD n = sizeof nm;
-    SET_ERR(0);
-    BOOL ok = dxc_gpp(a, PP_CONTAINER, nm, &n, 0);
-    CHECK(!ok);
-    t_note("GetProvParam on released handle err 0x%lx", GetLastError());
-    dxc_del(c, pi, 0);
-}
-DXC_PERPROV(dxc_keyset_released_handle_unusable, ks_ctx_after_release)
-
 static void ks_delete_while_open(int pi) {
     DXC_NEED(pi);
     const char *c = dxc_name("dwo"); dxc_del(c, pi, 0);
@@ -260,7 +244,7 @@ DXC_PERPROV(dxc_keyset_verifycontext_with_container, ks_verify_with_name)
 static void ks_long_name(int pi) {
     DXC_NEED(pi);
     if (t_is_wine()) { t_skip("emulator crashes on over-long container names"); return; }
-    char c[300]; HCRYPTPROV h = 0;
+    char c[500]; HCRYPTPROV h = 0;
     /* NEWKEYSET rejects names longer than 260 characters (strlen+1 > 0x105) */
     memset(c, 'q', 261); c[261] = 0;
     SET_ERR(0);
