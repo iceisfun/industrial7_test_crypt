@@ -50,8 +50,9 @@ static FARPROC sf_raw(const char *dll, int n)
  * lookup falls back to advapi32 so the behavioural tests can still be exercised there. */
 static FARPROC sf_in(const char *dll, int n)
 {
-    FARPROC p = sf_raw(dll, n);
-    if (!p && t_is_wine()) p = sf_raw("advapi32.dll", n);
+    FARPROC p;
+    if (t_is_wine()) return sf_raw("advapi32.dll", n);   /* emulator: the split modules are stubs */
+    p = sf_raw(dll, n);
     return p;
 }
 static FARPROC sf_adv(int n) { return sf_in("advapi32.dll", n); }
