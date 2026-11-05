@@ -48,6 +48,10 @@ TEST(cpc_enumprov_each_acquirable_or_explained) {
     REQUIRE(U(CryptEnumProvidersA)); REQUIRE(U(CryptAcquireContextA));
     eprov e[MAXP]; int n = collect_providers(e, MAXP);
     for (int k = 0; k < n; k++) {
+        /* only load the in-box software CSPs: third-party or token-backed providers may block or prompt */
+        int known = 0;
+        for (int i = 0; i < cpc_nprovs; i++) if (!strcmp(cpc_provs[i].a, e[k].name)) known = 1;
+        if (!known) { t_note("not loading \"%s\" (type %lu)", e[k].name, e[k].type); continue; }
         HCRYPTPROV h = 0; SET_ERR(0);
         BOOL ok = cpc_acq(&h, e[k].name, e[k].type, X_VERIFY);
         if (ok) { cpc_rel(h); continue; }

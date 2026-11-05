@@ -460,21 +460,24 @@ TEST(cpc_addref_context_survives_other_release) {
     CHECK(U(CryptGenRandom)(b, sizeof buf, buf));
     cpc_rel(b);
 }
+typedef struct { HCRYPTPROV h; BOOL ok; BOOL (WINAPI *gr)(HCRYPTPROV, DWORD, BYTE *); BOOL (WINAPI *rel)(HCRYPTPROV, DWORD); } cpc_thr;
+static DWORD WINAPI cpc_thr_fn(LPVOID p) {
+    cpc_thr *c = p; BYTE b[8];
+    c->ok = c->gr(c->h, sizeof b, b) && c->rel(c->h, 0);
+    return 0;
+}
 TEST(cpc_release_from_other_thread) {
-    REQUIRE(U(CryptAcquireContextA)); REQUIRE(U(CryptReleaseContext));
+    REQUIRE(U(CryptAcquireContextA)); REQUIRE(U(CryptReleaseContext)); REQUIRE(U(CryptGenRandom));
     HCRYPTPROV h = 0;
     CHECK(cpc_acq(&h, MS_DEF_PROV_A, 1, X_VERIFY));
-    struct { HCRYPTPROV h; BOOL ok; } ctx = { h, 0 };
-    DWORD WINAPI th(LPVOID p) {
-        __typeof__(&CryptReleaseContext) rel = (__typeof__(&CryptReleaseContext))t_proc("CryptReleaseContext");
-        BYTE b[8];
-        __typeof__(&CryptGenRandom) gr = (__typeof__(&CryptGenRandom))t_proc("CryptGenRandom");
-        typeof(ctx) *c = p;
-        c->ok = gr(c->h, sizeof b, b) && rel(c->h, 0);
-        return 0;
-    }
-    HANDLE t = CreateThread(NULL, 0, th, &ctx, 0, NULL);
+    if (!h) return;
+    cpc_thr ctx = { h, 0, U(CryptGenRandom), U(CryptReleaseContext) };
+    HANDLE t = CreateThread(NULL, 0, cpc_thr_fn, &ctx, 0, NULL);
     CHECK(t != NULL);
-    if (t) { CHECK(WaitForSingleObject(t, 10000) == WAIT_OBJECT_0); CloseHandle(t); CHECK(ctx.ok); }
-    else cpc_rel(h);
+    if (t) {
+        DWORD w = WaitForSingleObject(t, 10000);
+        CHECK(w == WAIT_OBJECT_0);
+        if (w == WAIT_OBJECT_0) CHECK(ctx.ok); else TerminateThread(t, 0);
+        CloseHandle(t);
+    } else cpc_rel(h);
 }

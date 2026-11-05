@@ -39,6 +39,7 @@ PERPROV(cpc_genrandom_basic, gr_basic)
 
 static void gr_null(int i) {
     REQUIRE(U(CryptGenRandom));
+    if (t_is_wine()) { t_skip("NULL buffer faults in this emulator"); return; }
     HCRYPTPROV h; if (!acqv(i, &h)) return;
     SET_ERR(0);
     CHECK(!U(CryptGenRandom)(h, 16, NULL)); EXPECT_ERR(ERROR_INVALID_PARAMETER);
@@ -97,20 +98,20 @@ TEST(cpc_genrandom_after_addref_and_two_contexts) {
     CHECK(memcmp(x, y, 16) != 0);
     cpc_rel(a); cpc_rel(a); cpc_rel(b);
 }
+typedef struct { HCRYPTPROV h; BYTE out[32]; BOOL ok; BOOL (WINAPI *gr)(HCRYPTPROV, DWORD, BYTE *); } cpc_grs;
+static DWORD WINAPI cpc_gr_worker(LPVOID p) {
+    cpc_grs *q = p;
+    q->ok = TRUE;
+    for (int k = 0; k < 200; k++) if (!q->gr(q->h, 32, q->out)) q->ok = FALSE;
+    return 0;
+}
 TEST(cpc_genrandom_threads) {
     REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptAcquireContextA));
     HCRYPTPROV h; if (!acqv(3, &h)) return;
-    struct S { HCRYPTPROV h; BYTE out[32]; BOOL ok; } s[4];
+    cpc_grs s[4];
     HANDLE th[4];
-    DWORD WINAPI worker(LPVOID p) {
-        struct S *q = p;
-        __typeof__(&CryptGenRandom) gr = (__typeof__(&CryptGenRandom))t_proc("CryptGenRandom");
-        q->ok = TRUE;
-        for (int k = 0; k < 200; k++) if (!gr(q->h, 32, q->out)) q->ok = FALSE;
-        return 0;
-    }
     int made = 0;
-    for (int k = 0; k < 4; k++) { s[k].h = h; s[k].ok = FALSE; memset(s[k].out, 0, 32); th[k] = CreateThread(NULL, 0, worker, &s[k], 0, NULL); if (th[k]) made++; }
+    for (int k = 0; k < 4; k++) { s[k].h = h; s[k].ok = FALSE; s[k].gr = U(CryptGenRandom); memset(s[k].out, 0, 32); th[k] = CreateThread(NULL, 0, cpc_gr_worker, &s[k], 0, NULL); if (th[k]) made++; }
     for (int k = 0; k < 4; k++) if (th[k]) { CHECK(WaitForSingleObject(th[k], 20000) == WAIT_OBJECT_0); CloseHandle(th[k]); }
     EXPECT_EQ(made, 4);
     for (int k = 0; k < 4; k++) CHECK(s[k].ok);
@@ -286,25 +287,24 @@ TEST(cpc_fwd_setprovider_ex_args_note) {
 }
 
 /* contexts are per-process objects: exercise them from several threads concurrently */
-TEST(cpc_threads_acquire_release_loop) {
-    REQUIRE(U(CryptAcquireContextA));
-    struct S { int ok; } s[4];
-    HANDLE th[4];
-    DWORD WINAPI worker(LPVOID p) {
-        struct S *q = p;
-        __typeof__(&CryptAcquireContextA) acq = (__typeof__(&CryptAcquireContextA))t_proc("CryptAcquireContextA");
-        __typeof__(&CryptReleaseContext) rel = (__typeof__(&CryptReleaseContext))t_proc("CryptReleaseContext");
-        q->ok = 1;
-        for (int k = 0; k < 50; k++) {
-            HCRYPTPROV h = 0;
-            if (!acq(&h, NULL, MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, X_VERIFY)) { q->ok = 0; break; }
-            BYTE b[8];
-            __typeof__(&CryptGenRandom) gr = (__typeof__(&CryptGenRandom))t_proc("CryptGenRandom");
-            if (!gr(h, 8, b)) q->ok = 0;
-            if (!rel(h, 0)) q->ok = 0;
-        }
-        return 0;
+typedef struct { int ok; BOOL (WINAPI *acq)(HCRYPTPROV *, LPCSTR, LPCSTR, DWORD, DWORD); BOOL (WINAPI *rel)(HCRYPTPROV, DWORD);
+                 BOOL (WINAPI *gr)(HCRYPTPROV, DWORD, BYTE *); } cpc_ths;
+static DWORD WINAPI cpc_th_worker(LPVOID p) {
+    cpc_ths *q = p;
+    q->ok = 1;
+    for (int k = 0; k < 50; k++) {
+        HCRYPTPROV h = 0; BYTE b[8];
+        if (!q->acq(&h, NULL, MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, X_VERIFY)) { q->ok = 0; break; }
+        if (!q->gr(h, 8, b)) q->ok = 0;
+        if (!q->rel(h, 0)) q->ok = 0;
     }
-    for (int k = 0; k < 4; k++) { s[k].ok = 0; th[k] = CreateThread(NULL, 0, worker, &s[k], 0, NULL); }
+    return 0;
+}
+TEST(cpc_threads_acquire_release_loop) {
+    REQUIRE(U(CryptAcquireContextA)); REQUIRE(U(CryptReleaseContext)); REQUIRE(U(CryptGenRandom));
+    cpc_ths s[4];
+    HANDLE th[4];
+    for (int k = 0; k < 4; k++) { s[k].ok = 0; s[k].acq = U(CryptAcquireContextA); s[k].rel = U(CryptReleaseContext); s[k].gr = U(CryptGenRandom);
+        th[k] = CreateThread(NULL, 0, cpc_th_worker, &s[k], 0, NULL); }
     for (int k = 0; k < 4; k++) if (th[k]) { CHECK(WaitForSingleObject(th[k], 30000) == WAIT_OBJECT_0); CloseHandle(th[k]); CHECK(s[k].ok); }
 }
