@@ -109,3 +109,10 @@ void *kp_check_dec(const char *file, int line, LPCSTR type, const BYTE *der, siz
     t_check(res != NULL && cb2 == cb, file, line, "decode alloc", "res=%p cb2=%lu cb=%lu", res, (unsigned long)cb2, (unsigned long)cb);
     return res;
 }
+
+int kp_type_known(LPCSTR type) {
+    BYTE buf[16]; DWORD cb = sizeof buf; static const BYTE der[] = {0x30, 0};
+    SetLastError(0);
+    pDecEx()(KP_ENC, type, der, 2, 0, NULL, buf, &cb);
+    return GetLastError() != ERROR_FILE_NOT_FOUND;
+}

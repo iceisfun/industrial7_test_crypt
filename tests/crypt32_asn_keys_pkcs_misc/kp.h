@@ -51,4 +51,9 @@ void *kp_check_dec(const char *file, int line, LPCSTR type, const BYTE *der, siz
 /* blob equality helpers */
 #define BLOB_IS(b, ...) kp_blob_is(__FILE__, __LINE__, #b, (b).cbData, (b).pbData, V(__VA_ARGS__))
 void kp_blob_is(const char *file, int line, const char *what, DWORD cb, const BYTE *pb, const BYTE *want, size_t n);
+/* Under an emulator that lacks a codec the dependent tests are skipped; on Windows a missing codec is a failure. */
+int kp_type_known(LPCSTR type);
+#define REQ_TYPE(t) do { REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObjectEx")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObjectEx")); \
+    REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); \
+    if (t_is_wine() && !kp_type_known(t)) { t_skip("codec not provided by the emulator"); return; } } while (0)
 #endif
