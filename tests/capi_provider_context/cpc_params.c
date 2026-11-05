@@ -4,6 +4,7 @@
 
 static int acqv(int i, HCRYPTPROV *h) {
     *h = 0;
+    if (cpc_provs[i].dss && t_is_wine()) { t_skip("dssenh provider entry points are unimplemented in this emulator"); return 0; }
     if (!cpc_acq(h, cpc_provs[i].a, cpc_provs[i].type, X_VERIFY)) {
         t_check(0, __FILE__, __LINE__, "acquire", "%s err 0x%lx", cpc_provs[i].a, GetLastError());
         return 0;
