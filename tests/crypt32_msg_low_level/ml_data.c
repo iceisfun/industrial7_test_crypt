@@ -445,14 +445,75 @@ TEST(mld_calc_length_bare_flag) {
     CHECK(full == sizeof DATA_ABC);
     CHECK(bare == sizeof BARE_ABC);
 }
-TEST(mld_decode_explicit_data_type_contentinfo) {
+TEST(mld_decode_explicit_data_type_takes_bare_content) {
     REQ_MSG();
-    /* a ContentInfo-wrapped data message decoded with an explicit CMSG_DATA type: record what the platform does */
+    /* explicit type: the update data is the bare content (an OCTET STRING), not a ContentInfo */
+    HCRYPTMSG m = mOpenDec()(ENC, 0, CMSG_DATA, 0, NULL, NULL);
+    CHECK(m != NULL);
+    if (!m) return;
+    CHECK(mUpdate()(m, BARE_ABC, sizeof BARE_ABC, TRUE));
+    DWORD t = 0;
+    if (ml_param_dword(m, CMSG_TYPE_PARAM, 0, &t)) EXPECT_EQ(t, CMSG_DATA); else t_note("TYPE_PARAM after explicit data decode: 0x%lx", (unsigned long)GetLastError());
+    DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
+    CHECK(b && n == 3 && !memcmp(b, TXT3, 3));
+    ml_free(b);
+    mClose()(m);
+}
+TEST(mld_decode_explicit_data_type_rejects_contentinfo) {
+    REQ_MSG();
     HCRYPTMSG m = mOpenDec()(ENC, 0, CMSG_DATA, 0, NULL, NULL);
     CHECK(m != NULL);
     if (!m) return;
     SET_ERR(0);
-    BOOL r = mUpdate()(m, M_DATA, M_DATA_LEN, TRUE);
-    t_note("explicit CMSG_DATA decode of a ContentInfo: ok=%d err=0x%lx", r, (unsigned long)GetLastError());
+    CHECK(!mUpdate()(m, DATA_ABC, sizeof DATA_ABC, TRUE));
+    EXPECT_ERR(CRYPT_E_ASN1_BADTAG);
+    mClose()(m);
+}
+TEST(mld_decode_untyped_rejects_bare_data) {
+    REQ_MSG();
+    HCRYPTMSG m = mOpenDec()(ENC, 0, 0, 0, NULL, NULL);
+    CHECK(m != NULL);
+    if (!m) return;
+    SET_ERR(0);
+    CHECK(!mUpdate()(m, BARE_ABC, sizeof BARE_ABC, TRUE));
+    EXPECT_ERR(CRYPT_E_ASN1_BADTAG);
+    mClose()(m);
+}
+TEST(mld_decode_data_getparams) {
+    REQ_MSG();
+    HCRYPTMSG m = ml_decode(DATA_ABC, sizeof DATA_ABC, 0, 0);
+    CHECK(m != NULL);
+    if (!m) return;
+    DWORD t = 0; CHECK(ml_param_dword(m, CMSG_TYPE_PARAM, 0, &t)); EXPECT_EQ(t, CMSG_DATA);
+    DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
+    CHECK(b && n == 3 && !memcmp(b, TXT3, 3)); ml_free(b);
+    b = ml_param(m, CMSG_INNER_CONTENT_TYPE_PARAM, 0, &n);
+    if (b) CHECK(!strcmp((char *)b, OID_DATA)); else t_note("INNER_CONTENT_TYPE_PARAM on a decoded data message failed: 0x%lx", (unsigned long)GetLastError());
+    ml_free(b);
+    mClose()(m);
+}
+TEST(mld_decode_data_openssl_message) {
+    REQ_MSG();
+    HCRYPTMSG m = ml_decode(M_DATA, M_DATA_LEN, 0, 0);
+    CHECK(m != NULL);
+    if (!m) return;
+    DWORD t = 0; CHECK(ml_param_dword(m, CMSG_TYPE_PARAM, 0, &t)); EXPECT_EQ(t, CMSG_DATA);
+    DWORD n = 0; BYTE *b = ml_param(m, CMSG_CONTENT_PARAM, 0, &n);
+    CHECK(b && n == V_CONTENT_LEN && !memcmp(b, V_CONTENT, n)); ml_free(b);
+    mClose()(m);
+}
+TEST(mld_decode_data_type_mismatch) {
+    REQ_MSG();
+    static const DWORD ty[] = {CMSG_SIGNED, CMSG_ENVELOPED, CMSG_HASHED};
+    (void)ty;
+    /* untyped decode then ask for signer data: not a signed message */
+    HCRYPTMSG m = ml_decode(DATA_ABC, sizeof DATA_ABC, 0, 0);
+    if (!m) { CHECK(m != NULL); return; }
+    DWORD n = 0; SET_ERR(0);
+    CHECK(!mGetParam()(m, CMSG_SIGNER_COUNT_PARAM, 0, NULL, &n));
+    EXPECT_ERR(CRYPT_E_INVALID_MSG_TYPE);
+    SET_ERR(0);
+    CHECK(!mControl()(m, 0, CMSG_CTRL_VERIFY_SIGNATURE, NULL));
+    t_note("VERIFY_SIGNATURE on a data message: err 0x%lx", (unsigned long)GetLastError());
     mClose()(m);
 }

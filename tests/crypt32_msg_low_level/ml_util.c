@@ -78,3 +78,19 @@ BYTE *ml_sign(ml_signer_t *s, DWORD flags, const char *hash_oid, const BYTE *dat
     mClose()(m);
     return r;
 }
+
+/* Skip ContentInfo { OID, [0] EXPLICIT bare }: returns a pointer to the bare content inside der (definite lengths only). */
+static const BYTE *tlv(const BYTE *p, const BYTE *end, BYTE tag, const BYTE **body, DWORD *blen) {
+    DWORD n; if (p >= end || *p != tag) return NULL;
+    p++; if (p >= end) return NULL;
+    if (*p < 0x80) { n = *p++; } else { int k = *p++ & 0x7f; n = 0; if (k < 1 || k > 4) return NULL; while (k--) { if (p >= end) return NULL; n = (n << 8) | *p++; } }
+    if ((size_t)(end - p) < n) return NULL;
+    *body = p; *blen = n; return p + n;
+}
+const BYTE *ml_unwrap(const BYTE *der, DWORD cb, DWORD *out_cb) {
+    const BYTE *b, *b2, *b3; DWORD n, n2, n3;
+    if (!tlv(der, der + cb, 0x30, &b, &n)) return NULL;
+    if (!(b2 = tlv(b, b + n, 0x06, &b3, &n3))) return NULL;
+    if (!tlv(b2, b + n, 0xa0, &b3, &n3)) return NULL;
+    *out_cb = n3; return b3;
+}

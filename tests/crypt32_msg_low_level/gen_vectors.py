@@ -39,6 +39,32 @@ for hn, h in (("SHA1", hashes.SHA1()), ("SHA256", hashes.SHA256())):
 arr("V_SHA1", hashlib.sha1(CONTENT).digest()); arr("V_SHA256", hashlib.sha256(CONTENT).digest())
 arr("V_MD5", hashlib.md5(CONTENT).digest())
 
+
+# ---- hand-built DER for encode-side exact comparisons
+def L(n):
+    if n < 0x80: return bytes([n])
+    b = n.to_bytes((n.bit_length()+7)//8, 'big'); return bytes([0x80|len(b)]) + b
+def T(tag, c): return bytes([tag]) + L(len(c)) + c
+def oid(s):
+    p = [int(x) for x in s.split('.')]; o = bytes([p[0]*40+p[1]])
+    for v in p[2:]:
+        e = [v & 0x7f]; v >>= 7
+        while v: e.append(0x80 | (v & 0x7f)); v >>= 7
+        o += bytes(reversed(e))
+    return T(6, o)
+OID_DATA = oid("1.2.840.113549.1.7.1"); OID_DIG = oid("1.2.840.113549.1.7.5")
+def algid(o): return T(0x30, oid(o) + b"\x05\x00")
+def hashed(halg, hf, data, detached=False, bare=False):
+    inner = T(0x30, OID_DATA + (b"" if detached else T(0xa0, T(4, data))))
+    body = T(0x30, b"\x02\x01\x00" + algid(halg) + inner + T(4, hf(data).digest()))
+    return body if bare else T(0x30, OID_DIG + T(0xa0, body))
+d4 = bytes([1,2,3,4])
+arr("X_HASH_MD5_1234", hashed("1.2.840.113549.2.5", hashlib.md5, d4))
+arr("X_HASH_MD5_1234_BARE", hashed("1.2.840.113549.2.5", hashlib.md5, d4, bare=True))
+arr("X_HASH_MD5_1234_DET", hashed("1.2.840.113549.2.5", hashlib.md5, d4, detached=True))
+arr("X_HASH_SHA1_CONTENT", hashed("1.3.14.3.2.26", hashlib.sha1, CONTENT))
+arr("X_HASH_SHA256_CONTENT", hashed("2.16.840.1.101.3.4.2.1", hashlib.sha256, CONTENT))
+
 td = tempfile.mkdtemp()
 def w(n, b): open(os.path.join(td, n), "wb").write(b); return os.path.join(td, n)
 w("c1.pem", c1.public_bytes(serialization.Encoding.PEM))

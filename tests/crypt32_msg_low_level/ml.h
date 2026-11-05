@@ -18,6 +18,12 @@
 #ifndef CRYPT_E_STREAM_MSG_NOT_READY
 #define CRYPT_E_STREAM_MSG_NOT_READY ((LONG)0x80091010)
 #endif
+#ifndef CRYPT_E_ASN1_BADTAG
+#define CRYPT_E_ASN1_BADTAG ((LONG)0x8009310B)
+#endif
+#ifndef CRYPT_E_STREAM_INSUFFICIENT_DATA
+#define CRYPT_E_STREAM_INSUFFICIENT_DATA ((LONG)0x80091011)
+#endif
 #ifndef CRYPT_E_HASH_VALUE
 #define CRYPT_E_HASH_VALUE ((LONG)0x80091007)
 #endif
@@ -85,6 +91,7 @@ BOOL ml_param_dword(HCRYPTMSG m, DWORD pt, DWORD idx, DWORD *out);
 /* Encode helpers: return final encoded message via CMSG_CONTENT_PARAM (LocalAlloc'd). */
 BYTE *ml_encode_data(DWORD flags, const BYTE *data, DWORD cb, DWORD *out_cb);
 /* Decode a complete message with one final update; type 0 = autodetect. */
+const BYTE *ml_unwrap(const BYTE *der, DWORD cb, DWORD *out_cb);
 HCRYPTMSG ml_decode(const BYTE *der, DWORD cb, DWORD type, DWORD flags);
 /* Signed message encoder. */
 typedef struct {
