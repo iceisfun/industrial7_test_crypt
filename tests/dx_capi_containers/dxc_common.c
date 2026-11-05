@@ -34,6 +34,7 @@ void dxc_rel(HCRYPTPROV h) { if (h) U(CryptReleaseContext)(h, 0); }
 BOOL dxc_have(int pi) {
     static signed char c[16];
     if (!U(CryptAcquireContextA) || !U(CryptReleaseContext) || !U(CryptGetProvParam)) return 0;
+    if (c[pi] == 0 && dxc_provs[pi].dss && t_is_wine()) c[pi] = -1;   /* dssenh is a stub under the emulator */
     if (c[pi] == 0) {
         HCRYPTPROV h = 0;
         DWORD save = GetLastError();

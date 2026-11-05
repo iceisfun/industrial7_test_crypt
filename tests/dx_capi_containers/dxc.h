@@ -2,6 +2,7 @@
 #define DXC_H
 #include "t.h"
 #include <wincrypt.h>
+#include "modules.h"
 
 /* NTE_* / status codes spelled out so tests do not depend on header coverage. */
 #define X_NTE_BAD_UID          0x80090001UL
