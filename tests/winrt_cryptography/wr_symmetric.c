@@ -158,7 +158,8 @@ TEST(winrt_sym_key_outlives_provider) {
 static void run_sym(const char *prefix_filter, int exact) {
     for (size_t i = 0; i < sizeof wr_sym_vecs / sizeof *wr_sym_vecs; i++) {
         const struct wr_sv *v = &wr_sym_vecs[i]; char a[32]; int j = 0;
-        for (const WCHAR *w = v->alg; *w; w++) a[j++] = (char)*w; a[j] = 0;
+        for (const WCHAR *w = v->alg; *w; w++) a[j++] = (char)*w;
+        a[j] = 0;
         if (exact ? strcmp(a, prefix_filter) : strncmp(a, prefix_filter, strlen(prefix_filter))) continue;
         void *k = mk_key(v->alg, v->key); if (!k) return;
         void *iv = v->iv[0] ? wr_mkbuf_hex(v->iv) : NULL, *pt = wr_mkbuf_hex(v->pt), *o = NULL, *d = NULL;
