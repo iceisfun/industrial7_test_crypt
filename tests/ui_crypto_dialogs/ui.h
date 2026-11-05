@@ -57,6 +57,7 @@ void ui_expect_clean(const UIRES *r);             /* completed, no timeout, no l
 void ui_expect_nodialog(const UIRES *r);
 void ui_expect_window(const UIRES *r, const char *what);       /* a window of any class appeared and went away */
 void ui_expect_all_invalid(const UIRES *r, const char *what);   /* every sub-result: FALSE/NULL + E_INVALIDARG */
+void ui_chk_ret(unsigned long long got, unsigned long long want, const char *what);
 void ui_chk_err(DWORD got, DWORD want, const char *what);       /* exact on Windows, note on an emulator */
 /* Some entry points are unimplemented stubs under Wine and abort the process there. */
 #define UI_WINE_UNIMPL() (t_is_wine() ? (t_skip("export is an unimplemented stub under Wine"), 1) : 0)

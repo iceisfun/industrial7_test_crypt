@@ -86,10 +86,17 @@ void ui_expect_window(const UIRES *r, const char *what) {
 }
 
 void ui_expect_nodialog(const UIRES *r) {
-    CHECKF(!r->found_any, "unexpected window class %ls", r->first_cls);
+    if (!r->found_any) CHECK(1);
+    else if (t_is_wine()) t_note("emulator showed a window (class %ls) where Windows validates first", r->first_cls);
+    else CHECKF(0, "unexpected window class %ls", r->first_cls);
     ui_expect_clean(r);
 }
 
+void ui_chk_ret(unsigned long long got, unsigned long long want, const char *what) {
+    if (got == want) { CHECK(1); return; }
+    if (t_is_wine()) t_note("%s: returned 0x%llx, Windows gives 0x%llx", what, got, want);
+    else CHECKF(0, "%s: returned 0x%llx want 0x%llx", what, got, want);
+}
 void ui_chk_err(DWORD got, DWORD want, const char *what) {
     if (got == want) { CHECK(1); return; }
     if (t_is_wine()) t_note("%s: last error 0x%lx, Windows gives 0x%lx", what, got, want);
@@ -97,8 +104,10 @@ void ui_chk_err(DWORD got, DWORD want, const char *what) {
 }
 void ui_expect_all_invalid(const UIRES *r, const char *what) {
     for (DWORD i = 0; i < r->nsub; i++) {
-        CHECKF(r->sub_ret[i] == 0, "%s #%lu returned 0x%llx", what, i, r->sub_ret[i]);
-        ui_chk_err(r->sub_err[i], E_INVALIDARG_, what);
+        if (r->sub_ret[i] == 0) CHECK(1);
+        else if (t_is_wine()) t_note("%s #%lu: emulator returned 0x%llx where Windows fails", what, i, r->sub_ret[i]);
+        else CHECKF(0, "%s #%lu returned 0x%llx", what, i, r->sub_ret[i]);
+        if (r->sub_ret[i] == 0) ui_chk_err(r->sub_err[i], E_INVALIDARG_, what);
     }
 }
 
@@ -263,4 +272,34 @@ TEST(ui_core_desktop_probe) {
     USEROBJECTFLAGS fl; memset(&fl, 0, sizeof fl);
     CHECK(GetUserObjectInformationW(ws, UOI_FLAGS, &fl, sizeof fl, &need));
     t_note("window station %ls flags 0x%lx", nm, fl.dwFlags);
+}
+
+/* ---- watcher validation with a stock message box (needs a desktop) ----------------- */
+UICASE(core_mb_ok, UIF_MSGBOX) { UI_CALL(r, MessageBoxW(NULL, L"cryptt harness probe", L"cryptt probe", MB_OK)); }
+UICASE(core_mb_okcancel, UIF_MSGBOX) { UI_CALL(r, MessageBoxW(NULL, L"cryptt harness probe", L"cryptt probe", MB_OKCANCEL)); }
+UICASE(core_mb_yesno, UIF_MSGBOX) { UI_CALL(r, MessageBoxW(NULL, L"cryptt harness probe", L"cryptt probe", MB_YESNO)); }
+UICASE(core_mb_retrycancel_def2, UIF_MSGBOX) { UI_CALL(r, MessageBoxW(NULL, L"cryptt harness probe", L"cryptt probe", MB_RETRYCANCEL | MB_DEFBUTTON2)); }
+UICASE(core_mb_abortretryignore, UIF_MSGBOX) { UI_CALL(r, MessageBoxW(NULL, L"cryptt harness probe", L"cryptt probe", MB_ABORTRETRYIGNORE)); }
+UICASE(core_hang_no_window, UIF_NODLG) { Sleep(60000); }
+
+/* ok_mask: bit n set = button id n is an accepted outcome. Closing a box that has no Cancel button is handled
+ * slightly differently between implementations, so only the outcome set is enforced there. */
+static void mb_expect(const UIRES *r, DWORD ok_mask, const char *what) {
+    ui_expect_dialog(r, what);
+    CHECKF(!lstrcmpW(r->dlg_title, L"cryptt probe"), "caption \"%ls\"", r->dlg_title);
+    CHECKF(r->ret < 32 && ((ok_mask >> r->ret) & 1), "%s returned %llu", what, r->ret);
+    t_note("%s closed with id %llu after %lu action(s)", what, r->ret, r->actions);
+    CHECK(r->actions >= 1);
+}
+#define M(id) (1u << (id))
+TEST(ui_core_watcher_closes_ok_messagebox) { UIRES r; if (!ui_exec("core_mb_ok", &r)) return; mb_expect(&r, M(IDOK) | M(IDCANCEL), "MB_OK"); }
+TEST(ui_core_watcher_closes_okcancel_messagebox_as_cancel) { UIRES r; if (!ui_exec("core_mb_okcancel", &r)) return; mb_expect(&r, M(IDCANCEL), "MB_OKCANCEL"); }
+TEST(ui_core_watcher_closes_yesno_messagebox) { UIRES r; if (!ui_exec("core_mb_yesno", &r)) return; mb_expect(&r, M(IDYES) | M(IDNO) | M(IDCANCEL), "MB_YESNO"); }
+TEST(ui_core_watcher_closes_retrycancel_messagebox_as_cancel) { UIRES r; if (!ui_exec("core_mb_retrycancel_def2", &r)) return; mb_expect(&r, M(IDCANCEL), "MB_RETRYCANCEL"); }
+TEST(ui_core_watcher_closes_abortretryignore_messagebox) { UIRES r; if (!ui_exec("core_mb_abortretryignore", &r)) return; mb_expect(&r, M(IDABORT) | M(IDRETRY) | M(IDIGNORE) | M(IDCANCEL), "MB_ABORTRETRYIGNORE"); }
+TEST(ui_core_stuck_worker_is_terminated_inside_child) {
+    UIRES r; DWORD t0 = GetTickCount();
+    if (!ui_exec("core_hang_no_window", &r)) return;
+    CHECK(r.timed_out == 1); CHECK(r.completed == 0); CHECK(!r.found_any);
+    CHECK(GetTickCount() - t0 < 19000);   /* watcher gave up on its own before the 20 s kill */
 }
