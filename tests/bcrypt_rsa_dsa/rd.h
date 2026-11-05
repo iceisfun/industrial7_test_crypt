@@ -6,11 +6,6 @@
 #include <stdlib.h>
 #include "vectors.h"
 
-/* t.h's EXPECT_EQ evaluates its arguments twice; calls with side effects must be evaluated once. */
-#undef EXPECT_EQ
-#define EXPECT_EQ(a, b) do { ULONG_PTR a_ = (ULONG_PTR)(a), b_ = (ULONG_PTR)(b); \
-    t_check(a_ == b_, __FILE__, __LINE__, #a " == " #b, "got 0x%llx want 0x%llx", (unsigned long long)a_, (unsigned long long)b_); } while (0)
-
 #define ST_SUCCESS            ((NTSTATUS)0x00000000)
 #define ST_INVALID_HANDLE     ((NTSTATUS)0xC0000008)
 #define ST_INVALID_PARAMETER  ((NTSTATUS)0xC000000D)
@@ -124,7 +119,7 @@ static ULONG rd_dsa1_blob(UCHAR *out, int priv) {
     memcpy(p, kDsa1_P, 128); p += 128;
     memcpy(p, kDsa1_G, 128); p += 128;
     memcpy(p, kDsa1_Y, 128); p += 128;
-    if (priv) { memset(p, 0, 108); memcpy(p + 108, kDsa1_X, 20); p += 128; }
+    if (priv) { memcpy(p, kDsa1_X, 20); p += 20; }   /* private exponent is group-size (20) bytes */
     return (ULONG)(p - out);
 }
 /* DSA v2 header: BCRYPT_DSA_KEY_BLOB_V2 {dwMagic, cbKey, hashAlgorithm, standardVersion, cbSeedLength, cbGroupSize, Count[4]}

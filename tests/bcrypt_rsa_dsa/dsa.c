@@ -84,14 +84,30 @@ TEST(dsa_gen_2048_fips186_3) {
 }
 TEST(dsa_gen_invalid_lengths_fail) {
     BEGIN();
-    static const ULONG bad[] = { 0, 1, 256, 448, 511, 513, 1088, 1536, 3073, 4096 };
+    /* 0 selects the default length and 1088/1536 are valid (increment 64): see dsa_gen_default_and_valid_odd_lengths */
+    static const ULONG bad[] = { 1, 256, 448, 511, 513, 3073, 4096 };
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
         BCRYPT_KEY_HANDLE k = NULL;
         NTSTATUS sg = U(BCryptGenerateKeyPair)(g_a, &k, bad[i], 0), sf = 0;
         if (sg == 0) sf = U(BCryptFinalizeKeyPair)(k, 0);
-        CHECKF(sg != 0 || sf != 0, "DSA %lu unexpectedly generated", bad[i]);
+        EXPECT_EQ(sg, ST_INVALID_PARAMETER);
         t_note("DSA bits=%lu gen=0x%lx fin=0x%lx", bad[i], (unsigned long)sg, (unsigned long)sf);
         if (sg == 0) rd_destroy(k);
+    }
+    END();
+}
+TEST(dsa_gen_default_and_valid_odd_lengths) {
+    BEGIN();
+    static const ULONG ok[] = { 0, 1088, 1536 };
+    for (int i = 0; i < 3; i++) {
+        BCRYPT_KEY_HANDLE k = NULL;
+        EXPECT_EQ(U(BCryptGenerateKeyPair)(g_a, &k, ok[i], 0), ST_SUCCESS);
+        if (k) {
+            EXPECT_EQ(U(BCryptFinalizeKeyPair)(k, 0), ST_SUCCESS);
+            NTSTATUS ps; ULONG kl = rd_getdw(k, BCRYPT_KEY_LENGTH, &ps);
+            t_note("DSA gen %lu -> KeyLength %lu (st 0x%lx) sig %lu", ok[i], kl, (unsigned long)ps, rd_getdw(k, BCRYPT_SIGNATURE_LENGTH, &ps));
+            rd_destroy(k);
+        }
     }
     END();
 }
@@ -101,9 +117,12 @@ TEST(dsa_gen_unfinalized_unusable) {
     EXPECT_EQ(U(BCryptGenerateKeyPair)(g_a, &k, 512, 0), ST_SUCCESS); CHECK(k);
     if (k) {
         UCHAR sig[64], h[20] = {1}; ULONG n = 0;
-        CHECK(sign(k, h, 20, sig, sizeof sig, &n, 0) != 0);
-        UCHAR *b; ULONG l;
-        NTSTATUS s = rd_export(k, BCRYPT_DSA_PUBLIC_BLOB, &b, &l); CHECK(s != 0); if (!s) free(b);
+        /* BCryptSignHash on an unfinalized DSA key dereferences a null key body inside the provider on Win10 (access
+           violation), so it is deliberately not called here; export reports STATUS_UNSUCCESSFUL. */
+        (void)sig; (void)h; (void)n;
+        UCHAR *b = NULL; ULONG l = 0;
+        NTSTATUS s = rd_export(k, BCRYPT_DSA_PUBLIC_BLOB, &b, &l);
+        EXPECT_EQ(s, 0xC0000001); if (!s) free(b);
         rd_destroy(k);
     }
     END();
@@ -400,11 +419,15 @@ TEST(dsa_legacy_public_export_header) {
         NTSTATUS s = rd_export(k, LEGACY_DSA_PUBLIC_BLOB, &o, &ol);
         if (s) t_note("legacy DSA public export: 0x%lx", (unsigned long)s);
         if (!s) {
-            EXPECT_EQ(o[0], 6); EXPECT_EQ(o[1], 2);
+            EXPECT_EQ(o[0], 6); EXPECT_EQ(o[1], 3);      /* version 3 blob */
             EXPECT_EQ(*(DWORD *)(o + 4), 0x2200);        /* CALG_DSS_SIGN */
-            EXPECT_EQ(*(DWORD *)(o + 8), 0x31535344);    /* "DSS1" */
-            EXPECT_EQ(*(DWORD *)(o + 12), 1024);
-            t_note("legacy DSA public blob length %lu", ol);
+            EXPECT_EQ(*(DWORD *)(o + 8), 0x33535344);    /* "DSS3" */
+            EXPECT_EQ(*(DWORD *)(o + 12), 1024);   /* bitlenP */
+            EXPECT_EQ(*(DWORD *)(o + 16), 160);    /* bitlenQ */
+            EXPECT_EQ(*(DWORD *)(o + 20), 0);      /* bitlenJ */
+            EXPECT_EQ(*(DWORD *)(o + 24), 0xffffffff);   /* seed counter as imported */
+            EXPECT_EQ(ol, 452);
+            if (ol == 452) { CHECK(o[48] == kDsa1_P[127]); CHECK(o[48 + 127] == kDsa1_P[0]); }
             free(o);
         }
         rd_destroy(k);
@@ -419,13 +442,18 @@ TEST(dsa_legacy_private_export_header) {
         NTSTATUS s = rd_export(k, LEGACY_DSA_PRIVATE_BLOB, &o, &ol);
         if (s) t_note("legacy DSA private export: 0x%lx", (unsigned long)s);
         if (!s) {
-            EXPECT_EQ(o[0], 7); EXPECT_EQ(o[1], 2);
+            EXPECT_EQ(o[0], 7); EXPECT_EQ(o[1], 3);      /* version 3 blob */
             EXPECT_EQ(*(DWORD *)(o + 4), 0x2200);
-            EXPECT_EQ(*(DWORD *)(o + 8), 0x32535344);    /* "DSS2" */
-            EXPECT_EQ(*(DWORD *)(o + 12), 1024);
-            /* P is little-endian: first byte of the blob data is the LAST byte of the big-endian prime */
-            CHECK(o[16] == kDsa1_P[127]);
-            CHECK(o[16 + 127] == kDsa1_P[0]);
+            EXPECT_EQ(*(DWORD *)(o + 8), 0x34535344);    /* "DSS4" */
+            EXPECT_EQ(*(DWORD *)(o + 12), 1024);   /* bitlenP */
+            EXPECT_EQ(*(DWORD *)(o + 16), 160);    /* bitlenQ */
+            EXPECT_EQ(*(DWORD *)(o + 20), 0);      /* bitlenJ */
+            EXPECT_EQ(*(DWORD *)(o + 24), 160);    /* bitlenX */
+            EXPECT_EQ(*(DWORD *)(o + 28), 0xffffffff);   /* seed counter as imported */
+            CHECK(o[32] == 0x5a && o[51] == 0x5a);       /* seed as imported */
+            EXPECT_EQ(ol, 476);
+            /* P is little-endian and follows the 24-byte seed */
+            if (ol == 476) { CHECK(o[52] == kDsa1_P[127]); CHECK(o[52 + 127] == kDsa1_P[0]); }
             free(o);
         }
         rd_destroy(k);

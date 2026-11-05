@@ -114,13 +114,19 @@ TEST(rsa_crypt_no_padding_input_at_least_modulus_fails) {
     UCHAR in[128], out[128]; ULONG n = 0;
     memset(in, 0xff, sizeof in);
     NTSTATUS s = enc(pub, in, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
-    CHECK(s != 0); t_note("no-padding input 0xFF..FF (> modulus): 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     memcpy(in, kRsaN, 128);   /* exactly the modulus */
     s = enc(pub, in, 128, NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
-    CHECK(s != 0);
+    t_note("no-padding input equal to the modulus: 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     UCHAR big[129]; memset(big, 1, sizeof big);
+    n = 0;
     s = enc(pub, big, 129, NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
-    CHECK(s != 0); t_note("no-padding input longer than modulus: 0x%lx", (unsigned long)s);
+    /* 129 bytes: Win10 only uses the first modulus-size bytes */
+    EXPECT_EQ(s, ST_SUCCESS); EXPECT_EQ(n, 128);
+    { UCHAR out2[128]; ULONG n2 = 0;
+      NTSTATUS s2 = enc(pub, big, 128, NULL, out2, sizeof out2, &n2, BCRYPT_PAD_NONE);
+      t_note("129-byte input same as first 128 bytes: s2=0x%lx same=%d", (unsigned long)s2, !memcmp(out, out2, 128)); }
     rd_destroy(pub); END();
 }
 TEST(rsa_crypt_no_padding_short_input) {
@@ -363,12 +369,17 @@ TEST(rsa_crypt_ciphertext_wrong_length) {
     memcpy(in, kCtPkcs1, 128); memset(in + 128, 0, 128);
     ULONG lens[] = { 127, 129, 64, 256 };
     for (int i = 0; i < 4; i++) {
+        n = 0;
         NTSTATUS sp = dec(k, in, lens[i], NULL, out, sizeof out, &n, BCRYPT_PAD_PKCS1);
-        CHECKF(sp != 0, "PKCS1 decrypt of %lu bytes succeeded", lens[i]);
-        t_note("PKCS1 decrypt of %lu bytes: 0x%lx", lens[i], (unsigned long)sp);
+        /* Win10 ignores bytes beyond the modulus size (the trailing bytes here are zero) and rejects short input */
+        t_label("len %lu", lens[i]);
+        if (lens[i] < 128) { EXPECT_EQ(sp, ST_INVALID_PARAMETER); }
+        else { EXPECT_EQ(sp, ST_SUCCESS); EXPECT_EQ(n, sizeof kPlain); CHECK(n == sizeof kPlain && !memcmp(out, kPlain, n)); }
+        n = 0;
         NTSTATUS sn = dec(k, in, lens[i], NULL, out, sizeof out, &n, BCRYPT_PAD_NONE);
-        CHECKF(sn != 0, "no-padding decrypt of %lu bytes succeeded", lens[i]);
-        t_note("no-padding decrypt of %lu bytes: 0x%lx", lens[i], (unsigned long)sn);
+        if (lens[i] < 128) { EXPECT_EQ(sn, ST_INVALID_PARAMETER); }
+        else { EXPECT_EQ(sn, ST_SUCCESS); EXPECT_EQ(n, 128); }
+        t_label(NULL);
     }
     rd_destroy(k); END();
 }

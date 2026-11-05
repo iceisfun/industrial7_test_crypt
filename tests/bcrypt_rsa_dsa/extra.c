@@ -89,7 +89,9 @@ TEST(rsa_extra_pss_all_hashes_roundtrip) {
         { BCRYPT_SHA1_ALGORITHM, kHash_sha1, 20 }, { BCRYPT_SHA256_ALGORITHM, kHash_sha256, 32 },
         { BCRYPT_SHA384_ALGORITHM, kHash_sha384, 48 }, { BCRYPT_SHA512_ALGORITHM, kHash_sha512, 64 } };
     for (int i = 0; prv && pub && i < 4; i++) {
-        BCRYPT_PSS_PADDING_INFO p = { t[i].alg, t[i].hl };
+        /* 1024-bit key: emLen 128, so the salt is at most 128 - hLen - 2 (SHA-512 cannot use a 64-byte salt: 0xc000000d) */
+        ULONG salt = t[i].hl <= 48 ? t[i].hl : 128 - t[i].hl - 2;
+        BCRYPT_PSS_PADDING_INFO p = { t[i].alg, salt };
         UCHAR sig[128]; ULONG n = 0;
         NTSTATUS s = U(BCryptSignHash)(prv, &p, (PUCHAR)t[i].h, t[i].hl, sig, 128, &n, BCRYPT_PAD_PSS);
         CHECKF(s == 0, "%ls PSS sign 0x%lx", t[i].alg, (unsigned long)s);

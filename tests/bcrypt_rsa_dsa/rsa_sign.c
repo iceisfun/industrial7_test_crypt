@@ -116,13 +116,14 @@ TEST(rsa_sign_pss_salt_length_must_match) {
     BEGIN();
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPUBLIC_MAGIC); CHECK(k);
     BCRYPT_PSS_PADDING_INFO p = { BCRYPT_SHA256_ALGORITHM, 20 };
-    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_32, 128, BCRYPT_PAD_PSS), ST_INVALID_SIGNATURE);
+    /* Win10: a PSS signature that does not decode with the given salt length is STATUS_INVALID_PARAMETER */
+    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_32, 128, BCRYPT_PAD_PSS), ST_INVALID_PARAMETER);
     p.cbSalt = 0;
-    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_32, 128, BCRYPT_PAD_PSS), ST_INVALID_SIGNATURE);
+    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_32, 128, BCRYPT_PAD_PSS), ST_INVALID_PARAMETER);
     p.cbSalt = 32;
-    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_0, 128, BCRYPT_PAD_PSS), ST_INVALID_SIGNATURE);
+    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_0, 128, BCRYPT_PAD_PSS), ST_INVALID_PARAMETER);
     p.cbSalt = 33;
-    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_32, 128, BCRYPT_PAD_PSS), ST_INVALID_SIGNATURE);
+    EXPECT_EQ(verify(k, &p, kHash_sha256, 32, kSigPss_sha256_32, 128, BCRYPT_PAD_PSS), ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_pss_hash_must_match) {
@@ -130,7 +131,7 @@ TEST(rsa_sign_pss_hash_must_match) {
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPUBLIC_MAGIC); CHECK(k);
     BCRYPT_PSS_PADDING_INFO p = { BCRYPT_SHA1_ALGORITHM, 32 };
     NTSTATUS s = verify(k, &p, kHash_sha1, 20, kSigPss_sha256_32, 128, BCRYPT_PAD_PSS);
-    EXPECT_EQ(s, ST_INVALID_SIGNATURE);
+    EXPECT_EQ(s, ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_pss_roundtrip_salt_lengths) {
@@ -145,8 +146,8 @@ TEST(rsa_sign_pss_roundtrip_salt_lengths) {
         if (s) continue;
         EXPECT_EQ(n, 128);
         EXPECT_EQ(verify(pub, &p, kHash_sha256, 32, sig, 128, BCRYPT_PAD_PSS), ST_SUCCESS);
-        sig[127] ^= 1;
-        EXPECT_EQ(verify(pub, &p, kHash_sha256, 32, sig, 128, BCRYPT_PAD_PSS), ST_INVALID_SIGNATURE);
+        sig[127] ^= 1;   /* breaks the 0xBC trailer: PSS decode failure is INVALID_PARAMETER on Win10 */
+        EXPECT_EQ(verify(pub, &p, kHash_sha256, 32, sig, 128, BCRYPT_PAD_PSS), ST_INVALID_PARAMETER);
     }
     rd_destroy(k); rd_destroy(pub); END();
 }
@@ -191,7 +192,7 @@ TEST(rsa_sign_pss_cross_padding_does_not_verify) {
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPUBLIC_MAGIC); CHECK(k);
     BCRYPT_PSS_PADDING_INFO pp = { BCRYPT_SHA256_ALGORITHM, 32 };
     BCRYPT_PKCS1_PADDING_INFO pk = { BCRYPT_SHA256_ALGORITHM };
-    EXPECT_EQ(verify(k, &pp, kHash_sha256, 32, kSigPkcs1_sha256, 128, BCRYPT_PAD_PSS), ST_INVALID_SIGNATURE);
+    EXPECT_EQ(verify(k, &pp, kHash_sha256, 32, kSigPkcs1_sha256, 128, BCRYPT_PAD_PSS), ST_INVALID_PARAMETER);
     EXPECT_EQ(verify(k, &pk, kHash_sha256, 32, kSigPss_sha256_32, 128, BCRYPT_PAD_PKCS1), ST_INVALID_SIGNATURE);
     rd_destroy(k); END();
 }
@@ -306,11 +307,15 @@ TEST(rsa_sign_flags_zero_rejected) {
     BCRYPT_KEY_HANDLE k = fx(BCRYPT_RSAPRIVATE_MAGIC); CHECK(k);
     BCRYPT_PKCS1_PADDING_INFO pi = { BCRYPT_SHA256_ALGORITHM };
     UCHAR sig[128]; ULONG n = 0;
+    /* Win10: flags 0 with a padding info still signs (the signature is not the PKCS#1 one); verify and NULL-info sign reject it */
     NTSTATUS s = sign(k, &pi, kHash_sha256, 32, sig, sizeof sig, &n, 0);
-    EXPECT_EQ(s, ST_INVALID_PARAMETER);
+    EXPECT_EQ(s, ST_SUCCESS);
+    EXPECT_EQ(n, 128);
+    t_note("flags-0 signature equals PKCS1 signature: %d", !memcmp(sig, kSigPkcs1_sha256, 128));
+    n = 0;
     EXPECT_EQ(sign(k, NULL, kHash_sha256, 32, sig, sizeof sig, &n, 0), ST_INVALID_PARAMETER);
-    s = verify(k, &pi, kHash_sha256, 32, kSigPkcs1_sha256, 128, 0);
-    CHECK(s == (NTSTATUS)ST_INVALID_SIGNATURE || s == (NTSTATUS)ST_INVALID_PARAMETER);
+    EXPECT_EQ(verify(k, &pi, kHash_sha256, 32, kSigPkcs1_sha256, 128, 0), ST_INVALID_PARAMETER);
+    EXPECT_EQ(verify(k, NULL, kHash_sha256, 32, kSigPkcs1_sha256, 128, 0), ST_INVALID_PARAMETER);
     rd_destroy(k); END();
 }
 TEST(rsa_sign_flag_combinations_rejected) {

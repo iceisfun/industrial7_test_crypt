@@ -52,7 +52,7 @@ TEST(rsa_keys_provider_key_lengths_rsa) {
     EXPECT_EQ(n, sizeof kl);
     EXPECT_EQ(kl.dwMinLength, 512);
     EXPECT_EQ(kl.dwMaxLength, 16384);
-    EXPECT_EQ(kl.dwIncrement, 64);
+    EXPECT_EQ(kl.dwIncrement, 8);
     n = 0;
     EXPECT_EQ(U(BCryptGetProperty)(a, BCRYPT_KEY_LENGTHS, (PUCHAR)&kl, sizeof kl - 1, &n, 0), ST_BUFFER_TOO_SMALL);
     EXPECT_EQ(n, sizeof kl);
@@ -65,7 +65,7 @@ TEST(rsa_keys_provider_key_lengths_sign_alg) {
     EXPECT_EQ(U(BCryptGetProperty)(a, BCRYPT_KEY_LENGTHS, (PUCHAR)&kl, sizeof kl, &n, 0), ST_SUCCESS);
     EXPECT_EQ(kl.dwMinLength, 512);
     EXPECT_EQ(kl.dwMaxLength, 16384);
-    EXPECT_EQ(kl.dwIncrement, 64);
+    EXPECT_EQ(kl.dwIncrement, 8);
     rd_closealg(a);
 }
 TEST(rsa_keys_provider_key_lengths_dsa) {
@@ -156,7 +156,7 @@ TEST(rsa_keys_gen_4096) {
     rd_closealg(a);
 }
 /* lengths that violate min/increment: the pipeline generate+finalize must fail somewhere */
-static const ULONG g_bad_bits[] = { 0, 1, 64, 256, 448, 511, 513, 1000, 1023, 1025, 2047, 4097, 16448 };
+static const ULONG g_bad_bits[] = { 0, 1, 64, 256, 448, 511, 513, 1023, 1025, 2047, 4097, 16448 };
 TEST(rsa_keys_gen_invalid_lengths_fail) {
     NEED_BCRYPT();
     BCRYPT_ALG_HANDLE a = rd_alg(BCRYPT_RSA_ALGORITHM); CHECK(a); if (!a) return;
@@ -165,8 +165,25 @@ TEST(rsa_keys_gen_invalid_lengths_fail) {
         NTSTATUS sg = U(BCryptGenerateKeyPair)(a, &k, bits, 0), sf = 0;
         if (sg == 0) { sf = U(BCryptFinalizeKeyPair)(k, 0); }
         CHECKF(sg != 0 || sf != 0, "bits %lu unexpectedly generated", bits);
+        EXPECT_EQ(sg, ST_INVALID_PARAMETER);
         t_note("RSA bits=%lu gen=0x%lx finalize=0x%lx", bits, (unsigned long)sg, (unsigned long)sf);
         if (sg == 0) rd_destroy(k);
+    }
+    rd_closealg(a);
+}
+/* the key-length increment is 8 bits, so 1000 is a valid size on Win10 */
+TEST(rsa_keys_gen_increment_8_bits) {
+    NEED_BCRYPT();
+    BCRYPT_ALG_HANDLE a = rd_alg(BCRYPT_RSA_ALGORITHM); CHECK(a); if (!a) return;
+    BCRYPT_KEY_HANDLE k = NULL;
+    EXPECT_EQ(U(BCryptGenerateKeyPair)(a, &k, 1000, 0), ST_SUCCESS);
+    if (k) {
+        EXPECT_EQ(U(BCryptFinalizeKeyPair)(k, 0), ST_SUCCESS);
+        NTSTATUS ps; EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 1000);
+        UCHAR *b; ULONG l;
+        EXPECT_EQ(rd_export(k, BCRYPT_RSAPUBLIC_BLOB, &b, &l), ST_SUCCESS);
+        if (b) { const BCRYPT_RSAKEY_BLOB *h = (const BCRYPT_RSAKEY_BLOB *)b; t_note("1000-bit key BitLength=%lu cbModulus=%lu", (unsigned long)h->BitLength, (unsigned long)h->cbModulus); free(b); }
+        rd_destroy(k);
     }
     rd_closealg(a);
 }
@@ -266,9 +283,9 @@ TEST(rsa_keys_set_property_after_finalize) {
     BCRYPT_KEY_HANDLE k = rd_gen(a, 512); CHECK(k); if (!k) { rd_closealg(a); return; }
     ULONG want = 1024;
     NTSTATUS s = U(BCryptSetProperty)(k, BCRYPT_KEY_LENGTH, (PUCHAR)&want, sizeof want, 0);
-    CHECK(s != 0);
-    t_note("SetProperty(KeyLength) after finalize: 0x%lx", (unsigned long)s);
-    NTSTATUS ps; EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 512);
+    /* Win10 accepts the set on a finalized key and the property reads back the new value */
+    EXPECT_EQ(s, ST_SUCCESS);
+    NTSTATUS ps; EXPECT_EQ(rd_getdw(k, BCRYPT_KEY_LENGTH, &ps), 1024);
     rd_destroy(k); rd_closealg(a);
 }
 TEST(rsa_keys_get_property_buffer_protocol) {
@@ -397,10 +414,16 @@ TEST(rsa_keys_export_size_protocol) {
         CHECK(need > 0 && need < sizeof buf);
         if (!need || need >= sizeof buf) continue;
         n = 0;
-        EXPECT_EQ(U(BCryptExportKey)(k, NULL, types[i], buf, need - 1, &n, 0), ST_BUFFER_TOO_SMALL);
+        t_label("%d", i);
+        NTSTATUS bts = (i >= 3) ? (NTSTATUS)0x80090028 : ST_BUFFER_TOO_SMALL;   /* legacy CAPI blobs report NTE_BUFFER_TOO_SMALL */   /* pinned per type from the probe */
+        NTSTATUS s1 = U(BCryptExportKey)(k, NULL, types[i], buf, need - 1, &n, 0);
+        t_note("export type %d cb=need-1: 0x%lx n=%lu need=%lu", i, (unsigned long)s1, n, need);
+        EXPECT_EQ(s1, bts);
         EXPECT_EQ(n, need);
         n = 0;
-        EXPECT_EQ(U(BCryptExportKey)(k, NULL, types[i], buf, 0, &n, 0), ST_BUFFER_TOO_SMALL);
+        s1 = U(BCryptExportKey)(k, NULL, types[i], buf, 0, &n, 0);
+        t_note("export type %d cb=0: 0x%lx n=%lu", i, (unsigned long)s1, n);
+        EXPECT_EQ(s1, bts);
         n = 0;
         EXPECT_EQ(U(BCryptExportKey)(k, NULL, types[i], buf, need, &n, 0), ST_SUCCESS);
         EXPECT_EQ(n, need);
@@ -659,7 +682,12 @@ TEST(rsa_keys_legacy_public_import_export) {
     BCRYPT_ALG_HANDLE a = rd_alg(BCRYPT_RSA_ALGORITHM); CHECK(a); if (!a) return;
     UCHAR in[1024]; ULONG il = capi_blob(in, 0);
     BCRYPT_KEY_HANDLE k = NULL;
-    EXPECT_EQ(rd_import(a, LEGACY_RSAPUBLIC_BLOB, in, il, &k), ST_SUCCESS); CHECK(k);
+    /* Win10 cannot import the legacy public blob type, but exports it */
+    EXPECT_EQ(rd_import(a, LEGACY_RSAPUBLIC_BLOB, in, il, &k), ST_NOT_SUPPORTED); CHECK(!k);
+    {
+        UCHAR cb[RD_RSA_BLOB_MAX]; ULONG cbl = rd_rsa_blob(cb, BCRYPT_RSAPUBLIC_MAGIC, 0);
+        EXPECT_EQ(rd_import(a, BCRYPT_RSAPUBLIC_BLOB, cb, cbl, &k), ST_SUCCESS); CHECK(k);
+    }
     if (k) {
         UCHAR *o; ULONG ol;
         EXPECT_EQ(rd_export(k, LEGACY_RSAPUBLIC_BLOB, &o, &ol), ST_SUCCESS);
