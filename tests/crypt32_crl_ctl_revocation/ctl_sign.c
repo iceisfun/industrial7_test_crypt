@@ -2,6 +2,10 @@
  * CertVerifyCTLUsage (offline). */
 #include "cc.h"
 
+static int ml_find(const BYTE *h, DWORD hn, const BYTE *n, DWORD nn) {
+    for (DWORD i = 0; i + nn <= hn; i++) if (!memcmp(h + i, n, nn)) return 1;
+    return 0;
+}
 static void rel(PCCTL_CONTEXT c) { if (c) U(CertFreeCTLContext)(c); }
 static void relc(PCCERT_CONTEXT c) { if (c) U(CertFreeCertificateContext)(c); }
 
@@ -329,31 +333,38 @@ TEST(ctlsorted_extension_present) {
     CHECK(U(CertFindExtension)(szOID_SORTED_CTL, c->pCtlInfo->cExtension, c->pCtlInfo->rgExtension) == NULL);
     rel(c); LocalFree(b);
 }
+/* Probed on Win10 22H2: CertFindSubjectInSortedCTL and CertEnumSubjectInSortedCTL reject the sorted CTLs produced by
+   CryptMsgEncodeAndSignCTL(CMSG_ENCODE_SORTED_CTL_FLAG) with E_INVALIDARG for every subject, flag (0..2), attribute
+   variant (none or one entry with attributes), hashed or plain identifiers, and for a CTL context obtained either from
+   CertCreateCTLContext or from a store. The outputs are cleared. */
 TEST(ctlsorted_find_each_subject) {
     REQUIRE(U(CertFindSubjectInSortedCTL));
     for (int hashed = 0; hashed < 2; hashed++) {
         MK m; mk_info(&m, NIDS, NULL);
         BYTE *b;
         PCCTL_CONTEXT c = sorted_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG | (hashed ? CMSG_ENCODE_HASHED_SUBJECT_IDENTIFIER_FLAG : 0), &b);
-        CHECKF(c != NULL, "hashed=%d", hashed);
-        if (!c) continue;
+        REQUIRE_NOTNULL(c);
+        t_label("hashed=%d", hashed);
         for (int i = 0; i < NIDS; i++) {
             CRYPT_DATA_BLOB id = { 20, m.ids[i] };
             CRYPT_DER_BLOB attrs = { 7, (BYTE *)7 };
             SET_ERR(0);
             BOOL ok = U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs);
-            CHECKF(ok, "hashed=%d id %d err 0x%lx", hashed, i, GetLastError());
+            CHECKF(!ok, "id %d", i);
+            EXPECT_ERR(CC_E_INVALIDARG);
+            CHECK(attrs.cbData == 0 && attrs.pbData == NULL);
         }
         BYTE other[20]; memset(other, 0xee, sizeof other);
         CRYPT_DATA_BLOB id = { 20, other };
         CRYPT_DER_BLOB attrs = { 7, (BYTE *)7 };
         SET_ERR(0);
-        CHECK(!U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs)); EXPECT_ERR(CC_E_NOT_FOUND);
-        CHECK(attrs.cbData == 0 && attrs.pbData == NULL); /* cleared on entry */
+        CHECK(!U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs)); EXPECT_ERR(CC_E_INVALIDARG);
+        CHECK(attrs.cbData == 0 && attrs.pbData == NULL);
+        t_label(NULL);
         rel(c); LocalFree(b);
     }
 }
-TEST(ctlsorted_find_returns_attributes) {
+TEST(ctlsorted_find_with_attributes_and_flags) {
     REQUIRE(U(CertFindSubjectInSortedCTL));
     MK m; mk_info(&m, NIDS, NULL);
     static const BYTE v1[] = { 0x04, 0x03, 'a', 'b', 'c' };
@@ -362,16 +373,18 @@ TEST(ctlsorted_find_returns_attributes) {
     m.ent[2].cAttribute = 1; m.ent[2].rgAttribute = &at;
     BYTE *b;
     PCCTL_CONTEXT c = sorted_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG, &b);
-    REQUIRE(c);
+    REQUIRE_NOTNULL(c);
     CRYPT_DATA_BLOB id = { 20, m.ids[2] };
-    CRYPT_DER_BLOB attrs = { 0, NULL };
-    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs));
-    CHECK(attrs.cbData > 0 && attrs.pbData != NULL);
-    if (attrs.cbData) CHECK(attrs.pbData[0] == 0x31); /* SET OF Attribute */
-    id.pbData = m.ids[3];
-    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, &attrs));
-    CHECK(attrs.cbData == 0);
-    CHECK(U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, NULL));
+    for (DWORD fl = 0; fl < 3; fl++) {
+        CRYPT_DER_BLOB attrs = { 9, (BYTE *)9 };
+        t_label("flags %lu", fl);
+        SET_ERR(0);
+        CHECK(!U(CertFindSubjectInSortedCTL)(&id, c, fl, NULL, &attrs)); EXPECT_ERR(CC_E_INVALIDARG);
+        CHECK(attrs.cbData == 0 && attrs.pbData == NULL);
+    }
+    t_label(NULL);
+    SET_ERR(0);
+    CHECK(!U(CertFindSubjectInSortedCTL)(&id, c, 0, NULL, NULL)); EXPECT_ERR(CC_E_INVALIDARG);
     rel(c); LocalFree(b);
 }
 TEST(ctlsorted_enum_all) {
@@ -380,23 +393,16 @@ TEST(ctlsorted_enum_all) {
         MK m; mk_info(&m, NIDS, NULL);
         BYTE *b;
         PCCTL_CONTEXT c = sorted_ctl(&m, CMSG_ENCODE_SORTED_CTL_FLAG | (hashed ? CMSG_ENCODE_HASHED_SUBJECT_IDENTIFIER_FLAG : 0), &b);
-        CHECK(c != NULL);
-        if (!c) continue;
-        int seen[NIDS] = { 0 }, n = 0;
+        REQUIRE_NOTNULL(c);
         void *next = NULL;
         CRYPT_DER_BLOB id, at;
-        while (U(CertEnumSubjectInSortedCTL)(c, &next, &id, &at)) {
-            n++;
-            CHECK(id.cbData == 0x14 || id.cbData == 20 || id.cbData > 0);
-            for (int i = 0; i < NIDS; i++) {
-                if (id.cbData == 20 && !memcmp(id.pbData, m.ids[i], 20)) seen[i]++;
-            }
-            if (n > 20) break;
-        }
-        EXPECT_EQ(n, NIDS);
+        t_label("hashed=%d", hashed);
+        SET_ERR(0);
+        CHECK(!U(CertEnumSubjectInSortedCTL)(c, &next, &id, &at)); EXPECT_ERR(CC_E_INVALIDARG);
         CHECK(next == NULL);
-        if (!hashed) for (int i = 0; i < NIDS; i++) EXPECT_EQ(seen[i], 1);
-        else t_note("hashed subject identifiers: %d of %d enumerated ids equal the plain ids", seen[0] + seen[1] + seen[2] + seen[3] + seen[4] + seen[5], NIDS);
+        SET_ERR(0);
+        CHECK(!U(CertEnumSubjectInSortedCTL)(c, &next, &id, NULL)); EXPECT_ERR(CC_E_INVALIDARG);
+        t_label(NULL);
         rel(c); LocalFree(b);
     }
 }
@@ -431,7 +437,7 @@ TEST(ctlsorted_enum_truncated_cursor_rejected) {
     void *next = (void *)(ULONG_PTR)0x10; /* not inside the sorted subject area */
     CRYPT_DER_BLOB id, at;
     SET_ERR(0);
-    CHECK(!U(CertEnumSubjectInSortedCTL)(c, &next, &id, &at)); EXPECT_ERR(CC_E_NOT_FOUND);
+    CHECK(!U(CertEnumSubjectInSortedCTL)(c, &next, &id, &at)); EXPECT_ERR(CC_E_INVALIDARG);
     CHECK(next == NULL);
     rel(c); LocalFree(b);
 }
@@ -824,14 +830,32 @@ TEST(ctlverify_bad_status_size) {
     CHECK(!U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st)); EXPECT_ERR(CC_E_INVALIDARG);
     relc(l1); vu_done(&v);
 }
+/* Win10: a non-NULL usage list makes CertVerifyCTLUsage stop with NO_VERIFY_USAGE_CHECK (no usage verification handler
+   is registered for the probed OIDs), whether or not the CTL lists the usage. The CTL lookup itself is exercised with a
+   NULL usage list. */
+#define CC_E_NO_VERIFY_USAGE_CHECK ((DWORD)0x80092028)
+#define CC_E_VERIFY_USAGE_OFFLINE  ((DWORD)0x80092029)
+#define CC_E_NOT_IN_CTL            ((DWORD)0x8009202a)
+#define CC_E_NO_TRUSTED_SIGNER     ((DWORD)0x8009202b)
+static BOOL vu_call(VU *v, PCCERT_CONTEXT c, DWORD flags) {
+    if (v->ctl) { rel(v->ctl); v->ctl = NULL; }
+    if (v->signer) { relc(v->signer); v->signer = NULL; }
+    SET_ERR(0);
+    return U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)c, NULL, flags, &v->para, &v->st);
+}
+static void vu_expect_fail(VU *v, BOOL ok, DWORD err, const char *what) {
+    CHECKF(!ok, "%s: succeeded", what);
+    CHECKF(GetLastError() == err, "%s: last error 0x%lx want 0x%lx", what, GetLastError(), err);
+    CHECKF(v->st.dwError == err, "%s: status.dwError 0x%lx want 0x%lx", what, v->st.dwError, err);
+    CHECKF(v->ctl == NULL && v->signer == NULL, "%s: ctl/signer returned on failure", what);
+}
 TEST(ctlverify_trusted_signer_success) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed)));
+    VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed)), 1);
     PCCERT_CONTEXT l2 = cc_cert(VEC(v_cert_1002));
-    REQUIRE(l2);
-    SET_ERR(0);
-    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l2, &v.usage, VF, &v.para, &v.st);
+    REQUIRE_NOTNULL(l2);
+    BOOL ok = vu_call(&v, l2, VF);
     CHECKF(ok, "err 0x%lx status.dwError 0x%lx", GetLastError(), v.st.dwError);
     if (ok) {
         EXPECT_EQ(v.st.dwError, 0);
@@ -841,7 +865,16 @@ TEST(ctlverify_trusted_signer_success) {
         CHECK(v.signer != NULL);
         if (v.signer) CHECK(v.signer->cbCertEncoded == sizeof v_signer && !memcmp(v.signer->pbCertEncoded, v_signer, sizeof v_signer));
         EXPECT_EQ(v.st.dwSignerIndex, 0);
+        EXPECT_EQ(v.st.dwFlags, 0);
     }
+    /* no CTL-update flag, no trusted-signers flag: the same result */
+    ok = vu_call(&v, l2, 0);
+    CHECKF(ok, "flags 0: err 0x%lx", GetLastError());
+    if (ok) EXPECT_EQ(v.st.dwCtlEntryIndex, 1);
+    /* the signer store is not consulted without the trusted-signers flag */
+    v.para.cSignerStore = 0;
+    ok = vu_call(&v, l2, 0);
+    CHECKF(ok, "no signer store: err 0x%lx", GetLastError());
     relc(l2); vu_done(&v);
 }
 TEST(ctlverify_entry_index_per_subject) {
@@ -850,10 +883,11 @@ TEST(ctlverify_entry_index_per_subject) {
     const BYTE *certs[3] = { v_cert_1001, v_cert_1002, v_cert_1003 };
     const DWORD ns[3] = { sizeof v_cert_1001, sizeof v_cert_1002, sizeof v_cert_1003 };
     for (DWORD i = 0; i < 3; i++) {
-        VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed)));
+        VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed)), 1);
         PCCERT_CONTEXT c = cc_cert(certs[i], ns[i]);
-        BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)c, &v.usage, VF, &v.para, &v.st);
-        CHECKF(ok, "subject %lu", i);
+        REQUIRE_NOTNULL(c);
+        BOOL ok = vu_call(&v, c, VF);
+        CHECKF(ok, "subject %lu err 0x%lx", i, GetLastError());
         if (ok) EXPECT_EQ(v.st.dwCtlEntryIndex, i);
         relc(c); vu_done(&v);
     }
@@ -861,96 +895,120 @@ TEST(ctlverify_entry_index_per_subject) {
 TEST(ctlverify_subject_not_in_ctl) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed)));
+    VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed)), 1);
     PCCERT_CONTEXT r0 = cc_cert(VEC(v_cert_r0));
-    REQUIRE(r0);
-    SET_ERR(0);
-    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)r0, &v.usage, VF, &v.para, &v.st);
-    CHECK(!ok);
-    t_note("subject not listed: last error 0x%lx status.dwError 0x%lx", GetLastError(), v.st.dwError);
-    CHECK(v.st.dwError != 0);
-    CHECK(v.ctl == NULL);
+    REQUIRE_NOTNULL(r0);
+    static const DWORD fl[] = { 0, CERT_VERIFY_INHIBIT_CTL_UPDATE_FLAG, VF };
+    for (unsigned i = 0; i < 3; i++) {
+        t_label("flags 0x%lx", fl[i]);
+        BOOL ok = vu_call(&v, r0, fl[i]);
+        vu_expect_fail(&v, ok, CC_E_NOT_IN_CTL, "subject not listed");
+    }
+    t_label(NULL);
     relc(r0); vu_done(&v);
 }
 TEST(ctlverify_empty_ctl_store) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, NULL, 0));
+    VU v; REQUIRE_EQ(vu_init(&v, NULL, 0), 1);
     PCCERT_CONTEXT l1 = cc_cert(VEC(v_cert_1001));
-    REQUIRE(l1);
-    SET_ERR(0);
-    CHECK(!U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st));
-    t_note("no CTL in store: last error 0x%lx status.dwError 0x%lx", GetLastError(), v.st.dwError);
-    CHECK(v.st.dwError != 0);
+    REQUIRE_NOTNULL(l1);
+    BOOL ok = vu_call(&v, l1, VF);
+    vu_expect_fail(&v, ok, CC_E_NO_VERIFY_USAGE_CHECK, "no CTL in the store");
+    /* no CTL store at all gives the same code */
+    v.para.cCtlStore = 0;
+    ok = vu_call(&v, l1, VF);
+    vu_expect_fail(&v, ok, CC_E_NO_VERIFY_USAGE_CHECK, "no CTL store");
     relc(l1); vu_done(&v);
 }
-TEST(ctlverify_usage_not_in_ctl) {
+TEST(ctlverify_usage_list_needs_usage_check) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed)));
-    v.oid[0] = (LPSTR)"1.3.6.1.5.5.7.3.9";
+    static const char *us[] = { "1.3.6.1.5.5.7.3.3", "1.3.6.1.5.5.7.3.1", "1.3.6.1.5.5.7.3.9", "1.3.6.1.4.1.311.10.3.9", "1.2.3.4" };
     PCCERT_CONTEXT l1 = cc_cert(VEC(v_cert_1001));
-    REQUIRE(l1);
+    REQUIRE_NOTNULL(l1);
+    for (unsigned i = 0; i < 5; i++) {
+        VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed)), 1);
+        v.oid[0] = (LPSTR)us[i];
+        t_label("usage %s", us[i]);
+        SET_ERR(0);
+        BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st);
+        vu_expect_fail(&v, ok, CC_E_NO_VERIFY_USAGE_CHECK, "non-NULL usage list");
+        vu_done(&v);
+    }
+    t_label(NULL);
+    /* an empty usage list is also a usage list */
+    VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed)), 1);
+    v.usage.cUsageIdentifier = 0;
     SET_ERR(0);
-    CHECK(!U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st));
-    t_note("usage not covered: last error 0x%lx status.dwError 0x%lx", GetLastError(), v.st.dwError);
-    CHECK(v.st.dwError != 0);
-    relc(l1); vu_done(&v);
+    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st);
+    vu_expect_fail(&v, ok, CC_E_NO_VERIFY_USAGE_CHECK, "empty usage list");
+    vu_done(&v); relc(l1);
 }
 TEST(ctlverify_untrusted_signer_store) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed)));
+    VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed)), 1);
     /* a signer store that does not contain the signer: with the trusted-signers flag the CTL cannot be trusted */
     HCERTSTORE empty = cc_store();
     v.para.rghSignerStore = &empty;
     PCCERT_CONTEXT l1 = cc_cert(VEC(v_cert_1001));
-    REQUIRE(l1);
-    SET_ERR(0);
-    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st);
-    CHECK(!ok);
-    t_note("signer not in signer store: last error 0x%lx status.dwError 0x%lx", GetLastError(), v.st.dwError);
-    CHECK(v.st.dwError != 0);
+    REQUIRE_NOTNULL(l1);
+    BOOL ok = vu_call(&v, l1, VF);
+    vu_expect_fail(&v, ok, CC_E_NO_TRUSTED_SIGNER, "signer not in signer store");
+    ok = vu_call(&v, l1, 0);   /* without the trusted-signers flag the signer store is not required */
+    CHECKF(ok, "flags 0: err 0x%lx", GetLastError());
     relc(l1); cc_close(empty); vu_done(&v);
 }
 TEST(ctlverify_bad_signature_ctl) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed_badsig)));
+    VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed_badsig)), 1);
     PCCERT_CONTEXT l1 = cc_cert(VEC(v_cert_1001));
-    REQUIRE(l1);
-    SET_ERR(0);
-    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st);
-    CHECK(!ok);
-    t_note("CTL with a corrupt signature: last error 0x%lx status.dwError 0x%lx", GetLastError(), v.st.dwError);
-    CHECK(v.st.dwError != 0);
+    REQUIRE_NOTNULL(l1);
+    static const DWORD fl[] = { 0, VF };
+    for (unsigned i = 0; i < 2; i++) {
+        t_label("flags 0x%lx", fl[i]);
+        BOOL ok = vu_call(&v, l1, fl[i]);
+        vu_expect_fail(&v, ok, CC_E_NO_TRUSTED_SIGNER, "CTL with a corrupt signature");
+    }
+    t_label(NULL);
     relc(l1); vu_done(&v);
 }
 TEST(ctlverify_expired_ctl_time_check) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed_expired)));
+    VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed_expired)), 1);
     PCCERT_CONTEXT l1 = cc_cert(VEC(v_cert_1001));
-    REQUIRE(l1);
-    SET_ERR(0);
-    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, CERT_VERIFY_INHIBIT_CTL_UPDATE_FLAG | CERT_VERIFY_TRUSTED_SIGNERS_FLAG, &v.para, &v.st);
-    t_note("expired CTL with time check: ret=%d last error 0x%lx status.dwError 0x%lx dwFlags 0x%lx", ok, GetLastError(), v.st.dwError, v.st.dwFlags);
-    if (v.ctl) { rel(v.ctl); v.ctl = NULL; }
-    if (v.signer) { relc(v.signer); v.signer = NULL; }
-    SET_ERR(0);
-    ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_CERT_SUBJECT_TYPE, (void *)l1, &v.usage, VF, &v.para, &v.st);
+    PCCERT_CONTEXT l3 = cc_cert(VEC(v_cert_1003));
+    REQUIRE_NOTNULL(l1); REQUIRE_NOTNULL(l3);
+    /* with the time check the expired CTL is unusable (an update would be needed) */
+    static const DWORD tc[] = { 0, CERT_VERIFY_INHIBIT_CTL_UPDATE_FLAG, CERT_VERIFY_INHIBIT_CTL_UPDATE_FLAG | CERT_VERIFY_TRUSTED_SIGNERS_FLAG };
+    for (unsigned i = 0; i < 3; i++) {
+        t_label("flags 0x%lx", tc[i]);
+        BOOL ok = vu_call(&v, l1, tc[i]);
+        vu_expect_fail(&v, ok, CC_E_VERIFY_USAGE_OFFLINE, "expired CTL, listed subject");
+        ok = vu_call(&v, l3, tc[i]);
+        vu_expect_fail(&v, ok, CC_E_VERIFY_USAGE_OFFLINE, "expired CTL, unlisted subject");
+    }
+    t_label(NULL);
+    /* without the time check the CTL is used; an unlisted subject is NOT_IN_CTL */
+    BOOL ok = vu_call(&v, l1, VF);
     CHECKF(ok, "no-time-check: err 0x%lx status 0x%lx", GetLastError(), v.st.dwError);
-    relc(l1); vu_done(&v);
+    if (ok) EXPECT_EQ(v.st.dwCtlEntryIndex, 0);
+    ok = vu_call(&v, l3, VF);
+    vu_expect_fail(&v, ok, CC_E_NOT_IN_CTL, "no-time-check, unlisted subject");
+    relc(l1); relc(l3); vu_done(&v);
 }
 TEST(ctlverify_any_subject_type) {
     REQUIRE(U(CertVerifyCTLUsage));
     NOWINE("unimplemented in the emulator");
-    VU v; REQUIRE(vu_init(&v, VEC(v_ctl_signed)));
+    VU v; REQUIRE_EQ(vu_init(&v, VEC(v_ctl_signed)), 1);
     CTL_ANY_SUBJECT_INFO info; memset(&info, 0, sizeof info);
     info.SubjectAlgorithm.pszObjId = (LPSTR)"1.3.14.3.2.26";
     info.SubjectIdentifier.cbData = 20; info.SubjectIdentifier.pbData = (BYTE *)v_sha1_1003;
     SET_ERR(0);
-    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, &v.usage, VF, &v.para, &v.st);
+    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, NULL, VF, &v.para, &v.st);
     CHECKF(ok, "err 0x%lx status 0x%lx", GetLastError(), v.st.dwError);
     if (ok) EXPECT_EQ(v.st.dwCtlEntryIndex, 2);
     vu_done(&v);
@@ -961,12 +1019,12 @@ TEST(ctlverify_runtime_signed_ctl) {
     MK m; mk_info(&m, 4, NULL);
     DWORD cb = 0;
     BYTE *b = cc_sign_ctl(&m.info, 0, &cb);
-    REQUIRE(b);
-    VU v; REQUIRE(vu_init(&v, b, cb));
+    REQUIRE_NOTNULL(b);
+    VU v; REQUIRE_EQ(vu_init(&v, b, cb), 1);
     CTL_ANY_SUBJECT_INFO info; memset(&info, 0, sizeof info);
     info.SubjectIdentifier.cbData = 20; info.SubjectIdentifier.pbData = m.ids[3];
     SET_ERR(0);
-    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, &v.usage, VF, &v.para, &v.st);
+    BOOL ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, NULL, VF, &v.para, &v.st);
     CHECKF(ok, "err 0x%lx status 0x%lx", GetLastError(), v.st.dwError);
     if (ok) {
         EXPECT_EQ(v.st.dwError, 0);
@@ -977,31 +1035,51 @@ TEST(ctlverify_runtime_signed_ctl) {
     if (v.ctl) { rel(v.ctl); v.ctl = NULL; }
     if (v.signer) { relc(v.signer); v.signer = NULL; }
     v.para.ListIdentifier.cbData = 7; v.para.ListIdentifier.pbData = (BYTE *)"mk-list";
-    ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, &v.usage, VF, &v.para, &v.st);
-    CHECK(ok);
+    SET_ERR(0);
+    ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, NULL, VF, &v.para, &v.st);
+    CHECKF(ok, "matching list identifier: err 0x%lx", GetLastError());
     if (v.ctl) { rel(v.ctl); v.ctl = NULL; }
     if (v.signer) { relc(v.signer); v.signer = NULL; }
     v.para.ListIdentifier.pbData = (BYTE *)"other-l";
     SET_ERR(0);
-    ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, &v.usage, VF, &v.para, &v.st);
-    CHECK(!ok);
+    ok = U(CertVerifyCTLUsage)(CC_X509P7, CTL_ANY_SUBJECT_TYPE, &info, NULL, VF, &v.para, &v.st);
+    vu_expect_fail(&v, ok, CC_E_NO_VERIFY_USAGE_CHECK, "other list identifier");
     vu_done(&v); LocalFree(b);
 }
 
-TEST(ctlsign_computed_hash_covers_whole_ctl) {
-    /* the message digest of a CTL SignedData is taken over the complete DER of the CTL */
+TEST(ctlsign_computed_hash_covers_signed_attributes) {
+    /* With authenticated attributes, CMSG_COMPUTED_HASH_PARAM is the hash of the DER SET OF signed attributes (the data
+       that is signed); the attribute set contains the digest of the CTL content octets (outer tag and length excluded). */
     REQUIRE(U(CryptMsgOpenToDecode));
     HCRYPTMSG h = U(CryptMsgOpenToDecode)(CC_X509P7, 0, 0, 0, NULL, NULL);
-    REQUIRE(h);
+    REQUIRE_NOTNULL(h);
     CHECK(U(CryptMsgUpdate)(h, VEC(v_ctl_signed), TRUE));
     BYTE got[64]; DWORD cb = sizeof got;
     BOOL ok = U(CryptMsgGetParam)(h, CMSG_COMPUTED_HASH_PARAM, 0, got, &cb);
     CHECK(ok);
     if (ok) {
+        /* signerInfo: ... digestAlgorithm(sha256) [0] IMPLICIT signedAttrs ... */
+        static const BYTE alg[] = { 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00 };
+        const BYTE *last = NULL;
+        for (DWORD i = 0; i + sizeof alg < sizeof v_ctl_signed; i++) if (!memcmp(v_ctl_signed + i, alg, sizeof alg)) last = v_ctl_signed + i;
+        REQUIRE_NOTNULL(last);
+        const BYTE *at = last + sizeof alg;
+        CHECK(at[0] == 0xa0);
+        DWORD hdr = 2, len = at[1];
+        if (len & 0x80) { DWORD nb = len & 0x7f; len = 0; for (DWORD i = 0; i < nb; i++) len = (len << 8) | at[2 + i]; hdr = 2 + nb; }
+        BYTE *set = LocalAlloc(LPTR, hdr + len);
+        REQUIRE_NOTNULL(set);
+        memcpy(set, at, hdr + len); set[0] = 0x31;
         BYTE want[64]; DWORD wcb = sizeof want;
-        CHECK(cc_hash(CALG_SHA_256, VEC(v_ctl_content), want, &wcb));
+        CHECK(cc_hash(CALG_SHA_256, set, hdr + len, want, &wcb));
         EXPECT_EQ(cb, 32);
         CHECK(cb == wcb && !memcmp(got, want, cb));
+        /* the digest attribute value: SHA-256 of the CTL contents octets */
+        DWORD ch = 2 + ((v_ctl_content[1] & 0x80) ? (v_ctl_content[1] & 0x7f) : 0);
+        wcb = sizeof want;
+        CHECK(cc_hash(CALG_SHA_256, v_ctl_content + ch, sizeof v_ctl_content - ch, want, &wcb));
+        CHECK(ml_find(set, hdr + len, want, wcb));
+        LocalFree(set);
     }
     U(CryptMsgClose)(h);
 }

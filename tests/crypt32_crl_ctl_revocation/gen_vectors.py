@@ -156,7 +156,9 @@ def signed_msg(ctlder, ctype="1.3.6.1.4.1.311.10.1", certs=True, octet=False):
     sha256 = SEQ(OID("2.16.840.1.101.3.4.2.1"), NUL())
     inner = OCT(ctlder) if octet else ctlder
     ci = SEQ(OID(ctype), T(0xa0, inner))
-    digest = hashlib.sha256(inner if octet is False else ctlder).digest()
+    # PKCS#7 digests the contents octets of the content value (tag and length of the outer SEQUENCE excluded)
+    def contents(d): return d[2:] if d[1] < 0x80 else d[2 + (d[1] & 0x7f):]
+    digest = hashlib.sha256(contents(inner) if octet is False else ctlder).digest()
     attrs = [SEQ(OID("1.2.840.113549.1.9.3"), SET(OID(ctype))), SEQ(OID("1.2.840.113549.1.9.4"), SET(OCT(digest)))]
     attrs_set = SET(*attrs)
     sig = sk.sign(attrs_set, padding.PKCS1v15(), hashes.SHA256())

@@ -695,7 +695,7 @@ TEST(ctlser_layout_and_roundtrip) {
     cb2 = cb;
     CHECK(U(CertSerializeCTLStoreElement)(c, 0, buf, &cb2));
     DWORD *h = (DWORD *)buf;
-    EXPECT_EQ(h[0], CC_PROP_CTL); EXPECT_EQ(h[1], 1); EXPECT_EQ(h[2], sizeof v_ctl_signed);
+    EXPECT_EQ(h[0], CC_PROP_CTL); EXPECT_EQ(h[1], 0x10001); EXPECT_EQ(h[2], sizeof v_ctl_signed);
     CHECK(!memcmp(buf + 12, v_ctl_signed, sizeof v_ctl_signed));
     HCERTSTORE s = cc_store(); REQUIRE(s);
     DWORD type = 0; const void *ctx = NULL;

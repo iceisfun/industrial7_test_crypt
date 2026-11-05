@@ -42,21 +42,40 @@ int cc_props_ctl(PCCTL_CONTEXT c) {
     return n;
 }
 
+/* Win10: CryptMsg signing with SHA-2 fails (NTE_BAD_ALGID) when the key lives in a VERIFYCONTEXT provider, so the
+   signing key is imported into a uniquely named temporary container that cc_signer_free deletes. */
+#define CC_MAXPROV 8
+static struct { HCRYPTPROV p; wchar_t name[96]; } g_provs[CC_MAXPROV];
 BOOL cc_signer(HCRYPTPROV *prov, PCCERT_CONTEXT *cert) {
-    HCRYPTKEY key = 0;
+    HCRYPTKEY key = 0; int slot = -1;
     *prov = 0; *cert = NULL;
-    if (!U(CryptAcquireContextW)(prov, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) return FALSE;
+    for (int i = 0; i < CC_MAXPROV; i++) if (!g_provs[i].p) { slot = i; break; }
+    if (slot < 0) return FALSE;
+    const wchar_t *nm = t_unique_w("k");
+    if (!U(CryptAcquireContextW)(prov, nm, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_NEWKEYSET)) { *prov = 0; return FALSE; }
     if (!U(CryptImportKey)(*prov, v_signer_keyblob, sizeof(v_signer_keyblob), 0, 0, &key)) {
-        U(CryptReleaseContext)(*prov, 0); *prov = 0; return FALSE;
+        HCRYPTPROV d = 0;
+        U(CryptReleaseContext)(*prov, 0); *prov = 0;
+        U(CryptAcquireContextW)(&d, nm, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
+        return FALSE;
     }
     U(CryptDestroyKey)(key);
+    g_provs[slot].p = *prov; wcsncpy(g_provs[slot].name, nm, 95);
     *cert = cc_cert(VEC(v_signer));
-    if (!*cert) { U(CryptReleaseContext)(*prov, 0); *prov = 0; return FALSE; }
+    if (!*cert) { cc_signer_free(*prov, NULL); *prov = 0; return FALSE; }
     return TRUE;
 }
 void cc_signer_free(HCRYPTPROV prov, PCCERT_CONTEXT cert) {
     if (cert) U(CertFreeCertificateContext)(cert);
-    if (prov) U(CryptReleaseContext)(prov, 0);
+    if (!prov) return;
+    for (int i = 0; i < CC_MAXPROV; i++) if (g_provs[i].p == prov) {
+        HCRYPTPROV d = 0;
+        g_provs[i].p = 0;
+        U(CryptReleaseContext)(prov, 0);
+        U(CryptAcquireContextW)(&d, g_provs[i].name, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
+        return;
+    }
+    U(CryptReleaseContext)(prov, 0);
 }
 BYTE *cc_sign_ctl(PCTL_INFO info, DWORD flags, DWORD *cb) {
     HCRYPTPROV prov; PCCERT_CONTEXT sc; BYTE *buf = NULL;

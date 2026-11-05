@@ -321,45 +321,67 @@ TEST(rev_self_signed_ca_without_para) {
     rel(ca);
 }
 
-/* ---- several contexts: which one is reported ---- */
-TEST(rev_multiple_contexts_first_revoked) {
-    REQUIRE(U(CertVerifyRevocation));
-    CTX c; REQUIRE(cx_init(&c, VEC(v_crl_basic), NULL, 0));
-    PCCERT_CONTEXT a = cc_cert(VEC(v_cert_1001)), b = cc_cert(VEC(v_cert_1003));
-    REQUIRE(a && b);
-    void *ctxs[2] = { (void *)a, (void *)b };
-    RS s; st_init(&s);
-    CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 2, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s));
-    EXPECT_EQ(s.dwError, CC_E_REVOKED);
-    EXPECT_EQ(s.dwIndex, 0);
-    rel(a); rel(b); cx_done(&c);
-}
-TEST(rev_multiple_contexts_second_revoked) {
-    REQUIRE(U(CertVerifyRevocation));
-    CTX c; REQUIRE(cx_init(&c, VEC(v_crl_basic), NULL, 0));
-    PCCERT_CONTEXT a = cc_cert(VEC(v_cert_1003)), b = cc_cert(VEC(v_cert_1001));
-    REQUIRE(a && b);
-    void *ctxs[2] = { (void *)a, (void *)b };
-    RS s; st_init(&s);
-    SET_ERR(0);
-    CHECK(!U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 2, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s));
-    EXPECT_EQ(s.dwError, CC_E_REVOKED);
-    EXPECT_EQ(s.dwIndex, 1);
-    EXPECT_ERR(CC_E_REVOKED);
-    rel(a); rel(b); cx_done(&c);
-}
-TEST(rev_multiple_contexts_all_good) {
-    REQUIRE(U(CertVerifyRevocation));
-    CTX c; REQUIRE(cx_init(&c, VEC(v_crl_basic), NULL, 0));
-    PCCERT_CONTEXT a = cc_cert(VEC(v_cert_1003)), b = cc_cert(VEC(v_cert_r0));
-    REQUIRE(a && b);
+/* ---- several contexts ----
+ * Probed on Win10 22H2 with a base CRL in the CRL store and CERT_VERIFY_CACHE_ONLY_BASED_REVOCATION: an array of
+ * several leaf certificates is not checked one by one. Whatever the order and whether or not pIssuerCert is set, the
+ * result is REVOCATION_OFFLINE at index 0 with no reason, even when the first certificate is listed in the CRL. The
+ * array is treated as a chain, so only an array whose first element is the issuer reaches the CRL check. */
+static void multi_expect_offline(const BYTE *p1, DWORD n1, const BYTE *p2, DWORD n2, const char *what) {
+    CTX c; REQUIRE_EQ(cx_init(&c, VEC(v_crl_basic), NULL, 0), 1);
+    PCCERT_CONTEXT a = cc_cert(p1, n1), b = cc_cert(p2, n2);
+    REQUIRE_NOTNULL(a); REQUIRE_NOTNULL(b);
     void *ctxs[2] = { (void *)a, (void *)b };
     RS s; st_init(&s);
     SET_ERR(0);
     BOOL ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 2, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
-    CHECKF(ok, "err 0x%lx index %lu", s.dwError, s.dwIndex);
-    if (ok) { EXPECT_EQ(s.dwError, 0); EXPECT_EQ(s.dwIndex, 0); }
+    CHECKF(!ok, "%s", what);
+    EXPECT_EQ(s.dwError, CC_E_REVOCATION_OFFLINE);
+    EXPECT_EQ(s.dwIndex, 0);
+    EXPECT_EQ(s.dwReason, 0);
+    EXPECT_ERR(CC_E_REVOCATION_OFFLINE);
     rel(a); rel(b); cx_done(&c);
+}
+TEST(rev_multiple_contexts_first_revoked) {
+    REQUIRE(U(CertVerifyRevocation));
+    multi_expect_offline(VEC(v_cert_1001), VEC(v_cert_1003), "revoked first, good second");
+}
+TEST(rev_multiple_contexts_second_revoked) {
+    REQUIRE(U(CertVerifyRevocation));
+    multi_expect_offline(VEC(v_cert_1003), VEC(v_cert_1001), "good first, revoked second");
+}
+TEST(rev_multiple_contexts_all_good) {
+    REQUIRE(U(CertVerifyRevocation));
+    multi_expect_offline(VEC(v_cert_1003), VEC(v_cert_r0), "two good certificates");
+}
+TEST(rev_multiple_contexts_issuer_first) {
+    REQUIRE(U(CertVerifyRevocation));
+    CTX c; REQUIRE_EQ(cx_init(&c, VEC(v_crl_basic), NULL, 0), 1);
+    PCCERT_CONTEXT leaf = cc_cert(VEC(v_cert_1001));
+    REQUIRE_NOTNULL(leaf);
+    void *ctxs[2] = { (void *)c.ca1, (void *)leaf };
+    RS s; st_init(&s);
+    SET_ERR(0);
+    /* issuer first, pIssuerCert set: the revoked leaf at index 1 is found */
+    BOOL ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 2, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
+    CHECK(!ok);
+    EXPECT_EQ(s.dwError, CC_E_REVOKED); EXPECT_EQ(s.dwIndex, 1); EXPECT_EQ(s.dwReason, CRL_REASON_KEY_COMPROMISE);
+    EXPECT_ERR(CC_E_REVOKED);
+    /* without pIssuerCert the CRL cannot be tied to an issuer: offline, reported at index 1 */
+    c.p.pIssuerCert = NULL;
+    st_init(&s);
+    SET_ERR(0);
+    ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 2, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
+    CHECK(!ok);
+    EXPECT_EQ(s.dwError, CC_E_REVOCATION_OFFLINE); EXPECT_EQ(s.dwIndex, 1); EXPECT_EQ(s.dwReason, 0);
+    /* leaf first, issuer second: offline at index 0 */
+    void *rev[2] = { (void *)leaf, (void *)c.ca1 };
+    c.p.pIssuerCert = c.ca1;
+    st_init(&s);
+    SET_ERR(0);
+    ok = U(CertVerifyRevocation)(CC_X509P7, CERT_CONTEXT_REVOCATION_TYPE, 2, rev, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
+    CHECK(!ok);
+    EXPECT_EQ(s.dwError, CC_E_REVOCATION_OFFLINE); EXPECT_EQ(s.dwIndex, 0); EXPECT_EQ(s.dwReason, 0);
+    rel(leaf); cx_done(&c);
 }
 
 /* ---- delta CRL ---- */
@@ -452,9 +474,9 @@ TEST(revdll_multiple_contexts_requires_chain_semantics) {
     RS s; st_init(&s);
     SET_ERR(0);
     BOOL ok = f(CC_X509, CERT_CONTEXT_REVOCATION_TYPE, 2, ctxs, OFFLINE_FLAGS, (PCERT_REVOCATION_PARA)&c.p, &s);
-    /* the provider handles one certificate at a time: with a good first certificate it reports "continue with index 1" */
+    /* Win10: the provider does not walk the array, it reports REVOCATION_OFFLINE at index 0 */
     CHECK(!ok);
-    EXPECT_EQ(s.dwIndex, 1);
-    EXPECT_EQ(s.dwError, CC_E_NO_REVOCATION_CHECK);
+    EXPECT_EQ(s.dwIndex, 0);
+    EXPECT_EQ(s.dwError, CC_E_REVOCATION_OFFLINE);
     rel(a); rel(b); cx_done(&c);
 }
