@@ -50,7 +50,7 @@ TEST(rngg_sysrng_zero_len_with_buffer) {
 TEST(rngg_sysrng_zero_len_null_buffer) {
     REQUIRE(U(BCryptGenRandom));
     LONG s = GEN(NULL, NULL, 0, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-    t_note("BCryptGenRandom(NULL,NULL,0,SYSPREF) = 0x%lx (not verified; forwarded to the RNG provider)", (unsigned long)s);
+    EXPECT_EQ(s, NS_INVALID_PARAMETER);
 }
 TEST(rngg_sysrng_with_handle_is_invalid_parameter) {
     if (t_is_wine()) { t_skip("emulator differs: flag/handle validation order"); return; }
@@ -146,7 +146,9 @@ TEST(rngg_open_rng_case_insensitive_name) {
     REQUIRE(U(BCryptOpenAlgorithmProvider)); REQUIRE(U(BCryptCloseAlgorithmProvider));
     BCRYPT_ALG_HANDLE h = NULL;
     LONG s = U(BCryptOpenAlgorithmProvider)(&h, L"rng", NULL, 0);
-    t_note("OpenAlgorithmProvider(L\"rng\") = 0x%lx", (unsigned long)s);
+    /* algorithm names are matched case-sensitively here: lower case "rng" is not supported */
+    EXPECT_EQ(s, NS_NOT_SUPPORTED);
+    CHECK(h == NULL);
     if (h) U(BCryptCloseAlgorithmProvider)(h, 0);
 }
 TEST(rngg_open_rng_double_close) {
@@ -202,8 +204,9 @@ TEST(rngg_unknown_algorithm_variants) {
     for (i = 0; i < 3; i++) {
         BCRYPT_ALG_HANDLE h = NULL;
         LONG s = U(BCryptOpenAlgorithmProvider)(&h, names[i], NULL, 0);
-        t_note("Open(%ls) = 0x%lx", names[i], (unsigned long)s);
-        if (i == 2) { CHECK(s < 0); CHECK(h == NULL); }
+        /* FIPS186DSARNG and DUALECRNG still open on Win10 22H2; an unknown name is NTSTATUS 0xc0000225 */
+        CHECKF(s == (i == 2 ? (LONG)0xC0000225 : NS_SUCCESS), "Open(%ls) = 0x%lx", names[i], (unsigned long)s);
+        CHECK((i == 2) == (h == NULL));
         if (h) U(BCryptCloseAlgorithmProvider)(h, 0);
     }
 }
@@ -211,17 +214,19 @@ TEST(rngg_fips186_dsa_rng_generates) {
     REQUIRE(U(BCryptOpenAlgorithmProvider)); REQUIRE(U(BCryptCloseAlgorithmProvider)); REQUIRE(U(BCryptGenRandom));
     BCRYPT_ALG_HANDLE h = NULL; unsigned char b[64] = {0};
     LONG s = U(BCryptOpenAlgorithmProvider)(&h, BCRYPT_RNG_FIPS186_DSA_ALGORITHM, NULL, 0);
-    if (s < 0 || !h) { t_note("FIPS186DSARNG not available: 0x%lx", (unsigned long)s); return; }
+    EXPECT_EQ(s, NS_SUCCESS);
+    if (s < 0 || !h) return;
     s = GEN(h, b, sizeof b, 0);
-    t_note("FIPS186DSARNG GenRandom = 0x%lx zero=%d", (unsigned long)s, rng_all_zero(b, sizeof b));
+    EXPECT_EQ(s, NS_SUCCESS);
+    CHECK(!rng_all_zero(b, sizeof b));
     U(BCryptCloseAlgorithmProvider)(h, 0);
 }
-TEST(rngg_dual_ec_rng_observe) {
+TEST(rngg_dual_ec_rng_still_present) {
     REQUIRE(U(BCryptOpenAlgorithmProvider)); REQUIRE(U(BCryptCloseAlgorithmProvider)); REQUIRE(U(BCryptGenRandom));
     BCRYPT_ALG_HANDLE h = NULL; unsigned char b[64] = {0};
     LONG s = U(BCryptOpenAlgorithmProvider)(&h, BCRYPT_RNG_DUAL_EC_ALGORITHM, NULL, 0);
-    t_note("DUALECRNG open = 0x%lx (expected to be removed on build 19041)", (unsigned long)s);
-    if (s >= 0 && h) { s = GEN(h, b, sizeof b, 0); t_note("DUALECRNG gen = 0x%lx", (unsigned long)s); U(BCryptCloseAlgorithmProvider)(h, 0); }
+    EXPECT_EQ(s, NS_SUCCESS);   /* still present on build 19045 */
+    if (s >= 0 && h) { s = GEN(h, b, sizeof b, 0); EXPECT_EQ(s, NS_SUCCESS); CHECK(!rng_all_zero(b, sizeof b)); U(BCryptCloseAlgorithmProvider)(h, 0); }
 }
 
 /* ---- statistical sanity (weak by nature) ---- */
@@ -332,12 +337,12 @@ TEST(rngg_entropy_in_buffer_changes_nothing_visible) {
     EQ_NT(GEN(NULL, b, sizeof b, BCRYPT_USE_SYSTEM_PREFERRED_RNG | BCRYPT_RNG_USE_ENTROPY_IN_BUFFER), NS_SUCCESS);
     CHECK(memcmp(a, b, sizeof a) != 0);
 }
-TEST(rngg_unknown_flag_bits_observe) {
+TEST(rngg_unknown_flag_bits_rejected) {
     REQUIRE(U(BCryptGenRandom));
     unsigned char b[16]; ULONG f;
     for (f = 4; f <= 0x80; f <<= 1) {
         LONG s = GEN(BCRYPT_RNG_ALG_HANDLE, b, sizeof b, f);
-        t_note("GenRandom(pseudo RNG, flags=0x%lx) = 0x%lx", (unsigned long)f, (unsigned long)s);
+        CHECKF(s == NS_INVALID_PARAMETER, "flags=0x%lx -> 0x%lx", (unsigned long)f, (unsigned long)s);
     }
 }
 

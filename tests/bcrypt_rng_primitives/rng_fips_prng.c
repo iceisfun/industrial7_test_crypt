@@ -201,10 +201,10 @@ TEST(rngp_export_present_in_bcryptprimitives) {
     if (!t_is_wine()) CHECK(GetProcAddress(m, "ProcessPrngGuid") != NULL);
 }
 TEST(rngp_kernel_forwarders) {
-    /* newer OS builds also expose ProcessPrng from other modules; only observe */
+    /* Win10 22H2 exports ProcessPrng from bcryptprimitives only */
     const char *mods[] = { "bcrypt.dll", "kernelbase.dll", "kernel32.dll", "ntdll.dll", "cryptbase.dll" };
     unsigned i;
-    for (i = 0; i < 5; i++) { HMODULE m = t_module(mods[i]); t_note("%s exports ProcessPrng: %d", mods[i], m && GetProcAddress(m, "ProcessPrng") != NULL); }
+    for (i = 0; i < 5; i++) { HMODULE m = t_module(mods[i]); CHECKF(m != NULL, "%s not loaded", mods[i]); CHECKF(!(m && GetProcAddress(m, "ProcessPrng")), "%s exports ProcessPrng", mods[i]); }
 }
 CHILD(rngp_emit) {
     ProcessPrng_pfn f = PRNG_BP(); unsigned char b[16]; DWORD w = 0; HANDLE o = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -362,7 +362,7 @@ static int cgr_acquire(HCRYPTPROV *p, DWORD type) {
 TEST(rngc_basic_rsa_full) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p; unsigned char b[64] = {0};
-    if (!cgr_acquire(&p, PROV_RSA_FULL)) { t_skip("no provider 0x%lx", GetLastError()); return; }
+    if (!cgr_acquire(&p, PROV_RSA_FULL)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     CHECK(U(CryptGenRandom)(p, sizeof b, b) == TRUE);
     CHECK(!rng_all_zero(b, sizeof b));
     CHECK(U(CryptReleaseContext)(p, 0));
@@ -370,7 +370,7 @@ TEST(rngc_basic_rsa_full) {
 TEST(rngc_basic_rsa_aes) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p; unsigned char b[64] = {0};
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider 0x%lx", GetLastError()); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     CHECK(U(CryptGenRandom)(p, sizeof b, b) == TRUE);
     CHECK(!rng_all_zero(b, sizeof b));
     CHECK(U(CryptReleaseContext)(p, 0));
@@ -378,7 +378,7 @@ TEST(rngc_basic_rsa_aes) {
 TEST(rngc_dss_provider) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p; unsigned char b[32] = {0};
-    if (!cgr_acquire(&p, PROV_DSS)) { t_note("PROV_DSS verify-context not available: %lu", GetLastError()); return; }
+    if (!cgr_acquire(&p, PROV_DSS)) { CHECKF(0, "PROV_DSS verify-context: %lu", GetLastError()); return; }
     CHECK(U(CryptGenRandom)(p, sizeof b, b) == TRUE);
     CHECK(!rng_all_zero(b, sizeof b));
     CHECK(U(CryptReleaseContext)(p, 0));
@@ -387,7 +387,7 @@ TEST(rngc_null_buffer_invalid_parameter) {
     if (t_is_wine()) { t_skip("emulator faults or differs here"); return; }
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p;
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     SET_ERR(0);
     CHECK(U(CryptGenRandom)(p, 16, NULL) == FALSE);
     EXPECT_ERR(ERROR_INVALID_PARAMETER);
@@ -399,16 +399,16 @@ TEST(rngc_null_buffer_invalid_parameter) {
 TEST(rngc_zero_length) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p; unsigned char b[4] = {1, 2, 3, 4};
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     BOOL r = U(CryptGenRandom)(p, 0, b);
-    t_note("CryptGenRandom(len 0) = %d", r);
+    EXPECT_EQ(r, TRUE);
     CHECK(b[0] == 1 && b[3] == 4);
     U(CryptReleaseContext)(p, 0);
 }
 TEST(rngc_sizes_bounds) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p; unsigned char b[96]; unsigned n, i;
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     for (n = 1; n <= 40; n++) {
         memset(b, 0xCC, sizeof b);
         CHECKF(U(CryptGenRandom)(p, n, b + 4) == TRUE, "n=%u", n);
@@ -420,7 +420,7 @@ TEST(rngc_sizes_bounds) {
 TEST(rngc_large) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p; SIZE_T n = 100000;
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     unsigned char *b = (unsigned char *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, n);
     if (!b) { U(CryptReleaseContext)(p, 0); t_skip("alloc"); return; }
     CHECK(U(CryptGenRandom)(p, (DWORD)n, b) == TRUE);
@@ -432,7 +432,7 @@ TEST(rngc_large) {
 TEST(rngc_differs_between_calls_and_providers) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p1, p2; unsigned char a[32], b[32], c[32];
-    if (!cgr_acquire(&p1, PROV_RSA_AES) || !cgr_acquire(&p2, PROV_RSA_FULL)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p1, PROV_RSA_AES) || !cgr_acquire(&p2, PROV_RSA_FULL)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     CHECK(U(CryptGenRandom)(p1, 32, a)); CHECK(U(CryptGenRandom)(p1, 32, b)); CHECK(U(CryptGenRandom)(p2, 32, c));
     CHECK(memcmp(a, b, 32) != 0); CHECK(memcmp(a, c, 32) != 0); CHECK(memcmp(b, c, 32) != 0);
     U(CryptReleaseContext)(p1, 0); U(CryptReleaseContext)(p2, 0);
@@ -441,7 +441,7 @@ TEST(rngc_buffer_used_as_seed_still_random) {
     /* docs: the buffer content is used as additional seed; the result must still differ */
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p; unsigned char a[32], b[32];
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     memset(a, 0x33, 32); memset(b, 0x33, 32);
     CHECK(U(CryptGenRandom)(p, 32, a)); CHECK(U(CryptGenRandom)(p, 32, b));
     CHECK(memcmp(a, b, 32) != 0);
@@ -454,7 +454,7 @@ TEST(rngc_advapi_and_cryptsp_parity) {
     typeof(&CryptReleaseContext) rel = UIN("advapi32.dll", CryptReleaseContext);
     REQUIRE(fa); REQUIRE(fs); REQUIRE(acq); REQUIRE(rel);
     HCRYPTPROV p = 0; unsigned char a[32] = {0}, b[32] = {0};
-    if (!acq(&p, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) { t_skip("no provider"); return; }
+    if (!acq(&p, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     CHECK(fa(p, 32, a)); CHECK(fs(p, 32, b));
     CHECK(!rng_all_zero(a, 32) && !rng_all_zero(b, 32) && memcmp(a, b, 32) != 0);
     SET_ERR(0); CHECK(fa(p, 4, NULL) == FALSE); EXPECT_ERR(ERROR_INVALID_PARAMETER);
@@ -464,7 +464,7 @@ TEST(rngc_advapi_and_cryptsp_parity) {
 TEST(rngc_released_provider_flag_reserved) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p;
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     SET_ERR(0);
     BOOL r = U(CryptReleaseContext)(p, 0);
     CHECK(r == TRUE);
@@ -483,7 +483,7 @@ TEST(rngc_compare_apis_all_nonconstant) {
     REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptGenRandom)); REQUIRE(U(CryptReleaseContext)); REQUIRE(U(BCryptGenRandom));
     HCRYPTPROV p; unsigned char c[32], bc[32], sf[32];
     SystemFunction036_pfn f = UINN("advapi32.dll", SystemFunction036); REQUIRE(f);
-    if (!cgr_acquire(&p, PROV_RSA_AES)) { t_skip("no provider"); return; }
+    if (!cgr_acquire(&p, PROV_RSA_AES)) { CHECKF(0, "no provider 0x%lx", GetLastError()); return; }
     CHECK(U(CryptGenRandom)(p, 32, c));
     EQ_NT(U(BCryptGenRandom)(NULL, bc, 32, BCRYPT_USE_SYSTEM_PREFERRED_RNG), NS_SUCCESS);
     CHECK(f(sf, 32));

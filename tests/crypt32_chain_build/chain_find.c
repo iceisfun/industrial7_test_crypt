@@ -262,7 +262,7 @@ TEST(chain_find_key_spec_selects_property_to_test) {
     }
     U(CertCloseStore)(st, 0);
 }
-TEST(chain_find_key_identifier_property_satisfies_key_requirement) {
+TEST(chain_find_key_identifier_property_does_not_satisfy_key_requirement) {
     FINDREQ();
     HCERTSTORE st = pki_store("leaf");
     PCCERT_CONTEXT cc = U(CertEnumCertificatesInStore)(st, NULL);
@@ -273,7 +273,7 @@ TEST(chain_find_key_identifier_property_satisfies_key_requirement) {
         CHECK(U(CertSetCertificateContextProperty)(cc, CERT_KEY_IDENTIFIER_PROP_ID, 0, &b));
         CERT_CHAIN_FIND_BY_ISSUER_PARA p = find_para();
         PCCERT_CHAIN_CONTEXT c = U(CertFindChainInStore)(st, X509_ASN_ENCODING, CERT_CHAIN_FIND_BY_ISSUER_CACHE_ONLY_URL_FLAG, CERT_CHAIN_FIND_BY_ISSUER, &p, NULL);
-        t_note("with CERT_KEY_IDENTIFIER_PROP_ID set and no NO_KEY flag: %s", c ? "found" : "not found");
+        CHECK(c == NULL);   /* the key identifier property does not stand in for a private key on Win10 22H2 */
         if (c) U(CertFreeCertificateChain)(c);
         U(CertFreeCertificateContext)(cc);
     }
@@ -337,8 +337,7 @@ TEST(chain_find_issuer_name_filter_matches_ancestor) {
     CERT_CHAIN_FIND_BY_ISSUER_PARA p = find_para(); p.cIssuer = 1; p.rgIssuer = &nm;
     const char *ids[8] = {0}; DWORD err = 0;
     int n = find_all(st, FINDF, &p, ids, 8, &err);
-    t_note("issuer filter = root subject: %d chain(s)", n);
-    CHECK(n >= 1);
+    EXPECT_EQ(n, 3);
     U(CertFreeCertificateContext)(rc); U(CertCloseStore)(st, 0);
 }
 TEST(chain_find_issuer_name_filter_unrelated_name) {
@@ -362,7 +361,7 @@ TEST(chain_find_issuer_name_filter_inter_subject_selects_leaf_chain) {
     int n = find_all(st, FINDF, &p, ids, 8, &err);
     int leaf = 0, leafroot = 0;
     for (int i = 0; i < n && i < 8; i++) { if (!strcmp(ids[i], "leaf")) leaf++; if (!strcmp(ids[i], "leaf_root")) leafroot++; }
-    t_note("issuer filter = intermediate subject: %d chain(s)", n);
+    EXPECT_EQ(n, 1);
     EXPECT_EQ(leaf, 1);
     EXPECT_EQ(leafroot, 0);      /* leaf_root is issued directly by the root: the intermediate is not in its chain */
     U(CertFreeCertificateContext)(ic); U(CertCloseStore)(st, 0);
@@ -451,8 +450,11 @@ TEST(chain_select_valid_flag_bits_accepted) {
     for (DWORD f = 1; f <= 0x100; f <<= 1) {
         DWORD n; PCCERT_CHAIN_CONTEXT *l;
         BOOL r = do_select(NULL, f, &e, NULL, st, 0, NULL, &n, &l);
-        t_note("flags 0x%lx -> %d, count %lu", f, r, r ? n : 0);
-        CHECKF(r || GetLastError() != ERROR_INVALID_PARAMETER, "flags 0x%lx rejected as invalid", f);
+        /* probed: every single flag is accepted; the keyless leaf survives only the flags that do not filter on key/validity/usage */
+        static const DWORD cnt[9] = { 1, 1, 1, 0, 0, 0, 0, 1, 1 };
+        int bi = 0; while ((1u << bi) != f) bi++;
+        EXPECT_EQ(r, 1);
+        CHECKF(!r || n == cnt[bi], "flags 0x%lx count %lu", f, n);
         if (r) free_selection(n, l);
     }
     pki_eng_close(&e); U(CertCloseStore)(st, 0);
@@ -504,7 +506,7 @@ TEST(chain_select_selfsigned_allowed_by_default) {
     DWORD n; PCCERT_CHAIN_CONTEXT *l;
     BOOL r = do_select(NULL, 0, &e, NULL, st, 0, NULL, &n, &l);
     CHECK(r);
-    if (r) { t_note("default selection of {leaf, root}: %lu chains", n); CHECK(n >= 1); free_selection(n, l); }
+    if (r) { EXPECT_EQ(n, 2); free_selection(n, l); }
     pki_eng_close(&e); U(CertCloseStore)(st, 0);
 }
 TEST(chain_select_has_private_key_none_available) {
@@ -514,7 +516,7 @@ TEST(chain_select_has_private_key_none_available) {
     DWORD n; PCCERT_CHAIN_CONTEXT *l;
     SET_ERR(0);
     BOOL r = do_select(NULL, CERT_SELECT_HAS_PRIVATE_KEY, &e, NULL, st, 0, NULL, &n, &l);
-    t_note("HAS_PRIVATE_KEY on keyless store: ret=%d count=%lu lasterr=0x%lx", r, r ? n : 0, GetLastError());
+    EXPECT_EQ(r, 1);
     if (r) { EXPECT_EQ(n, 0); free_selection(n, l); }
     pki_eng_close(&e); U(CertCloseStore)(st, 0);
 }
@@ -535,7 +537,7 @@ TEST(chain_select_trusted_root_flag_with_untrusting_engine) {
     DWORD n; PCCERT_CHAIN_CONTEXT *l;
     SET_ERR(0);
     BOOL r = do_select(NULL, CERT_SELECT_TRUSTED_ROOT, &e, NULL, st, 0, NULL, &n, &l);
-    t_note("untrusted root + TRUSTED_ROOT: ret=%d count=%lu lasterr=0x%lx", r, r ? n : 0, GetLastError());
+    EXPECT_EQ(r, 1);
     if (r) { EXPECT_EQ(n, 0); free_selection(n, l); }
     pki_eng_close(&e); U(CertCloseStore)(st, 0);
 }
@@ -576,14 +578,14 @@ TEST(chain_select_selection_context_guid_accepted) {
     if (r) { EXPECT_EQ(n, 1); free_selection(n, l); }
     pki_eng_close(&e); U(CertCloseStore)(st, 0);
 }
-TEST(chain_select_empty_store_observation) {
+TEST(chain_select_empty_store) {
     REQUIRE(U(CertSelectCertificateChains));
     HCERTSTORE st = pki_store(NULL);
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter", NULL, 0));
     DWORD n; PCCERT_CHAIN_CONTEXT *l;
     SET_ERR(0);
     BOOL r = do_select(NULL, 0, &e, NULL, st, 0, NULL, &n, &l);
-    t_note("empty store: ret=%d count=%lu lasterr=0x%lx", r, r ? n : 0, GetLastError());
+    EXPECT_EQ(r, 1);
     if (r) { EXPECT_EQ(n, 0); free_selection(n, l); }
     pki_eng_close(&e); U(CertCloseStore)(st, 0);
 }

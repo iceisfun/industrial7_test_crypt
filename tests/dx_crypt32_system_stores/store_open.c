@@ -155,7 +155,7 @@ TEST(dxss_open_unregistered_location_fails) {
     /* location id 0xFE has no registry provider and no registered OID function */
     HCERTSTORE h = U(CertOpenStore)(DS_SYS_W, 0, 0, (DWORD)0xFE << 16, nm);
     CHECK(h == NULL);
-    t_note("unknown store location 0xFE: last error 0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     if (h) U(CertCloseStore)(h, 0);
     ds_end();
 }
@@ -301,7 +301,7 @@ TEST(dxss_add_use_existing_returns_existing_context) {
     U(CertCloseStore)(h, 0);
     ds_end();
 }
-TEST(dxss_add_newer_disposition_same_cert_is_exists_or_ok) {
+TEST(dxss_add_newer_disposition_same_cert_is_exists) {
     SETUP(CertOpenStore); NAME("ad5");
     HCERTSTORE h = ds_open(nm, 0);
     if (!h) { CHECK(h != NULL); return; }
@@ -309,7 +309,8 @@ TEST(dxss_add_newer_disposition_same_cert_is_exists_or_ok) {
     DWORD cb; const BYTE *d = ds_der(2, &cb);
     SET_ERR(0);
     BOOL r = U(CertAddEncodedCertificateToStore)(h, X509_ASN_ENCODING, d, cb, CERT_STORE_ADD_NEWER, NULL);
-    t_note("ADD_NEWER with identical cert: %d, last error 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, FALSE);
+    EXPECT_ERR(CRYPT_E_EXISTS);
     EXPECT_EQ(ds_count(h), 1);
     U(CertCloseStore)(h, 0);
     ds_end();
@@ -412,8 +413,8 @@ TEST(dxss_delete_twice_same_context_fails_gracefully) {
     if (c) CHECK(ds_del(c));
     if (d) {
         SET_ERR(0);
-        BOOL r = U(CertDeleteCertificateFromStore)(d);   /* already gone: either outcome is tolerated, store stays consistent */
-        t_note("second delete of an already deleted context: %d err 0x%lx", r, GetLastError());
+        BOOL r = U(CertDeleteCertificateFromStore)(d);   /* already gone: still reports success, the store stays consistent */
+        EXPECT_EQ(r, TRUE);
     }
     EXPECT_EQ(ds_count(h), 0);
     U(CertCloseStore)(h, 0);
@@ -474,7 +475,7 @@ TEST(dxss_opensystemstore_null_name_fails) {
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenSystemStoreW)(0, NULL);
     CHECK(h == NULL);
-    t_note("CertOpenSystemStoreW(NULL name): last error 0x%lx", GetLastError());
+    EXPECT_ERR(0x80070057);
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(dxss_add_encoded_to_system_store_w_persists) {
@@ -580,7 +581,7 @@ TEST(dxss_two_handles_second_sees_first_adds_after_reopen_only) {
     HCERTSTORE c = ds_open(nm, 0);                       /* a fresh handle always reads the registry */
     CHECK(c != NULL);
     if (c) { EXPECT_EQ(ds_count(c), 1); U(CertCloseStore)(c, 0); }
-    t_note("second pre-existing handle count before resync: %d", ds_count(b));
+    EXPECT_EQ(ds_count(b), 0);     /* a handle opened earlier does not see the add until a resync */
     U(CertCloseStore)(a, 0); U(CertCloseStore)(b, 0);
     ds_end();
 }
@@ -661,7 +662,8 @@ TEST(dxss_readonly_flag_does_not_persist) {
     DWORD cb; const BYTE *d = ds_der(0, &cb);
     SET_ERR(0);
     BOOL r = U(CertAddEncodedCertificateToStore)(h, X509_ASN_ENCODING, d, cb, CERT_STORE_ADD_ALWAYS, NULL);
-    t_note("add to READONLY system store: %d, last error 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, FALSE);
+    EXPECT_ERR(0x80070005);
     U(CertCloseStore)(h, 0);
     CHECK(!ds_cert_key_exists(0, nm, 0));
     EXPECT_EQ(ds_count_named(nm, 0, 0), 0);
@@ -688,7 +690,12 @@ TEST(dxss_readonly_flag_delete_does_not_remove) {
     if (!h) { CHECK(h != NULL); return; }
     PCCERT_CONTEXT c = ds_find(h, 2);
     CHECK(c != NULL);
-    if (c) { SET_ERR(0); BOOL r = ds_del(c); t_note("delete from READONLY store: %d err 0x%lx", r, GetLastError()); }
+    if (c) {
+        HCERTSTORE hs = c->hCertStore; (void)U(CertDeleteCertificateFromStore);
+        SET_ERR(0); BOOL r = U(CertDeleteCertificateFromStore)(c); DWORD e = GetLastError();
+        EXPECT_EQ(r, FALSE); EXPECT_EQ(e, 0x80070005);
+        ds_sync(hs);
+    }
     U(CertCloseStore)(h, 0);
     CHECK(ds_cert_key_exists(0, nm, 2));
     ds_end();
@@ -746,7 +753,7 @@ TEST(dxss_open_delete_flag_removes_store_and_returns_null) {
     HCERTSTORE d = ds_open(nm, CERT_STORE_DELETE_FLAG);
     DWORD e = GetLastError();
     CHECK(d == NULL);              /* NULL on both success and failure */
-    t_note("DELETE_FLAG open: last error 0x%lx", e);
+    EXPECT_EQ(e, 0);
     CHECK(!ds_key_exists(0, nm, NULL));
     ds_end();
 }

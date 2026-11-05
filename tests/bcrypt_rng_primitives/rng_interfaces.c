@@ -41,7 +41,7 @@ static void rngi_check_table(const char *fn, const WCHAR *alg, vt_t *t) {
     CHECKF(rngi_in_module(t), "%s(%ls) table outside bcryptprimitives", fn, alg);
     /* on Win10 22H2 the hash table is interface version 2, every other class is version 1 */
     CHECKF(t->Version.MajorVersion == (strcmp(fn, "GetHashInterface") ? 1 : 2), "%s(%ls) major %u", fn, alg, t->Version.MajorVersion);
-    if (t->Version.MinorVersion != 0) t_note("%s(%ls) minor version %u", fn, alg, t->Version.MinorVersion);
+    CHECKF(t->Version.MinorVersion == 0, "%s(%ls) minor version %u", fn, alg, t->Version.MinorVersion);
     /* Open, GetProperty, SetProperty, Close are the first four members of every provider table */
     for (i = 0; i < 4; i++) CHECKF(t->fn[i] != NULL && rngi_code_in_module(t->fn[i]), "%s(%ls) slot %d = %p", fn, alg, i, t->fn[i]);
 }
@@ -51,8 +51,8 @@ static void rngi_table_readonly(const char *fn, const WCHAR *alg, vt_t *t) {
     if (!VirtualQuery(t, &mbi, sizeof mbi)) return;
     if (!strcmp(fn, "GetRngInterface"))   /* MSRngFunctionTable is known to live in .rdata */
         CHECKF(mbi.Protect == PAGE_READONLY, "%s(%ls) table page protection 0x%lx", fn, alg, (unsigned long)mbi.Protect);
-    else if (mbi.Protect != PAGE_READONLY)
-        t_note("%s(%ls) table page protection 0x%lx", fn, alg, (unsigned long)mbi.Protect);
+    else   /* every other table is read-only as well on Win10 22H2 */
+        CHECKF(mbi.Protect == PAGE_READONLY, "%s(%ls) table page protection 0x%lx", fn, alg, (unsigned long)mbi.Protect);
 }
 
 /* ---------------- exports ---------------- */
@@ -170,12 +170,14 @@ TEST(rngi_hash_single_shared_table) {
     }
     rngi_table_readonly("GetHashInterface", L"SHA256", (vt_t *)first);
 }
-TEST(rngi_hash_observe_other_names) {
+TEST(rngi_hash_other_names) {
     GetIf_pfn f = rngi_get("GetHashInterface"); REQUIRE(f);
     unsigned i;
     for (i = 0; i < sizeof HASH_OBSERVE / sizeof *HASH_OBSERVE; i++) {
         void *t = NULL; LONG s = f(NULL, HASH_OBSERVE[i], &t, 0);
-        t_note("GetHashInterface(%ls) = 0x%lx", HASH_OBSERVE[i], (unsigned long)s);
+        /* MD2, MD4, AES-CMAC and AES-GMAC have tables on Win10 22H2; the rest are not supported */
+        CHECKF(s == (i < 4 ? NS_SUCCESS : NS_NOT_SUPPORTED), "GetHashInterface(%ls) = 0x%lx", HASH_OBSERVE[i], (unsigned long)s);
+        CHECKF(i < 4 ? t != NULL : t == NULL, "GetHashInterface(%ls) table %p", HASH_OBSERVE[i], t);
     }
 }
 TEST(rngi_hash_unknown_name_not_supported) {
@@ -226,8 +228,8 @@ TEST(rngi_hash_vtable_digest_length_property) {
     if (ec) t_note("vtable hash property child exit 0x%lx", (unsigned long)ec);
     CHECK(ec == 0);
 }
-/* Full hash through the table. The member order after Close is not documented in the headers available here,
- * so the outcome is reported as an observation only; a crash is isolated by running in a child. */
+/* Full hash through the table. Probed member order on Win10 22H2 (hash table, version 2): Open, GetProperty,
+ * SetProperty, Close, Create, HashData, Finish; the members after Finish are not exercised. */
 typedef NTSTATUS (WINAPI *vt_create_t)(BCRYPT_ALG_HANDLE, BCRYPT_HASH_HANDLE *, PUCHAR, ULONG, PUCHAR, ULONG, ULONG);
 typedef NTSTATUS (WINAPI *vt_data_t)(BCRYPT_HASH_HANDLE, PUCHAR, ULONG, ULONG);
 typedef NTSTATUS (WINAPI *vt_destroy_t)(BCRYPT_HASH_HANDLE);
@@ -244,16 +246,16 @@ CHILD(rngi_vt_hash_chain) {
     if (!obj) return 13;
     if (((vt_create_t)t->fn[4])(h, &hh, obj, objlen, NULL, 0, 0)) return 14;
     if (((vt_data_t)t->fn[5])(hh, (PUCHAR)"abc", 3, 0)) return 15;
-    if (((vt_data_t)t->fn[7])(hh, dig, 32, 0)) return 16;
+    if (((vt_data_t)t->fn[6])(hh, dig, 32, 0)) return 16;
     if (memcmp(dig, sha256_abc, 32)) return 17;
-    ((vt_destroy_t)t->fn[8])(hh);
-    ((vt_close_t)t->fn[3])(h, 0);
+    if (((vt_close_t)t->fn[3])(h, 0)) return 18;
     return 0;
 }
-TEST(rngi_hash_vtable_sha256_abc_observe) {
+TEST(rngi_hash_vtable_sha256_abc) {
     REQUIRE(rngi_get("GetHashInterface"));
     DWORD ec = t_run_child("rngi_vt_hash_chain", "", 20000);
-    t_note("vtable SHA256(abc) chain child exit 0x%lx (0 = matches the FIPS 180 vector with member order Create,HashData,Duplicate,Finish,Destroy after Close)", (unsigned long)ec);
+    if (ec) t_note("vtable SHA256(abc) chain child exit 0x%lx (10 table,11 open,12 objlen,14 create,15 data,16 finish,17 digest,18 close)", (unsigned long)ec);
+    EXPECT_EQ(ec, 0);
 }
 
 /* ---------------- Cipher ---------------- */
@@ -271,11 +273,17 @@ TEST(rngi_cipher_single_shared_table) {
     CHECK(a && a == b);
     rngi_table_readonly("GetCipherInterface", L"AES", (vt_t *)a);
 }
-TEST(rngi_cipher_observe_other_names) {
+TEST(rngi_cipher_other_names) {
     GetIf_pfn f = rngi_get("GetCipherInterface"); REQUIRE(f);
     static const WCHAR *const n[] = { L"3DES", L"3DES_112", L"DES", L"DESX", L"RC2", L"CHACHA20", L"XTS-AES", L"AES-GCM", L"SHA256", L"RNG" };
     unsigned i;
-    for (i = 0; i < sizeof n / sizeof *n; i++) { void *t = NULL; LONG s = f(NULL, n[i], &t, 0); t_note("GetCipherInterface(%ls) = 0x%lx", n[i], (unsigned long)s); }
+    /* 3DES, 3DES_112, DES, DESX, RC2 and XTS-AES have tables on Win10 22H2; the rest are not supported */
+    static const int has[10] = { 1, 1, 1, 1, 1, 0, 1, 0, 0, 0 };
+    for (i = 0; i < sizeof n / sizeof *n; i++) {
+        void *t = NULL; LONG s = f(NULL, n[i], &t, 0);
+        CHECKF(s == (has[i] ? NS_SUCCESS : NS_NOT_SUPPORTED), "GetCipherInterface(%ls) = 0x%lx", n[i], (unsigned long)s);
+        CHECKF(has[i] ? t != NULL : t == NULL, "GetCipherInterface(%ls) table %p", n[i], t);
+    }
 }
 TEST(rngi_cipher_unknown_name_not_supported) {
     GetIf_pfn f = rngi_get("GetCipherInterface"); REQUIRE(f);
@@ -507,19 +515,19 @@ TEST(rngconv_repeatable) {
     }
 }
 TEST(rngconv_full_blob_idempotent_input_rejected_or_same) {
-    /* feeding the already-full blob: observation only */
+    /* the already-full blob is not a valid PRIVATE blob: NTE_BAD_DATA, need untouched */
     MSCryptConvertRsaPrivateBlobToFullRsaBlob_pfn f = CONV(); REQUIRE(f);
     unsigned char out[sizeof rsa1024_full + 256]; ULONG need = 0;
     LONG s = f((PUCHAR)rsa1024_full, sizeof rsa1024_full, out, sizeof out, &need);
-    t_note("convert(FULLPRIVATE input) = 0x%lx need=%lu", (unsigned long)s, (unsigned long)need);
+    EXPECT_EQ(s, 0x80090005);
+    EXPECT_EQ(need, 0);
 }
 TEST(rngconv_truncated_input_fails) {
     MSCryptConvertRsaPrivateBlobToFullRsaBlob_pfn f = CONV(); REQUIRE(f);
     unsigned char out[sizeof rsa1024_full + 64]; ULONG need = 0x1234; ULONG cuts[] = { sizeof rsa1024_private - 1, sizeof rsa1024_private - 64, 24, 8, 4 }; unsigned i;
     for (i = 0; i < sizeof cuts / sizeof *cuts; i++) {
         LONG s = f((PUCHAR)rsa1024_private, cuts[i], out, sizeof out, &need);
-        CHECKF(s < 0, "cbIn=%lu unexpectedly 0x%lx", (unsigned long)cuts[i], (unsigned long)s);
-        t_note("convert(cbIn=%lu) = 0x%lx", (unsigned long)cuts[i], (unsigned long)s);
+        CHECKF(s == (LONG)0x80090005, "cbIn=%lu -> 0x%lx", (unsigned long)cuts[i], (unsigned long)s);
     }
 }
 TEST(rngconv_zero_length_input_fails) {
@@ -536,8 +544,7 @@ TEST(rngconv_public_blob_rejected) {
     pub[24] = 1; pub[25] = 0; pub[26] = 1;
     memcpy(pub + 27, rsa1024_n, 128);
     LONG s = f(pub, sizeof pub, out, sizeof out, &need);
-    CHECKF(s < 0, "public blob accepted: 0x%lx", (unsigned long)s);
-    t_note("convert(RSAPUBLIC blob) = 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, 0x80090005);
 }
 TEST(rngconv_wrong_magic_rejected) {
     MSCryptConvertRsaPrivateBlobToFullRsaBlob_pfn f = CONV(); REQUIRE(f);
@@ -545,8 +552,7 @@ TEST(rngconv_wrong_magic_rejected) {
     memcpy(in, rsa1024_private, sizeof in);
     *(ULONG *)in = 0x41424344;
     LONG s = f(in, sizeof in, out, sizeof out, &need);
-    CHECKF(s < 0, "bad magic accepted: 0x%lx", (unsigned long)s);
-    t_note("convert(bad magic) = 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, 0x80090005);
 }
 TEST(rngconv_corrupt_header_lengths_rejected) {
     MSCryptConvertRsaPrivateBlobToFullRsaBlob_pfn f = CONV(); REQUIRE(f);
@@ -557,8 +563,8 @@ TEST(rngconv_corrupt_header_lengths_rejected) {
         if (i == 1) h[4] = 100;        /* prime length that no longer matches the body */
         if (i == 2) h[2] = 0;          /* empty public exponent */
         LONG s = f(in, sizeof in, out, sizeof out, &need);
-        CHECKF(s < 0, "variant %u accepted: 0x%lx", i, (unsigned long)s);
-        t_note("convert(corrupt variant %u) = 0x%lx", i, (unsigned long)s);
+        /* modulus-length and empty-exponent corruption: STATUS_INVALID_PARAMETER; prime-length corruption: NTE_BAD_DATA */
+        CHECKF(s == (i == 1 ? (LONG)0x80090005 : NS_INVALID_PARAMETER), "variant %u -> 0x%lx", i, (unsigned long)s);
     }
 }
 TEST(rngconv_matches_bcrypt_export_of_imported_key) {

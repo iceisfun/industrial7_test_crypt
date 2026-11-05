@@ -202,8 +202,7 @@ TEST(chain_engine_exclusive_root_trusts_listed_root) {
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf", "inter", PKI_T0, PKI_OFFLINE, NULL);
     CHECK(c != NULL);
     if (c) { pki_note_chain("exclusive root", c); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0); EXPECT_EQ(pki_nelem(c, 0), 3);
-             t_note("root element info bits 0x%lx (IS_FROM_EXCLUSIVE_TRUST_STORE=0x2000, IS_SELF_SIGNED=8)", pki_elem_info(c, 0, 2));
-             CHECK(pki_elem_info(c, 0, 2) & CERT_TRUST_IS_SELF_SIGNED); }
+             EXPECT_EQ(pki_elem_info(c, 0, 2), 0x210c);   /* IS_FROM_EXCLUSIVE_TRUST_STORE | IS_SELF_SIGNED | name match */ }
     pki_chain_free(c); pki_eng_close(&e);
 }
 TEST(chain_engine_exclusive_root_rejects_unlisted_root) {
@@ -236,7 +235,7 @@ TEST(chain_engine_exclusive_ca_flag_intermediate_as_anchor) {
         PCCERT_CHAIN_CONTEXT c = pki_chain(h, "leaf", NULL, PKI_T0, PKI_OFFLINE, NULL);
         CHECK(c != NULL);
         if (c) { pki_note_chain("CA as anchor", c); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0); EXPECT_EQ(pki_nelem(c, 0), 2);
-                 t_note("top element info 0x%lx (IS_CA_TRUSTED=0x4000)", pki_elem_info(c, 0, 1)); }
+                 EXPECT_EQ(pki_elem_info(c, 0, 1), 0x6000); /* IS_CA_TRUSTED | IS_FROM_EXCLUSIVE_TRUST_STORE */ }
         pki_chain_free(c); U(CertFreeCertificateChainEngine)(h);
     }
     U(CertCloseStore)(xr, 0);
@@ -262,8 +261,7 @@ TEST(chain_engine_restricted_root_with_private_root_rejected) {
     DWORD err = GetLastError();
     CHECK(!ok);                              /* the test root is not in the system Root store */
     EXPECT_EQ(e.h, NULL);
-    t_note("restricted root not in system store: GetLastError=0x%lx (decomp suggests CRYPT_E_NOT_FOUND 0x80092004)", err);
-    CHECK(err != 0);
+    EXPECT_EQ(err, ERROR_FILE_NOT_FOUND);
     pki_eng_close(&e); U(CertFreeCertificateContext)(rc);
 }
 TEST(chain_engine_restricted_root_empty_store_accepted) {
@@ -492,7 +490,7 @@ TEST(chain_engine_resync_picks_up_new_intermediate) {
     if (c) { EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0); EXPECT_EQ(pki_nelem(c, 0), 3); }
     pki_chain_free(c); pki_eng_close(&e);
 }
-TEST(chain_engine_store_change_without_resync_observation) {
+TEST(chain_engine_store_change_without_resync_not_noticed) {
     REQUIRE(U(CertResyncCertificateChainEngine));
     PKI_ENG e; CHECK(pki_eng_open(&e, "", "inter root", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf", NULL, PKI_T0, PKI_OFFLINE, NULL);
@@ -500,7 +498,9 @@ TEST(chain_engine_store_change_without_resync_observation) {
     const PKI_ITEM *r = pki_find("root");
     U(CertAddEncodedCertificateToStore)(e.root, ENC, r->der, r->len, CERT_STORE_ADD_ALWAYS, NULL);
     c = pki_chain(e.h, "leaf", NULL, PKI_T0, PKI_OFFLINE, NULL);
-    if (c) { t_note("trust of a root added without resync: err=0x%lx (0 = engine noticed the store change)", c->TrustStatus.dwErrorStatus); }
+    CHECK(c != NULL);
+    /* the engine keeps its cached view of the Root store: the root added afterwards is not noticed until a resync */
+    if (c) EXPECT_EQ(c->TrustStatus.dwErrorStatus, CERT_TRUST_IS_UNTRUSTED_ROOT);
     pki_chain_free(c); pki_eng_close(&e);
 }
 

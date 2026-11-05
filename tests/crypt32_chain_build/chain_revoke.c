@@ -24,8 +24,8 @@ TEST(chain_revoke_end_cert_revoked_by_crl_in_additional_store) {
     CHECK(c != NULL);
     if (c && c->cChain && c->rgpChain[0]->cElement == 3) {
         pki_note_chain("revoked leaf", c);
-        CHECK(c->TrustStatus.dwErrorStatus & E_REV);
-        CHECK(pki_elem_err(c, 0, 0) & E_REV);
+        EXPECT_EQ(c->TrustStatus.dwErrorStatus, E_REV);
+        EXPECT_EQ(pki_elem_err(c, 0, 0), E_REV);
         EXPECT_EQ(pki_elem_err(c, 0, 1) & E_REV, 0);
         EXPECT_EQ(pki_elem_err(c, 0, 2) & E_REV, 0);
         EXPECT_EQ(c->TrustStatus.dwErrorStatus & CERT_TRUST_IS_UNTRUSTED_ROOT, 0);
@@ -37,7 +37,7 @@ TEST(chain_revoke_end_cert_revoked_crl_in_engine_additional_store) {
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter crl_inter", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = rev_chain(&e, "leaf_rev", NULL, REV_END_CACHE, NULL);
     CHECK(c != NULL);
-    if (c) { pki_note_chain("crl via engine store", c); t_note("revoked via engine additional store CRL: %s", (c->TrustStatus.dwErrorStatus & E_REV) ? "IS_REVOKED" : "not flagged"); }
+    if (c) { pki_note_chain("crl via engine store", c); EXPECT_EQ(c->TrustStatus.dwErrorStatus, E_REV); }
     pki_chain_free(c); pki_eng_close(&e);
 }
 TEST(chain_revoke_revocation_info_of_revoked_element) {
@@ -47,19 +47,24 @@ TEST(chain_revoke_revocation_info_of_revoked_element) {
     CHECK(c && c->cChain == 1);
     if (c && c->cChain == 1) {
         PCERT_REVOCATION_INFO ri = c->rgpChain[0]->rgpElement[0]->pRevocationInfo;
-        if (!ri) t_note("no pRevocationInfo on revoked element");
+        CHECK(ri != NULL);
         if (ri) {
             CHECK(ri->cbSize >= offsetof(CERT_REVOCATION_INFO, pCrlInfo));
             EXPECT_EQ(ri->dwRevocationResult, CRYPT_E_REVOKED);
-            t_note("pszRevocationOid=%p (CRL oid is (LPCSTR)1) fHasFreshnessTime=%d dwFreshnessTime=%lu pCrlInfo=%p", ri->pszRevocationOid, ri->fHasFreshnessTime, ri->dwFreshnessTime, ri->pCrlInfo);
+            /* the freshness time is the CRL age in seconds and moves with the clock: only its presence is stable */
+            EXPECT_EQ(ri->pszRevocationOid, NULL);
+            EXPECT_EQ(ri->fHasFreshnessTime, 1);
+            CHECK(ri->dwFreshnessTime > 0);
+            CHECK(ri->pCrlInfo != NULL);
             if (ri->pCrlInfo) {
                 CHECK(ri->pCrlInfo->pBaseCrlContext != NULL);
+                CHECK(ri->pCrlInfo->pCrlEntry != NULL);
                 if (ri->pCrlInfo->pCrlEntry) {
                     PCERT_REVOCATION_CRL_INFO ci = ri->pCrlInfo; (void)ci;
                     PCRL_ENTRY en = ri->pCrlInfo->pCrlEntry;
                     EXPECT_EQ(en->SerialNumber.cbData, 2);
                     if (en->SerialNumber.cbData == 2) { EXPECT_EQ(en->SerialNumber.pbData[0], 0x01); EXPECT_EQ(en->SerialNumber.pbData[1], 0x06); }
-                } else t_note("pCrlInfo->pCrlEntry is NULL");
+                }
             }
         }
     }
@@ -82,8 +87,9 @@ TEST(chain_revoke_unlisted_serial_not_revoked) {
         pki_note_chain("good leaf, CRL with other revoked serials", c);
         EXPECT_EQ(c->TrustStatus.dwErrorStatus & E_REV, 0);
         PCERT_REVOCATION_INFO ri = c->rgpChain[0]->rgpElement[0]->pRevocationInfo;
-        if (ri) t_note("dwRevocationResult for an unrevoked leaf = 0x%lx", ri->dwRevocationResult);
-        t_note("full status 0x%lx (0 = the CRL was accepted as authoritative; 0x1000000 = treated as offline)", c->TrustStatus.dwErrorStatus);
+        CHECK(ri != NULL);
+        if (ri) EXPECT_EQ(ri->dwRevocationResult, 0);
+        EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);   /* the CRL is accepted as authoritative */
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -92,7 +98,7 @@ TEST(chain_revoke_empty_crl_clean) {
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = rev_chain(&e, "leaf_rev", "crl_inter_clean", REV_END_CACHE, NULL);
     CHECK(c != NULL);
-    if (c) { pki_note_chain("empty CRL", c); EXPECT_EQ(c->TrustStatus.dwErrorStatus & E_REV, 0); }
+    if (c) { pki_note_chain("empty CRL", c); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0); }
     pki_chain_free(c); pki_eng_close(&e);
 }
 TEST(chain_revoke_no_crl_available_status_unknown) {
@@ -105,13 +111,11 @@ TEST(chain_revoke_no_crl_available_status_unknown) {
     CHECKF(dt < 20000, "cache-only revocation took %lu ms", dt);
     if (c && c->cChain) {
         pki_note_chain("no CRL anywhere", c);
-        CHECK(c->TrustStatus.dwErrorStatus & E_UNK);
-        CHECK(pki_elem_err(c, 0, 0) & E_UNK);
-        EXPECT_EQ(c->TrustStatus.dwErrorStatus & E_REV, 0);
+        EXPECT_EQ(c->TrustStatus.dwErrorStatus, E_UNK);          /* UNKNOWN only: not flagged offline, not revoked */
+        EXPECT_EQ(pki_elem_err(c, 0, 0), E_UNK);
         PCERT_REVOCATION_INFO ri = c->rgpChain[0]->rgpElement[0]->pRevocationInfo;
-        if (!ri) t_note("no pRevocationInfo for the unknown-status element");
-        if (ri) t_note("dwRevocationResult=0x%lx (CRYPT_E_NO_REVOCATION_CHECK=0x80092012, CRYPT_E_REVOCATION_OFFLINE=0x80092013)", ri->dwRevocationResult);
-        t_note("IS_OFFLINE_REVOCATION is %s", (c->TrustStatus.dwErrorStatus & CERT_TRUST_IS_OFFLINE_REVOCATION) ? "set" : "clear");
+        CHECK(ri != NULL);
+        if (ri) EXPECT_EQ(ri->dwRevocationResult, 0x80092012);   /* CRYPT_E_NO_REVOCATION_CHECK */
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -120,7 +124,7 @@ TEST(chain_revoke_expired_crl_is_not_authoritative) {
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = rev_chain(&e, "leaf_good_crl", "crl_inter_expired", REV_END_CACHE, NULL);
     CHECK(c != NULL);
-    if (c) { pki_note_chain("CRL nextUpdate 2022 at 2025", c); t_note("expired CRL: UNKNOWN=%d", !!(c->TrustStatus.dwErrorStatus & E_UNK)); EXPECT_EQ(c->TrustStatus.dwErrorStatus & E_REV, 0); }
+    if (c) { pki_note_chain("CRL nextUpdate 2022 at 2025", c); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0x1000040); /* UNKNOWN | IS_OFFLINE_REVOCATION */ }
     pki_chain_free(c); pki_eng_close(&e);
 }
 TEST(chain_revoke_crl_not_yet_valid_at_ptime) {
@@ -183,11 +187,12 @@ TEST(chain_revoke_revoked_intermediate) {
     CHECK(c != NULL);
     if (c && c->cChain == 1 && c->rgpChain[0]->cElement == 3) {
         pki_note_chain("revoked CA", c);
-        CHECK(c->TrustStatus.dwErrorStatus & E_REV);
-        CHECK(pki_elem_err(c, 0, 1) & E_REV);
+        EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0x1000044);   /* REVOKED | IS_OFFLINE_REVOCATION: the leaf below has no CRL */
+        EXPECT_EQ(pki_elem_err(c, 0, 0), 0x1000040);
+        EXPECT_EQ(pki_elem_err(c, 0, 1), E_REV);
         EXPECT_EQ(pki_elem_err(c, 0, 2) & E_REV, 0);
         PCERT_REVOCATION_INFO ri = c->rgpChain[0]->rgpElement[1]->pRevocationInfo;
-        if (!ri) t_note("no pRevocationInfo on revoked CA");
+        CHECK(ri != NULL);
         if (ri) EXPECT_EQ(ri->dwRevocationResult, CRYPT_E_REVOKED);
     }
     pki_chain_free(c); pki_eng_close(&e);
@@ -249,19 +254,22 @@ TEST(chain_revoke_para_freshness_time_generous) {
     if (c) {
         pki_note_chain("freshness 10y", c);
         EXPECT_EQ(c->TrustStatus.dwErrorStatus & E_REV, 0);
-        t_note("fHasRevocationFreshnessTime=%d dwRevocationFreshnessTime=%lu", c->fHasRevocationFreshnessTime, c->dwRevocationFreshnessTime);
-        if (c->cChain) t_note("simple chain fHasRevocationFreshnessTime=%d dwRevocationFreshnessTime=%lu", c->rgpChain[0]->fHasRevocationFreshnessTime, c->rgpChain[0]->dwRevocationFreshnessTime);
+        EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
+        /* the reported freshness time is the CRL age in seconds (it moves with the clock): only its presence is stable */
+        EXPECT_EQ(c->fHasRevocationFreshnessTime, 1);
+        CHECK(c->dwRevocationFreshnessTime > 0);
+        if (c->cChain) { EXPECT_EQ(c->rgpChain[0]->fHasRevocationFreshnessTime, 1); CHECK(c->rgpChain[0]->dwRevocationFreshnessTime > 0); }
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
-TEST(chain_revoke_para_freshness_time_one_second_observation) {
+TEST(chain_revoke_para_freshness_time_one_second_stale) {
     REQUIRE(U(CertGetCertificateChain));
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter", NULL, 0));
     CERT_CHAIN_PARA p; memset(&p, 0, sizeof p); p.cbSize = sizeof p;
     p.fCheckRevocationFreshnessTime = TRUE; p.dwRevocationFreshnessTime = 1;
     PCCERT_CHAIN_CONTEXT c = rev_chain(&e, "leaf_good_crl", "crl_inter_clean", REV_END_CACHE, &p);
     CHECK(c != NULL);
-    if (c) pki_note_chain("freshness 1s vs CRL age of months", c);
+    if (c) { pki_note_chain("freshness 1s vs CRL age of months", c); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0x1000040); EXPECT_EQ(pki_elem_err(c, 0, 0), 0x1000040); }
     pki_chain_free(c); pki_eng_close(&e);
 }
 TEST(chain_revoke_para_cache_resync_filetime_accepted) {

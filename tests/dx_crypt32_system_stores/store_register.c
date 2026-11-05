@@ -142,15 +142,15 @@ TEST(dxss_regsys_unknown_location_fails) {
     SET_ERR(0);
     BOOL r = U(CertRegisterSystemStore)((void *)nm, (DWORD)0xFE << 16, NULL, NULL);
     CHECK(!r);
-    t_note("unknown location register: last error 0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     ds_end();
 }
 TEST(dxss_regsys_backup_restore_flag_allowed) {
     SETUP(CertRegisterSystemStore); NAME("rs9");
     SET_ERR(0);
     BOOL r = regsys(nm, CERT_STORE_BACKUP_RESTORE_FLAG);
-    t_note("register with BACKUP_RESTORE (needs backup privilege): %d err 0x%lx", r, GetLastError());
-    if (r) CHECK(ds_key_exists(0, nm, NULL));
+    EXPECT_EQ(r, TRUE);   /* the elevated token holds the backup privilege */
+    CHECK(ds_key_exists(0, nm, NULL));
     ds_end();
 }
 
@@ -359,7 +359,7 @@ TEST(dxss_regphys_creates_system_store_if_missing) {
     CHECK(!ds_key_exists(0, nm, NULL));
     SET_ERR(0);
     CHECK(regphys(nm, 0, L"p", (const char *)10, CU, nm2, 0, 0));
-    t_note("RegisterPhysicalStore into a new system store: store key created=%d", ds_key_exists(0, nm, NULL));
+    CHECK(ds_key_exists(0, nm, NULL));     /* the system store key is created on demand */
     CHECK(ds_key_exists(0, nm, L"PhysicalStores\\p"));
     ds_end();
 }
@@ -560,7 +560,7 @@ TEST(dxss_enumphys_numeric_provider_reported) {
     CHECK(enum_phys(nm, 0, &c));
     int k = phys_index(&c, L"num");
     CHECK(k >= 0);
-    if (k >= 0) t_note("numeric provider reported to enum callback as \"%s\"", c.prov[k]);
+    if (k >= 0) EXPECT_STR(c.prov[k], "#10");
     ds_end();
 }
 TEST(dxss_enumphys_unregistered_physical_disappears) {
@@ -597,8 +597,9 @@ TEST(dxss_enumphys_invalid_flags_rejected) {
     for (unsigned i = 0; i < 4; i++) {
         phys_cap_t c; SET_ERR(0);
         BOOL r = enum_phys(nm, bad[i], &c);
-        t_note("EnumPhysicalStore flag 0x%lx: %d err 0x%lx", bad[i], r, GetLastError());
-        if (!t_is_wine()) CHECKF(!r, "flag 0x%lx accepted", bad[i]);
+        DWORD e = GetLastError();
+        CHECKF(!r, "flag 0x%lx accepted", bad[i]);
+        CHECKF(e == 0x80070057, "flag 0x%lx err 0x%lx", bad[i], e);
     }
     ds_end();
 }

@@ -83,7 +83,8 @@ TEST(rngx_open_rng_nonzero_flags) {
     REQUIRE(U(BCryptOpenAlgorithmProvider)); REQUIRE(U(BCryptCloseAlgorithmProvider));
     BCRYPT_ALG_HANDLE h = NULL;
     LONG s = U(BCryptOpenAlgorithmProvider)(&h, BCRYPT_RNG_ALGORITHM, NULL, BCRYPT_ALG_HANDLE_HMAC_FLAG);
-    t_note("Open(RNG, HMAC flag) = 0x%lx", (unsigned long)s);
+    EXPECT_EQ(s, NS_INVALID_PARAMETER);
+    CHECK(h == NULL);
     if (h) U(BCryptCloseAlgorithmProvider)(h, 0);
 }
 

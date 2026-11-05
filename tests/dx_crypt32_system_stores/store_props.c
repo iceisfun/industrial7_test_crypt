@@ -310,7 +310,7 @@ TEST(dxss_prop_inherit_properties_on_replace) {
     sc_close(&s);
     ds_end();
 }
-TEST(dxss_prop_plain_replace_drop_or_keep_note) {
+TEST(dxss_prop_plain_replace_drops_friendly_name) {
     SETUP(CertSetCertificateContextProperty); NAME("pi2");
     WINE_SKIP("per-certificate property changes and change notifications are not written through the registry store");
     sc_t s;
@@ -319,7 +319,7 @@ TEST(dxss_prop_plain_replace_drop_or_keep_note) {
     if (s.c) { U(CertFreeCertificateContext)(s.c); s.c = NULL; }
     PCCERT_CONTEXT n = ds_add(s.h, 0, CERT_STORE_ADD_REPLACE_EXISTING);
     CHECK(n != NULL);
-    if (n) { wchar_t w[32] = L""; t_note("friendly name after plain REPLACE_EXISTING: %s", get_friendly(n, w, 32) > 0 ? "kept" : "dropped"); U(CertFreeCertificateContext)(n); }
+    if (n) { wchar_t w[32] = L""; EXPECT_EQ(get_friendly(n, w, 32) > 0, 0);   /* a plain replace drops the friendly name */ U(CertFreeCertificateContext)(n); }
     EXPECT_EQ(ds_count(s.h), 1);
     sc_close(&s);
     ds_end();
@@ -400,7 +400,7 @@ TEST(dxss_eku_remove_identifier_persists) {
     sc_close(&s);
     ds_end();
 }
-TEST(dxss_eku_add_duplicate_identifier_observed) {
+TEST(dxss_eku_add_duplicate_identifier) {
     SETUP(CertAddEnhancedKeyUsageIdentifier); NAME("ek4");
     WINE_SKIP("per-certificate property changes and change notifications are not written through the registry store");
     sc_t s;
@@ -409,7 +409,7 @@ TEST(dxss_eku_add_duplicate_identifier_observed) {
         CHECK(U(CertAddEnhancedKeyUsageIdentifier)(s.c, OID_SA));
         SET_ERR(0);
         BOOL r = U(CertAddEnhancedKeyUsageIdentifier)(s.c, OID_SA);
-        t_note("second add of the same EKU oid: %d err 0x%lx", r, GetLastError());
+        EXPECT_EQ(r, TRUE);
         int total = 0;
         EXPECT_EQ(eku_has(s.c, CERT_FIND_PROP_ONLY_ENHKEY_USAGE_FLAG, OID_SA, &total), 1);   /* never listed twice */
         EXPECT_EQ(total, 1);
@@ -417,7 +417,7 @@ TEST(dxss_eku_add_duplicate_identifier_observed) {
     sc_close(&s);
     ds_end();
 }
-TEST(dxss_eku_remove_absent_identifier_observed) {
+TEST(dxss_eku_remove_absent_identifier) {
     SETUP(CertRemoveEnhancedKeyUsageIdentifier); NAME("ek5");
     WINE_SKIP("per-certificate property changes and change notifications are not written through the registry store");
     sc_t s;
@@ -426,7 +426,7 @@ TEST(dxss_eku_remove_absent_identifier_observed) {
         CHECK(U(CertAddEnhancedKeyUsageIdentifier)(s.c, OID_SA));
         SET_ERR(0);
         BOOL r = U(CertRemoveEnhancedKeyUsageIdentifier)(s.c, OID_CS);
-        t_note("remove of an EKU oid that is not present: %d err 0x%lx", r, GetLastError());
+        EXPECT_EQ(r, TRUE);
         EXPECT_EQ(eku_has(s.c, CERT_FIND_PROP_ONLY_ENHKEY_USAGE_FLAG, OID_SA, NULL), 1);
     }
     sc_close(&s);
@@ -490,12 +490,12 @@ TEST(dxss_archive_visible_with_enum_archived_flag) {
         DWORD cb = 99; SET_ERR(0);
         BOOL r = U(CertGetCertificateContextProperty)(s.c, CERT_ARCHIVED_PROP_ID, NULL, &cb);
         CHECK(r);
-        t_note("ARCHIVED property size on an archived cert: %lu", cb);
+        EXPECT_EQ(cb, 0);
     }
     sc_close(&s);
     ds_end();
 }
-TEST(dxss_archive_explicit_find_of_archived_observed) {
+TEST(dxss_archive_explicit_find_of_archived) {
     SETUP(CertSetCertificateContextProperty); NAME("ar4");
     WINE_SKIP("per-certificate property changes are not written through the registry store");
     sc_t s;
@@ -507,10 +507,10 @@ TEST(dxss_archive_explicit_find_of_archived_observed) {
     CHECK(s.h != NULL);
     if (s.h) {
         PCCERT_CONTEXT c = ds_find(s.h, 2);
-        t_note("explicit SHA1 hash find of an archived cert: %s", c ? "found" : "not found");
+        CHECK(c != NULL);
         if (c) U(CertFreeCertificateContext)(c);
         c = U(CertFindCertificateInStore)(s.h, X509_ASN_ENCODING, 0, CERT_FIND_ANY, NULL, NULL);
-        t_note("CERT_FIND_ANY over a store with only an archived cert: %s", c ? "found" : "not found");
+        CHECK(c == NULL);
         if (c) U(CertFreeCertificateContext)(c);
         EXPECT_EQ(ds_count(s.h), 0);          /* plain enumeration never lists it */
     }
@@ -580,7 +580,7 @@ TEST(dxss_archive_add_new_over_archived_observed) {
     DWORD cb; const BYTE *d = ds_der(0, &cb);
     SET_ERR(0);
     BOOL r = U(CertAddEncodedCertificateToStore)(s.h, X509_ASN_ENCODING, d, cb, CERT_STORE_ADD_NEW, NULL);
-    t_note("ADD_NEW of a cert that exists archived: %d err 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, TRUE);   /* an archived cert does not count as existing for ADD_NEW */
     sc_close(&s);
     ds_end();
 }
@@ -595,7 +595,7 @@ TEST(dxss_control_resync_makes_other_handle_changes_visible) {
     ds_sync(b);
     SET_ERR(0);
     BOOL r = U(CertControlStore)(a, 0, CERT_STORE_CTRL_RESYNC, NULL);
-    t_note("RESYNC with NULL event: %d err 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, TRUE);
     if (r) { PCCERT_CONTEXT c = ds_find(a, 0); CHECK(c != NULL); if (c) U(CertFreeCertificateContext)(c); }
     U(CertCloseStore)(a, 0); U(CertCloseStore)(b, 0);
     ds_end();
@@ -621,9 +621,9 @@ TEST(dxss_control_commit_keeps_content) {
     CHECK(ds_add_ok(h, 0));
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, CERT_STORE_CTRL_COMMIT, NULL);
-    t_note("CTRL_COMMIT on system store: %d err 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, TRUE);
     BOOL f = U(CertControlStore)(h, CERT_STORE_CTRL_COMMIT_FORCE_FLAG, CERT_STORE_CTRL_COMMIT, NULL);
-    t_note("CTRL_COMMIT|FORCE: %d err 0x%lx", f, GetLastError());
+    EXPECT_EQ(f, TRUE);
     CHECK(ds_cert_key_exists(0, nm, 0));
     EXPECT_EQ(ds_count(h), 1);
     U(CertCloseStore)(h, 0);
@@ -636,7 +636,8 @@ TEST(dxss_control_unknown_type_fails) {
     if (!h) { CHECK(h != NULL); return; }
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, 0x7777, NULL);
-    t_note("CertControlStore unknown ctrl type: %d err 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, FALSE);
+    EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);
 
     U(CertCloseStore)(h, 0);
     ds_end();
@@ -657,7 +658,7 @@ TEST(dxss_control_notify_change_fires_on_other_handle_add) {
         DWORD w = WaitForSingleObject(ev, 5000);
         EXPECT_EQ(w, WAIT_OBJECT_0);
         U(CertControlStore)(a, 0, CERT_STORE_CTRL_CANCEL_NOTIFY, &ev);
-    } else t_note("NOTIFY_CHANGE failed err 0x%lx", e);
+    } else CHECKF(0, "NOTIFY_CHANGE failed err 0x%lx", e);
     CloseHandle(ev);
     U(CertCloseStore)(a, 0); U(CertCloseStore)(b, 0);
     ds_end();
@@ -741,7 +742,7 @@ TEST(dxss_storeprop_localized_name_roundtrip_same_handle) {
     CRYPT_DATA_BLOB b = { (DWORD)((wcslen(L"Corpus Store") + 1) * 2), (BYTE *)L"Corpus Store" };
     SET_ERR(0);
     BOOL r = U(CertSetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, 0, &b);
-    t_note("CertSetStoreProperty(LOCALIZED_NAME): %d err 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, TRUE);
     if (r) {
         wchar_t out[64] = L""; DWORD cb = sizeof out;
         CHECK(U(CertGetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, out, &cb));
@@ -769,7 +770,7 @@ TEST(dxss_storeprop_custom_roundtrip_same_handle) {
     CRYPT_DATA_BLOB b = { 5, (BYTE *)v };
     SET_ERR(0);
     BOOL r = U(CertSetStoreProperty)(h, 0x9002, 0, &b);
-    t_note("custom store property set: %d err 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, TRUE);
     if (r) {
         BYTE out[8] = {0}; DWORD cb = sizeof out;
         CHECK(U(CertGetStoreProperty)(h, 0x9002, out, &cb));
@@ -902,7 +903,7 @@ TEST(dxss_save_pkcs7_to_filename_w) {
     U(CertCloseStore)(h, 0);
     ds_end();
 }
-TEST(dxss_save_does_not_include_archived_certs_observed) {
+TEST(dxss_save_includes_archived_certs) {
     SETUP(CertSaveStore); NAME("sv7");
     WINE_SKIP("per-certificate property changes and change notifications are not written through the registry store");
     sc_t s;
@@ -913,7 +914,8 @@ TEST(dxss_save_does_not_include_archived_certs_observed) {
     if (p) {
         CRYPT_DATA_BLOB b = { cb, p };
         HCERTSTORE m = U(CertOpenStore)(CERT_STORE_PROV_SERIALIZED, DS_ENC, 0, CERT_STORE_ENUM_ARCHIVED_FLAG, &b);
-        if (m) { t_note("serialized save with one archived cert: %d certs in saved copy (archived flag on read)", ds_count(m)); U(CertCloseStore)(m, 0); }
+        CHECK(m != NULL);
+        if (m) { EXPECT_EQ(ds_count(m), 1); U(CertCloseStore)(m, 0); }   /* the archived cert is saved too */
         free(p);
     }
     sc_close(&s);
@@ -926,8 +928,9 @@ TEST(dxss_save_invalid_format_fails) {
     CRYPT_DATA_BLOB b = { 0, NULL };
     SET_ERR(0);
     BOOL r = U(CertSaveStore)(h, DS_ENC, 99, CERT_STORE_SAVE_TO_MEMORY, &b, 0);
-    t_note("CertSaveStore invalid format: %d err 0x%lx", r, GetLastError());
+    DWORD e = GetLastError();
     CHECK(!r);
+    EXPECT_EQ(e, 0x80070057);
     U(CertCloseStore)(h, 0);
     ds_end();
 }
@@ -1043,7 +1046,7 @@ TEST(dxss_process_child_adds_cert_parent_sees_it) {
     char args[300], n[200]; sprintf(args, "%s 2", narrow(nm, n, sizeof n));
     { DWORD rc_ = t_run_child("dxss_child_add", args, 20000); EXPECT_EQ(rc_, 0); }
     EXPECT_EQ(ds_stored(nm, 0, 2), 1);
-    t_note("pre-existing handle sees child's add without resync: %s", ds_count(h) == 1 ? "yes" : "no");
+    EXPECT_EQ(ds_count(h), 0);     /* the handle that was open before the child's add does not see it without a resync */
     U(CertCloseStore)(h, 0);
     ds_end();
 }
@@ -1076,14 +1079,14 @@ TEST(dxss_process_notify_fires_for_child_change) {
 }
 
 /* ---- backup/restore ---------------------------------------------------------------------------------- */
-TEST(dxss_backup_restore_flag_open_observed) {
+TEST(dxss_backup_restore_flag_open) {
     SETUP(CertOpenStore); NAME("br1");
     HCERTSTORE n = ds_open(nm, 0);
     if (n) { CHECK(ds_add_ok(n, 0)); U(CertCloseStore)(n, 0); }
     SET_ERR(0);
     HCERTSTORE h = ds_open(nm, CERT_STORE_BACKUP_RESTORE_FLAG);
     DWORD e = GetLastError();
-    t_note("open with BACKUP_RESTORE_FLAG: %s err 0x%lx", h ? "opened" : "failed", e);
+    CHECKF(h != NULL, "open with BACKUP_RESTORE_FLAG failed err 0x%lx", e);
     if (h) {
         EXPECT_EQ(ds_count(h), 1);          /* same content as a normal open */
         U(CertCloseStore)(h, 0);
@@ -1095,7 +1098,7 @@ TEST(dxss_backup_restore_flag_add_lands_in_normal_registry) {
     HCERTSTORE n = ds_open(nm, 0);
     if (n) U(CertCloseStore)(n, 0);
     HCERTSTORE h = ds_open(nm, CERT_STORE_BACKUP_RESTORE_FLAG | CERT_STORE_OPEN_EXISTING_FLAG);
-    if (!h) { t_note("BACKUP_RESTORE open failed err 0x%lx (privilege)", GetLastError()); ds_end(); return; }
+    if (!h) { CHECKF(0, "BACKUP_RESTORE open failed err 0x%lx", GetLastError()); ds_end(); return; }
     CHECK(ds_add_ok(h, 1)); ds_sync(h);
     U(CertCloseStore)(h, 0);
     EXPECT_EQ(ds_stored(nm, 0, 1), 1);

@@ -206,7 +206,8 @@ TEST(dxss_enumsys_callback_false_stops_enumeration) {
     SET_ERR(0);
     BOOL r = U(CertEnumSystemStore)(CU, NULL, &s, stop_sys_cb);
     EXPECT_EQ(s.calls, 1);
-    t_note("CertEnumSystemStore with a callback returning FALSE: returned %d err 0x%lx", r, GetLastError());
+    EXPECT_EQ(r, FALSE);
+    EXPECT_ERR(0);
     ds_end();
 }
 TEST(dxss_enumphys_callback_false_stops_enumeration) {
@@ -273,7 +274,9 @@ TEST(dxss_enumsys_invalid_flags_rejected) {
     stop_t s = { 0 };
     SET_ERR(0);
     BOOL r = U(CertEnumSystemStore)(CU | CERT_STORE_CREATE_NEW_FLAG, NULL, &s, stop_sys_cb);
-    t_note("CertEnumSystemStore with CREATE_NEW: %d err 0x%lx calls %d", r, GetLastError(), s.calls);
+    EXPECT_EQ(r, FALSE);
+    EXPECT_ERR(0x80070057);
+    EXPECT_EQ(s.calls, 0);
     ds_end();
 }
 

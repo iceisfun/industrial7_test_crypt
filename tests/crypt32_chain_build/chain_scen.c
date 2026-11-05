@@ -120,14 +120,15 @@ TEST(chain_build_context_header_fields) {
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf", NULL, PKI_T0, PKI_OFFLINE, NULL);
     CHECK(c != NULL);
     if (c) {
-        t_note("CERT_CHAIN_CONTEXT.cbSize = %lu (header struct %zu)", c->cbSize, sizeof(CERT_CHAIN_CONTEXT));
-        CHECK(c->cbSize >= offsetof(CERT_CHAIN_CONTEXT, fHasRevocationFreshnessTime));
+        EXPECT_EQ(c->cbSize, sizeof(CERT_CHAIN_CONTEXT));   /* 72 on Win10 22H2 x64 */
         EXPECT_EQ(c->cChain, 1);
         CHECK(c->rgpChain != NULL);
         EXPECT_EQ(c->cLowerQualityChainContext, 0);
         EXPECT_EQ(c->rgpLowerQualityChainContext, NULL);
         EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
-        t_note("chain info 0x%lx fHasRevocationFreshnessTime=%d dwCreateFlags=0x%lx", c->TrustStatus.dwInfoStatus, c->fHasRevocationFreshnessTime, c->dwCreateFlags);
+        EXPECT_EQ(c->TrustStatus.dwInfoStatus, 0x2100);     /* HAS_PREFERRED_ISSUER | IS_FROM_EXCLUSIVE... as probed */
+        EXPECT_EQ(c->fHasRevocationFreshnessTime, 0);
+        EXPECT_EQ(c->dwCreateFlags, PKI_OFFLINE);
         if (c->cbSize >= sizeof(CERT_CHAIN_CONTEXT)) { GUID z = {0}; CHECK(memcmp(&c->ChainId, &z, sizeof z) == 0); /* Win10: ChainId is all zero in this path */ }
     }
     pki_chain_free(c); pki_eng_close(&e);
@@ -145,7 +146,8 @@ TEST(chain_build_simple_chain_fields) {
         CHECK(sc->rgpElement != NULL);
         EXPECT_EQ(sc->pTrustListInfo, NULL);
         EXPECT_EQ(sc->TrustStatus.dwErrorStatus, c->TrustStatus.dwErrorStatus);
-        t_note("simple chain cbSize=%lu info=0x%lx", sc->cbSize, sc->TrustStatus.dwInfoStatus);
+        EXPECT_EQ(sc->cbSize, 40);
+        EXPECT_EQ(sc->TrustStatus.dwInfoStatus, 0x2100);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -178,7 +180,10 @@ TEST(chain_build_root_element_is_self_signed_only) {
         CHECK(pki_elem_info(c, 0, 2) & CERT_TRUST_IS_SELF_SIGNED);
         CHECK(!(pki_elem_info(c, 0, 0) & CERT_TRUST_IS_SELF_SIGNED));
         CHECK(!(pki_elem_info(c, 0, 1) & CERT_TRUST_IS_SELF_SIGNED));
-        t_note("element info: leaf 0x%lx inter 0x%lx root 0x%lx (KEY_MATCH_ISSUER=2 expected where AKI present)", pki_elem_info(c, 0, 0), pki_elem_info(c, 0, 1), pki_elem_info(c, 0, 2));
+        /* leaf and intermediate: HAS_KEY_MATCH_ISSUER (2) | HAS_NAME_MATCH_ISSUER (0x100); root adds IS_SELF_SIGNED (8), HAS_PREFERRED_ISSUER/TRUSTED bits */
+        EXPECT_EQ(pki_elem_info(c, 0, 0), 0x102);
+        EXPECT_EQ(pki_elem_info(c, 0, 1), 0x102);
+        EXPECT_EQ(pki_elem_info(c, 0, 2), 0x210c);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -250,7 +255,9 @@ TEST(chain_build_basic_constraints_error_reported) {
     if (c && c->cChain == 1 && c->rgpChain[0]->cElement == 3) {
         DWORD any = pki_elem_err(c, 0, 0) | pki_elem_err(c, 0, 1) | pki_elem_err(c, 0, 2);
         CHECK(any & CERT_TRUST_INVALID_BASIC_CONSTRAINTS);
-        t_note("basic constraints error element status: leaf 0x%lx inter 0x%lx root 0x%lx", pki_elem_err(c, 0, 0), pki_elem_err(c, 0, 1), pki_elem_err(c, 0, 2));
+        EXPECT_EQ(pki_elem_err(c, 0, 0), 0);
+        EXPECT_EQ(pki_elem_err(c, 0, 1), CERT_TRUST_INVALID_BASIC_CONSTRAINTS);
+        EXPECT_EQ(pki_elem_err(c, 0, 2), 0);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -262,7 +269,10 @@ TEST(chain_build_pathlen_error_reported) {
     if (c && c->cChain == 1 && c->rgpChain[0]->cElement == 4) {
         DWORD any = 0; for (int i = 0; i < 4; i++) any |= pki_elem_err(c, 0, i);
         CHECK(any & CERT_TRUST_INVALID_BASIC_CONSTRAINTS);
-        t_note("pathlen violation per element: %lx %lx %lx %lx", pki_elem_err(c, 0, 0), pki_elem_err(c, 0, 1), pki_elem_err(c, 0, 2), pki_elem_err(c, 0, 3));
+        EXPECT_EQ(pki_elem_err(c, 0, 0), 0);
+        EXPECT_EQ(pki_elem_err(c, 0, 1), 0);
+        EXPECT_EQ(pki_elem_err(c, 0, 2), CERT_TRUST_INVALID_BASIC_CONSTRAINTS);   /* the pathLen 0 CA that has a sub CA below it */
+        EXPECT_EQ(pki_elem_err(c, 0, 3), 0);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -331,13 +341,14 @@ TEST(chain_build_para_cbsize_variants_accepted) {
     }
     pki_eng_close(&e);
 }
-TEST(chain_build_para_cbsize_zero_observation) {
+TEST(chain_build_para_cbsize_zero_accepted) {
     REQUIRE(U(CertGetCertificateChain));
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter", NULL, 0));
     CERT_CHAIN_PARA p; memset(&p, 0, sizeof p); p.cbSize = 0;
     SET_ERR(0);
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf", NULL, PKI_T0, PKI_OFFLINE, &p);
-    t_note("CERT_CHAIN_PARA.cbSize==0: %s (lasterr 0x%lx)", c ? "accepted" : "rejected", GetLastError());
+    CHECK(c != NULL);   /* a zero cbSize is accepted on Win10 22H2 */
+    if (c) EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
     pki_chain_free(c); pki_eng_close(&e);
 }
 TEST(chain_build_input_chain_pointer_cleared_or_set) {
@@ -383,14 +394,14 @@ TEST(chain_build_lower_quality_empty_without_flag) {
     if (c) { pki_note_chain("two candidate paths", c); EXPECT_EQ(c->cLowerQualityChainContext, 0); EXPECT_EQ(c->rgpLowerQualityChainContext, NULL); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0); }
     pki_chain_free(c); pki_eng_close(&e);
 }
-TEST(chain_build_lower_quality_with_flag_observation) {
+TEST(chain_build_lower_quality_with_flag) {
     REQUIRE(U(CertGetCertificateChain));
     PKI_ENG e; CHECK(pki_eng_open(&e, "root root2", "inter inter_x root2", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf", NULL, PKI_T0, PKI_OFFLINE | CERT_CHAIN_RETURN_LOWER_QUALITY_CONTEXTS, NULL);
     CHECK(c != NULL);
     if (c) {
         pki_note_chain("best", c);
-        t_note("cLowerQualityChainContext=%lu", c->cLowerQualityChainContext);
+        EXPECT_EQ(c->cLowerQualityChainContext, 1);   /* the cross-signed path through root2 */
         EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
         for (DWORD i = 0; i < c->cLowerQualityChainContext; i++) {
             PCCERT_CHAIN_CONTEXT lq = c->rgpLowerQualityChainContext[i];

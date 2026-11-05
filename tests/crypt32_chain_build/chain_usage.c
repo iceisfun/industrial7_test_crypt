@@ -13,7 +13,7 @@ static void usage_case(const char *tag, const char *leaf, const char *others, in
     if (c) {
         pki_note_chain(tag, c);
         CHECKF(c->TrustStatus.dwErrorStatus == want, "%s: error got 0x%lx want 0x%lx", tag, c->TrustStatus.dwErrorStatus, want);
-        if (c->cChain && c->rgpChain[0]->TrustStatus.dwErrorStatus != want) t_note("%s: simple chain status 0x%lx differs from chain status", tag, c->rgpChain[0]->TrustStatus.dwErrorStatus);
+        if (c->cChain) CHECKF(c->rgpChain[0]->TrustStatus.dwErrorStatus == want, "%s: simple chain status 0x%lx", tag, c->rgpChain[0]->TrustStatus.dwErrorStatus);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -81,15 +81,16 @@ TEST(chain_usage_application_usage_of_end_cert) {
     CHECK(c && c->cChain == 1);
     if (c && c->cChain == 1) {
         PCERT_CHAIN_ELEMENT el = c->rgpChain[0]->rgpElement[0];
+        CHECK(el->pApplicationUsage != NULL);
         if (el->pApplicationUsage) {
-            t_note("leaf pApplicationUsage count=%lu", el->pApplicationUsage->cUsageIdentifier);
+            EXPECT_EQ(el->pApplicationUsage->cUsageIdentifier, 2);
             int s = 0, cl = 0;
             for (DWORD i = 0; i < el->pApplicationUsage->cUsageIdentifier; i++) {
                 if (!strcmp(el->pApplicationUsage->rgpszUsageIdentifier[i], OID_SERVER)) s = 1;
                 if (!strcmp(el->pApplicationUsage->rgpszUsageIdentifier[i], OID_CLIENT)) cl = 1;
             }
             CHECK(s); CHECK(cl);
-        } else t_note("leaf element has no pApplicationUsage");
+        }
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -101,8 +102,8 @@ TEST(chain_usage_application_usage_ca_limits_end_cert) {
     CHECK(c && c->cChain == 1);
     if (c && c->cChain == 1) {
         PCERT_CHAIN_ELEMENT el = c->rgpChain[0]->rgpElement[0];
+        CHECK(el->pApplicationUsage != NULL);
         if (el->pApplicationUsage) { EXPECT_EQ(el->pApplicationUsage->cUsageIdentifier, 1); if (el->pApplicationUsage->cUsageIdentifier == 1) EXPECT_STR(el->pApplicationUsage->rgpszUsageIdentifier[0], OID_CODE); }
-        else t_note("leaf element has no pApplicationUsage");
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -150,10 +151,10 @@ TEST(chain_policy_issuance_policy_info_bit_on_match) {
     p.RequestedIssuancePolicy.dwType = USAGE_MATCH_TYPE_AND; p.RequestedIssuancePolicy.Usage.cUsageIdentifier = 1; p.RequestedIssuancePolicy.Usage.rgpszUsageIdentifier = (LPSTR *)o;
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf_pol", NULL, PKI_T0, PKI_OFFLINE, &p);
     CHECK(c != NULL);
-    if (c) { t_note("chain info 0x%lx (HAS_ISSUANCE_CHAIN_POLICY=0x200)", c->TrustStatus.dwInfoStatus); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0); }
+    if (c) { EXPECT_EQ(c->TrustStatus.dwInfoStatus, 0x2100); EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0); }
     pki_chain_free(c); pki_eng_close(&e);
 }
-TEST(chain_policy_issuance_usage_of_elements_observation) {
+TEST(chain_policy_issuance_usage_of_elements) {
     REQUIRE(U(CertGetCertificateChain));
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter_pol", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf_pol", NULL, PKI_T0, PKI_OFFLINE, NULL);
@@ -161,7 +162,10 @@ TEST(chain_policy_issuance_usage_of_elements_observation) {
     if (c && c->cChain == 1) {
         for (DWORD i = 0; i < c->rgpChain[0]->cElement; i++) {
             PCERT_ENHKEY_USAGE u = c->rgpChain[0]->rgpElement[i]->pIssuanceUsage;
-            t_note("element %lu pIssuanceUsage count=%lu first=%s", i, u ? u->cUsageIdentifier : 0, (u && u->cUsageIdentifier) ? u->rgpszUsageIdentifier[0] : "-");
+            /* the leaf and the intermediate carry the policy; the root has none */
+            DWORD cnt = u ? u->cUsageIdentifier : 0;
+            EXPECT_EQ(cnt, i < 2 ? 1 : 0);
+            if (i < 2 && cnt == 1) EXPECT_STR(u->rgpszUsageIdentifier[0], OID_POL1);
         }
         EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
     }
@@ -182,53 +186,57 @@ TEST(chain_nameconstraints_permitted_dns_ok) { REQUIRE(U(CertGetCertificateChain
 TEST(chain_nameconstraints_not_permitted_dns) {
     REQUIRE(U(CertGetCertificateChain));
     DWORD e = nc_case("nc_bad", "leaf_nc_bad", "inter_nc");
-    CHECKF(e & CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT, "got 0x%lx", e);
-    t_note("not-permitted status 0x%lx (INVALID_NAME_CONSTRAINTS bit %s)", e, (e & CERT_TRUST_INVALID_NAME_CONSTRAINTS) ? "set" : "clear");
+    CHECKF(e == CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT, "got 0x%lx", e);
 }
 TEST(chain_nameconstraints_mixed_names_one_not_permitted) {
     REQUIRE(U(CertGetCertificateChain));
     DWORD e = nc_case("nc_mixed", "leaf_nc_mixed", "inter_nc");
-    CHECKF(e & CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT, "got 0x%lx", e);
+    CHECKF(e == CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT, "got 0x%lx", e);
 }
 TEST(chain_nameconstraints_excluded_dns) {
     REQUIRE(U(CertGetCertificateChain));
     DWORD e = nc_case("ncx_bad", "leaf_ncx_bad", "inter_ncx");
-    CHECKF(e & CERT_TRUST_HAS_EXCLUDED_NAME_CONSTRAINT, "got 0x%lx", e);
+    CHECKF(e == CERT_TRUST_HAS_EXCLUDED_NAME_CONSTRAINT, "got 0x%lx", e);
 }
 TEST(chain_nameconstraints_excluded_not_hit_ok) { REQUIRE(U(CertGetCertificateChain)); EXPECT_EQ(nc_case("ncx_ok", "leaf_ncx_ok", "inter_ncx"), 0); }
-TEST(chain_nameconstraints_violation_marks_leaf_element) {
+TEST(chain_nameconstraints_violation_marks_constrained_ca_element) {
     REQUIRE(U(CertGetCertificateChain));
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter_nc", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf_nc_bad", NULL, PKI_T0, PKI_OFFLINE, NULL);
     CHECK(c && c->cChain == 1 && c->rgpChain[0]->cElement == 3);
     if (c && c->cChain == 1 && c->rgpChain[0]->cElement == 3) {
-        t_note("per element: leaf 0x%lx inter 0x%lx root 0x%lx", pki_elem_err(c, 0, 0), pki_elem_err(c, 0, 1), pki_elem_err(c, 0, 2));
-        CHECK((pki_elem_err(c, 0, 0) | pki_elem_err(c, 0, 1)) & CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT);
+        /* the violation is reported on the CA that carries the constraint, not on the leaf */
+        EXPECT_EQ(pki_elem_err(c, 0, 0), 0);
+        EXPECT_EQ(pki_elem_err(c, 0, 1), CERT_TRUST_HAS_NOT_PERMITTED_NAME_CONSTRAINT);
         EXPECT_EQ(pki_elem_err(c, 0, 2), 0);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
-TEST(chain_nameconstraints_good_chain_valid_info_bit_observation) {
+TEST(chain_nameconstraints_good_chain_valid_info_bit) {
     REQUIRE(U(CertGetCertificateChain));
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter_nc", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, "leaf_nc_ok", NULL, PKI_T0, PKI_OFFLINE, NULL);
     CHECK(c && c->cChain == 1 && c->rgpChain[0]->cElement == 3);
-    if (c && c->cChain == 1) t_note("HAS_VALID_NAME_CONSTRAINTS (0x400) element info: leaf 0x%lx inter 0x%lx", pki_elem_info(c, 0, 0), pki_elem_info(c, 0, 1));
+    if (c && c->cChain == 1) {
+        EXPECT_EQ(pki_elem_info(c, 0, 0), 0x102);
+        EXPECT_EQ(pki_elem_info(c, 0, 1), 0x502);   /* the constrained CA carries HAS_VALID_NAME_CONSTRAINTS (0x400) */
+    }
     pki_chain_free(c); pki_eng_close(&e);
 }
 
 /* ---- weak signature algorithms and key sizes: the chain is built; status is Windows policy dependent ---- */
 static void weak_case(const char *leaf) {
     REQUIRE(U(CertGetCertificateChain));
-    if (!pki_find(leaf)) { t_skip("fixture %s not generated", leaf); return; }
+    CHECKF(pki_find(leaf) != NULL, "fixture %s not generated", leaf);
+    if (!pki_find(leaf)) return;
     PKI_ENG e; CHECK(pki_eng_open(&e, "root", "inter", NULL, 0));
     PCCERT_CHAIN_CONTEXT c = pki_chain(e.h, leaf, NULL, PKI_T0, PKI_OFFLINE, NULL);
     CHECK(c != NULL);
     if (c) {
         pki_note_chain(leaf, c);
         EXPECT_EQ(pki_nelem(c, 0), 3);
-        EXPECT_EQ(c->TrustStatus.dwErrorStatus & ~(DWORD)CERT_TRUST_HAS_WEAK_SIGNATURE, 0);
-        t_note("%s: HAS_WEAK_SIGNATURE (0x100000) is %s", leaf, (c->TrustStatus.dwErrorStatus & CERT_TRUST_HAS_WEAK_SIGNATURE) ? "set" : "clear");
+        /* Win10 22H2 does not flag SHA-1, MD5 or 1024-bit RSA leaves as weak in this path */
+        EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
@@ -368,8 +376,8 @@ TEST(chain_peer_trust_flag_marks_trusted_people_cert) {
     CHECK(c != NULL);
     if (c && c->cChain) {
         pki_note_chain("peer trusted", c);
-        t_note("IS_PEER_TRUSTED info bit: %d", !!(pki_elem_info(c, 0, 0) & CERT_TRUST_IS_PEER_TRUSTED));
-        t_note("peer trusted chain error status 0x%lx (UNTRUSTED_ROOT=0x20 would mean the peer trust did not end the chain)", c->TrustStatus.dwErrorStatus);
+        EXPECT_EQ(pki_elem_info(c, 0, 0), 0x2800);   /* IS_PEER_TRUSTED | IS_FROM_EXCLUSIVE_TRUST_STORE */
+        EXPECT_EQ(c->TrustStatus.dwErrorStatus, 0);
     }
     pki_chain_free(c); pki_eng_close(&e);
 }
