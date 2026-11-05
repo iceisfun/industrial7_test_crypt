@@ -417,7 +417,8 @@ TEST(sip_pe_verify_detects_modification) {
         tamper(f.path, offs[i], 0x80);
         SET_ERR(0);
         CHECKF(!WVER(&si, id), "offset 0x%x", (unsigned)offs[i]);
-        EXPECT_ERR(E_TRUST_BAD_DIGEST);
+        /* offset 0 destroys the MZ magic: the image is no longer recognised at all (E_UNEXPECTED) */
+        EXPECT_ERR(offs[i] == 0 ? (DWORD)0x8000FFFF : E_TRUST_BAD_DIGEST);
         free(id);
     }
 }
@@ -576,8 +577,8 @@ TEST(sip_pe_put_get_roundtrip_layout) {
     CHECK(WPUT(&si, ENC, &idx, sizeof blob, blob) == TRUE);
     CHECK(idx == 0);
     /* on-disk layout: one WIN_CERTIFICATE {dwLength=8+n, wRevision=0x200, wCertificateType=2} at the old end of file */
-    u8 raw[1024]; size_t n = sipt_get(f.path, raw, sizeof raw);
-    CHECK(n == 0x400 + 32 || n == 0x400 + 32 + 8); /* tolerate alignment padding variants */
+    u8 raw[2048]; size_t n = sipt_get(f.path, raw, sizeof raw);
+    CHECKF(n == 0x400 + 32, "file size %u", (unsigned)n);
     DWORD coff, csz; read_certdir(f.path, &coff, &csz);
     CHECK(coff == 0x400 && csz == 32);
     if (n == 0x420) {
@@ -639,11 +640,15 @@ TEST(sip_pe_put_non_multiple_of_eight_length) {
             size_t sz = sipt_size(f.path);
             CHECKF(sz % 8 == 0, "len %lu: file size %u keeps the certificate table 8-byte aligned", lens[i], (unsigned)sz);
             cb = 0;
-            CHECKF(WGET(&si, &enc, 0, &cb, NULL) == TRUE && cb == lens[i] + 8, "len %lu query cb %lu", lens[i], cb);
+            DWORD r8 = (lens[i] + 7) & ~7u;                          /* the stored blob is zero padded to 8 */
+            CHECKF(WGET(&si, &enc, 0, &cb, NULL) == TRUE, "len %lu", lens[i]);
+            CHECKF(cb == r8 + 8, "len %lu query cb %lu", lens[i], cb);
+            { DWORD coff, csz; read_certdir(f.path, &coff, &csz); CHECKF(csz == r8 + 8, "len %lu certdir size 0x%lx", lens[i], csz); }
             cb = lens[i] + 64; memset(got, 0xEE, cb);
             CHECKF(WGET(&si, &enc, 0, &cb, got) == TRUE, "len %lu", lens[i]);
-            CHECKF(cb == lens[i], "len %lu: returned %lu", lens[i], cb);
+            CHECKF(cb == r8, "len %lu: returned %lu", lens[i], cb);
             CHECKF(!memcmp(got, blob, lens[i]), "len %lu", lens[i]);
+            { unsigned nz = 0; for (DWORD k = lens[i]; k < r8; k++) nz += got[k] != 0; CHECKF(nz == 0, "len %lu: %u non-zero padding bytes", lens[i], nz); }
         }
         free(blob); free(got);
     }

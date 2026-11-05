@@ -91,7 +91,8 @@ TEST(sip_cab_create_structure_and_size_layout) {
         EXPECT_STR(id->Data.pszObjId, OID_CAB_DATA);
         EXPECT_STR(id->DigestAlgorithm.pszObjId, t[i].oid);
         CHECKF(id->Digest.cbData == t[i].len, "%s", t[i].oid);
-        CHECK(id->Data.Value.cbData > 0 && id->Data.Value.pbData[0] == 0x30);
+        /* SPC data value starts with a context tag [1] (0xA1) whose length covers the rest */
+        CHECKF(id->Data.Value.cbData > 2 && id->Data.Value.pbData[0] == 0xA1 && id->Data.Value.pbData[1] == id->Data.Value.cbData - 2, "%s", t[i].oid);
         CHECKF(need == sizeof(SIP_INDIRECT_DATA) + strlen(OID_CAB_DATA) + 1 + id->Data.Value.cbData + strlen(t[i].oid) + 1 + t[i].len, "%s need %lu", t[i].oid, need);
         free(id);
     }
@@ -320,7 +321,9 @@ TEST(sip_flat_create_by_handle) {
     CHECK(GetFileSize(h, NULL) == 100);
     CloseHandle(h);
 }
-TEST(sip_flat_verify_roundtrip_with_add_info) {
+TEST(sip_flat_verify_with_add_info_never_succeeds) {
+    /* Win10: with a valid MS_ADDINFO_FLAT the flat SIP verify returns FALSE with last error 0, for an unmodified file,
+       a modified file, a corrupted digest, other algorithms and a handle subject alike. */
     REQUIRE(WCRE); REQUIRE(WVER);
     u8 d[100]; flat_data(d, sizeof d);
     XF f; SIP_SUBJECTINFO si; MS_ADDINFO_FLAT ai; xf_put(&f, "flat.bin", d, sizeof d);
@@ -330,12 +333,25 @@ TEST(sip_flat_verify_roundtrip_with_add_info) {
     if (!id) return;
     ai.cbStruct = sizeof ai; ai.pIndirectData = id;
     si.dwUnionChoice = MSSIP_ADDINFO_FLAT; si.psFlat = &ai;
-    SET_ERR(0);
-    CHECK(WVER(&si, id) == TRUE);
+    SET_ERR(0x55);
+    CHECK(!WVER(&si, id)); EXPECT_ERR(0);                      /* unmodified file */
     d[50] ^= 1; sipt_put(f.path, d, sizeof d);
-    SET_ERR(0);
-    CHECK(!WVER(&si, id));
-    EXPECT_ERR(E_TRUST_BAD_DIGEST);
+    SET_ERR(0x55);
+    CHECK(!WVER(&si, id)); EXPECT_ERR(0);                      /* modified file */
+    d[50] ^= 1; sipt_put(f.path, d, sizeof d);
+    id->Digest.pbData[0] ^= 1;
+    SET_ERR(0x55);
+    CHECK(!WVER(&si, id)); EXPECT_ERR(0);                      /* corrupted digest */
+    id->Digest.pbData[0] ^= 1;
+    HANDLE h = sipt_open(f.path, GENERIC_READ);
+    SIP_SUBJECTINFO s2; sipt_subject(&s2, &G_FLAT, h, NULL, OID_SHA1, 0);
+    s2.dwUnionChoice = MSSIP_ADDINFO_FLAT; s2.psFlat = &ai;
+    SET_ERR(0x55);
+    CHECK(!WVER(&s2, id)); EXPECT_ERR(0);                      /* handle subject */
+    CloseHandle(h);
+    ai.cbStruct = 0x1000;
+    SET_ERR(0x55);
+    CHECK(!WVER(&si, id)); EXPECT_ERR(ERROR_INVALID_PARAMETER);    /* only cbStruct is validated */
     free(id);
 }
 TEST(sip_flat_verify_without_add_info_is_invalid_argument) {

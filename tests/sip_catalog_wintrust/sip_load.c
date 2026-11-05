@@ -201,13 +201,27 @@ TEST(sip_sealed_digest_crypt32_dispatch_validation) {
     CHECK(!C32(CryptSIPGetSealedDigest)(&si, sig, sizeof sig, out, &cb)); EXPECT_ERR(E_TRUST_SUBJECT_FORM_UNKNOWN);
 }
 TEST(sip_sealed_digest_garbage_signature_on_unsigned_pe) {
+    /* Win10: no parsing of the signature is done; the call succeeds with a 32 byte value that depends on both the
+       signature bytes and the file, and is deterministic. The exact value for this input is pinned. */
     REQUIRE(WT(CryptSIPGetSealedDigest));
-    char path[MAX_PATH]; WCHAR w[MAX_PATH]; SIP_SUBJECTINFO si; BYTE sig[32], out[64]; DWORD cb = sizeof out;
+    static const u8 want[32] = { 0x21,0x96,0xd3,0x91,0xde,0xfb,0xaf,0xe5,0xf6,0xff,0x25,0x69,0x8e,0x34,0x94,0x01,
+                                 0x58,0x0d,0x95,0xff,0x5e,0x9a,0xbd,0x92,0xc6,0x9b,0x0f,0xab,0xa3,0x4b,0x24,0xc8 };
+    char path[MAX_PATH]; WCHAR w[MAX_PATH]; SIP_SUBJECTINFO si; BYTE sig[32], out[64], out2[64]; DWORD cb = sizeof out, cb2 = sizeof out2;
     sipt_mkpe(path, sizeof path, "sealed.exe", 0); sipt_wide(w, MAX_PATH, path);
     sipt_subject(&si, &G_PE, NULL, w, OID_SHA256, 0);
     memset(sig, 0x11, sizeof sig);
-    CHECK(!WT(CryptSIPGetSealedDigest)(&si, sig, sizeof sig, out, &cb));   /* not a PKCS#7 sealing signature */
-    t_note("sealed digest of garbage: last error 0x%lx", GetLastError());
+    SET_ERR(0x1234);
+    CHECK(WT(CryptSIPGetSealedDigest)(&si, sig, sizeof sig, out, &cb) == TRUE);
+    EXPECT_EQ(cb, 32);
+    CHECK(!memcmp(out, want, 32));
+    CHECK(WT(CryptSIPGetSealedDigest)(&si, sig, sizeof sig, out2, &cb2) == TRUE);
+    CHECK(cb2 == 32 && !memcmp(out, out2, 32));
+    cb = 0;
+    CHECK(WT(CryptSIPGetSealedDigest)(&si, sig, sizeof sig, NULL, &cb) == TRUE);   /* size query */
+    EXPECT_EQ(cb, 32);
+    sig[0] ^= 1; cb2 = sizeof out2;
+    CHECK(WT(CryptSIPGetSealedDigest)(&si, sig, sizeof sig, out2, &cb2) == TRUE);
+    CHECK(memcmp(out, out2, 32) != 0);
 }
 
 /* ---- CryptSIPGetInfo / GetRegWorkingFlags / mssip32 forwards ---- */
@@ -289,7 +303,8 @@ TEST(sip_working_flags_equal_policy_flags) {
 TEST(sip_policy_flags_default_bits) {
     DWORD st;
     /* 0x23c00 is the built-in default; document which bits it carries */
-    if (read_state(&st)) { t_skip("State value present in HKCU (0x%lx)", st); return; }
+    /* Win10 22H2 oracle: the HKCU State value is present and equals the default in both std and adm runs. */
+    if (read_state(&st)) EXPECT_EQ(st, 0x23c00);
     REQUIRE(WT(WintrustGetRegPolicyFlags));
     DWORD f = 0; WT(WintrustGetRegPolicyFlags)(&f);
     EXPECT_EQ(f, 0x23c00);

@@ -84,11 +84,19 @@ TEST(sip_guid_missing_file_catalog_variant) {
 }
 TEST(sip_guid_directory_is_not_openable) {
     REQUIRE(U(CryptSIPRetrieveSubjectGuid));
-    WCHAR w[MAX_PATH]; GUID g;
-    sipt_wide(w, MAX_PATH, t_tmpdir());
+    WCHAR w[MAX_PATH]; GUID g; char d[MAX_PATH];
+    /* CreateFile on a directory without FILE_FLAG_BACKUP_SEMANTICS; the temp dir path ends with a backslash */
+    snprintf(d, sizeof d, "%s", t_tmpdir()); size_t n = strlen(d);
+    CHECK(n > 3 && d[n - 1] == '\\');
+    sipt_wide(w, MAX_PATH, d);
+    memset(&g, 0xEE, sizeof g);
     PRE(); SET_ERR(0);
-    /* CreateFile on a directory without FILE_FLAG_BACKUP_SEMANTICS */
-    EXPECT_FAIL(!U(CryptSIPRetrieveSubjectGuid)(w, NULL, &g), ERROR_ACCESS_DENIED);
+    EXPECT_FAIL(!U(CryptSIPRetrieveSubjectGuid)(w, NULL, &g), ERROR_PATH_NOT_FOUND);   /* trailing backslash: observed on Win10 */
+    CHECK(guid_zero(&g));
+    if (n > 3 && d[n - 1] == '\\') d[n - 1] = 0;
+    sipt_wide(w, MAX_PATH, d);
+    PRE(); SET_ERR(0);
+    EXPECT_FAIL(!U(CryptSIPRetrieveSubjectGuid)(w, NULL, &g), ERROR_ACCESS_DENIED);    /* without it */
     CHECK(guid_zero(&g));
 }
 TEST(sip_guid_sharing_violation_with_writer) {
@@ -207,7 +215,7 @@ TEST(sip_guid_pe_header_boundaries) {
         { 0x100, 0x100 + 0x147,    1, 0, "short, lfanew 0x100" },
         { 0x40,  0x400,            0, 0, "no PE signature" },
         { 0x80,  0x400,            0, 0, "no PE signature at 0x80" },
-        { 0x3c,  0x400,            1, 1, "lfanew inside the DOS header region" },
+        { 0x3c,  0x400,            1, 0, "lfanew 0x3c: the signature bytes overwrite e_lfanew itself (now 0x4550, beyond the end)" },
         { 0x0,   0x400,            1, 0, "lfanew 0 (MZ is not a PE signature)" },
         { 0xFFFFFFF0u, 0x400,      1, 0, "lfanew huge" },
         { 0x7fffffbfu, 0x400,      1, 0, "lfanew at the limit" },
