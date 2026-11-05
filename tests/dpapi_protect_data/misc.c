@@ -205,7 +205,7 @@ static DWORD synth(BYTE *b, DWORD cap, DWORD cipherAlg, DWORD hashAlg, DWORD tot
     dp_wr(b, o, hashAlg); dp_wr(b, o + 4, 512); dp_wr(b, o + 8, 0); o += 12;
     return total;
 }
-static const DWORD SYNTH_MIN = 106;                   /* uVar5 + 0xf with salt 16, strong 0 (decomp) */
+static const DWORD SYNTH_MIN = 106;                   /* uVar5 + 0xf with salt 16, strong 0 */
 
 TEST(dpapi_identify_synthetic_blob) {
     NEED_DPAPI_FN(iCryptIdentifyProtection);

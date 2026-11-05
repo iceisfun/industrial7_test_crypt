@@ -3,7 +3,7 @@
 
 static const BYTE SECRET[] = "dpapi secret payload 0123456789";
 
-/* ---- argument validation (decomp: all rejected with ERROR_INVALID_PARAMETER before any output is written) ---- */
+/* ---- argument validation (observed on Windows 10: all rejected with ERROR_INVALID_PARAMETER before any output is written) ---- */
 
 TEST(dpapi_prot_null_datain) {
     DP_NEED_DATA();
@@ -60,7 +60,7 @@ TEST(dpapi_unprot_null_pbdata) {
 }
 TEST(dpapi_unprot_short_blob_sizes) {
     DP_NEED_DATA();
-    /* cbData < 0x34 is rejected before anything is written (decomp), for every smaller size */
+    /* cbData < 0x34 is rejected before anything is written, for every smaller size */
     BYTE buf[0x34]; memset(buf, 0, sizeof buf);
     for (DWORD n = 0; n < 0x34; n += (n < 8 ? 1 : 9)) {
         DATA_BLOB in = { n, buf }, out = { 0x31, (BYTE *)(ULONG_PTR)1 };
@@ -100,14 +100,14 @@ TEST(dpapi_unprot_garbage_blob_rejected) {
 TEST(dpapi_unprot_descr_length_overflow) {
     DP_NEED_DATA();
     if (t_is_wine()) { t_skip("emulator reads past the blob"); return; }
-    /* descr length 0xFFFFFFF0: the length+0x14 wraps (decomp checks the wrap) -> rejected as invalid */
+    /* descr length 0xFFFFFFF0: the length+0x14 wraps -> rejected as invalid */
     BYTE b[0x60]; dp_fill(b, sizeof b, 1);
     dp_wr(b, 0, 1); dp_wr(b, 44, 0xFFFFFFF0u);
     DATA_BLOB in = { sizeof b, b }, out = { 0x31, (BYTE *)(ULONG_PTR)1 };
     SET_ERR(0);
     CHECK(!U(CryptUnprotectData)(&in, NULL, NULL, NULL, NULL, 0, &out));
-    DWORD e = GetLastError(); CHECKF(DP_IS_BLOB_ERR(e), "err=%lu", e);
-    CHECK(out.cbData == 0x31 && out.pbData == (BYTE *)(ULONG_PTR)1);
+    DWORD e = GetLastError();
+    EXPECT_EQ(e, 13); EXPECT_EQ(out.cbData, 0); CHECK(out.pbData == NULL);   /* output blob reset on failure */
 }
 TEST(dpapi_unprot_descr_length_beyond_blob) {
     DP_NEED_DATA();
@@ -116,8 +116,8 @@ TEST(dpapi_unprot_descr_length_beyond_blob) {
     DATA_BLOB in = { sizeof b, b }, out = { 0x31, (BYTE *)(ULONG_PTR)1 };
     SET_ERR(0);
     CHECK(!U(CryptUnprotectData)(&in, NULL, NULL, NULL, NULL, 0, &out));
-    DWORD e = GetLastError(); CHECKF(DP_IS_BLOB_ERR(e), "err=%lu", e);
-    CHECK(out.cbData == 0x31 && out.pbData == (BYTE *)(ULONG_PTR)1);
+    DWORD e = GetLastError();
+    EXPECT_EQ(e, 13); EXPECT_EQ(out.cbData, 0); CHECK(out.pbData == NULL);   /* output blob reset on failure */
 }
 
 /* ---- round trips ---- */
@@ -128,7 +128,7 @@ TEST(dpapi_rt_basic) {
     LPWSTR d = NULL;
     SET_ERR(0x1234);
     BOOL r = dp_protect(SECRET, sizeof SECRET, L"basic", NULL, 0, 0, &blob);
-    CHECK(r); EXPECT_EQ(GetLastError(), 0);     /* SetLastError(0) on success (decomp) */
+    CHECK(r); EXPECT_EQ(GetLastError(), 0);     /* SetLastError(0) on success */
     CHECK(blob.pbData != NULL && blob.cbData > sizeof SECRET);
     SET_ERR(0x1234);
     r = dp_unprotect(blob.pbData, blob.cbData, &d, NULL, 0, 0, &plain);
@@ -564,7 +564,7 @@ TEST(dpapi_prompt_zero_flags_struct_no_ui) {
     DP_NEED_DATA();
     CRYPTPROTECT_PROMPTSTRUCT ps = { sizeof ps, 0, NULL, L"cryptt prompt" };
     DATA_BLOB in = { sizeof SECRET, (BYTE *)SECRET }, blob = { 0 }, plain = { 0 };
-    /* dwPromptFlags & 3 == 0: the UI path is not entered (decomp), so the struct is inert */
+    /* dwPromptFlags & 3 == 0: the UI path is not entered, so the struct is inert */
     CHECK(U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob));
     CHECK(U(CryptUnprotectData)(&blob, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &plain));
     CHECK(plain.cbData == sizeof SECRET);
@@ -574,8 +574,8 @@ TEST(dpapi_prompt_reserved_bit_only_no_ui) {
     DP_NEED_DATA();
     CRYPTPROTECT_PROMPTSTRUCT ps = { sizeof ps, CRYPTPROTECT_PROMPT_RESERVED | CRYPTPROTECT_PROMPT_STRONG, NULL, NULL };
     DATA_BLOB in = { sizeof SECRET, (BYTE *)SECRET }, blob = { 0 };
-    BOOL r = U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob);   /* bits 0|1 clear: no prompt */
-    CHECK(r); dp_free(&blob);
+    BOOL r = U(CryptProtectData)(&in, NULL, NULL, NULL, &ps, CRYPTPROTECT_UI_FORBIDDEN, &blob);   
+    EXPECT_EQ(r, 0); EXPECT_EQ(GetLastError(), 87); dp_free(&blob);   /* observed: rejected, not ignored */
 }
 TEST(dpapi_prompt_on_protect_ui_forbidden_observed) {
     DP_NEED_DATA();

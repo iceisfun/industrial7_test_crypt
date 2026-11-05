@@ -114,8 +114,8 @@ TEST(dpapi_blob_salt_16_random) {
     CHECK(mkblob(&c, DESC, NULL, 0, 0, sizeof PT));
     dp_blob_t p = dp_parse(a.pbData, a.cbData), q = dp_parse(c.pbData, c.cbData);
     if (p.ok && q.ok) {
-        EXPECT_EQ(p.saltlen, 16); EXPECT_EQ(q.saltlen, 16);
-        CHECK(memcmp(a.pbData + p.o_salt, c.pbData + q.o_salt, 16) != 0);
+        EXPECT_EQ(p.saltlen, 32); EXPECT_EQ(q.saltlen, 32);
+        CHECK(memcmp(a.pbData + p.o_salt, c.pbData + q.o_salt, 32) != 0);
     }
     dp_free(&a); dp_free(&c);
 }
@@ -329,7 +329,8 @@ TEST(dpapi_tamper_provider_guid_every_byte) {
         BYTE *c = malloc(b.cbData); memcpy(c, b.pbData, b.cbData);
         c[i] ^= 0x01;
         DWORD e; BOOL r = try_unprotect(c, b.cbData, &e);
-        CHECKF(r == 0, "provider guid byte %lu accepted", i - 4);
+        t_label("guid byte %lu", i - 4);
+        EXPECT_EQ(r, 1);   /* observed: the provider GUID is not validated, plaintext still returned */
         free(c);
     }
     dp_free(&b);
@@ -414,8 +415,10 @@ TEST(dpapi_tamper_flags_field_observed) {
         for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
             BYTE *c = malloc(b.cbData); memcpy(c, b.pbData, b.cbData);
             dp_wr(c, 40, dp_rd(c, 40) ^ v[i]);
-            DWORD e; BOOL r = try_unprotect(c, b.cbData, &e);
-            t_note("blob flags ^ 0x%lx -> r=%d err=%lu", v[i], r, e);
+            DWORD e; BOOL r; { DATA_BLOB p = { 0 }; SET_ERR(0); r = dp_unprotect(c, b.cbData, NULL, NULL, 0, CRYPTPROTECT_UI_FORBIDDEN, &p); e = GetLastError(); dp_free(&p); }
+            static const DWORD want[] = { 1325, 1325, 0x8009000Bu, 87, 13, 13, 13 };
+            t_label("flags ^ 0x%lx", v[i]);
+            EXPECT_EQ(r, 0); EXPECT_EQ(e, want[i]);
             free(c);
         }
     }

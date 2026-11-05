@@ -140,12 +140,14 @@ TEST(dpapi_mem_size_not_multiple_of_block) {
         BYTE *buf = calloc(1, sizes[i] + 16);
         SET_ERR(0);
         BOOL r = U(CryptProtectMemory)(buf, sizes[i], FLAGS3[f]);
-        CHECKF(!r, "protect size %lu flags %lu succeeded", sizes[i], FLAGS3[f]);
-        CHECKF(GetLastError() == ERROR_INVALID_PARAMETER, "protect size %lu err %lu", sizes[i], GetLastError());
+        t_label("protect size %lu flags %lu", sizes[i], FLAGS3[f]);
+        if (sizes[i] % 8 == 0) { EXPECT_EQ(r, 1); }   /* observed: any multiple of 8 is accepted */
+        else { EXPECT_EQ(r, 0); EXPECT_EQ(GetLastError(), 87); }
         SET_ERR(0);
         r = U(CryptUnprotectMemory)(buf, sizes[i], FLAGS3[f]);
-        CHECKF(!r, "unprotect size %lu succeeded", sizes[i]);
-        CHECKF(GetLastError() == ERROR_INVALID_PARAMETER, "unprotect size %lu err %lu", sizes[i], GetLastError());
+        t_label("unprotect size %lu flags %lu", sizes[i], FLAGS3[f]);
+        if (sizes[i] % 8 == 0) { EXPECT_EQ(r, 1); }
+        else { EXPECT_EQ(r, 0); EXPECT_EQ(GetLastError(), 87); }
         free(buf);
     }
 }
