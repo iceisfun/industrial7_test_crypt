@@ -782,6 +782,7 @@ TEST(sip_pe_calls_through_mssip32_forwarders) {
     FARPROC p = t_proc_in("mssip32.dll", "CryptSIPPutSignedDataMsg"), g = t_proc_in("mssip32.dll", "CryptSIPGetSignedDataMsg");
     FARPROC r = t_proc_in("mssip32.dll", "CryptSIPRemoveSignedDataMsg");
     if (!c || !v || !p || !g || !r) { t_skip("mssip32.dll exports not available"); return; }
+    if (t_is_wine()) { t_skip("mssip32 exports are stubs that abort under wine"); return; }
     PF f; SIP_SUBJECTINFO si; DWORD cb = 0, idx = 5, enc = 0; u8 blob[16], got[32]; mk(&f, "ms.exe", 0); pattern(blob, 16, 8);
     sipt_subject(&si, &G_PE, NULL, f.w, OID_SHA1, DEFAULT_FLAGS);
     CHECK(((pCryptSIPCreateIndirectData)c)(&si, &cb, NULL) == TRUE && cb > 0);
