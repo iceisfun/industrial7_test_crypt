@@ -102,8 +102,10 @@ TEST(wtcat_open_zero_flags_missing_note)
     DeleteFileW(p);
     SET_ERR(0);
     h = c_open(p, 0, 0, 0);
-    t_note("CryptCATOpen(flags=0) on a missing file: handle %s, GLE %lu, file %s",
-           h == INVH ? "INVALID" : "valid", GetLastError(), fexists(p) ? "created" : "not created");
+    /* probed on Win10: flags 0 on a missing file fails with 2 and creates nothing */
+    CHECK(h == INVH);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
+    CHECK(!fexists(p));
     if (h != INVH) c_close(h);
     DeleteFileW(p);
 }
@@ -161,11 +163,10 @@ TEST(wtcat_open_nonempty_garbage_file_note)
     put_file(p, junk, sizeof junk);
     SET_ERR(0);
     h = c_open(p, CRYPTCAT_OPEN_EXISTING, 0, 0);
-    t_note("EXISTING open of a 64-byte non-ASN.1 file: %s GLE %lu", h == INVH ? "INVALID_HANDLE_VALUE" : "handle", GetLastError());
-    if (h != INVH) {
-        t_note("members=%d catattrs=%d", count_members(h), count_cat_attrs(h));
-        c_close(h);
-    }
+    /* probed on Win10: INVALID_HANDLE_VALUE with ERROR_INVALID_DATA (13) */
+    CHECK(h == INVH);
+    EXPECT_ERR(ERROR_INVALID_DATA);
+    if (h != INVH) c_close(h);
     DeleteFileW(p);
 }
 
@@ -303,7 +304,8 @@ TEST(wtcat_handle_store_share_one_function)
     c = t_proc_in("wintrust.dll", "WTHelperProvDataFromStateData");
     REQUIRE(a); REQUIRE(b);
     CHECK(a == b);
-    if (c) t_note("WTHelperProvDataFromStateData %s the same code as CryptCATHandleFromStore", c == a ? "shares" : "does not share");
+    REQUIRE(c);
+    CHECK(c == a);   /* probed on Win10: the three names resolve to the same address */
 }
 
 /* ---------------------------------------------------------------- catalog attributes */
@@ -575,7 +577,7 @@ TEST(wtcat_catattr_enumeration_order_note)
     h = c_open(p, CRYPTCAT_OPEN_CREATENEW, 0, 0); REQUIRE(h != INVH);
     for (i = 0; i < 4; i++) { WCHAR tag[4]; swprintf(tag, 4, L"%c", 'A' + i); U(CryptCATPutCatAttrInfo)(h, tag, ATTR_ASCII, 2, (BYTE *)L""); }
     while ((a = U(CryptCATEnumerateCatAttr)(h, a)) != NULL) { size_t n = strlen(order); order[n] = (char)a->pwszReferenceTag[0]; order[n + 1] = 0; }
-    t_note("enumeration order after Put A,B,C,D: %s", order);
+    EXPECT_STR(order, "DCBA");   /* probed on Win10: catalog attributes enumerate newest first */
     c_close(h); DeleteFileW(p);
 }
 
@@ -727,7 +729,7 @@ TEST(wtcat_enummember_sequence)
         CHECKF(m != NULL, "i=%d", i);
         if (!m) break;
         EXPECT_EQ(m->dwReserved, i);
-        CHECK(m == put[0] || m == put[1] || m == put[2]);   /* enumeration returns the stored objects */
+        CHECKF(m == put[2 - i], "i=%d", i);   /* probed on Win10: members enumerate newest first, as the stored objects */
     }
     CHECK(m && U(CryptCATEnumerateMember)(h, m) == NULL);
     EXPECT_EQ(count_members(h), 3);
@@ -759,7 +761,7 @@ TEST(wtcat_getmemberinfo_lookup)
     CHECK(U(CryptCATGetMemberInfo)(h, L"BBBB") == b);
     SET_ERR(0);
     CHECK(U(CryptCATGetMemberInfo)(h, L"CCCC") == NULL);
-    t_note("GetMemberInfo of an unknown tag sets GLE %#lx", GetLastError());
+    EXPECT_ERR(ERROR_PROC_NOT_FOUND);   /* probed on Win10: 127 (0x7f) */
     c_close(h); DeleteFileW(p);
 }
 

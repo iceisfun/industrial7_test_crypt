@@ -317,7 +317,7 @@ TEST(wtadm_hash_size_query)
     SET_ERR(0xdead);
     CHECK(H1(f, &cb, NULL));
     EXPECT_EQ(cb, 20);
-    t_note("GLE after a size query with a large enough cb: %lu (0xdead = untouched)", GetLastError());
+    EXPECT_ERR(ERROR_PROC_NOT_FOUND);   /* probed on Win10: the successful call leaves 127 behind (not the 0xdead sentinel) */
     CloseHandle(f); DeleteFileW(p);
 }
 
@@ -456,7 +456,8 @@ TEST(wtadm_hash_tiny_files_note)
         SET_ERR(0);
         ok = H1(f, &cb, b);
         sha_of(0, data, sizes[i], want);
-        t_note("flat file of %zu bytes: %s (GLE %lu)%s", sizes[i], ok ? "hashed" : "rejected", GetLastError(), ok && !memcmp(b, want, 20) ? ", digest = SHA-1 of the content" : "");
+        if (sizes[i] == 0) { EXPECT_EQ(ok, 0); EXPECT_ERR(ERROR_FILE_INVALID); }   /* probed on Win10: an empty file is rejected with 1006 */
+        else { t_label("size %zu", sizes[i]); CHECK(ok); CHECK(!memcmp(b, want, 20)); }   /* probed: 1..8 byte files hash as SHA-1 of the content */
         CloseHandle(f); DeleteFileW(p);
     }
 }
@@ -500,8 +501,9 @@ TEST(wtadm_hash_from_nonzero_file_position_note)
     SetFilePointer(f, 10, NULL, FILE_BEGIN);
     cb = 20; SET_ERR(0);
     ok = U(CryptCATAdminCalcHashFromFileHandle)(f, &cb, b, 0);
-    t_note("file pointer at offset 10: %s%s, pointer afterwards %lu", ok ? "hashed" : "failed",
-           ok ? (!memcmp(b, flat_c_sha1, 20) ? " (whole file)" : " (remaining bytes only)") : "", SetFilePointer(f, 0, NULL, FILE_CURRENT));
+    CHECK(ok);   /* probed on Win10: hashes the whole file regardless of the position, and rewinds it */
+    CHECK(!memcmp(b, flat_c_sha1, 20));
+    EXPECT_EQ(SetFilePointer(f, 0, NULL, FILE_CURRENT), 0);
     CloseHandle(f); DeleteFileW(p);
 }
 
@@ -512,7 +514,7 @@ TEST(wtadm_hash_write_only_handle)
     f = CreateFileW(p, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL); REQUIRE(f != INVALID_HANDLE_VALUE);
     SET_ERR(0);
     CHECK(!H1(f, &cb, b));
-    t_note("hashing through a write-only handle fails with GLE %lu", GetLastError());
+    EXPECT_ERR(ERROR_ACCESS_DENIED);   /* probed on Win10: 5 */
     CloseHandle(f); DeleteFileW(p);
 }
 
@@ -592,10 +594,10 @@ TEST(wtadm_hash_system_binaries_match_reference)
         char path[MAX_PATH]; BYTE *img; size_t n; BYTE want1[20], want2[32], b[64]; HANDLE f; DWORD cb;
         GetSystemDirectoryA(path, sizeof path); strcat(path, "\\"); strcat(path, names[i]);
         img = read_all(path, &n);
-        if (!img) { t_note("%s not readable", path); continue; }
-        if (!pe_digest(img, n, 0, want1) || !pe_digest(img, n, 1, want2)) { t_note("%s is not a PE32+ image", names[i]); free(img); continue; }
+        REQUIRE_NOTNULL(img);
+        if (!pe_digest(img, n, 0, want1) || !pe_digest(img, n, 1, want2)) { CHECKF(0, "%s is a PE32+ image", names[i]); free(img); continue; }
         f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
-        if (f == INVALID_HANDLE_VALUE) { free(img); continue; }
+        if (!t_require(f != INVALID_HANDLE_VALUE, __FILE__, __LINE__, "open system binary")) { free(img); continue; }
         cb = 64; CHECKF(H1(f, &cb, b) && cb == 20 && !memcmp(b, want1, 20), "%s SHA-1 Authenticode digest", names[i]);
         cb = 64; CHECKF(H2(c256, f, &cb, b) && cb == 32 && !memcmp(b, want2, 32), "%s SHA-256 Authenticode digest", names[i]);
         CloseHandle(f); free(img);
@@ -613,18 +615,12 @@ TEST(wtadm_hash3_fallback_for_nonconformant_image)
     CHECK(U(CryptCATAdminAcquireContext2)(&ctx, NULL, L"SHA1", NULL, 0)); REQUIRE(ctx);
     cb = 20; SET_ERR(0);
     strict = H3(ctx, f, &cb, b, 0);
-    if (strict) {
-        t_note("an MZ file without a PE header is hashed as a flat file even without the fallback flag");
-        CHECK(!memcmp(b, badpe_sha1, 20));
-    } else {
-        DWORD e = GetLastError();
-        t_note("strict hashing of a malformed image fails with GLE %lu", e);
-        cb = 20;
-        if (e == ERROR_BAD_EXE_FORMAT || e == 0x800700c1) {
-            CHECK(H3(ctx, f, &cb, b, 1));   /* flag 1: fall back to the flat-file SIP */
-            CHECK(!memcmp(b, badpe_sha1, 20));
-        }
-    }
+    /* probed on Win10: an MZ file without a PE header is hashed as a flat file even without the fallback flag */
+    CHECK(strict);
+    CHECK(!memcmp(b, badpe_sha1, 20));
+    cb = 20; memset(b, 0, sizeof b);
+    CHECK(H3(ctx, f, &cb, b, 1));
+    CHECK(!memcmp(b, badpe_sha1, 20));
     U(CryptCATAdminReleaseContext)(ctx, 0);
     CloseHandle(f); DeleteFileW(p);
 }
@@ -712,14 +708,14 @@ TEST(wtadm_system_file_is_found_in_a_catalog)
         char path[MAX_PATH]; HCATADMIN ctx = NULL; HANDLE f; DWORD cb = 64; BYTE h[64]; HCATINFO ci; CATALOG_INFO info; WCHAR hex[129]; HANDLE cat;
         GetSystemDirectoryA(path, sizeof path); strcat(path, "\\"); strcat(path, names[i]);
         f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
-        if (f == INVALID_HANDLE_VALUE) continue;
+        REQUIRE(f != INVALID_HANDLE_VALUE);
         CHECK(U(CryptCATAdminAcquireContext)(&ctx, NULL, 0));
-        if (!ctx) { CloseHandle(f); continue; }
+        REQUIRE(ctx);
         CHECK(H1(f, &cb, h));
         CloseHandle(f);
         SET_ERR(0);
         ci = U(CryptCATAdminEnumCatalogFromHash)(ctx, h, cb, 0, NULL);
-        if (!ci) { t_note("%s: hash not found in any catalog (GLE %lu)", names[i], GetLastError()); U(CryptCATAdminReleaseContext)(ctx, 0); continue; }
+        if (!ci) { CHECKF(0, "%s is listed in the catalog database", names[i]); U(CryptCATAdminReleaseContext)(ctx, 0); continue; }
         found++;
         memset(&info, 0, sizeof info); info.cbStruct = sizeof info;
         CHECK(U(CryptCATCatalogInfoFromContext)(ci, &info, 0));
@@ -731,13 +727,13 @@ TEST(wtadm_system_file_is_found_in_a_catalog)
         hex_upper(hex, h, cb);
         cat = c_open(info.wszCatalogFile, CRYPTCAT_OPEN_EXISTING, 0, 0);
         if (cat != INVH) {
-            if (!U(CryptCATGetMemberInfo)(cat, hex)) t_note("%s: no member tagged %ls in %ls (catalog may use free-form tags)", names[i], hex, info.wszCatalogFile);
+            CHECKF(U(CryptCATGetMemberInfo)(cat, hex) != NULL, "%s: member tagged with the hash", names[i]);   /* probed: found for all three */
             c_close(cat);
-        } else t_note("could not open %ls: GLE %lu", info.wszCatalogFile, GetLastError());
+        } else CHECKF(0, "open %ls", info.wszCatalogFile);
         CHECK(U(CryptCATAdminReleaseCatalogContext)(ctx, ci, 0));
         U(CryptCATAdminReleaseContext)(ctx, 0);
     }
-    if (!found) t_note("none of the probed system files were found in the catalog database");
+    EXPECT_EQ(found, 3);
 }
 
 TEST(wtadm_enumcatalog_continuation_handle)
@@ -751,15 +747,15 @@ TEST(wtadm_enumcatalog_continuation_handle)
     CHECK(H1(f, &cb, h));
     CloseHandle(f);
     ci = U(CryptCATAdminEnumCatalogFromHash)(ctx, h, cb, 0, NULL);
-    if (!ci) { t_note("kernel32.dll not in the catalog database (GLE %lu)", GetLastError()); U(CryptCATAdminReleaseContext)(ctx, 0); return; }
+    if (!ci) { CHECK(ci != NULL); U(CryptCATAdminReleaseContext)(ctx, 0); return; }
     n = 1;
     while (n < 64) {
         next = U(CryptCATAdminEnumCatalogFromHash)(ctx, h, cb, 0, &ci);   /* consumes the previous handle */
         if (!next) break;
         ci = next; n++;
     }
-    t_note("kernel32.dll is listed by %d catalog(s)", n);
-    if (n < 64) t_note("enumeration ended with GLE %lu", GetLastError());
+    EXPECT_EQ(n, 2);   /* probed on Win10 22H2: kernel32.dll is listed by two catalogs; the enumeration then ends with 1168 */
+    if (n < 64) EXPECT_ERR(ERROR_NOT_FOUND);
     else U(CryptCATAdminReleaseCatalogContext)(ctx, ci, 0);
     U(CryptCATAdminReleaseContext)(ctx, 0);
 }

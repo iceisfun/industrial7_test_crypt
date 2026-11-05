@@ -44,7 +44,7 @@ TEST(wtcat_persist_writes_file)
     CHECK(put_member(h, L"f.bin", L"TAGW", g_dig_a) != NULL);
     EXPECT_EQ(fsize(p), 0);
     CHECK(U(CryptCATPersistStore)(h));
-    CHECK(fsize(p) > 20);
+    EXPECT_EQ(fsize(p), 305);   /* probed on Win10 */
     c_close(h);
     {   /* a DER SEQUENCE */
         HANDLE f = ropen(p); BYTE b = 0; DWORD n = 0;
@@ -61,7 +61,8 @@ TEST(wtcat_persist_empty_catalog_note)
     h = c_open(p, CRYPTCAT_OPEN_CREATENEW, 0, 0); REQUIRE(h != INVH);
     SET_ERR(0);
     ok = U(CryptCATPersistStore)(h);
-    t_note("persisting a catalog with no members and no attributes: %s (GLE %lu), file size %lld", ok ? "TRUE" : "FALSE", GetLastError(), (long long)fsize(p));
+    CHECK(ok);   /* probed on Win10: succeeds and writes a 104 byte file */
+    EXPECT_EQ(fsize(p), 104);
     c_close(h); DeleteFileW(p);
 }
 
@@ -84,7 +85,7 @@ TEST(wtcat_persist_roundtrip_member_count_and_tags)
             CHECK(m->pIndirectData->Data.pszObjId && !strcmp(m->pIndirectData->Data.pszObjId, g_ind_oid));
             CHECK(m->pIndirectData->DigestAlgorithm.pszObjId && !strcmp(m->pIndirectData->DigestAlgorithm.pszObjId, g_alg_sha1));
         }
-        t_note("reloaded member file name: %ls", m->pwszFileName ? m->pwszFileName : L"(null)");
+        CHECK(m->pwszFileName == NULL);   /* probed on Win10: the file name is not persisted */
     }
     m = U(CryptCATGetMemberInfo)(h, L"AAAA"); CHECK(m != NULL);
     if (m && m->pIndirectData) CHECK(m->pIndirectData->Digest.pbData && !memcmp(m->pIndirectData->Digest.pbData, g_dig_b, 20));
@@ -122,14 +123,15 @@ TEST(wtcat_persist_roundtrip_catalog_attributes)
     CHECK(a != NULL);
     if (a) {
         CHECK(a->pwszReferenceTag && !wcscmp(a->pwszReferenceTag, L"CatAttrOne"));
-        CHECK(a->cbValue >= 22 && a->pbValue != NULL);
-        if (a->pbValue && a->cbValue >= 22) CHECK(!wmemcmp((WCHAR *)a->pbValue, L"first value", 11));
-        t_note("reloaded catalog attribute: cbValue=%lu flags=%#lx", a->cbValue, a->dwAttrTypeAndAction);
+        EXPECT_EQ(a->cbValue, 24);   /* probed on Win10 */
+        CHECK(a->pbValue != NULL);
+        if (a->pbValue && a->cbValue == 24) CHECK(!wmemcmp((WCHAR *)a->pbValue, L"first value", 12));
+        EXPECT_EQ(a->dwAttrTypeAndAction, 0x10001);
     }
     a = U(CryptCATGetCatAttrInfo)(h, L"CatAttrTwo");
     CHECK(a != NULL);
     if (a && a->pbValue && a->cbValue >= 12) CHECK(!wmemcmp((WCHAR *)a->pbValue, L"second", 6));
-    t_note("catalog attribute count after reload: %d (2 written)", count_cat_attrs(h));
+    EXPECT_EQ(count_cat_attrs(h), 2);
     c_close(h); DeleteFileW(p);
 }
 
@@ -144,12 +146,12 @@ TEST(wtcat_persist_roundtrip_member_attributes)
     CHECK(a != NULL);
     if (a && a->pbValue && a->cbValue >= 12) CHECK(!wmemcmp((WCHAR *)a->pbValue, L"second", 6));
     CHECK(U(CryptCATGetAttrInfo)(h, m, L"A2") != NULL);
-    t_note("attribute count of MMMM after reload: %d (2 written)", count_attrs(h, m));
+    EXPECT_EQ(count_attrs(h, m), 2);
     m = U(CryptCATGetMemberInfo)(h, L"ZZZZ"); REQUIRE(m);
     CHECK(U(CryptCATGetAttrInfo)(h, m, L"File") != NULL);
     CHECK(U(CryptCATGetAttrInfo)(h, m, L"A1") == NULL);
     m = U(CryptCATGetMemberInfo)(h, L"AAAA"); REQUIRE(m);
-    t_note("attribute count of AAAA after reload: %d (0 written)", count_attrs(h, m));
+    EXPECT_EQ(count_attrs(h, m), 0);
     c_close(h); DeleteFileW(p);
 }
 
@@ -163,7 +165,8 @@ TEST(wtcat_persist_is_repeatable)
     CHECK(U(CryptCATPersistStore)(h)); s1 = fsize(p);
     CHECK(U(CryptCATPersistStore)(h)); s2 = fsize(p);
     CHECK(s1 > 0);
-    t_note("persisted size: first %lld, second %lld", (long long)s1, (long long)s2);
+    EXPECT_EQ(s1, 486);   /* probed on Win10; a second persist writes an identical file */
+    EXPECT_EQ(s2, s1);
     c_close(h);
     h = c_open(p, CRYPTCAT_OPEN_EXISTING, 0, 0); REQUIRE(h != INVH);
     EXPECT_EQ(count_members(h), 2);
@@ -292,7 +295,7 @@ TEST(wtcat_open_sorted_missing_file)
     SET_ERR(0);
     h = c_open(p, CRYPTCAT_OPEN_EXISTING | CRYPTCAT_OPEN_SORTED, 0, 0);
     CHECK(h == INVH);
-    t_note("SORTED open of a missing file: GLE %lu", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);   /* probed on Win10: 2 */
 }
 
 TEST(wtcat_open_sorted_flag_recorded)
@@ -361,7 +364,7 @@ TEST(wtcat_sorted_alloc_unknown_tag)
     h = c_open(p, CRYPTCAT_OPEN_EXISTING | CRYPTCAT_OPEN_SORTED, 0, 0); REQUIRE(h != INVH);
     SET_ERR(0);
     CHECK(UN(CryptCATAllocSortedMemberInfo)(h, L"NOPE") == NULL);
-    t_note("AllocSortedMemberInfo(unknown tag) GLE %#lx", GetLastError());
+    EXPECT_ERR(CRYPT_E_NOT_FOUND);   /* probed on Win10: 0x80092004 */
     c_close(h); DeleteFileW(p);
 }
 
@@ -422,7 +425,7 @@ TEST(wtcat_iscatalogfile_persisted_catalog_by_handle)
     CHECK(UN(IsCatalogFile)(f, NULL));
     CHECK(UN(IsCatalogFile)(f, L"ignored-when-a-handle-is-given.cat"));
     /* the handle stays open and usable */
-    CHECK(GetFileSize(f, NULL) > 0);
+    EXPECT_EQ(GetFileSize(f, NULL), 970);   /* probed on Win10 */
     CloseHandle(f); DeleteFileW(p);
 }
 

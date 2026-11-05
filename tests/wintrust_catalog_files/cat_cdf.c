@@ -183,8 +183,8 @@ TEST(wtcdf_open_creates_catalog_file_and_close_persists)
     CHECK(c->pwszResultDir != NULL);
     CHECK(fexists(cat));
     EXPECT_EQ(fsize(cat), 0);   /* created empty, filled when the CDF is closed */
-    t_note("CDF close with zero members: %s", U(CryptCATCDFClose)(c) ? "TRUE" : "FALSE");
-    t_note("catalog size after closing an empty CDF: %lld", (long long)fsize(cat));
+    CHECK(U(CryptCATCDFClose)(c));   /* probed on Win10: TRUE, and writes a 104 byte empty catalog */
+    EXPECT_EQ(fsize(cat), 104);
 }
 
 TEST(wtcdf_open_result_dir_is_kept_verbatim)
@@ -551,8 +551,9 @@ TEST(wtcdf_members_flat_files_v1)
     CHECK(m->pwszFileName && !wcscmp(m->pwszFileName, wp));
     CHECK(!memcmp(&m->gSubjectType, &GUID_FLAT, sizeof(GUID)));
     CHECK(dig_is(m, OID_SHA1, flat_a_sha1, 20));
-    t_note("flat member: dwCertVersion=%#lx fdwMemberFlags=%#lx Data.pszObjId=%s", m->dwCertVersion, m->fdwMemberFlags,
-           m->pIndirectData && m->pIndirectData->Data.pszObjId ? m->pIndirectData->Data.pszObjId : "(null)");
+    EXPECT_EQ(m->dwCertVersion, 0x200);   /* probed on Win10 */
+    EXPECT_EQ(m->fdwMemberFlags, 0);
+    CHECK(m->pIndirectData && m->pIndirectData->Data.pszObjId && !strcmp(m->pIndirectData->Data.pszObjId, "1.3.6.1.4.1.311.2.1.25"));
     m2 = UN(CryptCATCDFEnumMembers)(c, m, cb_record);
     REQUIRE(m2 != NULL);
     CHECK(m2->pwszReferenceTag && !wcscmp(m2->pwszReferenceTag, L"fc"));
@@ -1023,7 +1024,7 @@ TEST(wtcdf_attributes_with_cdf_tag_null_tag)
 TEST(wtcdf_nonconformant_pe_fallback_flat)
 {
     /* Windows keeps the fallback switch process-wide once it was enabled, so the strict case runs first. */
-    CRYPTCATCDF *c; CRYPTCATMEMBER *m; char files[512]; BYTE bad[0x300]; WCHAR wbad[MAX_PATH]; char pbad[MAX_PATH]; int strict_failed;
+    CRYPTCATCDF *c; CRYPTCATMEMBER *m; char files[512]; BYTE bad[0x300]; WCHAR wbad[MAX_PATH]; char pbad[MAX_PATH];;
     NO_WINE(); NEED(); REQUIRE(UN(CryptCATCDFEnumMembers)); fixtures(); cb_reset();
     memset(bad, 0x41, sizeof bad); bad[0] = 'M'; bad[1] = 'Z';
     snprintf(pbad, sizeof pbad, "%sbadpe.bin", g_dir); wtow(wbad, MAX_PATH, pbad); put_file(wbad, bad, sizeof bad);
@@ -1032,19 +1033,17 @@ TEST(wtcdf_nonconformant_pe_fallback_flat)
     c = open_cdf("npe1.cdf", cb_record); REQUIRE(c);
     SET_ERR(0);
     m = UN(CryptCATCDFEnumMembers)(c, NULL, cb_record);
-    strict_failed = (m == NULL);
-    if (strict_failed) {
-        t_note("strict mode rejected the malformed image, GLE %lu", GetLastError());
-        EXPECT_EQ(g_cb.n, 1);
-        if (g_cb.n >= 1) { EXPECT_EQ(g_cb.area[0], CRYPTCAT_E_AREA_MEMBER); EXPECT_EQ(g_cb.err[0], CRYPTCAT_E_CDF_MEMBER_INDIRECTDATA); CHECK(!wcscmp(g_cb.line[0], wbad)); }
-    } else t_note("the malformed image was hashed without the fallback switch (SIP treats it as a flat file)");
+    /* probed on Win10: even without the fallback switch the malformed image is hashed as a flat file, no callback error */
+    CHECK(m != NULL);
+    EXPECT_EQ(g_cb.n, 0);
+    if (m) CHECK(!memcmp(&m->gSubjectType, &GUID_FLAT, sizeof(GUID)));
     U(CryptCATCDFClose)(c);
 
     write_cdf("npe2.cdf", "npe2.cat", 1, "SHA1", "NonConformantFilesFallbackFlat=true\r\n", files);
     c = open_cdf("npe2.cdf", NULL); REQUIRE(c);
     m = UN(CryptCATCDFEnumMembers)(c, NULL, NULL);
     CHECK(m != NULL);
-    if (m && strict_failed) CHECK(!memcmp(&m->gSubjectType, &GUID_FLAT, sizeof(GUID)));
+    if (m) CHECK(!memcmp(&m->gSubjectType, &GUID_FLAT, sizeof(GUID)));
     U(CryptCATCDFClose)(c);
 }
 
@@ -1063,7 +1062,7 @@ TEST(wtcdf_close_persists_catalog_v1)
         while ((ma = UN(CryptCATCDFEnumAttributes)(c, m, ma, NULL)) != NULL) ;
     }
     CHECK(U(CryptCATCDFClose)(c));
-    CHECK(fsize(cat) > 0);
+    EXPECT_EQ(fsize(cat), 652);   /* probed on Win10 */
     CHECK(UN(IsCatalogFile)(NULL, cat));
     h = c_open(cat, CRYPTCAT_OPEN_EXISTING, 0, 0); REQUIRE(h != INVH);
     EXPECT_EQ(count_members(h), 2);
@@ -1080,7 +1079,7 @@ TEST(wtcdf_close_persists_catalog_v1)
     if (m) CHECK(dig_is(m, OID_SHA1, flat_c_sha1, 20));
     CHECK(U(CryptCATGetCatAttrInfo)(h, L"CatTag") != NULL);
     EXPECT_EQ(c_store(h)->dwEncodingType, 0x10001);
-    t_note("reloaded dwPublicVersion of a version-1 CDF catalog: %#lx", c_store(h)->dwPublicVersion);
+    EXPECT_EQ(c_store(h)->dwPublicVersion, 0x100);   /* probed on Win10 */
     c_close(h);
 }
 
@@ -1106,7 +1105,7 @@ TEST(wtcdf_close_persists_catalog_v2)
     m = U(CryptCATGetMemberInfo)(h, h1); CHECK(m != NULL);
     if (m) CHECK(dig_is(m, OID_SHA1, flat_a_sha1, 20));
     EXPECT_EQ(c_store(h)->dwEncodingType, 0x10001);
-    t_note("reloaded dwPublicVersion of a version-2 CDF catalog: %#lx", c_store(h)->dwPublicVersion);
+    EXPECT_EQ(c_store(h)->dwPublicVersion, 0x200);   /* probed on Win10 */
     c_close(h);
 }
 
@@ -1138,10 +1137,12 @@ TEST(wtcdf_reopen_cdf_twice_overwrites_catalog)
     c = open_cdf("pre.cdf", NULL); REQUIRE(c);
     m = UN(CryptCATCDFEnumMembers)(c, NULL, NULL); CHECK(m != NULL);
     CHECK(U(CryptCATCDFClose)(c));
-    CHECK(fsize(cat) > 0);
+    EXPECT_EQ(fsize(cat), 302);   /* probed on Win10 */
     c = open_cdf("pre.cdf", NULL); REQUIRE(c);
     EXPECT_EQ(fsize(cat), 0);   /* opening the CDF again recreates (truncates) the output catalog */
     U(CryptCATCDFClose)(c);
     h = c_open(cat, CRYPTCAT_OPEN_EXISTING, 0, 0);
-    if (h != INVH) { t_note("members in the catalog after closing an unpopulated CDF: %d", count_members(h)); c_close(h); }
+    REQUIRE(h != INVH);
+    EXPECT_EQ(count_members(h), 0);   /* probed on Win10: the catalog written earlier holds no members */
+    c_close(h);
 }
