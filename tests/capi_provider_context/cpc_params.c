@@ -1,6 +1,6 @@
 #include "cpc.h"
 /* CryptGetProvParam / CryptSetProvParam on VERIFYCONTEXT contexts of every default provider.
- * Expectations come from the provider (rsaenh / dssenh) PP_* handlers as decompiled on Windows 10. */
+ * Expectations come from the provider (rsaenh / dssenh) PP_* handlers. */
 
 static int acqv(int i, HCRYPTPROV *h) {
     *h = 0;
