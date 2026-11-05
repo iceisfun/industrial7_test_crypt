@@ -54,23 +54,27 @@ TEST(cryptmem_free_accepts_local_alloc_memory) {
 }
 TEST(cryptmem_free_null_is_noop) {
     REQUIRE(U(CryptMemFree));
+    void (WINAPI *pfree)(void *) = U(CryptMemFree); /* resolve first: a failed module lookup sets last error */
     SET_ERR(0x1357);
-    U(CryptMemFree)(NULL);
+    pfree(NULL);
     CHECK(GetLastError() == 0x1357);
 }
 TEST(cryptmem_free_preserves_last_error) {
     REQUIRE(U(CryptMemAlloc)); REQUIRE(U(CryptMemFree));
     void *p = U(CryptMemAlloc)(32);
+    void (WINAPI *pfree)(void *) = U(CryptMemFree);
     SET_ERR(0x2468);
-    U(CryptMemFree)(p);
+    pfree(p);
     CHECK(GetLastError() == 0x2468);
 }
 TEST(cryptmem_alloc_preserves_last_error_on_success) {
     REQUIRE(U(CryptMemAlloc)); REQUIRE(U(CryptMemFree));
+    void *(WINAPI *palloc)(ULONG) = U(CryptMemAlloc);
     SET_ERR(0x3579);
-    void *p = U(CryptMemAlloc)(32);
+    void *p = palloc(32);
+    DWORD e = GetLastError();
     CHECK(p != NULL);
-    CHECK(GetLastError() == 0x3579);
+    CHECKF(e == 0x3579, "last error 0x%lx", e);
     U(CryptMemFree)(p);
 }
 TEST(cryptmem_realloc_null_allocates) {
@@ -227,13 +231,16 @@ TEST(crypttls_set_get_roundtrip) {
     CHECK(GetLastError() == 0);
     UN(I_CryptFreeTls)(a, NULL);
 }
-TEST(crypttls_get_nonnull_leaves_last_error) {
+TEST(crypttls_get_nonnull_clears_last_error) {
     REQUIRE(UN(I_CryptAllocTls)); REQUIRE(UN(I_CryptGetTls)); REQUIRE(UN(I_CryptSetTls)); REQUIRE(UN(I_CryptFreeTls));
     DWORD a = UN(I_CryptAllocTls)();
     UN(I_CryptSetTls)(a, (void *)0x5);
+    void *(WINAPI *pget)(DWORD) = UN(I_CryptGetTls);
     SET_ERR(0x77);
-    CHECK(UN(I_CryptGetTls)(a) == (void *)0x5);
-    CHECK(GetLastError() == 0x77);
+    void *v = pget(a);
+    DWORD e = GetLastError();
+    CHECK(v == (void *)0x5);
+    CHECKF(e == 0, "last error 0x%lx", e); /* probed: success clears it, like TlsGetValue */
     UN(I_CryptSetTls)(a, NULL);
     UN(I_CryptFreeTls)(a, NULL);
 }

@@ -105,10 +105,12 @@ TEST(fset_init_threads_share_one_set) {
 /* ---- Install + Get ---- */
 TEST(fset_install_zero_entries_succeeds) {
     REQUIRE(U(CryptInstallOIDFunctionAddress));
+    BOOL (WINAPI *pinst)(HMODULE, DWORD, LPCSTR, DWORD, const CRYPT_OID_FUNC_ENTRY[], DWORD) = U(CryptInstallOIDFunctionAddress);
     SET_ERR(0xdeadbeef);
-    BOOL r = U(CryptInstallOIDFunctionAddress)(NULL, 0, "cryptt_fw_zero8", 0, NULL, 0);
+    BOOL r = pinst(NULL, 0, "cryptt_fw_zero8", 0, NULL, 0);
+    DWORD e = GetLastError();
     CHECK(r == TRUE);
-    CHECK(GetLastError() == 0xdeadbeef);
+    CHECKF(e == 0xdeadbeef, "last error 0x%lx", e);
 }
 TEST(fset_install_get_string_oid) {
     REQUIRE(U(CryptInstallOIDFunctionAddress)); REQUIRE(U(CryptGetOIDFunctionAddress));
@@ -135,7 +137,8 @@ TEST(fset_get_wrong_encoding_fails) {
     REQUIRE(U(CryptInstallOIDFunctionAddress)); REQUIRE(U(CryptGetOIDFunctionAddress));
     const char *fs = "cryptt_fw_enc12"; HCRYPTOIDFUNCSET set = mkset(fs);
     CHECK(inst(set, fs, X509_ASN_ENCODING, 0, "1.2.3.4.12", PA));
-    expect_notfound(set, PKCS_7_ASN_ENCODING, "1.2.3.4.12", 0, "pkcs7 vs x509");
+    /* 0x10000 has a zero low word, so the high word (1) is the encoding: it matches the x509 install (probed) */
+    expect_found(set, PKCS_7_ASN_ENCODING, "1.2.3.4.12", 0, PA, "0x10000 selects encoding 1");
     expect_notfound(set, 3, "1.2.3.4.12", 0, "encoding 3");
     expect_notfound(set, 2, "1.2.3.4.12", 0, "encoding 2");
 }
@@ -384,9 +387,11 @@ TEST(fset_free_preserves_last_error) {
     CHECK(inst(set, fs, 1, 0, "fr.43", PA));
     void *f; HCRYPTOIDFUNCADDR h;
     CHECK(getf(set, 1, "fr.43", 0, &f, &h));
+    BOOL (WINAPI *pfree)(HCRYPTOIDFUNCADDR, DWORD) = U(CryptFreeOIDFunctionAddress);
     SET_ERR(0x1234);
-    U(CryptFreeOIDFunctionAddress)(h, 0);
-    CHECK(GetLastError() == 0x1234);
+    pfree(h, 0);
+    DWORD e = GetLastError();
+    CHECKF(e == 0x1234, "last error 0x%lx", e);
 }
 TEST(fset_get_function_callable) {
     REQUIRE(U(CryptInstallOIDFunctionAddress)); REQUIRE(U(CryptGetOIDFunctionAddress));
