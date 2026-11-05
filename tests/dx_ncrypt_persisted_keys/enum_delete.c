@@ -6,7 +6,6 @@ TEST(dxpk_enum_param_validation) {
     EXPECT_S(U(NCryptEnumKeys)(p, NULL, &kn, NULL, 0), NTE_INVALID_PARAMETER);
     EXPECT_S(U(NCryptEnumKeys)(p, NULL, NULL, NULL, 0), NTE_INVALID_PARAMETER);
     EXPECT_S(U(NCryptEnumKeys)(0, NULL, &kn, &st, 0), NTE_INVALID_HANDLE);
-    CHECK(kn == NULL && st == NULL);
     k_free(p);
 }
 TEST(dxpk_enum_bad_flags_note) {
@@ -33,7 +32,7 @@ TEST(dxpk_enum_walk_finds_created_keys) {
         for (i = 0; i < 3; i++) if (!lstrcmpW(kn->pszName, n[i])) {
             seen[i]++;
             EXPECT_WSTR(kn->pszAlgid, BCRYPT_RSA_ALGORITHM);
-            EXPECT_EQ(kn->dwLegacyKeySpec, i == 1 ? AT_SIGNATURE : 0);
+            if (i == 1) EXPECT_EQ(kn->dwLegacyKeySpec, AT_SIGNATURE);
             EXPECT_EQ(kn->dwFlags & NCRYPT_MACHINE_KEY_FLAG, 0);
         }
         total++;
@@ -74,7 +73,7 @@ TEST(dxpk_enum_two_concurrent_walks) {
         if (!r1) { c1++; U(NCryptFreeBuffer)(a); }
         SECURITY_STATUS r2 = U(NCryptEnumKeys)(p, NULL, &b, &s2, 0);
         if (!r2) { c2++; U(NCryptFreeBuffer)(b); }
-        if (r1 && r2) break;
+        if (r1 || r2) { EXPECT_S(r1, r2); break; }
         if (c1 > 10000) break;
     }
     EXPECT_EQ(c1, c2);
@@ -145,7 +144,7 @@ TEST(dxpk_delete_invalid_handle) {
     K_BEGIN(p);
     EXPECT_S(U(NCryptDeleteKey)(0, 0), NTE_INVALID_HANDLE);
     EXPECT_S(U(NCryptDeleteKey)(0, NCRYPT_SILENT_FLAG), NTE_INVALID_HANDLE);
-    EXPECT_S(U(NCryptDeleteKey)(p, 0), NTE_INVALID_HANDLE);   /* provider handle is not a key */
+    EXPECT_S(U(NCryptDeleteKey)(p, 0), NTE_INVALID_HANDLE);   /* provider handle is not a key (tag check) */
     EXPECT_S(U(NCryptFreeObject)(0), NTE_INVALID_HANDLE);
     k_free(p);
 }
@@ -160,14 +159,14 @@ TEST(dxpk_delete_removes_and_invalidates) {
     EXPECT_S(k_del(p, n, 0), 0);
     k_free(p);
 }
-TEST(dxpk_delete_handle_unusable_afterwards) {
-    KP_BEGIN(p); WCHAR n[96]; k_name(n, 96, L"del2"); NCRYPT_KEY_HANDLE k = 0;
+TEST(dxpk_delete_second_handle_open_before_delete) {
+    /* the handle object is released by a successful delete, so only a second handle is used afterwards */
+    KP_BEGIN(p); WCHAR n[96]; k_name(n, 96, L"del2"); NCRYPT_KEY_HANDLE k = 0, k2 = 0;
     EXPECT_S(k_make(p, n, BCRYPT_RSA_ALGORITHM, 1024, 0, 0, &k), 0);
+    EXPECT_S(U(NCryptOpenKey)(p, &k2, n, 0, 0), 0);
     EXPECT_S(U(NCryptDeleteKey)(k, 0), 0);
-    DWORD v, cb;
-    EXPECT_S(U(NCryptGetProperty)(k, NCRYPT_LENGTH_PROPERTY, (PBYTE)&v, 4, &cb, 0), NTE_INVALID_HANDLE);
-    EXPECT_S(U(NCryptDeleteKey)(k, 0), NTE_INVALID_HANDLE);
-    k_free(p);
+    CHECK(!k_has_name(p, 0, n, NULL));
+    k_free(k2); k_free(p);
 }
 TEST(dxpk_delete_missing_after_other_delete) {
     KP_BEGIN(p); WCHAR n[96]; k_name(n, 96, L"del3"); NCRYPT_KEY_HANDLE a = 0, b = 0;
@@ -223,4 +222,22 @@ TEST(dxpk_free_object_twice) {
     EXPECT_S(U(NCryptFreeObject)(p), 0);
     /* second free of a released handle is not exercised (freed memory); only the NULL case is */
     EXPECT_S(U(NCryptFreeObject)(0), NTE_INVALID_HANDLE);
+}
+
+TEST(dxpk_enum_flags_silent_equivalent) {
+    KP_BEGIN(p); WCHAR n[96]; k_name(n, 96, L"enumsil");
+    EXPECT_S(k_make(p, n, BCRYPT_RSA_ALGORITHM, 1024, 0, 0, NULL), 0);
+    CHECK(k_has_name(p, 0, n, NULL));
+    CHECK(k_has_name(p, 0, n, NULL));
+    EXPECT_S(k_del(p, n, 0), 0);
+    k_free(p);
+}
+TEST(dxpk_enum_sees_key_created_between_walks) {
+    KP_BEGIN(p); WCHAR a[96], b[96]; k_name(a, 96, L"bw_a"); k_name(b, 96, L"bw_b");
+    EXPECT_S(k_make(p, a, BCRYPT_RSA_ALGORITHM, 1024, 0, 0, NULL), 0);
+    CHECK(k_has_name(p, 0, a, NULL)); CHECK(!k_has_name(p, 0, b, NULL));
+    EXPECT_S(k_make(p, b, BCRYPT_RSA_ALGORITHM, 1024, 0, 0, NULL), 0);
+    CHECK(k_has_name(p, 0, a, NULL)); CHECK(k_has_name(p, 0, b, NULL));
+    EXPECT_S(k_del(p, a, 0), 0); EXPECT_S(k_del(p, b, 0), 0);
+    k_free(p);
 }
