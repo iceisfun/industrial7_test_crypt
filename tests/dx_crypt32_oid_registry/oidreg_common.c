@@ -4,6 +4,13 @@
 static int g_can = -1, g_atexit;
 static int g_pre[4];        /* pre-existing: OID\EncodingType 0, 1, 0\CryptDllFindOIDInfo, 777 */
 
+FARPROC oidr_proc(const char *name) {
+    DWORD e = GetLastError(); FARPROC p = t_proc(name); SetLastError(e); return p;
+}
+int oidr_not_wine(void) {
+    DWORD e = GetLastError(); int r = !t_is_wine(); SetLastError(e); return r;
+}
+
 int oidr_can_write(void) {
     if (g_can < 0) {
         HKEY k;

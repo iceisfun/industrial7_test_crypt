@@ -37,4 +37,13 @@ void oidr_kid(CRYPT_HASH_BLOB *b, BYTE *store20, const char *tag, size_t len);  
 void oidr_kid_cleanup(void);
 void oidr_kid_track(const BYTE *id, size_t len);   /* remember an identifier for cleanup */
 int  oidr_kid_begin(int machine);   /* machine=1 needs elevation; 0 => caller must return */
+
+/* t_proc (behind U()) and t_is_wine() make failing GetProcAddress/LoadLibrary calls internally and so leave a stale
+ * last error (ERROR_PROC_NOT_FOUND).  Several tests set a last error, call an API through U() and inspect the last
+ * error afterwards, so both are wrapped to preserve it. */
+FARPROC oidr_proc(const char *name);
+int  oidr_not_wine(void);
+#undef U
+#define U(name) ((__typeof__(&name))oidr_proc(#name))
+#define WINE_DIFF if (oidr_not_wine())
 #endif

@@ -8,7 +8,6 @@
 #define CRYPT_E_NOT_FOUND_ ((DWORD)0x80092004)
 #define CRYPT_E_EXISTS_ ((DWORD)0x80092005)
 #define EXPECT_HRINVAL() do { DWORD e_ = GetLastError(); t_check(e_ == E_INVALIDARG_ || (t_is_wine() && e_ == 87), __FILE__, __LINE__, "last error E_INVALIDARG", "got 0x%lx", e_); } while (0)
-#define WINE_DIFF if (!t_is_wine())
 
 static BOOL kset(const CRYPT_HASH_BLOB *id, DWORD prop, DWORD fl, const void *data) {
     return U(CryptSetKeyIdentifierProperty)(id, prop, fl, NULL, NULL, (void *)data);

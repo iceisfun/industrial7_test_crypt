@@ -6,7 +6,6 @@
 
 #define E_INVALIDARG_ ((DWORD)0x80070057)
 #define EXPECT_HRINVAL() do { DWORD e_ = GetLastError(); t_check(e_ == E_INVALIDARG_ || (t_is_wine() && e_ == 87), __FILE__, __LINE__, "last error E_INVALIDARG", "got 0x%lx", e_); } while (0)
-#define WINE_DIFF if (!t_is_wine())
 #define SETUP(fn) REQUIRE(U(fn)); if (!oidr_begin()) return
 #define ENC 777
 

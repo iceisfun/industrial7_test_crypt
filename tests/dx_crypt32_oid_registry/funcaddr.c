@@ -4,7 +4,6 @@
  * Registered functions live at  EncodingType <n>\<set>\<oid>  with values Dll (+ optional FuncName).
  * A function set reads the registry once, at its first use in the process, so every test uses its own set name. */
 
-#define WINE_DIFF if (!t_is_wine())
 #define SETUP(fn) REQUIRE(U(fn)); if (!oidr_begin()) return
 #define K32 GetModuleHandleA("kernel32.dll")
 
@@ -101,7 +100,7 @@ TEST(oidreg_addr_encoding_high_word_selects_registration) {
     }
     oidr_end();
 }
-TEST(oidreg_addr_missing_export_fails_proc_not_found) {
+TEST(oidreg_addr_missing_export_fails_file_not_found) {
     SETUP(CryptGetOIDFunctionAddress);
     char set[100], oid[64]; oidr_set(set, sizeof set, "a8"); oidr_oid(oid, sizeof oid, 1);
     CHECK(regf(1, set, oid, L"kernel32.dll", "CrypttNoSuchExport_xyz"));
@@ -109,7 +108,7 @@ TEST(oidreg_addr_missing_export_fails_proc_not_found) {
     void *pv = (void *)1; HCRYPTOIDFUNCADDR ha = (void *)1;
     SET_ERR(0);
     CHECK(!getaddr(hs, 1, oid, 0, &pv, &ha));
-    WINE_DIFF { EXPECT_ERR(ERROR_PROC_NOT_FOUND); EXPECT_EQ(pv, 0); EXPECT_EQ(ha, 0); }
+    WINE_DIFF { EXPECT_ERR(ERROR_FILE_NOT_FOUND); EXPECT_EQ(pv, 0); EXPECT_EQ(ha, 0); }   /* observed: 2, not 127 */
     oidr_end();
 }
 TEST(oidreg_addr_missing_dll_fails) {
@@ -245,7 +244,7 @@ TEST(oidreg_inst_registry_takes_priority_over_installed) {
     HCRYPTOIDFUNCSET hs = U(CryptInitOIDFunctionSet)(set, 0);
     void *pv = NULL; HCRYPTOIDFUNCADDR ha = NULL;
     CHECK(getaddr(hs, 1, oid, 0, &pv, &ha));
-    WINE_DIFF EXPECT_EQ(pv, GetProcAddress(K32, "GetCurrentProcessId"));       /* registry first */
+    WINE_DIFF EXPECT_EQ(pv, inst_fn_a);       /* an installed function is found before the registered one */
     U(CryptFreeOIDFunctionAddress)(ha, 0);
     WINE_DIFF {
         CHECK(getaddr(hs, 1, oid, CRYPT_GET_INSTALLED_OID_FUNC_FLAG, &pv, &ha));

@@ -8,7 +8,6 @@
 
 #define E_INVALIDARG_ ((DWORD)0x80070057)
 #define EXPECT_HRINVAL() do { DWORD e_ = GetLastError(); t_check(e_ == E_INVALIDARG_ || (t_is_wine() && e_ == 87), __FILE__, __LINE__, "last error E_INVALIDARG", "got 0x%lx", e_); } while (0)
-#define WINE_DIFF if (!t_is_wine())
 #define SETUP(fn) REQUIRE(U(fn)); if (!oidr_begin()) return
 
 /* An emulator insists on the extended structure size; Windows accepts 0x30 as well. */
@@ -402,7 +401,7 @@ CHILD(oidinfo_before) {
     PCCRYPT_OID_INFO a = find(CRYPT_OID_INFO_ALGID_KEY, &sha1, CRYPT_HASH_ALG_OID_GROUP_ID);
     CK(a && !strcmp(a->pszOID, argv[1]));            /* registered with the BEFORE flag: found before built-in */
     PCCRYPT_OID_INFO b = find(CRYPT_OID_INFO_ALGID_KEY, &sha256, CRYPT_HASH_ALG_OID_GROUP_ID);
-    CK(b && strcmp(b->pszOID, argv[2]));             /* registered without it: the built-in entry wins */
+    CK(b && !strcmp(b->pszOID, argv[2]));            /* observed: a registered entry is found for its algid too, with or without the flag */
     PCCRYPT_OID_INFO c = find(CRYPT_OID_INFO_OID_KEY, (void *)argv[2], CRYPT_HASH_ALG_OID_GROUP_ID);
     CK(c && !strcmp(c->pszOID, argv[2]) && c->Algid == sha256);   /* but it is still reachable by OID */
     return 0;

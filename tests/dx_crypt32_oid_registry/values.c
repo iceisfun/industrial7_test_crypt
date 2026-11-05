@@ -8,7 +8,6 @@
 /* Windows stores the HRESULT 0x80070057 itself as the last error here; an emulator uses plain 87. */
 #define EXPECT_HRINVAL() do { DWORD e_ = GetLastError(); t_check(e_ == E_INVALIDARG_ || (t_is_wine() && e_ == 87), __FILE__, __LINE__, "last error E_INVALIDARG", "got 0x%lx", e_); } while (0)
 /* Behaviour where an emulator is known to differ from the Windows decompilation. */
-#define WINE_DIFF if (!t_is_wine())
 
 #define SETUP(fn) \
     REQUIRE(U(fn)); \
