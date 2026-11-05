@@ -529,10 +529,11 @@ TEST(dxss_close_with_check_flag_and_outstanding_context_pending) {
     if (!h) { CHECK(h != NULL); return; }
     PCCERT_CONTEXT c = ds_add(h, 0, CERT_STORE_ADD_NEW);
     CHECK(c != NULL);
-    SET_ERR(0);
-    BOOL r = U(CertCloseStore)(h, CERT_CLOSE_STORE_CHECK_FLAG);
+    BOOL (WINAPI *pClose)(HCERTSTORE, DWORD) = U(CertCloseStore);   /* resolve before SET_ERR */
+    DWORD ge;
+    BOOL r = T_CALL_ERR(&ge, pClose(h, CERT_CLOSE_STORE_CHECK_FLAG));
     if (t_is_wine()) t_note("emulator CHECK_FLAG close with outstanding context: %d", r);
-    else EXPECT_FAIL(!r, CRYPT_E_PENDING_CLOSE);
+    else { CHECK(!r); EXPECT_EQ(ge, CRYPT_E_PENDING_CLOSE); }
     if (c) U(CertFreeCertificateContext)(c);   /* the store is released once the last context is freed */
     ds_end();
 }
@@ -723,10 +724,13 @@ TEST(dxss_lm_and_cu_same_name_are_independent) {
     if (a && b) { CHECK(ds_add_ok(a, 1)); CHECK(ds_add_ok(b, 2)); }
     if (a) U(CertCloseStore)(a, 0);
     if (b) U(CertCloseStore)(b, 0);
+    /* registry content is independent per hive ... */
+    CHECK(ds_cert_key_exists(L, nm, 1)); CHECK(!ds_cert_key_exists(L, nm, 2));
+    CHECK(ds_cert_key_exists(0, nm, 2)); CHECK(!ds_cert_key_exists(0, nm, 1));
     EXPECT_EQ(ds_stored(nm, L, 1), 1);
     EXPECT_EQ(ds_stored(nm, L, 2), 0);
     EXPECT_EQ(ds_stored(nm, 0, 2), 1);
-    EXPECT_EQ(ds_stored(nm, 0, 1), 0);
+    EXPECT_EQ(ds_stored(nm, 0, 1), 1);   /* ... but the CU view also layers the machine store's .LocalMachine physical store */
     ds_end();
 }
 

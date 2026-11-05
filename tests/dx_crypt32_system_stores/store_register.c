@@ -316,10 +316,10 @@ TEST(dxss_regphys_writes_registry_values) {
     const wchar_t *sub = L"PhysicalStores\\phys1";
     CHECK(ds_key_exists(0, nm, sub));
     DWORD type = 0, cb, dw;
-    char sz[64]; cb = sizeof sz;
+    wchar_t sz[64]; cb = sizeof sz;
     EXPECT_EQ(ds_reg_value(0, nm, sub, L"OpenStoreProvider", &type, sz, &cb), 0);
     EXPECT_EQ(type, REG_SZ);
-    EXPECT_STR(sz, "#10");                       /* numeric provider ids are stored as "#<n>" */
+    EXPECT_WSTR(sz, L"#10");                      /* numeric provider ids are stored as "#<n>" (wide) */
     cb = 4; EXPECT_EQ(ds_reg_value(0, nm, sub, L"Priority", &type, &dw, &cb), 0); EXPECT_EQ(type, REG_DWORD); EXPECT_EQ(dw, 77);
     cb = 4; EXPECT_EQ(ds_reg_value(0, nm, sub, L"Flags", &type, &dw, &cb), 0); EXPECT_EQ(dw, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG);
     cb = 4; EXPECT_EQ(ds_reg_value(0, nm, sub, L"OpenFlags", &type, &dw, &cb), 0); EXPECT_EQ(dw, CU | CERT_STORE_OPEN_EXISTING_FLAG);
@@ -336,11 +336,11 @@ TEST(dxss_regphys_string_provider_stored_verbatim) {
     WINE_SKIP("registration/unregistration/physical store APIs are stubs");
     CHECK(regsys(nm, 0));
     CHECK(regphys(nm, 0, L"phys1", "System", CU, nm2, 0, 0));
-    DWORD type = 0, cb; char sz[64]; cb = sizeof sz;
+    DWORD type = 0, cb; wchar_t sz[64]; cb = sizeof sz;
     EXPECT_EQ(ds_reg_value(0, nm, L"PhysicalStores\\phys1", L"OpenStoreProvider", &type, sz, &cb), 0);
     EXPECT_EQ(type, REG_SZ);
-    EXPECT_STR(sz, "System");
-    EXPECT_EQ(cb, 7);
+    EXPECT_WSTR(sz, L"System");
+    EXPECT_EQ(cb, 14);
     ds_end();
 }
 TEST(dxss_regphys_provider_numeric_boundary) {
@@ -348,9 +348,9 @@ TEST(dxss_regphys_provider_numeric_boundary) {
     WINE_SKIP("registration/unregistration/physical store APIs are stubs");
     CHECK(regsys(nm, 0));
     CHECK(regphys(nm, 0, L"a", (const char *)0xFFFF, CU, NULL, 0, 0));      /* < 0x10000: treated as an id */
-    DWORD type, cb; char sz[32]; cb = sizeof sz;
+    DWORD type, cb; wchar_t sz[32]; cb = sizeof sz;
     EXPECT_EQ(ds_reg_value(0, nm, L"PhysicalStores\\a", L"OpenStoreProvider", &type, sz, &cb), 0);
-    EXPECT_STR(sz, "#65535");
+    EXPECT_WSTR(sz, L"#65535");
     ds_end();
 }
 TEST(dxss_regphys_creates_system_store_if_missing) {
@@ -486,7 +486,14 @@ TEST(dxss_enumphys_lists_registered_and_default) {
     CHECK(enum_phys(nm, 0, &c));
     CHECK(phys_index(&c, L"mine") >= 0);
     CHECK(phys_index(&c, L".Default") >= 0);
-    EXPECT_EQ(c.n, 2);
+    /* Win10 lists the registered store, then the three built-in physical stores of every system store */
+    EXPECT_EQ(c.n, 4);
+    if (c.n == 4) {
+        EXPECT_EQ(phys_index(&c, L"mine"), 0);
+        EXPECT_EQ(phys_index(&c, L".Default"), 1);
+        EXPECT_EQ(phys_index(&c, L".GroupPolicy"), 2);
+        EXPECT_EQ(phys_index(&c, L".LocalMachine"), 3);
+    }
     ds_end();
 }
 TEST(dxss_enumphys_registered_before_default) {
@@ -573,8 +580,12 @@ TEST(dxss_enumphys_missing_store_open_existing_fails) {
     WINE_SKIP("registration/unregistration/physical store APIs are stubs");
     phys_cap_t c; SET_ERR(0);
     BOOL r = enum_phys(nm, CERT_STORE_OPEN_EXISTING_FLAG, &c);
-    CHECK(!r);
-    t_note("EnumPhysicalStore on missing store with OPEN_EXISTING: err %lu", GetLastError());
+    /* Win10: enumeration of a missing store succeeds and reports the three built-in physical stores */
+    CHECK(r);
+    EXPECT_EQ(c.n, 3);
+    CHECK(phys_index(&c, L".Default") >= 0);
+    CHECK(phys_index(&c, L".GroupPolicy") >= 0);
+    CHECK(phys_index(&c, L".LocalMachine") >= 0);
     CHECK(!ds_key_exists(0, nm, NULL));
     ds_end();
 }

@@ -688,8 +688,9 @@ TEST(dxss_control_notify_resync_rearms_event) {
     if (U(CertControlStore)(a, 0, CERT_STORE_CTRL_NOTIFY_CHANGE, &ev)) {
         CHECK(ds_add_ok(b, 0)); ds_sync(b);
         WAITEV(ev, 5000, WAIT_OBJECT_0);
-        CHECK(U(CertControlStore)(a, 0, CERT_STORE_CTRL_RESYNC, &ev));   /* resets the event and re-arms */
-        WAITEV(ev, 0, WAIT_TIMEOUT);
+        CHECK(U(CertControlStore)(a, 0, CERT_STORE_CTRL_RESYNC, &ev));   /* re-arms the notification */
+        WAITEV(ev, 0, WAIT_OBJECT_0);          /* Win10: RESYNC leaves the manual-reset event signalled */
+        ResetEvent(ev);
         PCCERT_CONTEXT c = ds_find(a, 0);
         CHECK(c != NULL);                                             /* resynchronised content */
         if (c) U(CertFreeCertificateContext)(c);
@@ -861,10 +862,11 @@ TEST(dxss_save_memory_size_query_and_small_buffer) {
     DWORD need = q.cbData;
     BYTE *buf = (BYTE *)malloc(need);
     CRYPT_DATA_BLOB b = { need - 1, buf };
-    SET_ERR(0);
-    BOOL r = U(CertSaveStore)(h, DS_ENC, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_MEMORY, &b, 0);
+    BOOL (WINAPI *pSave)(HCERTSTORE, DWORD, DWORD, DWORD, void *, DWORD) = (void *)U(CertSaveStore);   /* resolve before SET_ERR */
+    DWORD ge;
+    BOOL r = T_CALL_ERR(&ge, pSave(h, DS_ENC, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_MEMORY, &b, 0));
     CHECK(!r);
-    if (!t_is_wine()) { EXPECT_ERR(ERROR_MORE_DATA); EXPECT_EQ(b.cbData, need); }
+    if (!t_is_wine()) { EXPECT_EQ(ge, ERROR_MORE_DATA); EXPECT_EQ(b.cbData, need); }
     b.cbData = need;
     CHECK(U(CertSaveStore)(h, DS_ENC, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_MEMORY, &b, 0));
     EXPECT_EQ(b.cbData, need);
