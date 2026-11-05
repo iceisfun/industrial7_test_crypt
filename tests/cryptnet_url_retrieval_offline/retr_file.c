@@ -447,7 +447,7 @@ TEST(cnrfile_unknown_schemes) {
         L"urn:x:y", L"x://", L"a-b.c+d://z/q", L"data:text/plain,abc", L"javascript:0", L"res://nowhere/1" };
     for (size_t i = 0; i < sizeof urls / sizeof *urls; i++) {
         LPVOID obj = SENTINEL; SET_ERR(0);
-        BOOL ok = cn_retrieve_w(urls[i], CONTEXT_OID_CERTIFICATE, 0, 0, &obj, NULL);
+        BOOL ok = cn_retrieve_w(urls[i], CONTEXT_OID_CERTIFICATE, CRYPT_CACHE_ONLY_RETRIEVAL, 0, &obj, NULL);
         CHECKF(!ok, "%ls accepted", urls[i]);
         CHECKF(obj == NULL, "%ls: object %p", urls[i], obj);
         DWORD e = GetLastError();
