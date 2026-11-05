@@ -411,10 +411,11 @@ TEST(kpk_pkcs8_with_attributes) {
 }
 TEST(kpk_pkcs8_decode_errors) {
     REQ_TYPE(PKCS_PRIVATE_KEY_INFO);
-    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, KP_E_BADTAG, 2, 1, 0);
-    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, KP_E_BADTAG, 0x30, 3, 4, 1, 0);
-    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, 0, 0x30, 3, 2, 1, 0);
-    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, KP_E_TRUNC, 0x30, 0x0f, 2, 1, 0, 0x30, 6);
+    /* this decoder reports every structural error as CRYPT_E_BAD_ENCODE */
+    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, KP_E_BADENC, 2, 1, 0);
+    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, KP_E_BADENC, 0x30, 3, 4, 1, 0);
+    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, KP_E_BADENC, 0x30, 3, 2, 1, 0);
+    DEC_FAILV(PKCS_PRIVATE_KEY_INFO, KP_E_BADENC, 0x30, 0x0f, 2, 1, 0, 0x30, 6);
 }
 TEST(kpk_pkcs8_encode_bad_oid) {
     REQ_TYPE(PKCS_PRIVATE_KEY_INFO);
@@ -441,6 +442,7 @@ TEST(kpk_encrypted_pkcs8_encode_no_params_emits_null) {
 }
 TEST(kpk_encrypted_pkcs8_decode) {
     REQ_TYPE(PKCS_ENCRYPTED_PRIVATE_KEY_INFO);
+    kp_small_keeps_cb = 1;      /* observed: a too-small buffer leaves *pcb unchanged for this codec */
     CRYPT_ENCRYPTED_PRIVATE_KEY_INFO *r = DEC_OK(PKCS_ENCRYPTED_PRIVATE_KEY_INFO,
         V(0x30,0x1c, 0x30,0x14,6,8,0x2a,0x86,0x48,0x86,0xf7,0x0d,3,7, 4,8,1,2,3,4,5,6,7,8, 4,4,0xde,0xad,0xbe,0xef), 0);
     if (r) {
@@ -452,9 +454,9 @@ TEST(kpk_encrypted_pkcs8_decode) {
 }
 TEST(kpk_encrypted_pkcs8_decode_errors) {
     REQ_TYPE(PKCS_ENCRYPTED_PRIVATE_KEY_INFO);
-    DEC_FAILV(PKCS_ENCRYPTED_PRIVATE_KEY_INFO, KP_E_BADTAG, 4, 1, 1);
-    DEC_FAILV(PKCS_ENCRYPTED_PRIVATE_KEY_INFO, KP_E_BADTAG, 0x30, 0x0b, 0x30,0x06,6,2,0x2a,3,5,0, 3,1,0);
-    DEC_FAILV(PKCS_ENCRYPTED_PRIVATE_KEY_INFO, 0, 0x30, 0x08, 0x30,0x06,6,2,0x2a,3,5,0);
+    DEC_FAILV(PKCS_ENCRYPTED_PRIVATE_KEY_INFO, KP_E_BADENC, 4, 1, 1);
+    DEC_FAILV(PKCS_ENCRYPTED_PRIVATE_KEY_INFO, KP_E_BADENC, 0x30, 0x0b, 0x30,0x06,6,2,0x2a,3,5,0, 3,1,0);
+    DEC_FAILV(PKCS_ENCRYPTED_PRIVATE_KEY_INFO, KP_E_BADENC, 0x30, 0x08, 0x30,0x06,6,2,0x2a,3,5,0);
 }
 
 /* ---------------------------------------------------------------- X509_DSS_PARAMETERS */
@@ -516,8 +518,9 @@ TEST(kpk_dss_signature_encode_high_bit_pads) {
     REQ_TYPE(X509_DSS_SIGNATURE);
     BYTE sig[40]; memset(sig, 0x11, sizeof sig); sig[19] = 0x80; sig[39] = 0xff;
     DWORD cb; BYTE *e = kp_enc_alloc(X509_DSS_SIGNATURE, sig, 0, &cb);
-    CHECK(e && cb == 2 + 22 + 22 && e[0] == 0x30 && e[1] == 44 && e[2] == 2 && e[3] == 21 && e[4] == 0 && e[5] == 0x80);
-    if (e && cb == 48) CHECK(e[26] == 2 && e[27] == 21 && e[28] == 0 && e[29] == 0xff);
+    /* each INTEGER gets a leading zero: 2 + (2 + 21) * 2 = 48 bytes */
+    CHECK(e && cb == 48 && e[0] == 0x30 && e[1] == 46 && e[2] == 2 && e[3] == 21 && e[4] == 0 && e[5] == 0x80);
+    if (e && cb == 48) CHECK(e[25] == 2 && e[26] == 21 && e[27] == 0 && e[28] == 0xff);
     kp_free(e);
 }
 TEST(kpk_dss_signature_encode_zero_values) {
@@ -615,10 +618,11 @@ TEST(kpk_ecc_private_encode_matches_vector) {
 }
 TEST(kpk_ecc_private_decode_vector) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);
+    kp_small_keeps_cb = 1;
     CRYPT_ECC_PRIVATE_KEY_INFO *r = DEC_OK(X509_ECC_PRIVATE_KEY, kv_ec_sec1, sizeof kv_ec_sec1, 0);
     if (r) {
         CHECK(r->dwVersion == 1);
-        BLOB_IS(r->PrivateKey, 0);   /* replaced below: compare with the vector */
+        kp_blob_is(__FILE__, __LINE__, "r->PrivateKey", r->PrivateKey.cbData, r->PrivateKey.pbData, kv_ec_priv_d, 32);
         kp_free(r);
     }
 }
@@ -646,8 +650,8 @@ TEST(kpk_ecc_private_optional_parts) {
     ENC_EQ(X509_ECC_PRIVATE_KEY, &k, V(0x30,0x0e, 2,1,1, 4,3,1,2,3, 0xa0,4,6,2,0x2a,3));
     k.szCurveOid = NULL; k.PublicKey.cbData = 2; k.PublicKey.pbData = (BYTE *)"\x04\x05";
     ENC_EQ(X509_ECC_PRIVATE_KEY, &k, V(0x30,0x0f, 2,1,1, 4,3,1,2,3, 0xa1,5,3,3,0,4,5));
-    k.PublicKey.cUnusedBits = 3;
-    ENC_EQ(X509_ECC_PRIVATE_KEY, &k, V(0x30,0x0f, 2,1,1, 4,3,1,2,3, 0xa1,5,3,3,3,4,5));
+    k.PublicKey.cUnusedBits = 3;      /* the unused low bits of the last byte are cleared (0x05 -> 0x00) */
+    ENC_EQ(X509_ECC_PRIVATE_KEY, &k, V(0x30,0x0f, 2,1,1, 4,3,1,2,3, 0xa1,5,3,3,3,4,0));
 }
 TEST(kpk_ecc_private_bad_curve_oid) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);
@@ -658,14 +662,15 @@ TEST(kpk_ecc_private_bad_curve_oid) {
 }
 TEST(kpk_ecc_private_decode_without_optional_parts) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);
+    kp_small_keeps_cb = 1;
     CRYPT_ECC_PRIVATE_KEY_INFO *r = DEC_OK(X509_ECC_PRIVATE_KEY, V(0x30,8, 2,1,1, 4,3,1,2,3), 0);
     if (r) { CHECK(r->dwVersion == 1); BLOB_IS(r->PrivateKey, 1,2,3); CHECK(r->szCurveOid == NULL || r->szCurveOid[0] == 0); CHECK(r->PublicKey.cbData == 0); kp_free(r); }
 }
 TEST(kpk_ecc_private_decode_errors) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);
-    DEC_FAILV(X509_ECC_PRIVATE_KEY, KP_E_BADTAG, 4, 1, 1);
-    DEC_FAILV(X509_ECC_PRIVATE_KEY, 0, 0x30, 3, 2, 1, 1);
-    DEC_FAILV(X509_ECC_PRIVATE_KEY, KP_E_BADTAG, 0x30, 8, 4, 3, 1, 2, 3, 2, 1, 1);
+    DEC_FAILV(X509_ECC_PRIVATE_KEY, KP_E_BADENC, 4, 1, 1);
+    DEC_FAILV(X509_ECC_PRIVATE_KEY, KP_E_BADENC, 0x30, 3, 2, 1, 1);
+    DEC_FAILV(X509_ECC_PRIVATE_KEY, KP_E_BADENC, 0x30, 8, 4, 3, 1, 2, 3, 2, 1, 1);
 }
 TEST(kpk_ecc_private_sec1_rsa_der_mismatch) {
     REQ_TYPE(X509_ECC_PRIVATE_KEY);

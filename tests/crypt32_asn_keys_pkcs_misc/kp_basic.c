@@ -171,14 +171,20 @@ TEST(kpb_integer_nocopy_flag_accepted) {
 }
 
 /* ---------------------------------------------------------------- X509_ENUMERATED */
+/* Win10 treats ENUMERATED as unsigned: a negative int encodes as five bytes with a leading zero. */
 static const struct { int v; BYTE der[8]; BYTE n; } g_enum[] = {
     { 0, {0x0a,1,0}, 3 }, { 1, {0x0a,1,1}, 3 }, { 5, {0x0a,1,5}, 3 }, { 127, {0x0a,1,0x7f}, 3 }, { 128, {0x0a,2,0,0x80}, 4 },
-    { 256, {0x0a,2,1,0}, 4 }, { -1, {0x0a,1,0xff}, 3 }, { -128, {0x0a,1,0x80}, 3 }, { 0x7fffffff, {0x0a,4,0x7f,0xff,0xff,0xff}, 6 },
-    { (int)0x80000000, {0x0a,4,0x80,0,0,0}, 6 },
+    { 256, {0x0a,2,1,0}, 4 }, { -1, {0x0a,5,0,0xff,0xff,0xff,0xff}, 7 }, { -128, {0x0a,5,0,0xff,0xff,0xff,0x80}, 7 },
+    { 0x7fffffff, {0x0a,4,0x7f,0xff,0xff,0xff}, 6 }, { (int)0x80000000, {0x0a,5,0,0x80,0,0,0}, 7 },
+};
+/* decode-only inputs: short two's-complement forms are read as unsigned */
+static const struct { int v; BYTE der[8]; BYTE n; } g_enum_dec[] = {
+    { 255, {0x0a,1,0xff}, 3 }, { 128, {0x0a,1,0x80}, 3 }, { 0xffff, {0x0a,2,0xff,0xff}, 4 },
+    { -1, {0x0a,4,0xff,0xff,0xff,0xff}, 6 }, { (int)0x80000000, {0x0a,4,0x80,0,0,0}, 6 },
 };
 TEST(kpb_enumerated_encode_table) {
     REQ_CRYPT32();
-    for (unsigned i = 0; i < sizeof g_enum / sizeof g_enum[0]; i++) { int v = g_enum[i].v; if (t_is_wine() && v < 0) continue; ENC_EQ(X509_ENUMERATED, &v, g_enum[i].der, g_enum[i].n); }
+    for (unsigned i = 0; i < sizeof g_enum / sizeof g_enum[0]; i++) { int v = g_enum[i].v; if (t_is_wine() && v < 0) continue; t_label("row %u", i); ENC_EQ(X509_ENUMERATED, &v, g_enum[i].der, g_enum[i].n); }
 }
 TEST(kpb_enumerated_decode_table) {
     REQ_CRYPT32();
@@ -186,6 +192,12 @@ TEST(kpb_enumerated_decode_table) {
         int *r = DEC_OK(X509_ENUMERATED, g_enum[i].der, g_enum[i].n, 0);
         if (r) { CHECKF(*r == g_enum[i].v, "row %u: got %d", i, *r); kp_free(r); }
     }
+    for (unsigned i = 0; i < sizeof g_enum_dec / sizeof g_enum_dec[0]; i++) {
+        int *r = DEC_OK(X509_ENUMERATED, g_enum_dec[i].der, g_enum_dec[i].n, 0);
+        if (r) { CHECKF(*r == g_enum_dec[i].v, "dec row %u: got %d", i, *r); kp_free(r); }
+    }
+    /* five content bytes with a non-zero lead do not fit */
+    DEC_FAILV(X509_ENUMERATED, KP_E_LARGE, 0x0a,5,1,0,0,0,0);
 }
 TEST(kpb_enumerated_decode_rejects_integer_tag) {
     REQ_CRYPT32();
@@ -353,7 +365,9 @@ TEST(kpb_octet_decode_errors) {
     DEC_FAILV(X509_OCTET_STRING, KP_E_BADTAG, 3, 1, 0);
     DEC_FAILV(X509_OCTET_STRING, KP_E_EOD, 4, 5, 1, 2);
     DEC_FAILV(X509_OCTET_STRING, KP_E_TRUNC, 4);
-    DEC_FAILV(X509_OCTET_STRING, KP_E_BADTAG, 0x24, 0);
+    /* an empty constructed octet string is accepted (see kpb_octet_decode_constructed_note) */
+    CRYPT_DATA_BLOB *r = DEC_OK(X509_OCTET_STRING, V(0x24, 0), 0);
+    if (r) { EXPECT_EQ(r->cbData, 0); kp_free(r); }
 }
 TEST(kpb_octet_decode_constructed_note) {
     REQ_CRYPT32();
@@ -402,8 +416,10 @@ TEST(kpb_bits_decode_errors) {
     DEC_FAILV(X509_BITS, KP_E_BADTAG, 4, 2, 0, 0xff);
     DEC_FAILV(X509_BITS, KP_E_TRUNC, 3, 3, 0, 1);
     DEC_FAILV(X509_BITS, KP_E_EOD, 3);
-    DEC_FAILV(X509_BITS, 0, 3, 0);
-    DEC_FAILV(X509_BITS, 0, 3, 2, 8, 0);
+    DEC_FAILV(X509_BITS, KP_E_CORRUPT, 3, 2, 8, 0);
+    /* a zero-length bit string is accepted and decodes to an empty blob */
+    CRYPT_BIT_BLOB *r = DEC_OK(X509_BITS, V(3, 0), 0);
+    if (r) { EXPECT_EQ(r->cbData, 0); EXPECT_EQ(r->cUnusedBits, 0); kp_free(r); }
 }
 TEST(kpb_bits_encode_unused_bits_verbatim_or_masked) {
     REQ_CRYPT32();
@@ -440,7 +456,7 @@ static const struct { DWORD cb; BYTE d[3]; DWORD unused; BYTE der[8]; BYTE n; } 
     { 1, {0xa0},      0, {3,2,5,0xa0}, 4 },
     { 1, {0x01},      0, {3,2,0,0x01}, 4 },
     { 2, {0x00,0x01}, 0, {3,3,0,0x00,0x01}, 5 },
-    { 2, {0x05,0x00}, 0, {3,2,5,0x05}, 4 },
+    { 2, {0x05,0x00}, 0, {3,2,0,0x05}, 4 },
     { 1, {0x00},      0, {3,1,0}, 3 },
     { 2, {0x00,0x00}, 0, {3,1,0}, 3 },
     { 1, {0xff},      0, {3,2,0,0xff}, 4 },
@@ -521,7 +537,8 @@ TEST(kpb_utctime_encode_invalid_filetime) {
     REQ_CRYPT32();
     FILETIME ft; ft.dwLowDateTime = 0xffffffff; ft.dwHighDateTime = 0x7fffffff;   /* past year 30827 */
     ENC_FAIL(PKCS_UTC_TIME, &ft, CRYPT_E_BAD_ENCODE);
-    ENC_FAIL(X509_CHOICE_OF_TIME, &ft, CRYPT_E_BAD_ENCODE);
+    /* X509_CHOICE_OF_TIME does not range-check the year: it emits a 16 character GeneralizedTime */
+    ENC_EQ(X509_CHOICE_OF_TIME, &ft, V(0x18,0x10,'3','0','8','2','8','0','9','1','4','0','2','4','8','0','5','Z'));
     ft.dwLowDateTime = 0; ft.dwHighDateTime = 0x80000000;                           /* negative */
     ENC_FAIL(PKCS_UTC_TIME, &ft, CRYPT_E_BAD_ENCODE);
     ENC_FAIL(X509_CHOICE_OF_TIME, &ft, CRYPT_E_BAD_ENCODE);
@@ -569,9 +586,11 @@ TEST(kpb_utctime_decode_errors) {
 }
 TEST(kpb_utctime_decode_garbage_content) {
     REQ_CRYPT32();
-    DEC_FAILV(PKCS_UTC_TIME, 0, 0x17,0x0d,'0','5','0','6','0','6','1','6','1','0','0','0','X');
-    DEC_FAILV(PKCS_UTC_TIME, 0, 0x17,0x0d,'a','b','0','6','0','6','1','6','1','0','0','0','Z');
-    DEC_FAILV(PKCS_UTC_TIME, 0, 0x17,0x00);
+    DEC_FAILV(PKCS_UTC_TIME, KP_E_CORRUPT, 0x17,0x0d,'0','5','0','6','0','6','1','6','1','0','0','0','X');
+    DEC_FAILV(PKCS_UTC_TIME, KP_E_CORRUPT, 0x17,0x00);
+    /* non-digit characters in the year are not rejected: the digits are converted arithmetically */
+    FILETIME *f = DEC_OK(PKCS_UTC_TIME, V(0x17,0x0d,'a','b','0','6','0','6','1','6','1','0','0','0','Z'), 0);
+    if (f) { EXPECT_EQ(f->dwHighDateTime, 0x01df343b); EXPECT_EQ(f->dwLowDateTime, 0x08d07c00); kp_free(f); }
 }
 TEST(kpb_choice_time_encode_utc_range) {
     REQ_CRYPT32();
@@ -626,8 +645,8 @@ TEST(kpb_choice_time_decode_generalized_fraction) {
 }
 TEST(kpb_choice_time_decode_errors) {
     REQ_CRYPT32();
-    DEC_FAILV(X509_CHOICE_OF_TIME, KP_E_BADTAG, 4, 1, 1);
-    DEC_FAILV(X509_CHOICE_OF_TIME, KP_E_BADTAG, 2, 1, 1);
+    DEC_FAILV(X509_CHOICE_OF_TIME, KP_E_CORRUPT, 4, 1, 1);
+    DEC_FAILV(X509_CHOICE_OF_TIME, KP_E_CORRUPT, 2, 1, 1);
     DEC_FAILV(X509_CHOICE_OF_TIME, KP_E_TRUNC, 0x18, 0x0f, '2', '1');
 }
 TEST(kpb_filetime_decode_size) {
@@ -691,7 +710,7 @@ TEST(kpb_objid_decode_table) {
 TEST(kpb_objid_encode_invalid_strings_fail) {
     REQ_CRYPT32();
     if (t_is_wine()) { t_skip("X509_OBJECT_IDENTIFIER not implemented by the emulator"); return; }
-    static const char *bad[] = { "", "1", "3.1", "1.40", "1.2.", ".1.2", "1..2", "1.2.abc", "1.2.3 ", "a.b", "-1.2", "1.-2", "2.5.4.3x" };
+    static const char *bad[] = { "", "1", "3.1", "1.40", "1.2.", ".1.2", "1..2", "a.b", "-1.2", "1.-2" };
     for (unsigned i = 0; i < sizeof bad / sizeof bad[0]; i++) {
         LPSTR s = (LPSTR)bad[i];
         DWORD cb = 100; BYTE buf[64];
@@ -699,6 +718,17 @@ TEST(kpb_objid_encode_invalid_strings_fail) {
         BOOL ok = U(CryptEncodeObjectEx)(KP_ENC, X509_OBJECT_IDENTIFIER, &s, 0, NULL, buf, &cb);
         CHECKF(!ok, "\"%s\" must not encode", bad[i]);
     }
+}
+TEST(kpb_objid_encode_lenient_strings) {
+    REQ_CRYPT32();
+    if (t_is_wine()) { t_skip("X509_OBJECT_IDENTIFIER not implemented by the emulator"); return; }
+    /* trailing garbage after the last number is ignored. The arcs are unusual on purpose: crypt32 remembers the
+     * string it saw for an encoded OID and hands that text back from later decodes of the same bytes. */
+    LPSTR s;
+    s = (LPSTR)"1.2.777abc"; ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,3,0x2a,0x86,0x09));
+    s = (LPSTR)"1.2.778 ";   ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,3,0x2a,0x86,0x0a));
+    s = (LPSTR)"2.5.4.9999x"; ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,4,0x55,4,0xce,0x0f));
+    s = (LPSTR)"1.2.0x10";   ENC_EQ(X509_OBJECT_IDENTIFIER, &s, V(6,2,0x2a,0x00));
 }
 TEST(kpb_objid_decode_errors) {
     REQ_CRYPT32();

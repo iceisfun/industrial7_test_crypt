@@ -6,6 +6,7 @@
 #include "t.h"
 #include <wincrypt.h>
 
+extern int kp_small_keeps_cb;            /* Win10: for some decoders a too-small buffer leaves *pcb untouched; set per test after REQ_* */
 extern DWORD kp_enc_type;                 /* encoding type used by the helpers and by KP_ENC; REQ_* resets it */
 #define KP_ENC kp_enc_type
 #define KP_ENC_P7 (X509_ASN_ENCODING | PKCS_7_ASN_ENCODING)
@@ -20,6 +21,7 @@ extern DWORD kp_enc_type;                 /* encoding type used by the helpers a
 #define KP_E_TRUNC    ((DWORD)1)
 #define KP_E_LARGE    ((DWORD)0x80093104)
 #define KP_E_BADTAG   ((DWORD)0x8009310B)
+#define KP_E_BADENC   ((DWORD)0x80092002)
 #define KP_E_INVALIDARG ((DWORD)0x80070057)
 
 /* Bytes literal: V(1,2,3) expands to two arguments (pointer, length). */
@@ -57,9 +59,9 @@ void kp_blob_is(const char *file, int line, const char *what, DWORD cb, const BY
 int kp_type_known(LPCSTR type);
 #define REQ_TYPE(t) do { REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObjectEx")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObjectEx")); \
     REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); \
-    kp_enc_type = X509_ASN_ENCODING; if (t_is_wine() && !kp_type_known(t)) { t_skip("codec not provided by the emulator"); return; } } while (0)
+    kp_enc_type = X509_ASN_ENCODING; kp_small_keeps_cb = 0; if (t_is_wine() && !kp_type_known(t)) { t_skip("codec not provided by the emulator"); return; } } while (0)
 #define REQ_CRYPT32() do { REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObjectEx")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObjectEx")); \
-    REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); kp_enc_type = X509_ASN_ENCODING; } while (0)
+    REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); kp_enc_type = X509_ASN_ENCODING; kp_small_keeps_cb = 0; } while (0)
 /* signer-info codecs insist on the PKCS_7_ASN_ENCODING bit */
 #define REQ_P7() do { REQ_CRYPT32(); kp_enc_type = KP_ENC_P7; } while (0)
 #endif

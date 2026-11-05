@@ -196,7 +196,7 @@ TEST(kpp_pkcs7_signer_decode) {
         BLOB_IS(r->Issuer, 0x30,0x0c,0x31,0x0a,0x30,0x08,6,3,0x55,4,3,0x13,1,0x41);
         BLOB_IS(r->SerialNumber, 5);
         EXPECT_STR(r->HashAlgorithm.pszObjId, szOID_OIWSEC_sha1);
-        BLOB_IS(r->HashAlgorithm.Parameters, 5, 0);
+        EXPECT_EQ(r->HashAlgorithm.Parameters.cbData, 0);   /* an ASN.1 NULL parameter decodes to an empty blob */
         EXPECT_STR(r->HashEncryptionAlgorithm.pszObjId, szOID_RSA_RSA);
         BLOB_IS(r->EncryptedHash, 0xaa, 0xbb);
         CHECK(r->AuthAttrs.cAttr == 1); CHECK(r->UnauthAttrs.cAttr == 0);
@@ -418,8 +418,8 @@ TEST(kpp_rc2_decode_sizes) {
 TEST(kpp_rc2_decode_errors) {
     REQ_TYPE(PKCS_RC2_CBC_PARAMETERS);
     DEC_FAILV(PKCS_RC2_CBC_PARAMETERS, KP_E_BADTAG, 2, 1, 58);
-    DEC_FAILV(PKCS_RC2_CBC_PARAMETERS, 0, 0x30, 0);
-    DEC_FAILV(PKCS_RC2_CBC_PARAMETERS, KP_E_BADTAG, 0x30, 5, 2, 1, 58, 2, 0);
+    DEC_FAILV(PKCS_RC2_CBC_PARAMETERS, KP_E_EOD, 0x30, 0);
+    DEC_FAILV(PKCS_RC2_CBC_PARAMETERS, KP_E_CORRUPT, 0x30, 5, 2, 1, 58, 2, 0);
     DEC_FAILV(PKCS_RC2_CBC_PARAMETERS, KP_E_TRUNC, 0x30, 0x0d, 2, 1, 58, 4, 8, 1);
 }
 TEST(kpp_rc2_decode_short_iv) {

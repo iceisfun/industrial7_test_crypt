@@ -256,10 +256,11 @@ TEST(kpm_spc_pe_image_encode) {
     SPC_LINK f; memset(&f, 0, sizeof f); f.dwLinkChoice = SPC_FILE_LINK_CHOICE; f.pwszFile = (LPWSTR)L"x";
     d.pFile = &f;
     WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,8, 0xa0,6, 0xa2,4,0x80,2,0,'x'));
+    /* flags equal to the DEFAULT (0x80 with 7 unused bits, "include resources") are omitted */
     BYTE fl = 0x80; d.Flags.cbData = 1; d.Flags.pbData = &fl; d.Flags.cUnusedBits = 7;
-    WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,0x0c, 3,2,7,0x80, 0xa0,6, 0xa2,4,0x80,2,0,'x'));
+    WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,8, 0xa0,6, 0xa2,4,0x80,2,0,'x'));
     d.pFile = NULL;
-    WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,4, 3,2,7,0x80));
+    WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,0));
 }
 TEST(kpm_spc_pe_image_flags_length_in_bits) {
     REQ_WV("WVTAsn1SpcPeImageDataEncode", "WVTAsn1SpcPeImageDataDecode");
@@ -267,7 +268,7 @@ TEST(kpm_spc_pe_image_flags_length_in_bits) {
     BYTE fl[2] = { 0xff, 0xf0 }; d.Flags.cbData = 2; d.Flags.pbData = fl; d.Flags.cUnusedBits = 4;
     WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,5, 3,3,4,0xff,0xf0));
     BYTE z = 0; d.Flags.cbData = 1; d.Flags.pbData = &z; d.Flags.cUnusedBits = 0;
-    WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,4, 3,2,0,0));
+    WV_ENC_EQ("WVTAsn1SpcPeImageDataEncode", &d, V(0x30,3, 3,1,0));     /* non-default flags; trailing zero bytes are trimmed */
 }
 TEST(kpm_spc_pe_image_decode) {
     REQ_WV("WVTAsn1SpcPeImageDataEncode", "WVTAsn1SpcPeImageDataDecode");
@@ -442,7 +443,7 @@ TEST(kpm_qc_statements_by_oid) {
     DWORD cb = 0; BYTE *e = kp_enc_alloc(szOID_QC_STATEMENTS_EXT, &q, 0, &cb);
     if (!e) { t_note("szOID_QC_STATEMENTS_EXT encode: err=0x%lx", GetLastError()); return; }
     /* SEQUENCE OF SEQUENCE { statementId OID, statementInfo ANY OPTIONAL }: absent info is omitted */
-    static const BYTE want[] = {0x30,0x13, 0x30,7,6,5,0x04,0x00,0x8e,0x46,0x01, 0x30,8,6,2,0x2a,3,2,1,7};
+    static const BYTE want[] = {0x30,0x13, 0x30,8,6,6,0x04,0x00,0x8e,0x46,0x01,0x01, 0x30,7,6,2,0x2a,3,2,1,7};
     CHECK(cb == sizeof want && !memcmp(e, want, cb));
     CERT_QC_STATEMENTS_EXT_INFO *r = kp_dec_alloc(szOID_QC_STATEMENTS_EXT, e, cb, 0, NULL);
     CHECK(r && r->cStatement == 2);
@@ -527,7 +528,7 @@ TEST(kpm_logotype_community_and_issuer) {
 TEST(kpm_logotype_decode_errors) {
     REQ_TYPE(X509_LOGOTYPE_EXT);
     DEC_FAILV(X509_LOGOTYPE_EXT, KP_E_BADTAG, 2, 1, 1);
-    DEC_FAILV(X509_LOGOTYPE_EXT, KP_E_BADTAG, 0x30, 2, 0xa5, 0);
+    DEC_FAILV(X509_LOGOTYPE_EXT, KP_E_CORRUPT, 0x30, 2, 0xa5, 0);
 }
 
 /* ---------------------------------------------------------------- dispatcher behaviour */

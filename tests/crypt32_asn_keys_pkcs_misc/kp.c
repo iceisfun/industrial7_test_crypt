@@ -1,6 +1,7 @@
 #include "kp.h"
 
 DWORD kp_enc_type = X509_ASN_ENCODING;
+int kp_small_keeps_cb;
 typedef BOOL (WINAPI *encex_t)(DWORD, LPCSTR, const void *, DWORD, PCRYPT_ENCODE_PARA, void *, DWORD *);
 typedef BOOL (WINAPI *enc_t)(DWORD, LPCSTR, const void *, BYTE *, DWORD *);
 typedef BOOL (WINAPI *decex_t)(DWORD, LPCSTR, const BYTE *, DWORD, DWORD, PCRYPT_DECODE_PARA, void *, DWORD *);
@@ -65,7 +66,7 @@ void kp_check_enc(const char *file, int line, LPCSTR type, const void *info, con
     LocalFree(buf);
     /* alloc */
     { DWORD c2 = 0; BYTE *a = kp_enc_alloc(type, info, 0, &c2);
-      t_check(a && c2 == n && !memcmp(a, want, n), file, line, "Ex alloc", "a=%p c2=%lu", a, (unsigned long)c2);
+      t_check(c2 == n && (n == 0 ? a == NULL : (a && !memcmp(a, want, n))), file, line, "Ex alloc", "a=%p c2=%lu", a, (unsigned long)c2);
       kp_free(a); }
 }
 
@@ -104,7 +105,7 @@ void *kp_check_dec(const char *file, int line, LPCSTR type, const BYTE *der, siz
     buf = (BYTE *)LocalAlloc(LPTR, cb + 16);
     cb2 = 1; SetLastError(0xDEAD);
     ok = pDecEx()(KP_ENC, type, der, (DWORD)n, flags, NULL, buf, &cb2);
-    t_check(!ok && GetLastError() == ERROR_MORE_DATA && cb2 == cb, file, line, "decode too small", "ok=%d err=0x%lx cb2=%lu cb=%lu", ok, GetLastError(), (unsigned long)cb2, (unsigned long)cb);
+    t_check(!ok && GetLastError() == ERROR_MORE_DATA && cb2 == (kp_small_keeps_cb ? 1 : cb), file, line, "decode too small", "ok=%d err=0x%lx cb2=%lu cb=%lu", ok, GetLastError(), (unsigned long)cb2, (unsigned long)cb);
     LocalFree(buf);
     res = kp_dec_alloc(type, der, n, flags, &cb2);
     t_check(res != NULL && cb2 == cb, file, line, "decode alloc", "res=%p cb2=%lu cb=%lu", res, (unsigned long)cb2, (unsigned long)cb);
