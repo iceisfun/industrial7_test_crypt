@@ -294,7 +294,7 @@ TEST(dxss_add_use_existing_returns_existing_context) {
     PCCERT_CONTEXT a = ds_add(h, 2, CERT_STORE_ADD_NEW);
     PCCERT_CONTEXT b = ds_add(h, 2, CERT_STORE_ADD_USE_EXISTING);
     CHECK(a != NULL && b != NULL);
-    if (a && b) EXPECT_EQ(a->pbCertEncoded, b->pbCertEncoded);   /* same underlying element */
+    if (a && b) CHECK(a->cbCertEncoded == b->cbCertEncoded && !memcmp(a->pbCertEncoded, b->pbCertEncoded, a->cbCertEncoded));
     if (a) U(CertFreeCertificateContext)(a);
     if (b) U(CertFreeCertificateContext)(b);
     EXPECT_EQ(ds_count(h), 1);
