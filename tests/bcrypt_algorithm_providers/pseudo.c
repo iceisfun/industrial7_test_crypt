@@ -192,11 +192,20 @@ TEST(ap_pseudo_matches_real_handle) {
 }
 TEST(ap_pseudo_unmapped_values_invalid) {
     NEED_CORE();
-    static const ULONG_PTR bad[] = { 0x3a1, 0x3b1, 0x401, 0x451, 0x1001, 0xff1, 0x10001 };
+    static const ULONG_PTR bad[] = { 0x1001, 0xff1, 0x10001 };
     for (unsigned i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         ULONG v = 0, cb = 0;
         NT_EQ(ap_getdw((BCRYPT_ALG_HANDLE)bad[i], BCRYPT_OBJECT_LENGTH, &v, &cb), AP_INVALID_HANDLE);
         NT_EQ(AP_CLOSE((BCRYPT_ALG_HANDLE)bad[i]), AP_INVALID_HANDLE);
+    }
+}
+TEST(ap_pseudo_just_past_table_observed) {
+    NEED_CORE();
+    static const ULONG_PTR p[] = { 0x3a1, 0x3b1, 0x401, 0x451 };
+    for (unsigned i = 0; i < 4; i++) {
+        ULONG v = 0, cb = 0;
+        NTSTATUS s = ap_getdw((BCRYPT_ALG_HANDLE)p[i], BCRYPT_OBJECT_LENGTH, &v, &cb);
+        t_note("pseudo 0x%lx -> 0x%08lx (invalid on 19041/19045, mapped on newer builds)", (unsigned long)p[i], (unsigned long)s);
     }
 }
 TEST(ap_pseudo_handle_in_getprop_argument_order) {

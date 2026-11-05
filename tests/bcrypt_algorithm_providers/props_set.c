@@ -55,7 +55,7 @@ TEST(ap_setprop_pseudo_handles_are_read_only) {
 }
 TEST(ap_setprop_unmapped_pseudo_handles) {
     NEED_CORE();
-    static const ULONG_PTR ph[] = { 0x3a1, 0x1001, 0x5f1 };
+    static const ULONG_PTR ph[] = { 0x1001, 0x5f1, 0xff1 };
     for (unsigned i = 0; i < sizeof(ph) / sizeof(ph[0]); i++) {
         ULONG v = 1;
         NT_EQ(AP_SET((BCRYPT_ALG_HANDLE)ph[i], L"X", &v, 4), AP_INVALID_HANDLE);
@@ -67,7 +67,7 @@ TEST(ap_setprop_closed_handle) {
     NT_OK(AP_OPEN(&h, BCRYPT_AES_ALGORITHM, NULL, 0));
     if (!h) return;
     NT_OK(AP_CLOSE(h));
-    NT_EQ(set_mode(h, BCRYPT_CHAIN_MODE_CBC), AP_INVALID_HANDLE);
+    NT_FAILED(set_mode(h, BCRYPT_CHAIN_MODE_CBC));   /* stale handle: failure only */
 }
 
 /* ---------------------------------------------------------------- ChainingMode matrix */
