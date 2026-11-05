@@ -147,7 +147,7 @@ TEST(mh_sign_cbsize_gates_attributes_and_flags) {
         DWORD n = 0; BYTE *b;
         CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n));
         b = malloc(n); CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, b, &n));
-        int has = MH_HAS(b, n, "\x06\x08\x2a\x03\x04\x05\x06\x07\x63");
+        int has = MH_HAS(b, n, "\x06\x07\x2a\x03\x04\x05\x06\x07\x63");
         CHECKF(has == (sizes[i] >= 0x70), "cbSize 0x%lx: attribute present=%d", sizes[i], has);
         free(b);
     }
@@ -207,28 +207,33 @@ TEST(mh_sign_wrong_encoding_type_fails) {
     r = U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n);
     t_note("X509-only encoding type -> %d err 0x%lx", r, GetLastError());
 }
-TEST(mh_sign_content_split_equals_concatenation) {
+/* Windows 10: an attached signature accepts exactly one content blob. The size query still succeeds (with a size that
+ * depends on the blob count) but producing the message fails. Splitting content is only supported detached. */
+TEST(mh_sign_attached_multi_blob_fails_on_output) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
     CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256);
     const BYTE *a3[3] = { v_payload, v_payload + 10, v_payload + 33 };
     DWORD l3[3] = { 10, 23, (DWORD)sizeof v_payload - 33 };
-    DWORD n3 = 0; CHECK(U(CryptSignMessage)(&p, FALSE, 3, a3, l3, NULL, &n3));
-    BYTE *b3 = malloc(n3); CHECK(U(CryptSignMessage)(&p, FALSE, 3, a3, l3, b3, &n3));
-    DWORD n1 = 0; BYTE *b1 = mh_sign(MH_S1, OID_SHA256, 0, 0, PL, &n1);
-    CHECK(b1 != NULL);
-    if (b1) { EXPECT_EQ(n1, n3); CHECK(n1 == n3 && !memcmp(b1, b3, n1)); }
-    free(b1); free(b3);
+    DWORD n3 = 0; SET_ERR(0);
+    BOOL rq = U(CryptSignMessage)(&p, FALSE, 3, a3, l3, NULL, &n3);
+    CHECKF(rq, "size query err 0x%lx", GetLastError());
+    BYTE *b3 = malloc(n3 + 64); DWORD m = n3 + 64; SET_ERR(0);
+    BOOL r = U(CryptSignMessage)(&p, FALSE, 3, a3, l3, b3, &m);
+    EXPECT_FAIL(r == FALSE, E_CRYPT_E_MSG_ERROR); EXPECT_EQ(m, 0);
+    free(b3);
 }
-TEST(mh_sign_split_with_empty_middle_blob) {
+TEST(mh_sign_detached_content_split_equals_concatenation) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
     CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256);
-    const BYTE *a[3] = { v_payload, (const BYTE *)"", v_payload + 20 };
-    DWORD l[3] = { 20, 0, (DWORD)sizeof v_payload - 20 };
-    DWORD n = 0; CHECK(U(CryptSignMessage)(&p, FALSE, 3, a, l, NULL, &n));
-    BYTE *b = malloc(n); CHECK(U(CryptSignMessage)(&p, FALSE, 3, a, l, b, &n));
-    DWORD n1 = 0; BYTE *b1 = mh_sign(MH_S1, OID_SHA256, 0, 0, PL, &n1);
-    CHECK(b1 && n1 == n && !memcmp(b, b1, n));
-    free(b); free(b1);
+    const BYTE *a3[3] = { v_payload, (const BYTE *)"", v_payload + 33 };
+    DWORD l3[3] = { 10 + 23, 0, (DWORD)sizeof v_payload - 33 };
+    const BYTE *a1[1] = { v_payload }; DWORD l1[1] = { sizeof v_payload };
+    DWORD n3 = 0; CHECK(U(CryptSignMessage)(&p, TRUE, 3, a3, l3, NULL, &n3));
+    BYTE *b3 = malloc(n3); CHECK(U(CryptSignMessage)(&p, TRUE, 3, a3, l3, b3, &n3));
+    DWORD n1 = 0; CHECK(U(CryptSignMessage)(&p, TRUE, 1, a1, l1, NULL, &n1));
+    BYTE *b1 = malloc(n1); CHECK(U(CryptSignMessage)(&p, TRUE, 1, a1, l1, b1, &n1));
+    EXPECT_EQ(n1, n3); CHECK(n1 == n3 && !memcmp(b1, b3, n1));
+    free(b1); free(b3);
 }
 TEST(mh_sign_zero_blobs) {
     MH_INIT(); REQUIRE(U(CryptSignMessage));
@@ -502,7 +507,7 @@ TEST(mh_sign_auth_attr_changes_signature_semantics) {
         BOOL r = U(CryptVerifyMessageSignature)(&vp, 0, b, n, d, &dn, &sc);
         CHECK(r == FALSE); CHECK(sc == NULL);
         DWORD e = GetLastError(); t_note("tampered content with auth attrs -> 0x%lx", e);
-        CHECK(e == E_CRYPT_E_HASH_VALUE || e == E_NTE_BAD_SIGNATURE);
+        EXPECT_EQ(e, E_CRYPT_E_HASH_VALUE);
         if (sc) U(CertFreeCertificateContext)(sc);
     }
     free(b);
@@ -534,10 +539,29 @@ TEST(mh_sign_inner_content_type_default_is_data) {
     CHECK(MH_HAS(b, cb, MH_OID_DATA));
     U(CryptMsgClose)(m); free(b);
 }
-TEST(mh_sign_inner_content_type_field_requires_cbsize_0x78) {
-    MH_INIT(); REQUIRE(U(CryptSignMessage)); REQUIRE(U(CryptMsgOpenToDecode));
-    CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256); p.dwInnerContentType = CMSG_ENVELOPED;
+/* With an explicit inner content type (1..6) crypt32 does not wrap the content: it must already be the DER encoding of a
+ * value (fill fails with CRYPT_E_UNEXPECTED_ENCODING for raw bytes). An OCTET STRING around the payload is valid for all. */
+static BYTE g_der_pl[2 + sizeof v_payload];
+static void der_payload(void) { g_der_pl[0] = 0x04; g_der_pl[1] = (BYTE)sizeof v_payload; memcpy(g_der_pl + 2, v_payload, sizeof v_payload); }
+TEST(mh_sign_explicit_inner_type_needs_der_content) {
+    MH_INIT(); REQUIRE(U(CryptSignMessage));
+    CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256);
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload };
+    for (DWORD t = CMSG_DATA; t <= CMSG_ENCRYPTED; t++) {
+        p.dwInnerContentType = t; DWORD n = 0; SET_ERR(0);
+        BOOL rq = U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n);
+        CHECKF(rq, "type %lu: size query err 0x%lx", t, GetLastError());
+        BYTE *b = malloc(n + 64); DWORD m = n + 64; SET_ERR(0);
+        BOOL r = U(CryptSignMessage)(&p, FALSE, 1, a, l, b, &m);
+        t_label("type %lu", t);
+        EXPECT_FAIL(r == FALSE, E_CRYPT_E_UNEXPECTED_ENCODING); EXPECT_EQ(m, 0);
+        t_label(NULL); free(b);
+    }
+}
+TEST(mh_sign_inner_content_type_field_requires_cbsize_0x78) {
+    MH_INIT(); REQUIRE(U(CryptSignMessage)); REQUIRE(U(CryptMsgOpenToDecode)); der_payload();
+    CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256); p.dwInnerContentType = CMSG_ENVELOPED;
+    const BYTE *a[1] = { g_der_pl }; DWORD l[1] = { sizeof g_der_pl };
     for (int pass = 0; pass < 2; pass++) {
         p.cbSize = pass ? sizeof p : 0x70;
         DWORD n = 0; SET_ERR(0);
@@ -551,13 +575,13 @@ TEST(mh_sign_inner_content_type_field_requires_cbsize_0x78) {
     }
 }
 TEST(mh_sign_inner_content_type_table) {
-    MH_NOWINE(); MH_INIT(); REQUIRE(U(CryptSignMessage)); REQUIRE(U(CryptDecodeMessage));
+    MH_NOWINE(); MH_INIT(); der_payload(); REQUIRE(U(CryptSignMessage)); REQUIRE(U(CryptDecodeMessage));
     static const struct { DWORD t; const char *oid; DWORD n; } tb[] = {
         { CMSG_DATA, MH_OID_DATA, 11 }, { CMSG_SIGNED, MH_OID_SIGNED, 11 },
         { CMSG_ENVELOPED, MH_OID_ENVELOPED, 11 }, { CMSG_HASHED, MH_OID_HASHED, 11 } };
     for (unsigned i = 0; i < 4; i++) {
         CRYPT_SIGN_MESSAGE_PARA p; mh_sign_para(&p, MH_S1, OID_SHA256); p.dwInnerContentType = tb[i].t;
-        const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload };
+        const BYTE *a[1] = { g_der_pl }; DWORD l[1] = { sizeof g_der_pl };
         DWORD n = 0; CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, NULL, &n));
         BYTE *b = malloc(n); CHECK(U(CryptSignMessage)(&p, FALSE, 1, a, l, b, &n));
         /* the contentType after the digest algorithms is the inner type: signedData appears twice for CMSG_SIGNED */

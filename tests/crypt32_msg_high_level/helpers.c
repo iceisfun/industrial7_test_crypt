@@ -14,6 +14,41 @@ static const struct { const BYTE *cert; DWORD ccb; const BYTE *key; DWORD kcb; }
     { v_r2_cert, sizeof v_r2_cert, v_r2_key, sizeof v_r2_key },
 };
 
+/* CNG copy of fixture key i (ephemeral, in the software KSP). crypt32 on Windows 10 signs and decrypts SHA-2 / AES
+ * messages only with a CNG key; the legacy-CSP key stays in mh_prov for CryptMsg* callers that pass an HCRYPTPROV. */
+static NCRYPT_PROV_HANDLE g_ksp;
+NCRYPT_KEY_HANDLE mh_cng[MH_N];
+static const BYTE *g_keyblob(int i);
+static NCRYPT_KEY_HANDLE cng_import(const BYTE *k) {
+    if (!g_ksp && U(NCryptOpenStorageProvider)(&g_ksp, MS_KEY_STORAGE_PROVIDER, 0) != 0) return 0;
+    DWORD bits = *(const DWORD *)(k + 12), nb = bits / 8, hb = bits / 16;
+    DWORD e = *(const DWORD *)(k + 16);
+    BYTE be[4] = { (BYTE)(e >> 24), (BYTE)(e >> 16), (BYTE)(e >> 8), (BYTE)e };
+    DWORD eoff = 0; while (eoff < 3 && !be[eoff]) eoff++;
+    DWORD cbE = 4 - eoff;
+    DWORD tot = 24 + cbE + nb + hb * 5 + nb;
+    BYTE *blob = calloc(1, tot); BCRYPT_RSAKEY_BLOB *h = (BCRYPT_RSAKEY_BLOB *)blob;
+    h->Magic = BCRYPT_RSAFULLPRIVATE_MAGIC; h->BitLength = bits; h->cbPublicExp = cbE; h->cbModulus = nb; h->cbPrime1 = hb; h->cbPrime2 = hb;
+    BYTE *w = blob + 24; memcpy(w, be + eoff, cbE); w += cbE;
+    const BYTE *src = k + 20; const DWORD lens[7] = { nb, hb, hb, hb, hb, hb, nb };
+    for (int i = 0; i < 7; i++) { for (DWORD j = 0; j < lens[i]; j++) w[j] = src[lens[i] - 1 - j]; w += lens[i]; src += lens[i]; }
+    NCRYPT_KEY_HANDLE key = 0;
+    SECURITY_STATUS st = U(NCryptImportKey)(g_ksp, 0, BCRYPT_RSAFULLPRIVATE_BLOB, NULL, &key, blob, tot, 0);
+    free(blob);
+    return st == 0 ? key : 0;
+}
+/* own = 1: give this certificate its own CNG key handle (crypt32 may release the handle of a context whose recipient
+ * search fails, so stores built per test must not share the long-lived fixture handle) */
+static int set_key_ctx(PCCERT_CONTEXT c, int i, int own) {
+    CERT_KEY_CONTEXT kc; memset(&kc, 0, sizeof kc); kc.cbSize = sizeof kc;
+    NCRYPT_KEY_HANDLE k = mh_cng[i];
+    if (k && own) k = cng_import(g_keyblob(i));
+    if (k) { kc.hNCryptKey = k; kc.dwKeySpec = CERT_NCRYPT_KEY_SPEC; }
+    else { kc.hCryptProv = mh_prov[i]; kc.dwKeySpec = AT_KEYEXCHANGE; }
+    return U(CertSetCertificateContextProperty)(c, CERT_KEY_CONTEXT_PROP_ID, 0, &kc);
+}
+
+static const BYTE *g_keyblob(int i) { return g_fix[i].key; }
 int mh_init(void) {
     if (g_init_state) { if (g_init_state < 0) t_skip("fixture setup failed"); return g_init_state > 0; }
     g_init_state = -1;
@@ -39,11 +74,10 @@ int mh_init(void) {
         if (!imp(prov, g_fix[i].key, g_fix[i].kcb, 0, 0, &key)) {
             t_skip("CryptImportKey %d failed: %lx", i, GetLastError()); return 0; }
         typeof(&CryptDestroyKey) dk = U(CryptDestroyKey); if (dk) dk(key);  /* provider keeps the key */
-        DWORD spec = AT_KEYEXCHANGE;
         mh_prov[i] = prov;
-        CERT_KEY_CONTEXT kc; memset(&kc, 0, sizeof kc);
-        kc.cbSize = sizeof kc; kc.hCryptProv = prov; kc.dwKeySpec = spec;
-        if (!setp(mh_ids[i].priv, CERT_KEY_CONTEXT_PROP_ID, 0, &kc)) {
+        mh_cng[i] = cng_import(g_fix[i].key);
+        if (!mh_cng[i]) t_note("CNG import of fixture key %d failed; using the legacy key context", i);
+        if (!set_key_ctx(mh_ids[i].priv, i, 0)) {
             t_skip("set key context prop failed: %lx", GetLastError()); return 0; }
     }
     mh_dec_stores[0] = mh_priv_store;
@@ -155,11 +189,7 @@ HCERTSTORE mh_make_store(unsigned privmask, unsigned pubmask) {
         PCCERT_CONTEXT c = NULL;
         if ((privmask | pubmask) & (1u << i)) {
             if (!add(s, ENC, g_fix[i].cert, g_fix[i].ccb, CERT_STORE_ADD_ALWAYS, &c)) continue;
-            if (privmask & (1u << i)) {
-                CERT_KEY_CONTEXT kc; memset(&kc, 0, sizeof kc);
-                kc.cbSize = sizeof kc; kc.hCryptProv = mh_prov[i]; kc.dwKeySpec = AT_KEYEXCHANGE;
-                setp(c, CERT_KEY_CONTEXT_PROP_ID, 0, &kc);
-            }
+            if (privmask & (1u << i)) set_key_ctx(c, i, 1);
             fr(c);
         }
     }
@@ -188,13 +218,16 @@ const BYTE *mh_ctl_blob(DWORD *pn) {
         ci.SubjectAlgorithm.pszObjId = (LPSTR)OID_SHA1;
         ci.cCTLEntry = 2; ci.rgCTLEntry = ent;
         CMSG_SIGNER_ENCODE_INFO si; memset(&si, 0, sizeof si);
-        si.cbSize = sizeof si; si.pCertInfo = mh_ids[MH_S1].priv->pCertInfo; si.hCryptProv = mh_prov[MH_S1];
-        si.dwKeySpec = AT_KEYEXCHANGE; si.HashAlgorithm.pszObjId = (LPSTR)OID_SHA256;
+        si.cbSize = sizeof si; si.pCertInfo = mh_ids[MH_S1].priv->pCertInfo;
+        /* SHA-256 signing needs the CNG copy of the key; the signer field is a union of HCRYPTPROV and NCRYPT_KEY_HANDLE */
+        if (mh_cng[MH_S1]) { si.hCryptProv = (HCRYPTPROV)mh_cng[MH_S1]; si.dwKeySpec = CERT_NCRYPT_KEY_SPEC; }
+        else { si.hCryptProv = mh_prov[MH_S1]; si.dwKeySpec = AT_KEYEXCHANGE; }
+         si.HashAlgorithm.pszObjId = (LPSTR)OID_SHA256;
         CMSG_SIGNED_ENCODE_INFO sg; memset(&sg, 0, sizeof sg); sg.cbSize = sizeof sg; sg.cSigners = 1; sg.rgSigners = &si;
         DWORD need = 0;
-        if (!U(CryptMsgEncodeAndSignCTL)(ENC, &ci, &sg, 0, NULL, &need) || !need) return NULL;
+        if (!U(CryptMsgEncodeAndSignCTL)(ENC, &ci, &sg, 0, NULL, &need) || !need) { t_note("CryptMsgEncodeAndSignCTL size query err 0x%lx", GetLastError()); return NULL; }
         blob = malloc(need);
-        if (!U(CryptMsgEncodeAndSignCTL)(ENC, &ci, &sg, 0, blob, &need)) { free(blob); blob = NULL; return NULL; }
+        if (!U(CryptMsgEncodeAndSignCTL)(ENC, &ci, &sg, 0, blob, &need)) { t_note("CryptMsgEncodeAndSignCTL err 0x%lx", GetLastError()); free(blob); blob = NULL; return NULL; }
         n = need;
     }
     if (blob && pn) *pn = n;

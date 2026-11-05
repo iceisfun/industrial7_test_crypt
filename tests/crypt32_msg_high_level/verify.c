@@ -90,7 +90,7 @@ TEST(mh_verify_size_query_does_not_verify_signature) {
     BYTE d[100]; dn = sizeof d; SET_ERR(0);
     r = VMS(&vp, 0, b, sizeof v_m_sig_noattr, d, &dn, NULL);
     CHECK(r == FALSE); t_note("corrupt signature value -> 0x%lx", GetLastError());
-    CHECK(GetLastError() == E_NTE_BAD_SIGNATURE);
+    EXPECT_ERR(E_STATUS_INVALID_SIGNATURE);
     dn = 0; PCCERT_CONTEXT sc = NULL;
     r = VMS(&vp, 0, b, sizeof v_m_sig_noattr, NULL, &dn, &sc);   /* asking for the signer forces verification */
     CHECK(r == FALSE); CHECK(sc == NULL); FREE_CERT(sc);
@@ -219,7 +219,7 @@ TEST(mh_verify_wrong_signer_cert_fails_signature) {
     CHECK(r == FALSE); CHECK(sc == NULL);
     DWORD e = GetLastError();
     t_note("signature checked against the wrong certificate -> 0x%lx", e);
-    CHECK(e == E_NTE_BAD_SIGNATURE || e == 0x8009100Eu);
+    EXPECT_EQ(e, E_STATUS_INVALID_SIGNATURE);
 }
 TEST(mh_verify_tampered_content_attached) {
     MH_INIT(); REQUIRE(VMS);
@@ -230,7 +230,7 @@ TEST(mh_verify_tampered_content_attached) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     BYTE d[100]; DWORD dn = sizeof d; PCCERT_CONTEXT sc = (PCCERT_CONTEXT)1; SET_ERR(0);
     BOOL r = VMS(&vp, 0, b, cb, d, &dn, &sc);
-    EXPECT_FAIL(r == FALSE, E_NTE_BAD_SIGNATURE);
+    EXPECT_FAIL(r == FALSE, E_STATUS_INVALID_SIGNATURE);
     CHECK(sc == NULL); EXPECT_EQ(dn, 0);
     free(b);
 }
@@ -245,7 +245,7 @@ TEST(mh_verify_tampered_content_with_authenticated_attrs) {
     BOOL r = VMS(&vp, 0, b, cb, d, &dn, NULL);
     CHECK(r == FALSE);
     DWORD e = GetLastError(); t_note("tampered content under messageDigest attribute -> 0x%lx", e);
-    CHECK(e == E_CRYPT_E_HASH_VALUE || e == E_NTE_BAD_SIGNATURE);
+    EXPECT_EQ(e, E_CRYPT_E_HASH_VALUE);
     free(b);
 }
 TEST(mh_verify_wrong_message_type_hashed_and_enveloped) {
@@ -368,11 +368,11 @@ TEST(mh_detached_verify_modified_content) {
     BYTE c[sizeof v_payload]; memcpy(c, v_payload, sizeof c); c[7] ^= 1;
     const BYTE *a[1] = { c }; DWORD l[1] = { sizeof c }; PCCERT_CONTEXT sc = (PCCERT_CONTEXT)1; SET_ERR(0);
     BOOL r = VDS(&vp, 0, (BYTE *)v_m_sig_det_noattr, sizeof v_m_sig_det_noattr, 1, a, l, &sc);
-    EXPECT_FAIL(r == FALSE, E_NTE_BAD_SIGNATURE); CHECK(sc == NULL);
+    EXPECT_FAIL(r == FALSE, E_STATUS_INVALID_SIGNATURE); CHECK(sc == NULL);
     SET_ERR(0);
     r = VDS(&vp, 0, (BYTE *)v_m_sig_det_attr, sizeof v_m_sig_det_attr, 1, a, l, NULL);
     CHECK(r == FALSE); DWORD e = GetLastError();
-    CHECK(e == E_CRYPT_E_HASH_VALUE || e == E_NTE_BAD_SIGNATURE);
+    EXPECT_EQ(e, E_CRYPT_E_HASH_VALUE);
 }
 TEST(mh_detached_verify_truncated_or_extended_content) {
     MH_INIT(); REQUIRE(VDS);
@@ -417,7 +417,7 @@ TEST(mh_detached_verify_wrong_type) {
     CRYPT_VERIFY_MESSAGE_PARA vp; mh_verify_para(&vp);
     const BYTE *a[1] = { v_payload }; DWORD l[1] = { sizeof v_payload }; SET_ERR(0);
     BOOL r = VDS(&vp, 0, (BYTE *)v_m_env_aes128, sizeof v_m_env_aes128, 1, a, l, NULL);
-    EXPECT_FAIL(r == FALSE, E_CRYPT_E_UNEXPECTED_MSG_TYPE);
+    EXPECT_FAIL(r == FALSE, E_CRYPT_E_MSG_ERROR);   /* an enveloped message is not a detached signature */
 }
 TEST(mh_detached_verify_own_signature_roundtrip_all_algs) {
     MH_INIT(); REQUIRE(VDS); REQUIRE(U(CryptSignMessage));
@@ -503,8 +503,12 @@ TEST(mh_get_certs_failures) {
     SET_ERR(0);
     HCERTSTORE s = U(CryptGetMessageCertificates)(ENC, 0, 0, g, sizeof g);
     CHECK(s == NULL); t_note("garbage blob -> 0x%lx", GetLastError()); CHECK(GetLastError() != 0);
+    /* any PKCS#7 ContentInfo opens; an enveloped message just carries no certificates */
     s = U(CryptGetMessageCertificates)(ENC, 0, 0, v_m_env_aes128, sizeof v_m_env_aes128);
-    CHECK(s == NULL);
+    CHECK(s != NULL); if (s) { EXPECT_EQ(mh_count_certs(s), 0); U(CertCloseStore)(s, 0); }
+    SET_ERR(0);
+    s = U(CryptGetMessageCertificates)(ENC, 0, 0, v_m_hashed_sha256, sizeof v_m_hashed_sha256);
+    CHECK(s == NULL); t_note("hashed message -> 0x%lx", GetLastError());
     s = U(CryptGetMessageCertificates)(ENC, 0, 0, v_o_cert, sizeof v_o_cert);
     CHECK(s == NULL);
     s = U(CryptGetMessageCertificates)(0, 0, 0, v_m_certs_only, sizeof v_m_certs_only);
@@ -555,7 +559,7 @@ TEST(mh_withkey_wrong_key_fails) {
     BOOL r = VWK(&p, &mh_ids[MH_S2].pub->pCertInfo->SubjectPublicKeyInfo, v_m_sig_nocert, sizeof v_m_sig_nocert, d, &dn);
     CHECK(r == FALSE); EXPECT_EQ(dn, 0);
     t_note("wrong public key -> 0x%lx", GetLastError());
-    CHECK(GetLastError() == E_NTE_BAD_SIGNATURE);
+    EXPECT_ERR(E_STATUS_INVALID_SIGNATURE);
 }
 TEST(mh_withkey_size_only_without_key) {
     MH_NOWINE(); MH_INIT(); REQUIRE(VWK);

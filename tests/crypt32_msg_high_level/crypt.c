@@ -92,16 +92,19 @@ TEST(mh_encrypt_flags_need_cbsize_0x38) {
 }
 TEST(mh_encrypt_algorithm_table_roundtrip) {
     MH_NOWINE(); MH_INIT(); REQUIRE(ENCM); REQUIRE(DECM);
-    static const struct { const char *oid; const char *name; int hard; } t[] = {
-        { "2.16.840.1.101.3.4.1.2",  "aes128", 1 }, { "2.16.840.1.101.3.4.1.42", "aes256", 1 },
-        { "1.2.840.113549.3.7",      "3des",   1 }, { "1.2.840.113549.3.2",      "rc2",    1 },
-        { "2.16.840.1.101.3.4.1.22", "aes192", 0 }, { "1.3.14.3.2.7",            "des",    0 },
-        { "1.2.840.113549.3.4",      "rc4",    0 } };
+    static const struct { const char *oid; const char *name; int hard; DWORD dec_err; } t[] = {
+        { "2.16.840.1.101.3.4.1.2",  "aes128", 1, 0 }, { "2.16.840.1.101.3.4.1.42", "aes256", 1, 0 },
+        { "1.2.840.113549.3.7",      "3des",   1, 0 }, { "1.2.840.113549.3.2",      "rc2",    1, 0 },
+        { "2.16.840.1.101.3.4.1.22", "aes192", 0, 0 }, { "1.3.14.3.2.7",            "des",    0, 0 },
+        { "1.2.840.113549.3.4",      "rc4",    0, ERROR_NOT_SUPPORTED } };   /* rc4 content encrypts but cannot be decrypted */
     for (unsigned i = 0; i < sizeof t / sizeof t[0]; i++) {
         DWORD n = 0; SET_ERR(0); BYTE *b = enc_blob(t[i].oid, 0, 1, MH_R1, MH_R1, &n);
         if (!b) { if (t[i].hard) CHECKF(0, "%s encrypt err 0x%lx", t[i].name, GetLastError()); else t_note("%s encrypt -> 0x%lx", t[i].name, GetLastError()); continue; }
         BYTE d[200]; DWORD dn = sizeof d; PCCERT_CONTEXT x = NULL; SET_ERR(0);
         BOOL r = dec_with(mh_priv_store, b, n, d, &dn, &x);
+        t_label("%s", t[i].name);
+        if (t[i].dec_err) { EXPECT_FAIL(r == FALSE, t[i].dec_err); t_label(NULL); FREE_CERT(x); free(b); continue; }
+        t_label(NULL);
         CHECKF(r, "%s decrypt err 0x%lx", t[i].name, GetLastError());
         if (r) { CHECKF(dn == sizeof v_payload && !memcmp(d, v_payload, dn), "%s plaintext", t[i].name); CHECK(CERT_IS(x, v_r1_cert)); }
         FREE_CERT(x); free(b);

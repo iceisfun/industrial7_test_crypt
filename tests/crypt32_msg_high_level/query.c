@@ -620,7 +620,7 @@ TEST(query_file_missing) {
     MultiByteToWideChar(CP_ACP, 0, path, -1, p, MAX_PATH);
     DWORD enc = 9, ct = 9, ft = 9; HCERTSTORE st = (HCERTSTORE)9; SET_ERR(0);
     BOOL r = CQ(CERT_QUERY_OBJECT_FILE, p, QC_ALL, QF_ALL, 0, &enc, &ct, &ft, &st, NULL, NULL);
-    EXPECT_FAIL(r == FALSE, ERROR_FILE_NOT_FOUND);
+    EXPECT_FAIL(r == FALSE, 0x80070002u);   /* HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) */
 }
 TEST(query_file_missing_directory_component) {
     REQUIRE(CQ);
@@ -628,7 +628,7 @@ TEST(query_file_missing_directory_component) {
     BOOL r = CQ(CERT_QUERY_OBJECT_FILE, L"Z:\\cryptt_no_such_dir\\x\\y.cer", QC_ALL, QF_ALL, 0, NULL, NULL, NULL, NULL, NULL, NULL);
     CHECK(r == FALSE);
     DWORD e = GetLastError();
-    CHECKF(e == ERROR_PATH_NOT_FOUND || e == ERROR_FILE_NOT_FOUND, "err %lu", e);
+    EXPECT_EQ(e, 0x80070003u);   /* HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND) */
 }
 TEST(query_file_empty) {
     REQUIRE(CQ);
@@ -657,7 +657,7 @@ TEST(query_file_handle_released_after_query) {
     QR r; CHECK(qfile(p, QC_CERT, QF_BIN, &r)); qfree(&r);
     char path[MAX_PATH]; t_tmpfile(path, sizeof path, "qf_release.cer");
     CHECK(DeleteFileA(path));           /* no handle may remain open on the file */
-    SET_ERR(0); CHECK(!qfile(p, QC_CERT, QF_BIN, &r)); EXPECT_EQ(r.err, ERROR_FILE_NOT_FOUND);
+    SET_ERR(0); CHECK(!qfile(p, QC_CERT, QF_BIN, &r)); EXPECT_EQ(r.err, 0x80070002u);
 }
 TEST(query_file_directory_path) {
     REQUIRE(CQ);

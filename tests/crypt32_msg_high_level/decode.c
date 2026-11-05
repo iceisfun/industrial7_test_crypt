@@ -7,7 +7,13 @@
 
 static const BYTE v_data_msg[] = { 0x30, 0x0b + 2 + 1 + 0, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x01 };
 /* data ContentInfo carrying the 4 octets "abcd":  SEQ{ OID data, [0]{ OCTET STRING } } */
-static const BYTE v_data_ci[] = { 0x30, 0x15, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x01, 0xa0, 0x06, 0x04, 0x04, 'a', 'b', 'c', 'd' };
+static const BYTE v_data_ci[] = { 0x30, 0x13, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07, 0x01, 0xa0, 0x06, 0x04, 0x04, 'a', 'b', 'c', 'd' };
+
+/* Windows 10: an index past the last certificate or CRL fails without setting a last error (the recipient and signer
+ * parameters, by contrast, report CRYPT_E_INVALID_INDEX). The sentinel proves the error is left untouched. */
+#define GP_OUT_OF_RANGE(m, param, idx, buf, pn) do { \
+    typeof(&CryptMsgGetParam) gp_ = U(CryptMsgGetParam); SET_ERR(0x5A5A); \
+    BOOL r_ = gp_(m, param, idx, buf, pn); CHECKF(!r_, "param %d index %d past the end succeeded", (int)(param), (int)(idx)); EXPECT_ERR(0x5A5A); } while (0)
 
 static BOOL dec_all(DWORD flags, const BYTE *b, DWORD n, DWORD prev, DWORD *mt, DWORD *it, BYTE *out, DWORD *pn, PCCERT_CONTEXT *x, PCCERT_CONTEXT *sc, int cb) {
     CRYPT_DECRYPT_MESSAGE_PARA dp; mh_dec_para(&dp); CRYPT_VERIFY_MESSAGE_PARA vp;
@@ -50,10 +56,14 @@ TEST(mh_decode_message_type_flag_values) {
 TEST(mh_decode_data_message) {
     MH_NOWINE(); MH_INIT(); REQUIRE(DEC);
     DWORD mt = 99, it = 99, dn = 0; BYTE d[16]; SET_ERR(0);
-    BOOL r = dec_all(CMSG_DATA_FLAG, v_data_ci, sizeof v_data_ci, 0, &mt, &it, NULL, &dn, NULL, NULL, 0);
+    /* a plain data ContentInfo decodes only when the caller does not ask for the inner content type */
+    BOOL r = dec_all(CMSG_DATA_FLAG, v_data_ci, sizeof v_data_ci, 0, &mt, NULL, NULL, &dn, NULL, NULL, 0);
     CHECKF(r, "err 0x%lx", GetLastError()); EXPECT_EQ(dn, 4); EXPECT_EQ(mt, CMSG_DATA);
-    dn = sizeof d; r = dec_all(CMSG_DATA_FLAG, v_data_ci, sizeof v_data_ci, 0, &mt, &it, d, &dn, NULL, NULL, 0);
+    dn = sizeof d; r = dec_all(CMSG_DATA_FLAG, v_data_ci, sizeof v_data_ci, 0, &mt, NULL, d, &dn, NULL, NULL, 0);
     CHECK(r); if (r) { EXPECT_EQ(dn, 4); CHECK(!memcmp(d, "abcd", 4)); }
+    mt = it = 99; dn = 0; SET_ERR(0);
+    r = dec_all(CMSG_DATA_FLAG, v_data_ci, sizeof v_data_ci, 0, &mt, &it, NULL, &dn, NULL, NULL, 0);
+    EXPECT_FAIL(r == FALSE, 0x80091004u); EXPECT_EQ(mt, CMSG_DATA); EXPECT_EQ(it, 0); EXPECT_EQ(dn, 0);
 }
 TEST(mh_decode_mask_zero_and_all) {
     MH_NOWINE(); MH_INIT(); REQUIRE(DEC);
@@ -269,8 +279,8 @@ TEST(mh_msgparam_signed_message_params) {
     EXPECT_STR(alg->pszObjId, OID_SHA384);
     free(alg);
     on = 0; CHECK(U(CryptMsgGetParam)(m, CMSG_CERT_PARAM, 0, NULL, &on)); CHECK(on == sizeof v_s1_cert || on == sizeof v_s2_cert);
-    SET_ERR(0); on = 4; BYTE tmp[4];
-    CHECK(!U(CryptMsgGetParam)(m, CMSG_CERT_PARAM, 2, tmp, &on)); EXPECT_ERR(0x80091008u);
+    on = 4; BYTE tmp[4];
+    GP_OUT_OF_RANGE(m, CMSG_CERT_PARAM, 2, tmp, &on);
     CERT_INFO *ci = malloc(1024); on = 1024;
     CHECK(U(CryptMsgGetParam)(m, CMSG_SIGNER_CERT_INFO_PARAM, 0, ci, &on));
     CHECK(ci->SerialNumber.cbData == mh_ids[MH_S1].pub->pCertInfo->SerialNumber.cbData
@@ -288,10 +298,11 @@ TEST(mh_msgparam_signed_wrong_param_for_type) {
     HCRYPTMSG m = open_msg(v_m_sig_noattr, sizeof v_m_sig_noattr); CHECK(m != NULL); if (!m) return;
     DWORD v, n = sizeof v; SET_ERR(0);
     CHECK(!U(CryptMsgGetParam)(m, CMSG_RECIPIENT_COUNT_PARAM, 0, &v, &n));
-    t_note("recipient count of a signed message -> 0x%lx", GetLastError());
+    EXPECT_ERR(0x80091004u);   /* CRYPT_E_INVALID_MSG_TYPE */
     SET_ERR(0); n = sizeof v;
     CHECK(!U(CryptMsgGetParam)(m, CMSG_HASH_ALGORITHM_PARAM, 0, &v, &n));
-    t_note("hash algorithm of a signed message -> 0x%lx", GetLastError());
+    /* crypt32 faults inside and catches it itself: the call fails with the exception code as the last error */
+    EXPECT_ERR(0xC0000005u);
     U(CryptMsgClose)(m);
 }
 TEST(mh_msgparam_hashed_message_params) {
@@ -346,6 +357,6 @@ TEST(mh_msgparam_certs_and_crls_of_signed_message) {
     EXPECT_EQ(get_dword(m, CMSG_SIGNER_COUNT_PARAM, 0, 99), 0);
     BYTE c[1000]; DWORD cn = sizeof c;
     CHECK(U(CryptMsgGetParam)(m, CMSG_CRL_PARAM, 0, c, &cn)); CHECK(cn == sizeof v_o_crl && !memcmp(c, v_o_crl, cn));
-    SET_ERR(0); cn = sizeof c; CHECK(!U(CryptMsgGetParam)(m, CMSG_CRL_PARAM, 1, c, &cn)); EXPECT_ERR(0x80091008u);
+    cn = sizeof c; GP_OUT_OF_RANGE(m, CMSG_CRL_PARAM, 1, c, &cn);
     U(CryptMsgClose)(m);
 }

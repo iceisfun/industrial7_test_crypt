@@ -11,6 +11,9 @@
 #define CRYPT_E_ASN1_ANY(e) (((e) & 0xFFFFFF00u) == 0x80093100u)
 #define E_NTE_BAD_SIGNATURE 0x80090006u
 #define E_CRYPT_E_HASH_VALUE 0x80091007u
+#define E_CRYPT_E_MSG_ERROR 0x80091001u
+#define E_CRYPT_E_UNEXPECTED_ENCODING 0x80091005u
+#define E_STATUS_INVALID_SIGNATURE 0xC000A000u   /* what a CNG signature mismatch surfaces as on Windows 10 */
 #define E_CRYPT_E_UNKNOWN_ALGO 0x80091002u
 #define E_CRYPT_E_NOT_FOUND 0x80092004u
 #define E_CRYPT_E_NO_MATCH 0x80092009u
@@ -33,6 +36,7 @@ typedef struct { PCCERT_CONTEXT priv;   /* in mh_priv_store, ephemeral key attac
 extern mh_id mh_ids[MH_N];
 extern HCERTSTORE mh_priv_store, mh_pub_store;
 extern HCRYPTPROV mh_prov[MH_N];
+extern NCRYPT_KEY_HANDLE mh_cng[MH_N];   /* CNG copy of each fixture key (0 when the import failed) */
 int mh_init(void);                              /* 1 when the fixtures exist, else t_skip + 0 */
 /* these crypt32 exports are unimplemented stubs that abort the process under an emulator */
 #define MH_NOWINE() do { if (t_is_wine()) { t_skip("export is an unimplemented stub in the emulator"); return; } } while (0)

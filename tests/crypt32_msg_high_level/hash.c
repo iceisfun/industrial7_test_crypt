@@ -68,9 +68,17 @@ TEST(mh_hash_multi_blob_equals_concatenation) {
     const BYTE *a[4] = { v_payload, v_payload + 1, v_payload + 1, v_payload + 30 };
     DWORD l[4] = { 1, 0, 29, (DWORD)sizeof v_payload - 30 };
     BYTE h[32]; DWORD hn = sizeof h; SET_ERR(0);
-    BOOL r = HM(&p, FALSE, 4, a, l, NULL, NULL, h, &hn);
-    CHECKF(r, "err 0x%lx", GetLastError());
+    /* Windows 10: several blobs are only accepted for a detached hash; an attached hashed message takes exactly one */
+    BOOL r = HM(&p, TRUE, 4, a, l, NULL, NULL, h, &hn);
+    CHECKF(r, "detached err 0x%lx", GetLastError());
     if (r) CHECK(hn == 32 && !memcmp(h, v_h_sha256, 32));
+    for (int cnt = 2; cnt <= 4; cnt++) {
+        BYTE *blob = malloc(512); DWORD bn = 512; hn = sizeof h; SET_ERR(0);
+        r = HM(&p, FALSE, cnt, a, l, blob, &bn, NULL, NULL);
+        t_label("attached, %d blobs", cnt);
+        EXPECT_FAIL(r == FALSE, E_CRYPT_E_MSG_ERROR); EXPECT_EQ(bn, 0);
+        t_label(NULL); free(blob);
+    }
 }
 TEST(mh_hash_computed_size_query_is_digest_length) {
     REQUIRE(HM);
@@ -229,7 +237,7 @@ TEST(mh_hash_large_content) {
     BYTE h1[20], h2[20]; DWORD hn = 20;
     CHECK(HM(&p, FALSE, 1, a, l, NULL, NULL, h1, &hn));
     const BYTE *a2[2] = { d, d + 12345 }; DWORD l2[2] = { 12345, sz - 12345 }; hn = 20;
-    CHECK(HM(&p, FALSE, 2, a2, l2, NULL, NULL, h2, &hn));
+    CHECK(HM(&p, TRUE, 2, a2, l2, NULL, NULL, h2, &hn));
     CHECK(!memcmp(h1, h2, 20));
     free(d);
 }
@@ -413,7 +421,11 @@ TEST(mh_hash_detached_verify_no_content_fails) {
     REQUIRE(VDH);
     CRYPT_HASH_MESSAGE_PARA p; mh_hash_para(&p, OID_SHA256); SET_ERR(0);
     BOOL r = VDH(&p, (BYTE *)v_m_hashed_sha256_det, sizeof v_m_hashed_sha256_det, 0, NULL, NULL, NULL, NULL);
-    CHECK(r == FALSE); t_note("no content blobs -> 0x%lx", GetLastError());
+    /* with no content arguments and no computed-hash output nothing is hashed, so the call only parses the message */
+    EXPECT_EQ(r, TRUE);
+    BYTE h[64]; DWORD hn = sizeof h; SET_ERR(0);
+    r = VDH(&p, (BYTE *)v_m_hashed_sha256_det, sizeof v_m_hashed_sha256_det, 0, NULL, NULL, h, &hn);
+    EXPECT_FAIL(r == FALSE, E_CRYPT_E_HASH_VALUE);
 }
 TEST(mh_hash_detached_verify_wrong_type_and_cbsize) {
     REQUIRE(VDH);
