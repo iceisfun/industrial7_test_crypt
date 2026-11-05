@@ -4,6 +4,8 @@
 #include <bcrypt.h>
 
 typedef struct { NCRYPT_PROV_HANDLE prov; NCRYPT_KEY_HANDLE key; } EKEY;
+/* NOTE: unnamed (ephemeral) CNG keys make CertCreateSelfSignCertificate hang on Win10, so test keys are named
+ * (unique per run) and deleted again by ekey_free and by the sweeper below. */
 
 static int ekey_new(EKEY *k, LPCWSTR alg, DWORD bits) {
     SECURITY_STATUS st;
@@ -11,16 +13,36 @@ static int ekey_new(EKEY *k, LPCWSTR alg, DWORD bits) {
     if (!NCR(NCryptOpenStorageProvider) || !NCR(NCryptCreatePersistedKey)) return 0;
     st = NCR(NCryptOpenStorageProvider)(&k->prov, MS_KEY_STORAGE_PROVIDER, 0);
     if (st) return 0;
-    st = NCR(NCryptCreatePersistedKey)(k->prov, &k->key, alg, NULL, 0, 0);
+    st = NCR(NCryptCreatePersistedKey)(k->prov, &k->key, alg, t_unique_w("key"), 0, NCRYPT_OVERWRITE_KEY_FLAG);
     if (st) { NCR(NCryptFreeObject)(k->prov); k->prov = 0; return 0; }
     if (bits) NCR(NCryptSetProperty)(k->key, NCRYPT_LENGTH_PROPERTY, (PBYTE)&bits, 4, 0);
     st = NCR(NCryptFinalizeKey)(k->key, 0);
-    if (st) { NCR(NCryptFreeObject)(k->key); NCR(NCryptFreeObject)(k->prov); memset(k, 0, sizeof *k); return 0; }
+    if (st) { NCR(NCryptDeleteKey)(k->key, 0); NCR(NCryptFreeObject)(k->prov); memset(k, 0, sizeof *k); return 0; }
     return 1;
 }
-static void ekey_free(EKEY *k) { if (k->key) NCR(NCryptFreeObject)(k->key); if (k->prov) NCR(NCryptFreeObject)(k->prov); memset(k, 0, sizeof *k); }
+static void ekey_free(EKEY *k) { if (k->key) NCR(NCryptDeleteKey)(k->key, 0); if (k->prov) NCR(NCryptFreeObject)(k->prov); memset(k, 0, sizeof *k); }
 /* Test prologue: create a key or skip (emulator) / fail (real Windows). */
 #define NEED_KEY(k, alg, bits) do { if (!ekey_new(&(k), alg, bits)) { if (t_is_wine()) t_skip("ephemeral CNG key unsupported"); else CHECKF(0, "ephemeral key creation failed"); return; } } while (0)
+
+T_SWEEPER(ccp_keys) {
+    NCRYPT_PROV_HANDLE p = 0; NCryptKeyName *kn; PVOID st = NULL; size_t pl = strlen(prefix); int again = 1;
+    (void)phase;
+    if (!NCR(NCryptOpenStorageProvider) || !NCR(NCryptEnumKeys) || !NCR(NCryptOpenKey) || !NCR(NCryptDeleteKey)) return;
+    if (NCR(NCryptOpenStorageProvider)(&p, MS_KEY_STORAGE_PROVIDER, 0)) return;
+    while (again) {   /* collect, delete, restart: deleting while enumerating skips entries */
+        again = 0; st = NULL;
+        while (!NCR(NCryptEnumKeys)(p, NULL, &kn, &st, 0)) {
+            char nm[200]; int i; NCRYPT_KEY_HANDLE kh;
+            for (i = 0; i < 199 && kn->pszName[i]; i++) nm[i] = (char)kn->pszName[i];
+            nm[i] = 0;
+            if (!strncmp(nm, prefix, pl) && !NCR(NCryptOpenKey)(p, &kh, kn->pszName, kn->dwLegacyKeySpec, 0)) { NCR(NCryptDeleteKey)(kh, 0); again = 1; }
+            NCR(NCryptFreeBuffer)(kn);
+            if (again) break;
+        }
+        if (st) NCR(NCryptFreeBuffer)(st);
+    }
+    NCR(NCryptFreeObject)(p);
+}
 
 static CERT_NAME_BLOB name_blob(const char *str, BYTE **mem) {
     CERT_NAME_BLOB nb; DWORD cb = 0;
@@ -74,8 +96,8 @@ TEST(ccp_selfsign_rsa_defaults) {
         EXPECT_EQ(ci->SubjectPublicKeyInfo.PublicKey.cbData, 270);
         EXPECT_EQ(ci->cExtension, 0);
         CHECK(C32(CertGetPublicKeyLength)(ENC, &ci->SubjectPublicKeyInfo) == 2048);
-        /* default validity: starts now, lasts 365 days */
-        CHECK(ft_diff(ci->NotAfter, ci->NotBefore) >= 365LL * 86400 * 10000000 - 10000000 && ft_diff(ci->NotAfter, ci->NotBefore) <= 365LL * 86400 * 10000000);
+        /* default validity: starts now, lasts 365.25 days (31557600 s) */
+        EXPECT_EQ(ft_diff(ci->NotAfter, ci->NotBefore), 315576000000000LL);      /* 365.25 days */
         CHECK(llabs(ft_diff(ci->NotBefore, fnow)) < 120LL * 10000000);
         CHECK(verify_self(c));
         CHECK(C32(CryptVerifyCertificateSignatureEx)(0, ENC, CRYPT_VERIFY_CERT_SIGN_SUBJECT_CERT, (void *)c, CRYPT_VERIFY_CERT_SIGN_ISSUER_CERT, (void *)c, 0, NULL));
@@ -117,10 +139,10 @@ TEST(ccp_selfsign_explicit_validity) {
     c = selfsign(&k, "CN=cryptt validity2", 0, NULL, NULL, &e, NULL);
     CHECK(c != NULL);
     if (c) { SystemTimeToFileTime(&e, &fe); CHECK(!memcmp(&c->pCertInfo->NotAfter, &fe, sizeof fe)); CHECK(ft_diff(c->pCertInfo->NotAfter, c->pCertInfo->NotBefore) > 0); ccp_free(c); }
-    /* only the start time given: end = start + 365 days */
+    /* only the start time given: end = start + 365.25 days */
     c = selfsign(&k, "CN=cryptt validity3", 0, NULL, &s, NULL, NULL);
     CHECK(c != NULL);
-    if (c) { CHECK(ft_diff(c->pCertInfo->NotAfter, c->pCertInfo->NotBefore) == 365LL * 86400 * 10000000); ccp_free(c); }
+    if (c) { EXPECT_EQ(ft_diff(c->pCertInfo->NotAfter, c->pCertInfo->NotBefore), 315576000000000LL); ccp_free(c); }
     ekey_free(&k);
 }
 TEST(ccp_selfsign_invalid_time_fails) {
@@ -186,7 +208,8 @@ TEST(ccp_selfsign_extensions) {
         CHECK(verify_self(c));
         ccp_free(c);
     }
-    if (bcenc) LocalFree(bcenc); if (kuenc) LocalFree(kuenc);
+    if (bcenc) LocalFree(bcenc);
+    if (kuenc) LocalFree(kuenc);
     ekey_free(&k);
 }
 TEST(ccp_selfsign_zero_extensions_struct) {
@@ -295,7 +318,7 @@ TEST(ccp_selfsign_context_properties_and_enum) {
         CHECK(ccp_getprop(c, CERT_SHA1_HASH_PROP_ID, h, &cb) && cb == 20);
         CHECK(C32(CryptHashCertificate)(0, CALG_SHA1, 0, c->pbCertEncoded, c->cbCertEncoded, exp, &ecb) && !memcmp(exp, h, 20));
         cb = 20; CHECK(ccp_getprop(c, CERT_KEY_IDENTIFIER_PROP_ID, h, &cb) && cb == 20);       /* no SKI extension: SHA1 of the SPKI */
-        { BYTE hh[20]; DWORD hcb = 20; CHECK(C32(CryptHashPublicKeyInfo)(0, 0, 0, ENC, &c->pCertInfo->SubjectPublicKeyInfo, hh, &hcb) && !memcmp(hh, h, 20)); }
+        { BYTE hh[20]; DWORD hcb = 20; CHECK(C32(CryptHashPublicKeyInfo)(0, CALG_SHA1, 0, ENC, &c->pCertInfo->SubjectPublicKeyInfo, hh, &hcb) && hcb == 20 && !memcmp(hh, h, 20)); }
         ccp_free(c);
     }
     ekey_free(&k);
@@ -353,11 +376,17 @@ TEST(ccp_sign_certificate_signature_verifies_with_bcrypt) {
     if (bk) {
         CHECK(C32(CryptHashToBeSigned)(0, ENC, fx_leaf.der, fx_leaf.cb, h, &hcb) && hcb == 32);
         pad.pszAlgId = BCRYPT_SHA256_ALGORITHM;
+        CHECK(cb == 256);
+        /* CryptSignCertificate returns the signature in CryptoAPI (little endian) byte order: BCrypt wants it reversed */
+        st = UIN("bcrypt.dll", BCryptVerifySignature)(bk, &pad, h, 32, sig, cb, BCRYPT_PAD_PKCS1);
+        /* STATUS_INVALID_SIGNATURE, or STATUS_INVALID_PARAMETER when the byte-swapped value is not below the modulus (depends on the random key) */
+        CHECKF(st == 0xC000A000 || st == 0xC000000D, "unreversed signature: status 0x%lx", (unsigned long)st);
+        { DWORD i; for (i = 0; i < cb / 2; i++) { BYTE t = sig[i]; sig[i] = sig[cb - 1 - i]; sig[cb - 1 - i] = t; } }
         st = UIN("bcrypt.dll", BCryptVerifySignature)(bk, &pad, h, 32, sig, cb, BCRYPT_PAD_PKCS1);
         EXPECT_EQ(st, 0);
-        sig[5] ^= 1;
+        sig[cb - 1] ^= 1;                            /* lowest order byte: the value stays below the modulus */
         st = UIN("bcrypt.dll", BCryptVerifySignature)(bk, &pad, h, 32, sig, cb, BCRYPT_PAD_PKCS1);
-        CHECK(st != 0);
+        EXPECT_EQ(st, 0xC000A000);
         UIN("bcrypt.dll", BCryptDestroyKey)(bk);
     }
     LocalFree(pki); ekey_free(&k);
@@ -373,7 +402,7 @@ TEST(ccp_sign_certificate_ecdsa_signature_length) {
     CHECK(cb >= 8 && cb <= 72);
     ekey_free(&k);
 }
-TEST(ccp_sign_certificate_bad_algorithm_and_encoding) {
+TEST(ccp_sign_certificate_bad_algorithm_and_encoding_ignored) {
     EKEY k; DWORD off, len, cb = 0; CRYPT_ALGORITHM_IDENTIFIER alg;
     REQUIRE(C32(CryptSignCertificate));
     NEED_KEY(k, BCRYPT_RSA_ALGORITHM, 2048);
@@ -381,12 +410,12 @@ TEST(ccp_sign_certificate_bad_algorithm_and_encoding) {
     memset(&alg, 0, sizeof alg); alg.pszObjId = "1.2.3.4.5.6";
     SET_ERR(0);
     CHECK(!C32(CryptSignCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, fx_leaf.der + off, len, &alg, NULL, NULL, &cb));
-    t_note("unknown signature OID: err 0x%lx", (unsigned long)GetLastError());
-    CHECK(GetLastError() != 0);
+    EXPECT_ERR(NTE_BAD_ALGID_);
     alg.pszObjId = (LPSTR)szOID_RSA_SHA256RSA;
-    SET_ERR(0);
-    CHECK(!C32(CryptSignCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, 0, fx_leaf.der + off, len, &alg, NULL, NULL, &cb));
-    CHECK(GetLastError() != 0);
+    /* the encoding type is not validated for an NCrypt key: type 0 signs as well */
+    cb = 0; SET_ERR(0);
+    CHECK(C32(CryptSignCertificate)(k.key, CERT_NCRYPT_KEY_SPEC, 0, fx_leaf.der + off, len, &alg, NULL, NULL, &cb));
+    EXPECT_EQ(cb, 256);
     ekey_free(&k);
 }
 TEST(ccp_sign_and_encode_certificate_roundtrip) {
@@ -448,7 +477,7 @@ TEST(ccp_export_public_key_info_ex_rsa) {
     cb2 = cb;
     CHECK(C32(CryptExportPublicKeyInfoEx)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, NULL, 0, NULL, p, &cb2));
     CHECK(!strcmp(p->Algorithm.pszObjId, szOID_RSA_RSA));
-    CHECK(p->Algorithm.Parameters.cbData == 2 && p->Algorithm.Parameters.pbData[0] == 5 && p->Algorithm.Parameters.pbData[1] == 0);
+    EXPECT_EQ(p->Algorithm.Parameters.cbData, 0);          /* exported from a CNG key: no NULL parameters */
     EXPECT_EQ(p->PublicKey.cbData, 270);
     EXPECT_EQ(p->PublicKey.cUnusedBits, 0);
     { static const BYTE hdr[] = {0x30, 0x82, 0x01, 0x0a, 0x02, 0x82, 0x01, 0x01, 0x00}; CHECK(!memcmp(p->PublicKey.pbData, hdr, sizeof hdr)); }
@@ -744,38 +773,43 @@ TEST(ccp_find_certificate_key_prov_info_no_match) {
 /* ---- CryptSignMessageWithKey / CryptVerifyMessageSignatureWithKey ---- */
 static void fill_sign_para(CRYPT_KEY_SIGN_MESSAGE_PARA *p, NCRYPT_KEY_HANDLE key, const char *hashoid) {
     memset(p, 0, sizeof *p);
-    p->cbSize = sizeof *p; p->dwMsgAndCertEncodingType = ENC; p->hNCryptKey = key; p->dwKeySpec = CERT_NCRYPT_KEY_SPEC;
+    p->cbSize = sizeof *p; p->dwMsgAndCertEncodingType = ENC_P7; p->hNCryptKey = key; p->dwKeySpec = CERT_NCRYPT_KEY_SPEC;
     p->HashAlgorithm.pszObjId = (LPSTR)hashoid; p->PubKeyAlgorithm.pszObjId = (LPSTR)szOID_RSA_RSA;
 }
 TEST(ccp_sign_message_with_key_roundtrip) {
     NOT_WINE("emulator aborts: CryptSignMessageWithKey family is unimplemented");
-    EKEY k; CRYPT_KEY_SIGN_MESSAGE_PARA sp; CRYPT_KEY_VERIFY_MESSAGE_PARA vp; static const BYTE msg[] = "message signed by cryptt"; DWORD cb = 0, dcb = 0, pcb = 0; BYTE *sig, dec[64]; CERT_PUBLIC_KEY_INFO *pki;
+    EKEY k; CRYPT_KEY_SIGN_MESSAGE_PARA sp; CRYPT_KEY_VERIFY_MESSAGE_PARA vp; static const BYTE msg[] = "message signed by cryptt"; DWORD cb = 0, dcb = 0, pcb = 0; BYTE *sig = NULL, dec[64]; CERT_PUBLIC_KEY_INFO *pki = NULL;
     REQUIRE(C32(CryptSignMessageWithKey)); REQUIRE(C32(CryptVerifyMessageSignatureWithKey));
     NEED_KEY(k, BCRYPT_RSA_ALGORITHM, 2048);
     fill_sign_para(&sp, k.key, szOID_NIST_sha256);
-    CHECK(C32(CryptSignMessageWithKey)(&sp, msg, sizeof msg, NULL, &cb));
-    CHECK(cb > 256 + sizeof msg);
+    if (!t_require(C32(CryptSignMessageWithKey)(&sp, msg, sizeof msg, NULL, &cb), __FILE__, __LINE__, "size query") || !t_require(cb == 424, __FILE__, __LINE__, "signed blob size 424")) { ekey_free(&k); return; }
     sig = (BYTE *)LocalAlloc(LPTR, cb + 8);
     { DWORD s2 = cb - 1; SET_ERR(0); EXPECT_FAIL(!C32(CryptSignMessageWithKey)(&sp, msg, sizeof msg, sig, &s2), ERROR_MORE_DATA); EXPECT_EQ(s2, cb); }
-    CHECK(C32(CryptSignMessageWithKey)(&sp, msg, sizeof msg, sig, &cb));
+    if (!t_require(C32(CryptSignMessageWithKey)(&sp, msg, sizeof msg, sig, &cb), __FILE__, __LINE__, "sign")) { LocalFree(sig); ekey_free(&k); return; }
     CHECK(C32(CryptExportPublicKeyInfoEx)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, NULL, 0, NULL, NULL, &pcb));
     pki = (CERT_PUBLIC_KEY_INFO *)LocalAlloc(LPTR, pcb);
     CHECK(C32(CryptExportPublicKeyInfoEx)(k.key, CERT_NCRYPT_KEY_SPEC, ENC, NULL, 0, NULL, pki, &pcb));
-    memset(&vp, 0, sizeof vp); vp.cbSize = sizeof vp; vp.dwMsgEncodingType = ENC;
+    /* the signed blob is a CERT_SIGNED_CONTENT_INFO: SEQUENCE { content, algorithm, signature } */
+    CHECK(sig[0] == 0x30);
+    /* the message encoding type must carry the PKCS7 bit on the verify side as well */
+    memset(&vp, 0, sizeof vp); vp.cbSize = sizeof vp; vp.dwMsgEncodingType = ENC; dcb = 0; SET_ERR(0);
+    EXPECT_FAIL(!C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, NULL, &dcb), E_INVALIDARG_);
+    vp.dwMsgEncodingType = ENC_P7; dcb = 0;
     CHECK(C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, NULL, &dcb));
     EXPECT_EQ(dcb, sizeof msg);
     { DWORD s2 = sizeof msg - 1; SET_ERR(0); EXPECT_FAIL(!C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, dec, &s2), ERROR_MORE_DATA); EXPECT_EQ(s2, sizeof msg); }
     dcb = sizeof dec;
     CHECK(C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, dec, &dcb));
     CHECK(dcb == sizeof msg && !memcmp(dec, msg, sizeof msg));
-    /* the signed blob is a CERT_SIGNED_CONTENT_INFO: SEQUENCE { content, algorithm, signature } */
-    CHECK(sig[0] == 0x30);
-    /* tampering breaks it */
+    /* tampering breaks it: STATUS_INVALID_SIGNATURE */
     sig[cb - 1] ^= 1; dcb = sizeof dec; SET_ERR(0);
-    CHECK(!C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, dec, &dcb));
+    EXPECT_FAIL(!C32(CryptVerifyMessageSignatureWithKey)(&vp, pki, sig, cb, dec, &dcb), 0xC000A000);
     sig[cb - 1] ^= 1;
     { PCCERT_CONTEXT r = ccp_ctx(&fx_root); dcb = sizeof dec; SET_ERR(0);
-      CHECK(!C32(CryptVerifyMessageSignatureWithKey)(&vp, &r->pCertInfo->SubjectPublicKeyInfo, sig, cb, dec, &dcb)); ccp_free(r); }
+      /* another 2048 bit key: STATUS_INVALID_SIGNATURE, or STATUS_INVALID_PARAMETER when the random signature value is not below the other modulus */
+      if (r) { BOOL vok = C32(CryptVerifyMessageSignatureWithKey)(&vp, &r->pCertInfo->SubjectPublicKeyInfo, sig, cb, dec, &dcb); DWORD ge = GetLastError();
+               CHECKF(!vok && (ge == 0xC000A000 || ge == 0xC000000D), "wrong key: ok=%d err=0x%lx", vok, (unsigned long)ge); }
+      ccp_free(r); }
     LocalFree(pki); LocalFree(sig); ekey_free(&k);
 }
 TEST(ccp_sign_message_with_key_bad_params) {
@@ -784,12 +818,14 @@ TEST(ccp_sign_message_with_key_bad_params) {
     REQUIRE(C32(CryptSignMessageWithKey));
     NEED_KEY(k, BCRYPT_RSA_ALGORITHM, 2048);
     fill_sign_para(&sp, k.key, szOID_NIST_sha256);
-    sp.cbSize = sizeof sp - 4; SET_ERR(0);
-    CHECK(!C32(CryptSignMessageWithKey)(&sp, msg, 3, NULL, &cb)); CHECK(GetLastError() != 0);
+    sp.cbSize = sizeof sp - 4; cb = 0; SET_ERR(0);
+    CHECK(C32(CryptSignMessageWithKey)(&sp, msg, 3, NULL, &cb));       /* a shorter struct (older layout) is accepted */
     fill_sign_para(&sp, k.key, "1.2.3.4.5"); SET_ERR(0);
-    CHECK(!C32(CryptSignMessageWithKey)(&sp, msg, 3, NULL, &cb)); CHECK(GetLastError() != 0);
+    CHECK(!C32(CryptSignMessageWithKey)(&sp, msg, 3, NULL, &cb)); EXPECT_ERR(0x80091002);     /* CRYPT_E_UNKNOWN_ALGO */
     fill_sign_para(&sp, k.key, szOID_NIST_sha256); sp.dwMsgAndCertEncodingType = 0; SET_ERR(0);
-    CHECK(!C32(CryptSignMessageWithKey)(&sp, msg, 3, NULL, &cb)); CHECK(GetLastError() != 0);
+    CHECK(!C32(CryptSignMessageWithKey)(&sp, msg, 3, NULL, &cb)); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
+    sp.dwMsgAndCertEncodingType = ENC; SET_ERR(0);          /* the PKCS7 bit is required */
+    CHECK(!C32(CryptSignMessageWithKey)(&sp, msg, 3, NULL, &cb)); EXPECT_ERR(E_INVALIDARG_);
     ekey_free(&k);
 }
 TEST(ccp_verify_message_signature_with_key_garbage) {
@@ -797,11 +833,12 @@ TEST(ccp_verify_message_signature_with_key_garbage) {
     CRYPT_KEY_VERIFY_MESSAGE_PARA vp; PCCERT_CONTEXT r = ccp_ctx(&fx_root); BYTE out[16]; DWORD cb = sizeof out; static const BYTE junk[] = {0x30, 0x03, 0x02, 0x01, 0x01};
     REQUIRE(C32(CryptVerifyMessageSignatureWithKey));
     if (!r) { CHECK(0); return; }
-    memset(&vp, 0, sizeof vp); vp.cbSize = sizeof vp; vp.dwMsgEncodingType = ENC;
+    memset(&vp, 0, sizeof vp); vp.cbSize = sizeof vp; vp.dwMsgEncodingType = ENC_P7;
     SET_ERR(0);
     CHECK(!C32(CryptVerifyMessageSignatureWithKey)(&vp, &r->pCertInfo->SubjectPublicKeyInfo, junk, sizeof junk, out, &cb));
-    CHECK(GetLastError() != 0);
-    SET_ERR(0);
+    EXPECT_ERR(CRYPT_E_ASN1_BADTAG_);
+    cb = sizeof out; SET_ERR(0);
     CHECK(!C32(CryptVerifyMessageSignatureWithKey)(&vp, &r->pCertInfo->SubjectPublicKeyInfo, fx_root.der, fx_root.cb, out, &cb));   /* a certificate is signed content, but for another purpose */
+    EXPECT_ERR(CRYPT_E_ASN1_BADTAG_);
     ccp_free(r);
 }

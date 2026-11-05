@@ -338,25 +338,32 @@ TEST(ccp_find_subject_str_non_ascii) {
     ccp_close(s);
 }
 TEST(ccp_find_subject_attr_cn) {
-    HCERTSTORE s = bigstore(); CERT_RDN_ATTR a; CERT_RDN rdn; BYTE v[] = "Test Intermediate";
+    HCERTSTORE s = bigstore(); CERT_RDN_ATTR a; CERT_RDN rdn; static const WCHAR v[] = L"Test Intermediate";
     REQUIRE(C32(CertFindCertificateInStore));
     if (!s) { CHECK(0); return; }
     memset(&a, 0, sizeof a);
-    a.pszObjId = (LPSTR)szOID_COMMON_NAME; a.dwValueType = CERT_RDN_UTF8_STRING; a.Value.cbData = 17; a.Value.pbData = v;
+    a.pszObjId = (LPSTR)szOID_COMMON_NAME; a.dwValueType = CERT_RDN_UTF8_STRING; a.Value.cbData = 34; a.Value.pbData = (BYTE *)v;   /* UTF-16 values, as in decoded names */
     rdn.cRDNAttr = 1; rdn.rgRDNAttr = &a;
     CHECK(find1(s, 0, CERT_FIND_SUBJECT_ATTR, &rdn) == &fx_inter);
     EXPECT_EQ(count_find(s, 0, CERT_FIND_ISSUER_ATTR, &rdn), 1);
+    a.dwValueType = 0;                               /* ANY type matches as well */
+    EXPECT_EQ(count_find(s, 0, CERT_FIND_SUBJECT_ATTR, &rdn), 1);
+    a.dwValueType = CERT_RDN_BMP_STRING;             /* the BMP type and 8-bit values never match a UTF-16 decoded UTF8 attribute */
+    EXPECT_EQ(count_find(s, 0, CERT_FIND_SUBJECT_ATTR, &rdn), 0);
+    a.dwValueType = CERT_RDN_UTF8_STRING; a.Value.cbData = 17; a.Value.pbData = (BYTE *)"Test Intermediate";
+    EXPECT_EQ(count_find(s, 0, CERT_FIND_SUBJECT_ATTR, &rdn), 0);
+    a.Value.cbData = 34; a.Value.pbData = (BYTE *)v;
     a.pszObjId = (LPSTR)szOID_ORGANIZATION_NAME;     /* wrong attribute type for this value */
     EXPECT_EQ(count_find(s, 0, CERT_FIND_SUBJECT_ATTR, &rdn), 0);
     ccp_close(s);
 }
 TEST(ccp_find_subject_attr_multiple_attrs_must_all_match) {
-    HCERTSTORE s = bigstore(); CERT_RDN_ATTR a[2]; CERT_RDN rdn; BYTE o[] = "cryptt", cn[] = "leaf.cryptt.test";
+    HCERTSTORE s = bigstore(); CERT_RDN_ATTR a[2]; CERT_RDN rdn; WCHAR o[] = L"cryptt", cn[] = L"leaf.cryptt.test";
     REQUIRE(C32(CertFindCertificateInStore));
     if (!s) { CHECK(0); return; }
     memset(a, 0, sizeof a);
-    a[0].pszObjId = (LPSTR)szOID_ORGANIZATION_NAME; a[0].dwValueType = CERT_RDN_UTF8_STRING; a[0].Value.cbData = 6; a[0].Value.pbData = o;
-    a[1].pszObjId = (LPSTR)szOID_COMMON_NAME; a[1].dwValueType = CERT_RDN_UTF8_STRING; a[1].Value.cbData = 16; a[1].Value.pbData = cn;
+    a[0].pszObjId = (LPSTR)szOID_ORGANIZATION_NAME; a[0].dwValueType = CERT_RDN_UTF8_STRING; a[0].Value.cbData = 12; a[0].Value.pbData = (BYTE *)o;
+    a[1].pszObjId = (LPSTR)szOID_COMMON_NAME; a[1].dwValueType = CERT_RDN_UTF8_STRING; a[1].Value.cbData = 32; a[1].Value.pbData = (BYTE *)cn;
     rdn.cRDNAttr = 2; rdn.rgRDNAttr = a;
     CHECK(find1(s, 0, CERT_FIND_SUBJECT_ATTR, &rdn) == &fx_leaf);
     cn[0] = 'x';
@@ -637,10 +644,14 @@ TEST(ccp_find_archived_not_returned) {
     c = C32(CertFindCertificateInStore)(s, ENC, 0, CERT_FIND_HASH, &h, NULL);
     CHECK(c != NULL);
     if (c) { CHECK(C32(CertSetCertificateContextProperty)(c, CERT_ARCHIVED_PROP_ID, 0, &b)); ccp_free(c); }
+    /* lookups by hash still return an archived certificate; ANY, string finds and enumeration skip it */
     SET_ERR(0);
-    CHECK(C32(CertFindCertificateInStore)(s, ENC, 0, CERT_FIND_HASH, &h, NULL) == NULL);
-    EXPECT_ERR(CRYPT_E_NOT_FOUND_);
+    c = C32(CertFindCertificateInStore)(s, ENC, 0, CERT_FIND_HASH, &h, NULL);
+    CHECK(c != NULL && which(c) == &fx_utf8);
+    ccp_free(c);
     EXPECT_EQ(count_find(s, 0, CERT_FIND_ANY, NULL), NSET - 1);
+    EXPECT_EQ(count_find(s, 0, CERT_FIND_SUBJECT_STR_W, (void *)L"Gr\u00fc\u00dfe"), 0);
+    { int n = 0; c = NULL; while ((c = C32(CertEnumCertificatesInStore)(s, c)) != NULL && n < 100) n++; EXPECT_EQ(n, NSET - 1); }
     ccp_close(s);
 }
 TEST(ccp_find_unknown_type_fails) {
@@ -713,9 +724,11 @@ TEST(ccp_get_issuer_basic) {
     REQUIRE(C32(CertGetIssuerCertificateFromStore));
     if (!s || !l) { CHECK(0); return; }
     r = C32(CertGetIssuerCertificateFromStore)(s, l, NULL, &fl);
-    CHECK(r != NULL && which(r) == &fx_root);
+    /* root and root2 share their subject name; the store yields the later added one first, then the other */
+    CHECK(r != NULL && which(r) == &fx_root2);
     EXPECT_EQ(fl, 0);
-    ccp_free(r); ccp_free(l); ccp_close(s);
+    if (r) { PCCERT_CONTEXT r2 = C32(CertGetIssuerCertificateFromStore)(s, l, r, &fl); CHECK(r2 != NULL && which(r2) == &fx_root); ccp_free(r2); }
+    ccp_free(l); ccp_close(s);
 }
 TEST(ccp_get_issuer_chain_up) {
     HCERTSTORE s = bigstore(); PCCERT_CONTEXT l = ccp_ctx(&fx_leafi), i, r; DWORD fl = 0, fl2 = 0;
@@ -723,7 +736,7 @@ TEST(ccp_get_issuer_chain_up) {
     if (!s || !l) { CHECK(0); return; }
     i = C32(CertGetIssuerCertificateFromStore)(s, l, NULL, &fl);
     CHECK(i != NULL && which(i) == &fx_inter);
-    if (i) { r = C32(CertGetIssuerCertificateFromStore)(s, i, NULL, &fl2); CHECK(r != NULL && which(r) == &fx_root); ccp_free(r); }
+    if (i) { r = C32(CertGetIssuerCertificateFromStore)(s, i, NULL, &fl2); CHECK(r != NULL && which(r) == &fx_root2); ccp_free(r); }
     ccp_free(i); ccp_free(l); ccp_close(s);
 }
 TEST(ccp_get_issuer_self_signed) {
@@ -746,12 +759,20 @@ TEST(ccp_get_issuer_not_in_store) {
     ccp_free(l); ccp_close(s);
 }
 TEST(ccp_get_issuer_signature_flag_ok) {
-    HCERTSTORE s = bigstore(); PCCERT_CONTEXT l = ccp_ctx(&fx_leaf), r; DWORD fl = CERT_STORE_SIGNATURE_FLAG;
+    HCERTSTORE s = ccp_mem(); PCCERT_CONTEXT l = ccp_ctx(&fx_leaf), r, a, b; DWORD fl = CERT_STORE_SIGNATURE_FLAG;
     REQUIRE(C32(CertGetIssuerCertificateFromStore));
     if (!s || !l) { CHECK(0); return; }
+    a = ccp_add(s, &fx_root); ccp_free(a);
     r = C32(CertGetIssuerCertificateFromStore)(s, l, NULL, &fl);
     CHECK(r != NULL && which(r) == &fx_root);
     EXPECT_EQ(fl, 0);        /* the requested check passed, so its bit is cleared */
+    ccp_free(r);
+    /* in a store that also has root2 (same name, other key) the first candidate is root2 and fails the check */
+    b = ccp_add(s, &fx_root2); ccp_free(b);
+    fl = CERT_STORE_SIGNATURE_FLAG;
+    r = C32(CertGetIssuerCertificateFromStore)(s, l, NULL, &fl);
+    CHECK(r != NULL && which(r) == &fx_root2);
+    EXPECT_EQ(fl, CERT_STORE_SIGNATURE_FLAG);
     ccp_free(r); ccp_free(l); ccp_close(s);
 }
 TEST(ccp_get_issuer_signature_flag_fails_for_forged_cert) {
@@ -801,17 +822,17 @@ TEST(ccp_get_issuer_revocation_flag_without_crl) {
     if (!s || !l) { CHECK(0); return; }
     r = C32(CertGetIssuerCertificateFromStore)(s, l, NULL, &fl);
     CHECK(r != NULL);
-    t_note("revocation check without any CRL: flags=0x%lx (NO_CRL_FLAG=0x10000)", (unsigned long)fl);
+    EXPECT_EQ(fl, CERT_STORE_REVOCATION_FLAG | CERT_STORE_NO_CRL_FLAG);   /* no CRL available: both bits set */
     ccp_free(r); ccp_free(l); ccp_close(s);
 }
 TEST(ccp_get_issuer_all_flags_together) {
-    HCERTSTORE s = bigstore(); PCCERT_CONTEXT l = ccp_ctx(&fx_leaf), r; DWORD fl = CERT_STORE_SIGNATURE_FLAG | CERT_STORE_TIME_VALIDITY_FLAG | CERT_STORE_REVOCATION_FLAG;
+    HCERTSTORE s = bigstore(); PCCERT_CONTEXT l = ccp_ctx(&fx_leafi), r; DWORD fl = CERT_STORE_SIGNATURE_FLAG | CERT_STORE_TIME_VALIDITY_FLAG | CERT_STORE_REVOCATION_FLAG;
     REQUIRE(C32(CertGetIssuerCertificateFromStore));
     if (!s || !l) { CHECK(0); return; }
     r = C32(CertGetIssuerCertificateFromStore)(s, l, NULL, &fl);
-    CHECK(r != NULL);
-    CHECK((fl & (CERT_STORE_SIGNATURE_FLAG | CERT_STORE_TIME_VALIDITY_FLAG)) == 0);
-    t_note("all three checks on a valid leaf without CRL: flags=0x%lx", (unsigned long)fl);
+    CHECK(r != NULL && which(r) == &fx_inter);
+    /* signature and time pass (bits cleared); revocation cannot be checked without a CRL */
+    EXPECT_EQ(fl, CERT_STORE_REVOCATION_FLAG | CERT_STORE_NO_CRL_FLAG);
     ccp_free(r); ccp_free(l); ccp_close(s);
 }
 TEST(ccp_get_issuer_iterates_with_prev_issuer) {
@@ -846,32 +867,46 @@ static BOOL rdn_has(const FX *f, DWORD flags, const char *oid, DWORD vt, const v
     nb.cbData = f->cbSubj; nb.pbData = (BYTE *)f->subj;
     return C32(CertIsRDNAttrsInCertificateName)(ENC, flags, &nb, &r);
 }
+/* CERT_NAME_INFO values of UTF8/BMP name attributes are UTF-16 (value type stays CERT_RDN_UTF8_STRING), so the
+ * attribute value to look for is UTF-16 with a byte count, or NUL terminated with cb 0 and the UNICODE flag. */
+static BOOL rdn_hasw(const FX *f, DWORD flags, const char *oid, DWORD vt, const WCHAR *val, DWORD nch) { return rdn_has(f, flags, oid, vt, val, nch * 2); }
 TEST(ccp_rdn_attrs_exact_utf8) {
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
-    CHECK(rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, CERT_RDN_UTF8_STRING, "leaf.cryptt.test", 16));
-    CHECK(rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, 0, "leaf.cryptt.test", 16));                  /* ANY type */
-    CHECK(rdn_has(&fx_leaf, 0, szOID_ORGANIZATION_NAME, CERT_RDN_UTF8_STRING, "cryptt", 6));
-    CHECK(rdn_has(&fx_leaf, 0, szOID_COUNTRY_NAME, 0, "US", 2));
+    CHECK(rdn_hasw(&fx_leaf, 0, szOID_COMMON_NAME, CERT_RDN_UTF8_STRING, L"leaf.cryptt.test", 16));
+    CHECK(rdn_hasw(&fx_leaf, 0, szOID_COMMON_NAME, 0, L"leaf.cryptt.test", 16));                  /* ANY type */
+    CHECK(rdn_hasw(&fx_leaf, 0, szOID_ORGANIZATION_NAME, CERT_RDN_UTF8_STRING, L"cryptt", 6));
+    CHECK(rdn_has(&fx_leaf, 0, szOID_COUNTRY_NAME, 0, "US", 2));                                  /* PrintableString: 8-bit value */
+    /* an 8-bit value never matches a UTF8 (UTF-16 decoded) attribute, and neither does the BMP/UNICODE value type */
+    SET_ERR(0);
+    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, CERT_RDN_UTF8_STRING, "leaf.cryptt.test", 16), CRYPT_E_NO_MATCH);
+    SET_ERR(0);
+    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, 0, "leaf.cryptt.test", 16), CRYPT_E_NO_MATCH);
+    SET_ERR(0);
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, szOID_COMMON_NAME, CERT_RDN_BMP_STRING, L"leaf.cryptt.test", 16), CRYPT_E_NO_MATCH);
 }
 TEST(ccp_rdn_attrs_mismatch_sets_no_match) {
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
     SET_ERR(0);
-    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, 0, "leaf.cryptt.tesT", 16), CRYPT_E_NO_MATCH);
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, szOID_COMMON_NAME, 0, L"leaf.cryptt.tesT", 16), CRYPT_E_NO_MATCH);
     SET_ERR(0);
-    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, 0, "leaf.cryptt.tes", 15), CRYPT_E_NO_MATCH);        /* length must be equal */
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, szOID_COMMON_NAME, 0, L"leaf.cryptt.tes", 15), CRYPT_E_NO_MATCH);        /* length must be equal */
     SET_ERR(0);
-    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_LOCALITY_NAME, 0, "x", 1), CRYPT_E_NO_MATCH);                      /* attribute absent */
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, szOID_LOCALITY_NAME, 0, L"x", 1), CRYPT_E_NO_MATCH);                      /* attribute absent */
     SET_ERR(0);
-    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, CERT_RDN_PRINTABLE_STRING, "leaf.cryptt.test", 16), CRYPT_E_NO_MATCH); /* value type differs */
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, szOID_COMMON_NAME, CERT_RDN_PRINTABLE_STRING, L"leaf.cryptt.test", 16), CRYPT_E_NO_MATCH); /* value type differs */
     SET_ERR(0);
-    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_ORGANIZATION_NAME, 0, "leaf.cryptt.test", 16), CRYPT_E_NO_MATCH);  /* right value, wrong attribute */
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, szOID_ORGANIZATION_NAME, 0, L"leaf.cryptt.test", 16), CRYPT_E_NO_MATCH);  /* right value, wrong attribute */
 }
 TEST(ccp_rdn_attrs_case_insensitive_flag) {
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
-    CHECK(!rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, 0, "LEAF.CRYPTT.TEST", 16));
-    CHECK(rdn_has(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, "LEAF.CRYPTT.TEST", 16));
-    CHECK(rdn_has(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_ORGANIZATION_NAME, 0, "CrYpTt", 6));
-    CHECK(!rdn_has(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_ORGANIZATION_NAME, 0, "CrYpTx", 6));
+    SET_ERR(0);
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, szOID_COMMON_NAME, 0, L"LEAF.CRYPTT.TEST", 16), CRYPT_E_NO_MATCH);
+    CHECK(rdn_hasw(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"LEAF.CRYPTT.TEST", 16));
+    CHECK(rdn_hasw(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"Leaf.cryptt.test", 16));
+    CHECK(rdn_hasw(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_ORGANIZATION_NAME, 0, L"CrYpTt", 6));
+    CHECK(!rdn_hasw(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_ORGANIZATION_NAME, 0, L"CrYpTx", 6));
+    /* case folding does not apply to an unterminated length of zero without the UNICODE flag */
+    CHECK(!rdn_has(&fx_leaf, CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"leaf.cryptt.test", 0));
 }
 TEST(ccp_rdn_attrs_unicode_flag) {
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
@@ -879,14 +914,18 @@ TEST(ccp_rdn_attrs_unicode_flag) {
     CHECK(rdn_has(&fx_leaf, CERT_UNICODE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"leaf.cryptt.test", 0));        /* NUL terminated when cb == 0 */
     CHECK(!rdn_has(&fx_leaf, CERT_UNICODE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"Leaf.cryptt.test", 32));
     CHECK(rdn_has(&fx_leaf, CERT_UNICODE_IS_RDN_ATTRS_FLAG | CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"Leaf.Cryptt.Test", 32));
-    CHECK(rdn_has(&fx_utf8, CERT_UNICODE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"Gr\u00fc\u00dfe cryptt", 0));
+    CHECK(rdn_has(&fx_utf8, CERT_UNICODE_IS_RDN_ATTRS_FLAG, szOID_COMMON_NAME, 0, L"Grüße cryptt", 0));
+    /* without the UNICODE flag a zero byte count does not mean "NUL terminated" */
+    SET_ERR(0);
+    EXPECT_FAIL(!rdn_has(&fx_leaf, 0, szOID_COMMON_NAME, 0, L"leaf.cryptt.test", 0), CRYPT_E_NO_MATCH);
 }
 TEST(ccp_rdn_attrs_null_oid_matches_any_attribute) {
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
     if (t_is_wine()) { t_skip("emulator dereferences a NULL attribute OID"); return; }
-    CHECK(rdn_has(&fx_leaf, 0, NULL, 0, "leaf.cryptt.test", 16));
-    CHECK(rdn_has(&fx_leaf, 0, NULL, 0, "cryptt", 6));
-    CHECK(!rdn_has(&fx_leaf, 0, NULL, 0, "nothing", 7));
+    CHECK(rdn_hasw(&fx_leaf, 0, NULL, 0, L"leaf.cryptt.test", 16));
+    CHECK(rdn_hasw(&fx_leaf, 0, NULL, 0, L"cryptt", 6));
+    SET_ERR(0);
+    EXPECT_FAIL(!rdn_hasw(&fx_leaf, 0, NULL, 0, L"nothing", 7), CRYPT_E_NO_MATCH);
 }
 TEST(ccp_rdn_attrs_null_value_matches_presence) {
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
@@ -897,7 +936,7 @@ TEST(ccp_rdn_attrs_all_attrs_must_be_present) {
     CERT_RDN_ATTR a[2]; CERT_RDN r; CERT_NAME_BLOB nb;
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
     memset(a, 0, sizeof a);
-    a[0].pszObjId = (LPSTR)szOID_COMMON_NAME; a[0].Value.cbData = 16; a[0].Value.pbData = (BYTE *)"leaf.cryptt.test";
+    a[0].pszObjId = (LPSTR)szOID_COMMON_NAME; a[0].Value.cbData = 32; a[0].Value.pbData = (BYTE *)L"leaf.cryptt.test";
     a[1].pszObjId = (LPSTR)szOID_COUNTRY_NAME; a[1].Value.cbData = 2; a[1].Value.pbData = (BYTE *)"US";
     r.cRDNAttr = 2; r.rgRDNAttr = a; nb.cbData = fx_leaf.cbSubj; nb.pbData = (BYTE *)fx_leaf.subj;
     CHECK(C32(CertIsRDNAttrsInCertificateName)(ENC, 0, &nb, &r));
@@ -922,7 +961,7 @@ TEST(ccp_rdn_attrs_bad_name_blob) {
 TEST(ccp_rdn_attrs_issuer_and_subject_names) {
     CERT_RDN_ATTR a; CERT_RDN r; CERT_NAME_BLOB nb;
     REQUIRE(C32(CertIsRDNAttrsInCertificateName));
-    memset(&a, 0, sizeof a); a.pszObjId = (LPSTR)szOID_COMMON_NAME; a.Value.cbData = 12; a.Value.pbData = (BYTE *)"Test Root CA";
+    memset(&a, 0, sizeof a); a.pszObjId = (LPSTR)szOID_COMMON_NAME; a.Value.cbData = 24; a.Value.pbData = (BYTE *)L"Test Root CA";
     r.cRDNAttr = 1; r.rgRDNAttr = &a;
     nb.cbData = fx_leaf.cbIss; nb.pbData = (BYTE *)fx_leaf.iss;
     CHECK(C32(CertIsRDNAttrsInCertificateName)(ENC, 0, &nb, &r));

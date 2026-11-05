@@ -441,12 +441,15 @@ TEST(ccp_hash_to_be_signed_buffer_errors) {
     CHECK(!C32(CryptHashToBeSigned)(0, ENC, fx_root.der, 20, h, &cb));
     EXPECT_ASN1_ERR();
 }
-TEST(ccp_hash_public_key_info_sha1_of_spki) {
+TEST(ccp_hash_public_key_info_default_md5_and_sha1_of_spki) {
     int i; REQUIRE(C32(CryptHashPublicKeyInfo));
     for (i = 0; i < ccp_nall; i++) {
         const FX *f = ccp_all[i]; PCCERT_CONTEXT c = ccp_ctx(f); BYTE h[32]; DWORD cb = sizeof h;
         if (!c) { CHECK(0); continue; }
-        CHECKF(C32(CryptHashPublicKeyInfo)(0, 0, 0, ENC, &c->pCertInfo->SubjectPublicKeyInfo, h, &cb) && cb == 20 && !memcmp(h, f->spkisha1, 20), "%s", f->name);
+        BYTE m[32]; DWORD mcb = sizeof m;
+        /* algorithm id 0 selects MD5 (16 bytes), not SHA1 */
+        CHECKF(C32(CryptHashPublicKeyInfo)(0, 0, 0, ENC, &c->pCertInfo->SubjectPublicKeyInfo, h, &cb) && cb == 16, "%s default", f->name);
+        CHECKF(C32(CryptHashPublicKeyInfo)(0, CALG_MD5, 0, ENC, &c->pCertInfo->SubjectPublicKeyInfo, m, &mcb) && mcb == 16 && !memcmp(h, m, 16), "%s default==md5", f->name);
         cb = sizeof h;
         CHECKF(C32(CryptHashPublicKeyInfo)(0, CALG_SHA1, 0, ENC, &c->pCertInfo->SubjectPublicKeyInfo, h, &cb) && cb == 20 && !memcmp(h, f->spkisha1, 20), "%s sha1", f->name);
         ccp_free(c);

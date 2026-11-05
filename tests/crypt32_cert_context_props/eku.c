@@ -465,13 +465,13 @@ TEST(ccp_find_rdn_attr_in_decoded_name) {
     EXPECT_EQ(ni->cRDN, 3);
     a = C32(CertFindRDNAttr)(szOID_COMMON_NAME, ni);
     CHECK(a != NULL);
-    if (a) t_note("CN attr: type %lu cb %lu", (unsigned long)a->dwValueType, (unsigned long)a->Value.cbData);
-    if (a) { CHECK(a->Value.cbData == 16 && !memcmp(a->Value.pbData, "leaf.cryptt.test", 16)); EXPECT_EQ(a->dwValueType, CERT_RDN_UTF8_STRING); }
+    /* UTF8String values come back as UTF-16 (value type stays UTF8) */
+    if (a) { CHECK(a->Value.cbData == 32 && !memcmp(a->Value.pbData, L"leaf.cryptt.test", 32)); EXPECT_EQ(a->dwValueType, CERT_RDN_UTF8_STRING); }
     a = C32(CertFindRDNAttr)(szOID_COUNTRY_NAME, ni);
     CHECK(a != NULL);
     if (a) { CHECK(a->Value.cbData == 2 && !memcmp(a->Value.pbData, "US", 2)); EXPECT_EQ(a->dwValueType, CERT_RDN_PRINTABLE_STRING); }
     a = C32(CertFindRDNAttr)(szOID_ORGANIZATION_NAME, ni);
-    CHECK(a != NULL && a->Value.cbData == 6 && !memcmp(a->Value.pbData, "cryptt", 6));
+    CHECK(a != NULL && a->Value.cbData == 12 && !memcmp(a->Value.pbData, L"cryptt", 12));
     CHECK(C32(CertFindRDNAttr)(szOID_LOCALITY_NAME, ni) == NULL);
     CHECK(C32(CertFindRDNAttr)(szOID_RSA_emailAddr, ni) == NULL);
     LocalFree(ni);
@@ -487,7 +487,7 @@ TEST(ccp_find_rdn_attr_email_and_utf8) {
     if (a) { CHECK(a->Value.cbData == 13 && !memcmp(a->Value.pbData, "a@cryptt.test", 13)); EXPECT_EQ(a->dwValueType, CERT_RDN_IA5_STRING); }
     a = C32(CertFindRDNAttr)(szOID_COMMON_NAME, ni);
     CHECK(a != NULL);
-    if (a) { static const BYTE want[] = {'G', 'r', 0xc3, 0xbc, 0xc3, 0x9f, 'e', ' ', 'c', 'r', 'y', 'p', 't', 't'}; CHECK(a->Value.cbData == sizeof want && !memcmp(a->Value.pbData, want, sizeof want)); EXPECT_EQ(a->dwValueType, CERT_RDN_UTF8_STRING); }
+    if (a) { static const WCHAR want[] = L"Gr\u00fc\u00dfe cryptt"; CHECK(a->Value.cbData == sizeof want - 2 && !memcmp(a->Value.pbData, want, sizeof want - 2)); EXPECT_EQ(a->dwValueType, CERT_RDN_UTF8_STRING); }
     LocalFree(ni);
 }
 
