@@ -6,8 +6,10 @@
 #include "t.h"
 #include <wincrypt.h>
 
-#define KP_ENC X509_ASN_ENCODING
+extern DWORD kp_enc_type;                 /* encoding type used by the helpers and by KP_ENC; REQ_* resets it */
+#define KP_ENC kp_enc_type
 #define KP_ENC_P7 (X509_ASN_ENCODING | PKCS_7_ASN_ENCODING)
+#define KP_ENC_X509 X509_ASN_ENCODING
 
 #ifndef CRYPT_E_ASN1_EOD
 #define CRYPT_E_ASN1_EOD 0x80093102
@@ -55,5 +57,9 @@ void kp_blob_is(const char *file, int line, const char *what, DWORD cb, const BY
 int kp_type_known(LPCSTR type);
 #define REQ_TYPE(t) do { REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObjectEx")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObjectEx")); \
     REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); \
-    if (t_is_wine() && !kp_type_known(t)) { t_skip("codec not provided by the emulator"); return; } } while (0)
+    kp_enc_type = X509_ASN_ENCODING; if (t_is_wine() && !kp_type_known(t)) { t_skip("codec not provided by the emulator"); return; } } while (0)
+#define REQ_CRYPT32() do { REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObjectEx")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObjectEx")); \
+    REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); kp_enc_type = X509_ASN_ENCODING; } while (0)
+/* signer-info codecs insist on the PKCS_7_ASN_ENCODING bit */
+#define REQ_P7() do { REQ_CRYPT32(); kp_enc_type = KP_ENC_P7; } while (0)
 #endif

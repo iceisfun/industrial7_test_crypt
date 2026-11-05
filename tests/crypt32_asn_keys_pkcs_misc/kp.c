@@ -1,5 +1,6 @@
 #include "kp.h"
 
+DWORD kp_enc_type = X509_ASN_ENCODING;
 typedef BOOL (WINAPI *encex_t)(DWORD, LPCSTR, const void *, DWORD, PCRYPT_ENCODE_PARA, void *, DWORD *);
 typedef BOOL (WINAPI *enc_t)(DWORD, LPCSTR, const void *, BYTE *, DWORD *);
 typedef BOOL (WINAPI *decex_t)(DWORD, LPCSTR, const BYTE *, DWORD, DWORD, PCRYPT_DECODE_PARA, void *, DWORD *);

@@ -2,8 +2,6 @@
 #include "kp.h"
 #include "kp_vec.h"
 
-#define REQ_CRYPT32() do { REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObjectEx")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObjectEx")); \
-    REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); } while (0)
 
 #define RSA_CSP_PUBLICKEYBLOB_T ((LPCSTR)19)
 #define CNG_RSA_PUBLIC_KEY_BLOB_T ((LPCSTR)72)

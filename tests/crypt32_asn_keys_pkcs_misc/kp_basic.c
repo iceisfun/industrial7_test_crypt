@@ -2,8 +2,6 @@
  * (INTEGER, ENUMERATED, BITS, OCTET STRING, multi-byte integers, times, OID, strings, SEQUENCE OF ANY). */
 #include "kp.h"
 
-#define REQ_CRYPT32() do { REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObjectEx")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObjectEx")); \
-    REQUIRE(t_proc_in("crypt32.dll", "CryptEncodeObject")); REQUIRE(t_proc_in("crypt32.dll", "CryptDecodeObject")); } while (0)
 
 /* ---------------------------------------------------------------- dispatcher level */
 TEST(kpb_unknown_struct_type_encode) {
