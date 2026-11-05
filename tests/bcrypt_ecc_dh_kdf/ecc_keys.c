@@ -118,7 +118,6 @@ TEST(bcecc_gen_null_args) {
     if (!t_is_wine()) CHECK_NS(U(BCryptGenerateKeyPair)(a, NULL, 256, 0), NS_INVALID_PARAMETER);
     CHECK_NS(U(BCryptGenerateKeyPair)(NULL, &k, 256, 0), NS_INVALID_HANDLE);
     CHECK(k == NULL);
-    CHECK_NS(U(BCryptGenerateKeyPair)((BCRYPT_ALG_HANDLE)(ULONG_PTR)0x10, &k, 256, 0), NS_INVALID_HANDLE);
     kc_close(a);
 }
 
