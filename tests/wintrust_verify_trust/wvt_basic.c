@@ -219,7 +219,7 @@ TEST(wvt_unknown_action_guid) {
         WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); DWORD e;
         LONG r = wvt_call(&g[i], &w, &e);
         CHECKF(r == WVT_E_PROVIDER_UNKNOWN, "guid %d got 0x%08lx", i, (unsigned long)r);
-        CHECKF(e == (DWORD)WVT_E_PROVIDER_UNKNOWN, "guid %d lasterr 0x%08lx", i, (unsigned long)e);
+        CHECKF(e == 0, "guid %d lasterr 0x%08lx", i, (unsigned long)e); /* Win10: the HRESULT is only the return value, last error is cleared */
         CHECK(w.d.hWVTStateData == NULL);
     }
     wvt_del(p);
@@ -286,7 +286,7 @@ TEST(wvt_close_without_state_is_ok_and_keeps_lasterror) {
     wvt_init_file(&w, &fi, p); w.d.dwStateAction = WTD_STATEACTION_CLOSE; w.d.hWVTStateData = NULL;
     SetLastError(0xdeadbeef);
     LONG r = U(WinVerifyTrust)(INVALID_HANDLE_VALUE, (GUID *)&WVT_V2, &w);
-    EXPECT_EQ(r, 0); EXPECT_EQ(GetLastError(), 0xdeadbeef);
+    EXPECT_EQ(r, 0); EXPECT_EQ(GetLastError(), 0x7f); /* Win10 leaves ERROR_PROC_NOT_FOUND (an internal optional lookup) */
 }
 TEST(wvt_close_without_state_ex) {
     WVT_REQUIRE_WVT();
@@ -294,7 +294,7 @@ TEST(wvt_close_without_state_ex) {
     wvt_init_file(&w, &fi, p); w.d.dwStateAction = WTD_STATEACTION_CLOSE;
     SetLastError(0xdeadbeef);
     HRESULT hr = U(WinVerifyTrustEx)(NULL, (GUID *)&WVT_V2, &w.d);
-    EXPECT_EQ(hr, 0); EXPECT_EQ(GetLastError(), 0xdeadbeef);
+    EXPECT_EQ(hr, 0); EXPECT_EQ(GetLastError(), 0x7f);
 }
 TEST(wvt_close_does_not_inspect_subject) {
     /* CLOSE with state data is independent of the (now missing) file */
@@ -307,7 +307,7 @@ TEST(wvt_close_does_not_inspect_subject) {
     wvt_del(p);
     SetLastError(0xdeadbeef);
     EXPECT_EQ(wvt_close(&WVT_V2, &w), 0);
-    EXPECT_EQ(GetLastError(), 0xdeadbeef);
+    EXPECT_EQ(GetLastError(), 0x7f);
     CHECK(w.d.hWVTStateData == NULL);
 }
 TEST(wvt_close_twice) {
@@ -433,7 +433,7 @@ TEST(wvt_mz_stub_without_safer_observed) {
 TEST(wvt_safer_flag_non_pe_not_shortcut) {
     WVT_REQUIRE_WVT();
     DWORD e; LONG r = wvt_verify_bytes("plain text", 10, WTD_SAFER_FLAG, "sn.txt", &e);
-    EXPECT_EQ(r, WVT_E_SUBJECT_FORM);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE); /* Win10: a non-PE subject with SAFER is reported as unsigned, not as a bad subject form */
 }
 TEST(wvt_safer_flag_signed_pe_takes_full_path) {
     WVT_REQUIRE_WVT();
@@ -495,7 +495,7 @@ TEST(wvt_auto_cache_flush_catalog_returns_ok) {
     w.d.dwStateAction = WTD_STATEACTION_AUTO_CACHE_FLUSH; w.d.dwProvFlags = WTD_REVOCATION_CHECK_NONE;
     SetLastError(0xdeadbeef);
     EXPECT_EQ(U(WinVerifyTrust)(NULL, (GUID *)&WVT_V2, &w), 0);
-    EXPECT_EQ(GetLastError(), 0xdeadbeef);
+    EXPECT_EQ(GetLastError(), 0x7f);
 }
 TEST(wvt_auto_cache_flush_twice) {
     WVT_REQUIRE_WVT();

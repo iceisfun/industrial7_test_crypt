@@ -38,7 +38,7 @@ static void enc_kat(const char *fn, const void *st, const BYTE *want, DWORD nwan
     memset(buf, 0xCD, sizeof buf); cb = nwant + 16;
     r = f(ENC_FLAGS, "x", st, buf, &cb);
     CHECKF(r && cb == nwant && !memcmp(buf, want, nwant), "%s oversize buffer: cb=%lu", what, (unsigned long)cb);
-    char hx[600]; if (r && cb == nwant && memcmp(buf, want, nwant)) t_note("%s got %s", what, wvt_hex(buf, cb, hx, sizeof hx));
+    char hx[600]; if (r && !(cb == nwant && !memcmp(buf, want, nwant))) t_note("%s got %s", what, wvt_hex(buf, cb, hx, sizeof hx));
 }
 /* decode: returns heap copy (caller frees) or NULL */
 static void *dec_ok(const char *fn, const BYTE *der, DWORD n, DWORD flags, const char *what, DWORD *pcb) {
@@ -202,7 +202,8 @@ TEST(wvt_asn1_peimage_encode) {
     WLINK f = { 3 }; f.pwsz = L"<<<Obsolete>>>"; WPEIMG p; memset(&p, 0, sizeof p); p.file = &f;
     enc_kat("WVTAsn1SpcPeImageDataEncode", &p, vec_peimg_file_only, sizeof vec_peimg_file_only, "file only");
     static BYTE fl[1] = { 0x80 }; p.flags.cbData = 1; p.flags.pbData = fl; p.flags.cUnusedBits = 7;
-    enc_kat("WVTAsn1SpcPeImageDataEncode", &p, vec_peimg_flags, sizeof vec_peimg_flags, "flags+file");
+    /* Win10 does not encode the flags member */
+    enc_kat("WVTAsn1SpcPeImageDataEncode", &p, vec_peimg_file_only, sizeof vec_peimg_file_only, "flags+file");
     memset(&p, 0, sizeof p);
     enc_kat("WVTAsn1SpcPeImageDataEncode", &p, vec_peimg_empty, sizeof vec_peimg_empty, "empty");
 }
@@ -216,7 +217,7 @@ TEST(wvt_asn1_peimage_decode) {
 }
 TEST(wvt_asn1_peimage_roundtrip_and_rejects) {
     WPEIMG *p = dec_ok("WVTAsn1SpcPeImageDataDecode", vec_peimg_flags, sizeof vec_peimg_flags, 0, "flags", NULL);
-    if (p) enc_kat("WVTAsn1SpcPeImageDataEncode", p, vec_peimg_flags, sizeof vec_peimg_flags, "roundtrip");
+    if (p) enc_kat("WVTAsn1SpcPeImageDataEncode", p, vec_peimg_file_only, sizeof vec_peimg_file_only, "roundtrip");
     HEAPFREE(p);
     dec_reject("WVTAsn1SpcPeImageDataDecode", vec_peimg_flags, sizeof vec_peimg_flags, "peimage");
 }

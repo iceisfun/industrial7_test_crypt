@@ -355,8 +355,10 @@ TEST(wvt_trust_find_issuer_self_signed_returns_self) {
     PCCERT_CONTEXT c = mk(fix_cert_self, sizeof fix_cert_self); FILETIME ft; GetSystemTimeAsFileTime(&ft);
     if (!c || !st) { CHECK(0); return; }
     CHECK(U(CertAddCertificateContextToStore)(st, c, CERT_STORE_ADD_ALWAYS, NULL));
+    SET_ERR(0);
     PCCERT_CONTEXT iss = f(c, X509_ASN_ENCODING, 1, arr, &ft, NULL, NULL, 0);
-    CHECK(iss != NULL);
+    EXPECT_EQ(GetLastError(), 0x80092004); /* CRYPT_E_NOT_FOUND */
+    CHECK(iss == NULL);
     if (iss) { CHECK(iss->cbCertEncoded == sizeof fix_cert_self && !memcmp(iss->pbCertEncoded, fix_cert_self, sizeof fix_cert_self)); U(CertFreeCertificateContext)(iss); }
     U(CertFreeCertificateContext)(c); U(CertCloseStore)(st, 0);
 }
@@ -438,10 +440,10 @@ TEST(wvt_get_file_hash_signed_pe) {
     WCHAR p[MAX_PATH]; wvt_path(p, "gh.exe"); wvt_write(p, fix_pe_signed, sizeof fix_pe_signed);
     DWORD cb = 0; ALG_ID alg = 0;
     LONG r = f(p, 0, NULL, NULL, &cb, &alg);
-    EXPECT_EQ(r, 0); EXPECT_EQ(cb, 32); EXPECT_EQ(alg, CALG_SHA_256);
+    EXPECT_EQ(r, 0); EXPECT_EQ(cb, 32); EXPECT_EQ(alg, 0xffffffff); /* SHA256 digests are not reported as an ALG_ID (SHA1 gives CALG_SHA1) */
     BYTE h[64]; memset(h, 0, sizeof h); cb = sizeof h; alg = 0;
     r = f(p, 0, NULL, h, &cb, &alg);
-    EXPECT_EQ(r, 0); EXPECT_EQ(cb, 32); CHECK(!memcmp(h, fix_pe_sha256, 32));
+    EXPECT_EQ(r, 0); EXPECT_EQ(cb, 32); CHECK(!memcmp(h, fix_pe_sha256, 32)); EXPECT_EQ(alg, 0xffffffff);
     cb = 31; memset(h, 0, sizeof h);
     r = f(p, 0, NULL, h, &cb, &alg);
     EXPECT_EQ(r, ERROR_MORE_DATA); EXPECT_EQ(cb, 32); CHECK(h[0] == 0);
@@ -460,7 +462,7 @@ TEST(wvt_get_file_hash_text_file) {
     WCHAR p[MAX_PATH]; wvt_path(p, "gh3.txt"); wvt_write(p, "abc", 3);
     DWORD cb = 99; ALG_ID alg = 0;
     LONG r = f(p, 0, NULL, NULL, &cb, &alg);
-    EXPECT_EQ(r, WVT_E_SUBJECT_FORM); EXPECT_EQ(cb, 0);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE); EXPECT_EQ(cb, 0);
     wvt_del(p);
 }
 TEST(wvt_get_file_hash_tampered_pe) {
@@ -469,7 +471,7 @@ TEST(wvt_get_file_hash_tampered_pe) {
     WCHAR p[MAX_PATH]; wvt_path(p, "gh4.exe"); wvt_write(p, b, sizeof fix_pe_signed); HeapFree(GetProcessHeap(), 0, b);
     DWORD cb = 0; ALG_ID alg = 0;
     LONG r = f(p, 0, NULL, NULL, &cb, &alg);
-    EXPECT_EQ(r, WVT_E_BAD_DIGEST);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE); /* the digest mismatch is not distinguished here */
     wvt_del(p);
 }
 

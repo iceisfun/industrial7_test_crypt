@@ -58,7 +58,8 @@ static LONG verify_modified(DWORD off, BYTE x, DWORD flags, const char *leaf) {
 TEST(wvt_tamper_code_byte_bad_digest) {
     WVT_REQUIRE_WVT();
     EXPECT_EQ(verify_modified(0x200, 0x01, 0, "m1.exe"), WVT_E_BAD_DIGEST);
-    EXPECT_EQ(verify_modified(0x200, 0x01, WTD_HASH_ONLY_FLAG, "m2.exe"), WVT_E_BAD_DIGEST);
+    /* Win10: with HASH_ONLY the tampered image is reported as having no signature, not as a bad digest */
+    EXPECT_EQ(verify_modified(0x200, 0x01, WTD_HASH_ONLY_FLAG, "m2.exe"), WVT_E_NOSIGNATURE);
 }
 TEST(wvt_tamper_section_padding_bad_digest) {
     WVT_REQUIRE_WVT();
@@ -66,15 +67,15 @@ TEST(wvt_tamper_section_padding_bad_digest) {
 }
 TEST(wvt_tamper_header_timestamp_bad_digest) {
     WVT_REQUIRE_WVT();
-    EXPECT_EQ(verify_modified(0x48, 0xff, WTD_HASH_ONLY_FLAG, "m4.exe"), WVT_E_BAD_DIGEST); /* TimeDateStamp */
+    EXPECT_EQ(verify_modified(0x48, 0xff, WTD_HASH_ONLY_FLAG, "m4.exe"), WVT_E_NOSIGNATURE); /* TimeDateStamp */
 }
 TEST(wvt_tamper_dos_stub_bad_digest) {
     WVT_REQUIRE_WVT();
-    EXPECT_EQ(verify_modified(0x10, 0x55, WTD_HASH_ONLY_FLAG, "m5.exe"), WVT_E_BAD_DIGEST);
+    EXPECT_EQ(verify_modified(0x10, 0x55, WTD_HASH_ONLY_FLAG, "m5.exe"), WVT_E_NOSIGNATURE);
 }
 TEST(wvt_tamper_section_header_bad_digest) {
     WVT_REQUIRE_WVT();
-    EXPECT_EQ(verify_modified(0x148 + 8, 0x01, WTD_HASH_ONLY_FLAG, "m6.exe"), WVT_E_BAD_DIGEST); /* VirtualSize */
+    EXPECT_EQ(verify_modified(0x148 + 8, 0x01, WTD_HASH_ONLY_FLAG, "m6.exe"), WVT_E_NOSIGNATURE); /* VirtualSize */
 }
 TEST(wvt_checksum_field_not_hashed) {
     /* Authenticode excludes the optional-header CheckSum from the image digest */
@@ -196,7 +197,8 @@ TEST(wvt_state_chain_context) {
         PCCERT_CHAIN_CONTEXT cc = s0->pChainContext;
         EXPECT_EQ(cc->cChain, 1);
         CHECK(cc->TrustStatus.dwErrorStatus & CERT_TRUST_IS_UNTRUSTED_ROOT);
-        CHECK(cc->TrustStatus.dwInfoStatus & CERT_TRUST_IS_SELF_SIGNED);
+        EXPECT_EQ(cc->TrustStatus.dwInfoStatus, 0x100);   /* chain level: HAS_PREFERRED_ISSUER only; SELF_SIGNED is on the element */
+        if (cc->cChain >= 1) CHECK(cc->rgpChain[0]->rgpElement[0]->TrustStatus.dwInfoStatus & CERT_TRUST_IS_SELF_SIGNED);
         if (cc->cChain >= 1) { EXPECT_EQ(cc->rgpChain[0]->cElement, 1);
             CHECK(cc->rgpChain[0]->rgpElement[0]->pCertContext != NULL); }
     } else CHECK(0);
@@ -292,7 +294,7 @@ TEST(wvt_state_close_clears_handle) {
     SetLastError(0xdeadbeef);
     EXPECT_EQ(wvt_close(&WVT_V2, &w), 0);
     CHECK(w.d.hWVTStateData == NULL);
-    EXPECT_EQ(GetLastError(), 0xdeadbeef);
+    EXPECT_EQ(GetLastError(), 0x7f);
     wvt_del(p);
 }
 TEST(wvt_state_file_closed_after_close) {
@@ -568,7 +570,7 @@ TEST(wvt_step_tampered_pe_objprov_bad_digest) {
     WVT_REQUIRE_WVT(); LONG r; BYTE *b = (BYTE *)HeapAlloc(GetProcessHeap(), 0, sizeof fix_pe_signed);
     memcpy(b, fix_pe_signed, sizeof fix_pe_signed); b[0x200] ^= 1;
     EXPECT_EQ(step_after(b, sizeof fix_pe_signed, TRUSTERROR_STEP_FINAL_OBJPROV, &r), (DWORD)WVT_E_BAD_DIGEST);
-    EXPECT_EQ(r, WVT_E_BAD_DIGEST);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE); /* the step error keeps the digest failure, the return value is NOSIGNATURE */
     HeapFree(GetProcessHeap(), 0, b);
 }
 TEST(wvt_step_valid_hash_only_all_zero) {

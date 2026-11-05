@@ -9,11 +9,33 @@ typedef struct { DWORD cbSize; DWORD dwCertChoice; union { LPCWSTR pwszSpcFile; 
 typedef struct { DWORD cbSize; ALG_ID algidHash; DWORD dwAttrChoice; void *pAttr; PCRYPT_ATTRIBUTES psAuthenticated, psUnauthenticated; } W_SIGNER_SIGNATURE_INFO;
 typedef HRESULT (WINAPI *signersign_t)(W_SIGNER_SUBJECT_INFO *, W_SIGNER_CERT *, W_SIGNER_SIGNATURE_INFO *, void *, LPCWSTR, PCRYPT_ATTRIBUTES, void *);
 
-typedef struct { HCRYPTPROV prov; HCRYPTKEY key; PCCERT_CONTEXT cert; } EPH;
+typedef struct { HCRYPTPROV prov; HCRYPTKEY key; PCCERT_CONTEXT cert; WCHAR cont[96]; } EPH;
+
+T_SWEEPER(wvt_containers) {
+    (void)phase;
+    HCRYPTPROV p = 0;
+    if (!U(CryptAcquireContextW)(&p, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) return;
+    char stale[64][160]; int n = 0; BYTE buf[512]; DWORD cb, fl = CRYPT_FIRST;
+    for (;;) {
+        cb = sizeof buf;
+        if (!U(CryptGetProvParam)(p, PP_ENUMCONTAINERS, buf, &cb, fl)) break;
+        fl = CRYPT_NEXT;
+        if (!strncmp((char *)buf, prefix, strlen(prefix)) && n < 64) lstrcpynA(stale[n++], (char *)buf, sizeof stale[0]);
+    }
+    U(CryptReleaseContext)(p, 0);
+    for (int i = 0; i < n; i++) {
+        WCHAR w[160]; HCRYPTPROV d = 0;
+        MultiByteToWideChar(CP_ACP, 0, stale[i], -1, w, 160);
+        U(CryptAcquireContextW)(&d, w, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
+    }
+}
 
 static int eph_make(EPH *e, const WCHAR *cn) {
     memset(e, 0, sizeof *e);
-    if (!U(CryptAcquireContextW)(&e->prov, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) { t_note("CryptAcquireContext failed %lu", (unsigned long)GetLastError()); return 0; }
+    /* Win10: a SHA256RSA signature through a VERIFYCONTEXT key fails with NTE_BAD_TYPE (0x8009000a), so the key lives in a
+     * uniquely named container that eph_free deletes (and the sweeper removes after a crash). */
+    lstrcpynW(e->cont, t_unique_w("sig"), 96);
+    if (!U(CryptAcquireContextW)(&e->prov, e->cont, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_NEWKEYSET)) { t_note("CryptAcquireContext failed %lu", (unsigned long)GetLastError()); return 0; }
     if (!U(CryptGenKey)(e->prov, AT_SIGNATURE, (2048u << 16), &e->key)) { t_note("CryptGenKey failed %lu", (unsigned long)GetLastError()); return 0; }
     BYTE name[256]; DWORD ncb = sizeof name;
     if (!U(CertStrToNameW)(X509_ASN_ENCODING, cn, CERT_X500_NAME_STR, NULL, name, &ncb, NULL)) return 0;
@@ -25,10 +47,34 @@ static int eph_make(EPH *e, const WCHAR *cn) {
     CRYPT_ALGORITHM_IDENTIFIER alg; memset(&alg, 0, sizeof alg); alg.pszObjId = szOID_RSA_SHA256RSA;
     SYSTEMTIME s0 = { 2020, 1, 0, 1 }, s1 = { 2120, 1, 0, 1 }; FILETIME f0, f1; SystemTimeToFileTime(&s0, &f0); SystemTimeToFileTime(&s1, &f1);
     SYSTEMTIME ss0, ss1; FileTimeToSystemTime(&f0, &ss0); FileTimeToSystemTime(&f1, &ss1);
-    CRYPT_KEY_PROV_INFO kpi; memset(&kpi, 0, sizeof kpi); kpi.pwszProvName = (LPWSTR)MS_ENH_RSA_AES_PROV_W; kpi.dwProvType = PROV_RSA_AES; kpi.dwKeySpec = AT_SIGNATURE;
+    CRYPT_KEY_PROV_INFO kpi; memset(&kpi, 0, sizeof kpi); kpi.pwszContainerName = e->cont; kpi.pwszProvName = (LPWSTR)MS_ENH_RSA_AES_PROV_W; kpi.dwProvType = PROV_RSA_AES; kpi.dwKeySpec = AT_SIGNATURE;
     e->cert = U(CertCreateSelfSignCertificate)(e->prov, &nb, 0, &kpi, &alg, &ss0, &ss1, &exts);
+    if (!e->cert) {
+        t_note("CertCreateSelfSignCertificate(kpi) failed 0x%08lx", (unsigned long)GetLastError());
+        e->cert = U(CertCreateSelfSignCertificate)(e->prov, &nb, 0, NULL, &alg, &ss0, &ss1, &exts);
+        if (!e->cert) t_note("CertCreateSelfSignCertificate(no kpi) failed 0x%08lx", (unsigned long)GetLastError());
+    }
+    if (!e->cert) {
+        /* build the certificate by hand: TBS from the exported public key, signed with the in-memory key */
+        DWORD pkcb = 0; U(CryptExportPublicKeyInfo)(e->prov, AT_SIGNATURE, X509_ASN_ENCODING, NULL, &pkcb);
+        CERT_PUBLIC_KEY_INFO *pub = (CERT_PUBLIC_KEY_INFO *)HeapAlloc(GetProcessHeap(), 0, pkcb ? pkcb : 1);
+        if (pub && U(CryptExportPublicKeyInfo)(e->prov, AT_SIGNATURE, X509_ASN_ENCODING, pub, &pkcb)) {
+            CERT_INFO ci; memset(&ci, 0, sizeof ci); BYTE serial[1] = { 0x2a };
+            ci.dwVersion = CERT_V3; ci.SerialNumber.cbData = 1; ci.SerialNumber.pbData = serial;
+            ci.SignatureAlgorithm = alg; ci.Issuer = nb; ci.Subject = nb; ci.NotBefore = f0; ci.NotAfter = f1;
+            ci.SubjectPublicKeyInfo = *pub; ci.cExtension = 1; ci.rgExtension = &ext;
+            DWORD tcb = 0;
+            if (U(CryptSignAndEncodeCertificate)(e->prov, AT_SIGNATURE, X509_ASN_ENCODING, X509_CERT_TO_BE_SIGNED, &ci, &alg, NULL, NULL, &tcb)) {
+                BYTE *der = (BYTE *)HeapAlloc(GetProcessHeap(), 0, tcb);
+                if (der && U(CryptSignAndEncodeCertificate)(e->prov, AT_SIGNATURE, X509_ASN_ENCODING, X509_CERT_TO_BE_SIGNED, &ci, &alg, NULL, der, &tcb))
+                    e->cert = U(CertCreateCertificateContext)(X509_ASN_ENCODING, der, tcb);
+                if (der) HeapFree(GetProcessHeap(), 0, der);
+            } else t_note("CryptSignAndEncodeCertificate failed 0x%08lx", (unsigned long)GetLastError());
+        } else t_note("CryptExportPublicKeyInfo failed 0x%08lx", (unsigned long)GetLastError());
+        if (pub) HeapFree(GetProcessHeap(), 0, pub);
+    }
     LocalFree(ee);
-    if (!e->cert) { t_note("CertCreateSelfSignCertificate failed %lu", (unsigned long)GetLastError()); return 0; }
+    if (!e->cert) { t_note("cannot build an ephemeral certificate"); return 0; }
     DWORD spec = AT_SIGNATURE;
     U(CertSetCertificateContextProperty)(e->cert, CERT_KEY_SPEC_PROP_ID, 0, &spec);
     if (!U(CertSetCertificateContextProperty)(e->cert, CERT_KEY_PROV_HANDLE_PROP_ID, CERT_STORE_NO_CRYPT_RELEASE_FLAG, (void *)e->prov)) { t_note("set prov handle failed %lu", (unsigned long)GetLastError()); return 0; }
@@ -38,6 +84,7 @@ static void eph_free(EPH *e) {
     if (e->cert) U(CertFreeCertificateContext)(e->cert);
     if (e->key) U(CryptDestroyKey)(e->key);
     if (e->prov) U(CryptReleaseContext)(e->prov, 0);
+    if (e->cont[0]) { HCRYPTPROV d = 0; U(CryptAcquireContextW)(&d, e->cont, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET); }
     memset(e, 0, sizeof *e);
 }
 /* sign file in place; returns HRESULT */
@@ -106,7 +153,7 @@ TEST(wvt_sign_file_hash_helper_sha256) {
     LONG (WINAPI *gh)(const WCHAR *, DWORD, void *, BYTE *, DWORD *, ALG_ID *) = (void *)t_proc("WTHelperGetFileHash");
     if (gh) {
         BYTE h[64]; DWORD cb = sizeof h; ALG_ID alg = 0;
-        EXPECT_EQ(gh(p, 0, NULL, h, &cb, &alg), 0); EXPECT_EQ(cb, 32); EXPECT_EQ(alg, CALG_SHA_256);
+        EXPECT_EQ(gh(p, 0, NULL, h, &cb, &alg), 0); EXPECT_EQ(cb, 32); EXPECT_EQ(alg, 0xffffffff); /* Win10 reports an ALG_ID only for SHA1 digests; SHA256 gives -1 */
         /* the Authenticode digest of the image is the same value the embedded fixture carries (identical image bytes) */
         CHECK(!memcmp(h, fix_pe_sha256, 32));
     }

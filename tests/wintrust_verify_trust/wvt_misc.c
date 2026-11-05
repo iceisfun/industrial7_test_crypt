@@ -159,7 +159,7 @@ TEST(wvt_state_signature_state_unsigned) {
     if (pd && pd->d.cbStruct == sizeof *pd && pd->pSigState) {
         WVT_SIGSTATE *ss = (WVT_SIGSTATE *)pd->pSigState;
         CHECK(ss->dwCryptoPolicySupport & 1);                /* the object provider ran */
-        CHECK(!(ss->dwCryptoPolicySupport & 4));
+        EXPECT_EQ(ss->dwCryptoPolicySupport, 7);
         EXPECT_EQ(ss->cSecondarySigs, 0);
     } else CHECK(pd != NULL);
     wvt_close(&WVT_V2, &w); wvt_del(p);
@@ -226,14 +226,18 @@ TEST(wvt_getsignatureinfo_unsigned_pe) {
 }
 TEST(wvt_getsignatureinfo_signed_pe) {
     getsiginfo_t f = (getsiginfo_t)t_proc("WTGetSignatureInfo"); REQUIRE(f);
-    BYTE si[SIGINFO_CB]; memset(si, 0xAA, sizeof si); *(DWORD *)si = SIGINFO_CB;
+    /* the structure must be zeroed: Win10 dereferences members of the output structure for a signed image */
+    BYTE si[SIGINFO_CB]; memset(si, 0, sizeof si); *(DWORD *)si = SIGINFO_CB;
     WCHAR p[MAX_PATH]; wvt_path(p, "gs3.exe"); wvt_write(p, fix_pe_signed, sizeof fix_pe_signed);
     PCCERT_CONTEXT c = NULL; HANDLE st = NULL;
     HRESULT hr = f(p, INVALID_HANDLE_VALUE, SIF_AUTHENTICODE_SIGNED, si, &c, &st);
     DWORD *d = (DWORD *)si;
-    t_note("signed PE: hr=0x%08lx state=%lu type=%lu avail=0x%lx cert=%p", (unsigned long)hr, (unsigned long)d[1], (unsigned long)d[2], (unsigned long)d[3], c);
+    t_note("signed PE: hr=0x%08lx state=%lu type=%lu avail=0x%lx avail2=0x%lx cert=%p", (unsigned long)hr, (unsigned long)d[1], (unsigned long)d[2], (unsigned long)d[3], (unsigned long)d[4], c);
+    EXPECT_EQ(hr, 0); EXPECT_EQ(d[1], 2); EXPECT_EQ(d[2], 1); EXPECT_EQ(d[3], 0);
     EXPECT_EQ(d[4], d[3]);
-    if (c) { CHECK(c->cbCertEncoded == sizeof fix_cert_self && !memcmp(c->pbCertEncoded, fix_cert_self, sizeof fix_cert_self)); U(CertFreeCertificateContext)(c); }
+    REQUIRE_NOTNULL(c);
+    CHECK(c->cbCertEncoded == sizeof fix_cert_self && !memcmp(c->pbCertEncoded, fix_cert_self, sizeof fix_cert_self));
+    U(CertFreeCertificateContext)(c);
     wvt_del(p);
 }
 TEST(wvt_getsignatureinfo_caller_handle) {
@@ -261,7 +265,7 @@ TEST(wvt_convert_cert_ctx_to_chain_info_observed) {
     LONG (WINAPI *f)(void *, PCCERT_CONTEXT, void *) = (void *)t_proc("WTConvertCertCtxToChainInfo"); REQUIRE(f);
     PCCERT_CONTEXT c = U(CertCreateCertificateContext)(X509_ASN_ENCODING, fix_cert_leaf, sizeof fix_cert_leaf); if (!c) { CHECK(0); return; }
     BYTE info[0x38]; memset(info, 0xEE, sizeof info);
-    LONG r = f(NULL, c, info);
-    t_note("WTConvertCertCtxToChainInfo(leaf) -> 0x%08lx cbSize=%lu", (unsigned long)r, (unsigned long)*(DWORD *)info);
+    /* Win10 dereferences the first argument unconditionally (read at offset 0xc8 of NULL) */
+    T_EXPECT_FAULT(f(NULL, c, info));
     U(CertFreeCertificateContext)(c);
 }
