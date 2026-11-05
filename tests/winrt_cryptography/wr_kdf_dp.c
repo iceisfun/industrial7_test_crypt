@@ -24,7 +24,8 @@ static int names_set(void *s, const WCHAR **w, int n) {
     for (int i = 0; i < n; i++) {
         HSTRING h = NULL; if (VF(s, 6 + i, HSTRING *)(s, &h) != S_OK) ok = 0;
         int f = 0; for (int k = 0; k < n; k++) if (wr_hs_eq(h, w[k])) { f = 1; seen[k]++; }
-        if (!f) ok = 0; wr_hsfree(h);
+        if (!f) ok = 0;
+        wr_hsfree(h);
     }
     for (int k = 0; k < n; k++) if (seen[k] != 1) ok = 0;
     return ok;

@@ -107,7 +107,8 @@ TEST(winrt_buffer_create_distinct_objects) {
     BYTE d[4] = { 1, 2, 3, 4 }; void *a, *b;
     c_create(d, 4, &a); c_create(d, 4, &b);
     CHECK(a && b && a != b);
-    if (a) wr_release(a); if (b) wr_release(b);
+    if (a) wr_release(a);
+    if (b) wr_release(b);
 }
 TEST(winrt_buffer_create_sizes) {
     WR_NEED(); if (!wr_cbs()) return;
@@ -163,7 +164,8 @@ TEST(winrt_buffer_unknown_pointer_identity) {
     wr_qi(b, &WR_IID_IUnknown, &u1); wr_qi(b, &WR_IID_IBufferByteAccess, &x);
     if (x) { wr_qi(x, &WR_IID_IUnknown, &u2); wr_release(x); }
     CHECK(u1 && u1 == u2);
-    if (u1) wr_release(u1); if (u2) wr_release(u2);
+    if (u1) wr_release(u1);
+    if (u2) wr_release(u2);
     wr_release(b);
 }
 TEST(winrt_buffer_getiids) {
@@ -456,13 +458,13 @@ TEST(winrt_buffer_hex_decode_single_character_is_not_validated) {
 TEST(winrt_buffer_hex_decode_empty_and_blank) {
     WR_NEED(); if (!wr_cbs()) return;
     void *b;
-    EXPECT_HR(c_hexdec(L"", 0, &b), S_OK);
-    if (b) { EXPECT_EQ(wr_buf_len(b), 0); wr_release(b); } else CHECK(!"buffer");
+    /* an empty input yields S_OK with a NULL IBuffer; a blank (all-space) input yields an empty, non-NULL buffer */
+    EXPECT_HR(c_hexdec(L"", 0, &b), S_OK); CHECK(b == NULL);
     EXPECT_HR(c_hexdec(L"   ", 3, &b), S_OK);
     if (b) { EXPECT_EQ(wr_buf_len(b), 0); wr_release(b); } else CHECK(!"buffer");
     void *s = wr_cbs(); b = (void *)1;
     EXPECT_HR(VF(s, CB_DecodeFromHexString, HSTRING, void **)(s, NULL, &b), S_OK);
-    if (b && b != (void *)1) { EXPECT_EQ(wr_buf_len(b), 0); wr_release(b); } else CHECK(!"buffer");
+    CHECK(b == NULL);
 }
 TEST(winrt_buffer_hex_decode_embedded_nul) {
     WR_NEED(); if (!wr_cbs()) return;
@@ -549,7 +551,7 @@ TEST(winrt_buffer_base64_encode_empty_and_null) {
 static const struct { const WCHAR *b64; const char *s; } b64_dec_ok[] = {
     { L"Zg==", "f" }, { L"Zm8=", "fo" }, { L"Zm9v", "foo" }, { L"Zm9vYg==", "foob" }, { L"Zm9vYmE=", "fooba" }, { L"Zm9vYmFy", "foobar" },
     { L"Zg", "f" }, { L"Zm8", "fo" }, { L"Zm9vYg", "foob" }, { L"Zm9vYmE", "fooba" },
-    { L"Zm9v\r\nYmFy", "foobar" }, { L"Zm9v YmFy", "foobar" }, { L" Zm9vYmFy ", "foobar" }, { L"Z m 9 v", "foo" }, { L"Zm9v\tYmFy\n", "foobar" },
+    { L"Zm9v\r\nYmFy", "foobar" }, { L"Zm9v YmFy", "foobar" }, { L"Z m 9 v", "foo" },
     { L"SGVsbG8sIFdvcmxkIQ==", "Hello, World!" }, { L"SGVs\nbG8s\nIFdv\ncmxk\nIQ==", "Hello, World!" },
     { L"Zg== ", "f" }, { L" Zg==", "f" }, { L"Zg =\r\n=", "f" },
 };
@@ -558,6 +560,19 @@ TEST(winrt_buffer_base64_decode_valid) {
     for (size_t i = 0; i < sizeof b64_dec_ok / sizeof *b64_dec_ok; i++) {
         void *b; HRESULT hr = c_b64dec(b64_dec_ok[i].b64, (UINT32)lstrlenW(b64_dec_ok[i].b64), &b);
         t_check(hr == S_OK && b && wr_buf_is(b, b64_dec_ok[i].s, (UINT32)strlen(b64_dec_ok[i].s)), __FILE__, __LINE__, "DecodeFromBase64String", "vector %zu (%ls) hr 0x%08lx", i, b64_dec_ok[i].b64, (unsigned long)hr);
+        if (SUCCEEDED(hr) && b) wr_release(b);
+    }
+}
+TEST(winrt_buffer_base64_decode_trailing_whitespace) {
+    /* trailing whitespace after the last digit is not discounted from the output size: the buffer is one byte
+     * longer than the data (the extra byte is not part of the decoded data and is only logged) */
+    WR_NEED(); if (!wr_cbs()) return;
+    static const WCHAR *v[] = { L" Zm9vYmFy ", L"Zm9v\tYmFy\n", L"Zm9vYmFy\n" };
+    for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
+        void *b; HRESULT hr = c_b64dec(v[i], (UINT32)lstrlenW(v[i]), &b);
+        const BYTE *p; UINT32 n = 0;
+        t_check(hr == S_OK && b && wr_buf_get(b, &p, &n) && n == 7 && !memcmp(p, "foobar", 6), __FILE__, __LINE__, "decode with trailing whitespace", "vector %zu hr 0x%08lx len %u", i, (unsigned long)hr, n);
+        if (b && n == 7) t_note("vector %zu extra trailing byte 0x%02x", i, p[6]);
         if (SUCCEEDED(hr) && b) wr_release(b);
     }
 }
@@ -589,10 +604,10 @@ TEST(winrt_buffer_base64_decode_invalid) {
 }
 TEST(winrt_buffer_base64_decode_empty) {
     WR_NEED(); if (!wr_cbs()) return;
-    void *b; EXPECT_HR(c_b64dec(L"", 0, &b), S_OK);
-    if (b) { EXPECT_EQ(wr_buf_len(b), 0); wr_release(b); } else CHECK(!"buffer");
+    /* an empty string yields S_OK with a NULL IBuffer; a blank string yields a one-byte buffer (size computed before whitespace is skipped) */
+    void *b; EXPECT_HR(c_b64dec(L"", 0, &b), S_OK); CHECK(b == NULL);
     EXPECT_HR(c_b64dec(L" \r\n", 3, &b), S_OK);
-    if (b) { EXPECT_EQ(wr_buf_len(b), 0); wr_release(b); } else CHECK(!"buffer");
+    if (b) { EXPECT_EQ(wr_buf_len(b), 1); wr_release(b); } else CHECK(!"buffer");
 }
 TEST(winrt_buffer_base64_decode_url_alphabet_rejected) {
     WR_NEED(); if (!wr_cbs()) return;
@@ -608,7 +623,8 @@ TEST(winrt_buffer_base64_roundtrip_lengths) {
         c_b64enc(b, &h); const WCHAR *w = wr_raw(h, &l);
         t_check(l == ((n + 2) / 3) * 4, __FILE__, __LINE__, "encoded length", "len %u got %u", n, l);
         HRESULT hr = c_b64dec(w, l, &r);
-        t_check(hr == S_OK && wr_buf_is(r, d, n), __FILE__, __LINE__, "base64 roundtrip", "len %u hr 0x%08lx", n, (unsigned long)hr);
+        /* a zero-length buffer encodes to a NULL string and decodes back to a NULL buffer */
+        t_check(hr == S_OK && (n == 0 ? r == NULL : wr_buf_is(r, d, n)), __FILE__, __LINE__, "base64 roundtrip", "len %u hr 0x%08lx", n, (unsigned long)hr);
         wr_hsfree(h); wr_release(b); if (r) wr_release(r);
     }
 }
@@ -678,12 +694,12 @@ TEST(winrt_buffer_string_to_binary_empty) {
     WR_NEED(); if (!wr_cbs()) return;
     for (int e = 0; e < 3; e++) {
         void *b; HRESULT hr = c_s2b(L"", 0, e, &b);
-        t_check(hr == S_OK && b && wr_buf_len(b) == 0, __FILE__, __LINE__, "ConvertStringToBinary(empty)", "enc %d hr 0x%08lx", e, (unsigned long)hr);
+        t_check(hr == S_OK && b == NULL, __FILE__, __LINE__, "ConvertStringToBinary(empty) gives a NULL buffer", "enc %d hr 0x%08lx", e, (unsigned long)hr);
         if (b) wr_release(b);
     }
     void *s = wr_cbs(), *b = NULL;
     EXPECT_HR(VF(s, CB_ConvertStringToBinary, HSTRING, int, void **)(s, NULL, ENC_UTF8, &b), S_OK);
-    if (b) { EXPECT_EQ(wr_buf_len(b), 0); wr_release(b); } else CHECK(!"buffer");
+    CHECK(b == NULL);
 }
 TEST(winrt_buffer_string_to_binary_unknown_encoding) {
     WR_NEED(); if (!wr_cbs()) return;

@@ -68,7 +68,8 @@ TEST(winrt_asym_names_values) {
     for (int i = 0; i < 18; i++) {
         HSTRING h = NULL; if (VF(s, 6 + i, HSTRING *)(s, &h) != S_OK) ok = 0;
         int f = 0; for (int k = 0; k < 18; k++) if (wr_hs_eq(h, k_asym18[k])) { f = 1; seen[k]++; }
-        if (!f) ok = 0; wr_hsfree(h);
+        if (!f) ok = 0;
+        wr_hsfree(h);
     }
     for (int k = 0; k < 18; k++) if (seen[k] != 1) ok = 0;
     CHECK(ok); wr_release(s);
@@ -79,7 +80,8 @@ TEST(winrt_asym_names2_values) {
     for (int i = 0; i < 3; i++) {
         HSTRING h = NULL; if (VF(s, 6 + i, HSTRING *)(s, &h) != S_OK) ok = 0;
         int f = 0; for (int k = 0; k < 3; k++) if (wr_hs_eq(h, k_asym3[k])) { f = 1; seen[k]++; }
-        if (!f) ok = 0; wr_hsfree(h);
+        if (!f) ok = 0;
+        wr_hsfree(h);
     }
     for (int k = 0; k < 3; k++) if (seen[k] != 1) ok = 0;
     CHECK(ok); wr_release(s);
@@ -142,10 +144,21 @@ TEST(winrt_asym_rsa_create_key_sizes) {
 }
 TEST(winrt_asym_rsa_create_key_invalid_sizes) {
     WR_NEED(); void *p = open_a(L"RSA_PKCS1"); if (!p) return;
-    static const UINT32 bad[] = { 0, 1, 64, 256, 511, 513, 1000, 2047, 2049 };
+    static const UINT32 bad[] = { 0, 1, 64, 256, 511, 513, 1023, 1025, 2047, 2049 };
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
         void *k = (void *)1; HRESULT hr = a_create(p, bad[i], &k);
         t_check(FAILED(hr) && k == NULL, __FILE__, __LINE__, "CreateKeyPair(bad)", "%u hr 0x%08lx", bad[i], (unsigned long)hr);
+        if (SUCCEEDED(hr)) wr_release(k);
+    }
+    wr_release(p);
+}
+TEST(winrt_asym_rsa_create_key_nonpower_sizes) {
+    /* sizes that are a multiple of 8 within the CNG limits are accepted, not only multiples of 64 */
+    WR_NEED(); void *p = open_a(L"RSA_PKCS1"); if (!p) return;
+    static const UINT32 ok[] = { 1000, 3072, 4096 };
+    for (size_t i = 0; i < sizeof ok / sizeof *ok; i++) {
+        void *k = (void *)1; HRESULT hr = a_create(p, ok[i], &k);
+        t_check(hr == S_OK && k && k_size(k) == ok[i], __FILE__, __LINE__, "CreateKeyPair", "%u hr 0x%08lx size %u", ok[i], (unsigned long)hr, k_size(k));
         if (SUCCEEDED(hr)) wr_release(k);
     }
     wr_release(p);
@@ -327,7 +340,7 @@ TEST(winrt_asym_rsa_sign_pkcs1_sha1) { WR_NEED(); rsa_sign_vec(L"RSASIGN_PKCS1_S
 TEST(winrt_asym_rsa_sign_pkcs1_sha256) { WR_NEED(); rsa_sign_vec(L"RSASIGN_PKCS1_SHA256", wr_rsa_sig_pkcs1_sha256); }
 TEST(winrt_asym_rsa_sign_pkcs1_sha384) { WR_NEED(); rsa_sign_vec(L"RSASIGN_PKCS1_SHA384", wr_rsa_sig_pkcs1_sha384); }
 TEST(winrt_asym_rsa_sign_pkcs1_sha512) { WR_NEED(); rsa_sign_vec(L"RSASIGN_PKCS1_SHA512", wr_rsa_sig_pkcs1_sha512); }
-static void rsa_pss(const WCHAR *alg, const char *sig_hex) {
+static void rsa_pss(const WCHAR *alg, const char *sig_hex, const char *own_sig_hex) {
     void *k = priv_key(alg, wr_rsa_pkcs8); if (!k) return;
     void *m = wr_mkbuf(wr_msg, (UINT32)strlen(wr_msg)), *s1 = NULL, *s2 = NULL, *pk = pub_key(alg, wr_rsa_spki);
     BYTE ok;
@@ -335,15 +348,17 @@ static void rsa_pss(const WCHAR *alg, const char *sig_hex) {
     EXPECT_EQ(wr_buf_len(s1), 256);
     EXPECT_HR(e_verify(pk, m, s1, &ok), S_OK); EXPECT_EQ(ok, 1);
     const BYTE *a, *b; UINT32 la, lb;
-    if (wr_buf_get(s1, &a, &la) && wr_buf_get(s2, &b, &lb)) CHECK(la == lb && memcmp(a, b, la) != 0);   /* salted: signatures differ */
-    void *os = wr_mkbuf_hex(sig_hex); EXPECT_HR(e_verify(pk, m, os, &ok), S_OK);
-    t_note("%ls verify of a salt-length=hash-length signature from another implementation: %d", alg, ok);
+    /* Windows signs with a zero-length salt: the signature is deterministic */
+    if (wr_buf_get(s1, &a, &la) && wr_buf_get(s2, &b, &lb)) CHECK(la == lb && memcmp(a, b, la) == 0);
+    CHECK(wr_buf_is_hex(s1, own_sig_hex));
+    /* a signature made with salt length = hash length by another implementation does not verify */
+    void *os = wr_mkbuf_hex(sig_hex); EXPECT_HR(e_verify(pk, m, os, &ok), S_OK); EXPECT_EQ(ok, 0);
     wr_release(k); wr_release(m); wr_release(s1); wr_release(s2); wr_release(pk); wr_release(os);
 }
-TEST(winrt_asym_rsa_sign_pss_sha1) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA1", wr_rsa_sig_pss_sha1); }
-TEST(winrt_asym_rsa_sign_pss_sha256) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA256", wr_rsa_sig_pss_sha256); }
-TEST(winrt_asym_rsa_sign_pss_sha384) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA384", wr_rsa_sig_pss_sha384); }
-TEST(winrt_asym_rsa_sign_pss_sha512) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA512", wr_rsa_sig_pss_sha512); }
+TEST(winrt_asym_rsa_sign_pss_sha1) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA1", wr_rsa_sig_pss_sha1, wr_rsa_sig_pss0_sha1); }
+TEST(winrt_asym_rsa_sign_pss_sha256) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA256", wr_rsa_sig_pss_sha256, wr_rsa_sig_pss0_sha256); }
+TEST(winrt_asym_rsa_sign_pss_sha384) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA384", wr_rsa_sig_pss_sha384, wr_rsa_sig_pss0_sha384); }
+TEST(winrt_asym_rsa_sign_pss_sha512) { WR_NEED(); rsa_pss(L"RSASIGN_PSS_SHA512", wr_rsa_sig_pss_sha512, wr_rsa_sig_pss0_sha512); }
 TEST(winrt_asym_rsa_verify_wrong_signature_forms) {
     WR_NEED(); void *pk = pub_key(L"RSASIGN_PKCS1_SHA256", wr_rsa_spki); if (!pk) return;
     void *m = wr_mkbuf(wr_msg, (UINT32)strlen(wr_msg)); BYTE ok;
@@ -427,7 +442,8 @@ TEST(winrt_asym_rsa_oaep_size_limits) {
     for (size_t i = 0; i < 3; i++) {
         void *m = wr_mkbuf(d, v[i].n), *e = (void *)1; HRESULT hr = wr_encrypt(pk, m, NULL, &e);
         t_check((hr == S_OK) == v[i].ok, __FILE__, __LINE__, "OAEP plaintext limit", "n %u hr 0x%08lx", v[i].n, (unsigned long)hr);
-        if (hr == S_OK) wr_release(e); wr_release(m);
+        if (hr == S_OK) wr_release(e);
+        wr_release(m);
     }
     wr_release(pk);
 }
@@ -465,6 +481,34 @@ static const struct { const WCHAR *alg; UINT32 bits, sz; const char *pkcs8, *spk
     { L"ECDSA_P384_SHA384", 384, 48, wr_p384_pkcs8, wr_p384_spki, wr_p384_x, wr_p384_y, wr_p384_d, wr_p384_sig, "45435333" },
     { L"ECDSA_P521_SHA512", 521, 66, wr_p521_pkcs8, wr_p521_spki, wr_p521_x, wr_p521_y, wr_p521_d, wr_p521_sig, "45435335" },
 };
+/* Windows does not import an EC PKCS#8 blob (see winrt_asym_ecdsa_pkcs8_import_rejected); the private key goes in as BCRYPT_ECCPRIVATE_BLOB */
+static void *ec_priv_key(int i) {
+    BYTE blob[256]; UINT32 sz = k_ec[i].sz;
+    UINT32 mg = 0x32534345 + (i == 0 ? 0 : i == 1 ? 0x02000000 : 0x04000000);
+    memcpy(blob, &mg, 4); memcpy(blob + 4, &sz, 4);
+    wr_unhex(k_ec[i].x, blob + 8); wr_unhex(k_ec[i].y, blob + 8 + sz); wr_unhex(k_ec[i].d, blob + 8 + 2 * sz);
+    void *p = open_a(k_ec[i].alg); if (!p) return NULL;
+    void *b = wr_mkbuf(blob, 8 + 3 * sz), *k = NULL;
+    HRESULT hr = a_imp_priv_t(p, b, PRIV_BCRYPT, &k);
+    if (hr != S_OK) t_check(0, __FILE__, __LINE__, "ImportKeyPairWithBlobType(BCrypt)", "%ls hr 0x%08lx", k_ec[i].alg, (unsigned long)hr);
+    wr_release(p); wr_release(b); return k;
+}
+TEST(winrt_asym_ecdsa_pkcs8_import_rejected) {
+    WR_NEED();
+    for (int i = 0; i < 3; i++) {
+        void *p = open_a(k_ec[i].alg); if (!p) return;
+        for (int t = PRIV_PKCS8; t <= PRIV_BCRYPT_ECC_FULL; t++) {
+            void *b = wr_mkbuf_hex(k_ec[i].pkcs8), *k = (void *)1;
+            HRESULT hr = a_imp_priv_t(p, b, t, &k);
+            t_check(hr == (HRESULT)HR_E_INVALIDARG && k == NULL, __FILE__, __LINE__, "EC PKCS#8 import", "%ls blob type %d hr 0x%08lx", k_ec[i].alg, t, (unsigned long)hr);
+            wr_release(b);
+        }
+        void *b = wr_mkbuf_hex(k_ec[i].pkcs8), *k = (void *)1;
+        HRESULT hr = a_imp_priv(p, b, &k);
+        t_check(hr == (HRESULT)HR_E_INVALIDARG && k == NULL, __FILE__, __LINE__, "EC PKCS#8 default import", "%ls hr 0x%08lx", k_ec[i].alg, (unsigned long)hr);
+        wr_release(b); wr_release(p);
+    }
+}
 TEST(winrt_asym_ecdsa_create_key_pair) {
     WR_NEED();
     for (int i = 0; i < 3; i++) {
@@ -480,11 +524,11 @@ TEST(winrt_asym_ecdsa_create_key_wrong_size_note) {
     t_note("ECDSA_P256_SHA256 CreateKeyPair(384) -> 0x%08lx size %u", (unsigned long)hr, k_size(k));
     wr_release(k); wr_release(p);
 }
-TEST(winrt_asym_ecdsa_import_known_pkcs8) {
+TEST(winrt_asym_ecdsa_import_known_private_blob) {
     WR_NEED();
     for (int i = 0; i < 3; i++) {
-        void *k = priv_key(k_ec[i].alg, k_ec[i].pkcs8); if (!k) return;
-        if (k_size(k) != k_ec[i].bits) t_note("%ls imported PKCS#8 KeySize = %u (curve size %u)", k_ec[i].alg, k_size(k), k_ec[i].bits);
+        void *k = ec_priv_key(i); if (!k) return;
+        EXPECT_EQ(k_size(k), k_ec[i].bits);
         void *b; EXPECT_HR(k_pub(k, &b), S_OK);
         t_check(wr_buf_is_hex(b, k_ec[i].spki), __FILE__, __LINE__, "X.509 export equals reference SPKI", "%ls", k_ec[i].alg);
         wr_release(b);
@@ -531,7 +575,7 @@ TEST(winrt_asym_ecdsa_verify_reference_signatures) {
 TEST(winrt_asym_ecdsa_sign_verify_roundtrip) {
     WR_NEED();
     for (int i = 0; i < 3; i++) {
-        void *k = priv_key(k_ec[i].alg, k_ec[i].pkcs8); if (!k) return;
+        void *k = ec_priv_key(i); if (!k) return;
         void *pk = pub_key(k_ec[i].alg, k_ec[i].spki);
         void *m = wr_mkbuf(wr_msg, (UINT32)strlen(wr_msg)), *s1 = NULL, *s2 = NULL; BYTE ok;
         EXPECT_HR(e_sign(k, m, &s1), S_OK); EXPECT_HR(e_sign(k, m, &s2), S_OK);

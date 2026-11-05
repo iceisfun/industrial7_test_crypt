@@ -15,7 +15,11 @@
 #define VF(p, slot, ...) ((HRESULT (WINAPI *)(void *, __VA_ARGS__))WR_VT(p)[slot])
 #define VF0(p, slot)    ((HRESULT (WINAPI *)(void *))WR_VT(p)[slot])
 
-#define EXPECT_HR(a, b) t_check((DWORD)(a) == (DWORD)(b), __FILE__, __LINE__, #a " == " #b, "got 0x%08lx want 0x%08lx", (unsigned long)(DWORD)(a), (unsigned long)(DWORD)(b))
+static inline void wr_expect_hr(DWORD got, DWORD want, const char *file, int line, const char *text) {
+    t_check(got == want, file, line, text, "got 0x%08lx want 0x%08lx", (unsigned long)got, (unsigned long)want);
+}
+/* single evaluation: the argument is a call with side effects (Append, GetValueAndReset, Encrypt ...) */
+#define EXPECT_HR(a, b) wr_expect_hr((DWORD)(a), (DWORD)(b), __FILE__, __LINE__, #a " == " #b)
 #define HR_OK(hr)       SUCCEEDED(hr)
 
 static inline HRESULT wr_qi(void *p, const GUID *iid, void **out) { if (out) *out = NULL; if (!p) return E_POINTER; return VF(p, 0, const GUID *, void **)(p, iid, out); }

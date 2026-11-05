@@ -6,12 +6,12 @@
 TEST(winrt_misc_persisted_key_provider_null_certificate) {
     WR_NEED(); void *s = wr_cls_statics(CLS_PERSISTED); if (!s) return;
     HSTRING h = wr_hs(L"SHA256"); void *o = (void *)1;
-    /* slots 6 and 7 (OpenKeyPairFromCertificateAsync / OpenPublicKeyFromCertificate) share one signature and both reject a NULL certificate */
+    /* slots 6 and 7 (OpenKeyPairFromCertificateAsync / OpenPublicKeyFromCertificate) share one signature and both reject a NULL certificate with E_INVALIDARG */
     EXPECT_HR(VF(s, 6, void *, HSTRING, int, void **)(s, NULL, h, 0, &o), HR_E_INVALIDARG);
-    CHECK(o == NULL);
+    CHECK(o == NULL);               /* slot 6 clears the out parameter */
     o = (void *)1;
     EXPECT_HR(VF(s, 7, void *, HSTRING, int, void **)(s, NULL, h, 0, &o), HR_E_INVALIDARG);
-    CHECK(o == NULL);
+    CHECK(o == (void *)1);          /* slot 7 leaves the out parameter untouched */
     wr_hsfree(h); wr_release(s);
 }
 

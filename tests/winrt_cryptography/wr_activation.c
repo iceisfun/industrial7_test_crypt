@@ -6,6 +6,7 @@
 #define E_INVALIDARG_HR 0x80070057u
 #define E_NOINTERFACE_HR 0x80004002u
 #define E_NOTIMPL_HR 0x80004001u
+#define HR_E_NOINTERFACE_X 0x80004002u
 #define WINE_SKIP() do { if (t_is_wine()) { t_skip("emulator implements only a subset of cryptowinrt"); return; } } while (0)
 
 typedef HRESULT (WINAPI *pfn_gaf)(HSTRING, void **);
@@ -117,7 +118,8 @@ TEST(winrt_activation_direct_returns_cached_singleton) {
     for (size_t i = 0; i < NCLASSES; i++) {
         void *a, *b; direct(k_classes[i], (UINT32)lstrlenW(k_classes[i]), &a); direct(k_classes[i], (UINT32)lstrlenW(k_classes[i]), &b);
         t_check(a && a == b && a != (void *)1, __FILE__, __LINE__, "same factory object", "%ls %p %p", k_classes[i], a, b);
-        if (a && a != (void *)1) wr_release(a); if (b && b != (void *)1) wr_release(b);
+        if (a && a != (void *)1) wr_release(a);
+        if (b && b != (void *)1) wr_release(b);
     }
 }
 TEST(winrt_activation_factory_refcount_balanced) {
@@ -299,7 +301,8 @@ TEST(winrt_activation_dataprotection_activate_instance) {
     EXPECT_HR(hr, S_OK); CHECK(o != NULL);
     if (o) {
         HSTRING n = NULL; HRESULT h2 = wr_getclassname(o, &n);
-        if (SUCCEEDED(h2)) CHECK(wr_hs_eq(n, CLS_DATAPROT)); wr_hsfree(n);
+        if (SUCCEEDED(h2)) CHECK(wr_hs_eq(n, CLS_DATAPROT));
+        wr_hsfree(n);
         wr_release(o);
     }
     wr_release(f);
@@ -348,11 +351,21 @@ TEST(winrt_activation_getclassobject_null_clsid_value) {
     HRESULT hr = p_gco()(&z, &k_iid_classfactory, &o);
     EXPECT_HR(hr, CLASS_E_CLASSNOTAVAILABLE_HR);
 }
-TEST(winrt_activation_getclassobject_runtime_class_ids_are_not_clsids) {
-    /* the activation-factory IIDs are interface ids, not class ids: no class object is exposed for them */
+TEST(winrt_activation_getclassobject_statics_iids_as_clsids) {
+    /* the statics interface ids double as class ids for DllGetClassObject: IUnknown is served, IClassFactory is not */
     if (!p_gco()) { t_skip("DllGetClassObject missing"); return; }
     void *o = (void *)1;
     HRESULT hr = p_gco()(&WR_IID_ICryptographicBufferStatics, &k_iid_classfactory, &o);
+    EXPECT_HR(hr, HR_E_NOINTERFACE_X);       /* the GUID is a known class id, but exposes no IClassFactory */
+    CHECK(o == NULL);
+    hr = p_gco()(&WR_IID_ICryptographicBufferStatics, &WR_IID_IActivationFactory, &o);
+    EXPECT_HR(hr, HR_E_NOINTERFACE_X);
+    CHECK(o == NULL);
+    hr = p_gco()(&WR_IID_ICryptographicBufferStatics, &WR_IID_IUnknown, &o);   /* only IUnknown is served */
+    EXPECT_HR(hr, S_OK);
+    CHECK(o != NULL && o != (void *)1);
+    GUID other = WR_IID_IActivationFactory;                                    /* an interface id that is not a class id */
+    o = (void *)1; hr = p_gco()(&other, &k_iid_classfactory, &o);
     EXPECT_HR(hr, CLASS_E_CLASSNOTAVAILABLE_HR);
 }
 TEST(winrt_activation_canunloadnow_returns_hresult) {

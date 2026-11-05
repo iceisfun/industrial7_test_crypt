@@ -56,7 +56,7 @@ TEST(winrt_sym_block_length) {
     for (size_t i = 0; i < NSYM; i++) {
         void *p = NULL; if (wr_sym_open(k_symnames[i], &p) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } continue; }
         UINT32 bl = 0xffff; EXPECT_HR(VF(p, 7, UINT32 *)(p, &bl), S_OK);
-        UINT32 want = k_symnames[i][0] == L'A' ? 16 : (k_symnames[i][0] == L'D' || k_symnames[i][0] == L'3' || k_symnames[i][0] == L'R' && k_symnames[i][2] == L'2') ? 8 : 0;
+        UINT32 want = k_symnames[i][0] == L'A' ? 16 : (k_symnames[i][0] == L'D' || k_symnames[i][0] == L'3' || (k_symnames[i][0] == L'R' && k_symnames[i][2] == L'2')) ? 8 : 0;
         if (want) t_check(bl == want, __FILE__, __LINE__, "BlockLength", "%ls got %u want %u", k_symnames[i], bl, want);
         else t_note("%ls BlockLength = %u", k_symnames[i], bl);
         wr_release(p);
@@ -89,9 +89,25 @@ TEST(winrt_sym_provider_class_name) {
 }
 
 /* ---- key creation --------------------------------------------------------------------------------- */
+TEST(winrt_sym_aes_long_key_truncated) {
+    WR_NEED(); void *p = NULL; if (wr_sym_open(L"AES_CBC_PKCS7", &p) != S_OK) { if (!t_is_wine()) CHECK(!"open"); return; }
+    BYTE kb[1024]; for (int i = 0; i < 1024; i++) kb[i] = (BYTE)(i + 1);
+    BYTE z[16] = { 0 }; void *pt = wr_mkbuf_hex("00112233"), *iv = wr_mkbuf(z, 16);
+    void *ref = NULL; { void *b = wr_mkbuf(kb, 32), *k = NULL; EXPECT_HR(wr_sym_key(p, b, &k), S_OK); if (k) EXPECT_HR(wr_encrypt(k, pt, iv, &ref), S_OK); wr_release(k); wr_release(b); }
+    CHECK(wr_buf_is_hex(ref, "04feb43ae001f1a5794cee3826a77817"));
+    static const UINT32 n[] = { 33, 40, 64, 65, 128, 1024 };
+    for (size_t i = 0; i < sizeof n / sizeof *n; i++) {
+        void *b = wr_mkbuf(kb, n[i]), *k = NULL, *o = NULL; HRESULT hr = wr_sym_key(p, b, &k);
+        if (k) wr_encrypt(k, pt, iv, &o);
+        t_check(hr == S_OK && o && wr_buf_is_hex(o, "04feb43ae001f1a5794cee3826a77817"), __FILE__, __LINE__, "key longer than 32 bytes", "size %u hr 0x%08lx", n[i], (unsigned long)hr);
+        wr_release(k); wr_release(b); wr_release(o);
+    }
+    wr_release(p); wr_release(pt); wr_release(iv); wr_release(ref);
+}
 TEST(winrt_sym_create_key_sizes_aes) {
     WR_NEED();
-    static const struct { UINT32 n; int ok; } v[] = { { 16, 1 }, { 24, 1 }, { 32, 1 }, { 0, 0 }, { 1, 0 }, { 8, 0 }, { 15, 0 }, { 17, 0 }, { 23, 0 }, { 33, 0 }, { 64, 0 } };
+    /* sizes above 32 are accepted and only the first 32 bytes are used (checked in winrt_sym_aes_long_key_truncated) */
+    static const struct { UINT32 n; int ok; } v[] = { { 16, 1 }, { 24, 1 }, { 32, 1 }, { 33, 1 }, { 64, 1 }, { 0, 0 }, { 1, 0 }, { 8, 0 }, { 15, 0 }, { 17, 0 }, { 23, 0 } };
     void *p = NULL; if (wr_sym_open(L"AES_CBC_PKCS7", &p) != S_OK) { if (!t_is_wine()) CHECK(!"open"); return; }
     BYTE kb[64]; memset(kb, 0x42, sizeof kb);
     for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
@@ -280,13 +296,24 @@ TEST(winrt_sym_decrypt_bad_padding) {
 TEST(winrt_sym_iv_size_must_match_block) {
     WR_NEED(); void *k = mk_key(L"AES_CBC_PKCS7", "000102030405060708090a0b0c0d0e0f"); if (!k) return;
     void *pt = wr_mkbuf_hex("00112233");
-    static const UINT32 bad[] = { 1, 8, 12, 15, 17, 32 };
+    /* an IV shorter than the block is rejected (ERROR_INVALID_USER_BUFFER); a longer one is accepted and its first 16 bytes are used */
+    static const UINT32 bad[] = { 1, 8, 12, 15 };
     BYTE z[32] = { 0 };
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
         void *iv = wr_mkbuf(z, bad[i]), *o = (void *)1; HRESULT hr = wr_encrypt(k, pt, iv, &o);
-        t_check(FAILED(hr) && o == NULL, __FILE__, __LINE__, "IV size", "iv %u bytes hr 0x%08lx", bad[i], (unsigned long)hr);
+        t_check(hr == (HRESULT)0x800706f8 && o == NULL, __FILE__, __LINE__, "IV size", "iv %u bytes hr 0x%08lx", bad[i], (unsigned long)hr);
         wr_release(iv);
     }
+    void *iv16 = wr_mkbuf(z, 16), *ref = NULL; EXPECT_HR(wr_encrypt(k, pt, iv16, &ref), S_OK);
+    static const UINT32 good[] = { 0, 17, 32 };
+    for (size_t i = 0; i < sizeof good / sizeof *good; i++) {
+        void *iv = wr_mkbuf(z, good[i]), *o = NULL; HRESULT hr = wr_encrypt(k, pt, iv, &o);
+        t_check(hr == S_OK && o && ref && wr_buf_len(o) == 16, __FILE__, __LINE__, "IV size accepted", "iv %u bytes hr 0x%08lx", good[i], (unsigned long)hr);
+        const BYTE *pa, *pb; UINT32 la, lb;
+        t_check(o && ref && wr_buf_get(o, &pa, &la) && wr_buf_get(ref, &pb, &lb) && la == lb && !memcmp(pa, pb, la), __FILE__, __LINE__, "same ciphertext as the 16-byte zero IV", "iv %u bytes", good[i]);
+        wr_release(iv); wr_release(o);
+    }
+    wr_release(iv16); wr_release(ref);
     wr_release(k); wr_release(pt);
 }
 TEST(winrt_sym_cbc_without_iv_is_defined) {
