@@ -480,6 +480,7 @@ TEST(csc_enum_delete_every_element_while_enumerating) {
     PCCERT_CONTEXT c = NULL; int seen = 0;
     while ((c = U(CertEnumCertificatesInStore)(h, c)) != NULL) {
         seen++;
+        if (seen > 10) { sm_freec(c); break; }       /* bounded */
         CHECK(U(CertDeleteCertificateFromStore)(U(CertDuplicateCertificateContext)(c)));
     }
     EXPECT_EQ(seen, 3);
