@@ -68,7 +68,8 @@ TEST(wcfg_cat_resolve_path_length_boundary) {
     size_t dl = wcslen(ci.wszCatalogFile);
     WCHAR big[400];
     size_t fit = 259 - dl;                               /* dir + name + NUL must fit 260 characters */
-    for (size_t i = 0; i < 390; i++) big[i] = L'n'; big[390] = 0;
+    for (size_t i = 0; i < 390; i++) { big[i] = L'n'; }
+    big[390] = 0;
     big[fit] = 0;
     SET_ERR(0);
     CHECK(U(CryptCATAdminResolveCatalogPath)(a, big, &ci, 0));
