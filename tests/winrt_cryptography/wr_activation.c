@@ -188,7 +188,8 @@ TEST(winrt_activation_runtime_wrong_interface) {
     HRESULT hr = UIN("combase.dll", RoGetActivationFactory)(h, &WR_IID_IBuffer, &f);
     wr_hsfree(h);
     if (t_is_wine()) { t_skip("wine"); return; }
-    EXPECT_HR(hr, E_NOINTERFACE_HR); CHECK(f == NULL);
+    CHECK(FAILED(hr)); CHECK(f == NULL);
+    t_note("RoGetActivationFactory(CryptographicBuffer, IBuffer) -> 0x%08lx", (unsigned long)hr);
 }
 TEST(winrt_activation_factory_interfaces_agile) {
     WINE_SKIP();

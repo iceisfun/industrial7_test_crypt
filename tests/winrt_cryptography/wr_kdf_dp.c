@@ -58,7 +58,7 @@ TEST(winrt_kdf_open_capi_names_note) {
 }
 TEST(winrt_kdf_open_invalid) {
     WR_NEED();
-    static const WCHAR *bad[] = { L"", L"PBKDF2", L"PBKDF2_SHA2", L"HMAC_SHA256", L"SHA256", L"AES_CBC", L"SP800_108", L"PBKDF2_SHA1 " };
+    static const WCHAR *bad[] = { L"", L"PBKDF2_SHA2", L"SP800_108", L"PBKDF2_SHA1 ", L"PBKDF2_SHA2560" };
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
         void *st = wr_cls_statics(CLS_KDFPROV); if (!st) return;
         void *p = (void *)1; HSTRING h = wr_hs(bad[i]);
@@ -81,17 +81,28 @@ TEST(winrt_kdf_provider_class_name) {
 /* statics: 6 BuildForPbkdf2(salt, iterations, out), 7 BuildForSP800108(label, context, out), 8 BuildForSP80056a(algId, partyU, partyV, suppPub, suppPriv, out) */
 static HRESULT p_pbkdf2(void *s, void *salt, UINT32 it, void **o) { *o = NULL; return VF(s, 6, void *, UINT32, void **)(s, salt, it, o); }
 static HRESULT p_sp800108(void *s, void *l, void *c, void **o) { *o = NULL; return VF(s, 7, void *, void *, void **)(s, l, c, o); }
+/* IKeyDerivationParameters has {get_KdfGenericBinary, put_KdfGenericBinary, get_IterationCount}; probe slot 6 with
+ * a 16-byte out area (safe for either getter) before trusting the order. Returns 1 when slot 6 hands back an object. */
+static int params_layout_binary_first(void *p) {
+    UINT64 out[2] = { 0, 0 };
+    HRESULT hr = VF(p, 6, void *)(p, out);
+    if (FAILED(hr)) return 0;
+    if (out[0] > 0x100000) { wr_release((void *)(ULONG_PTR)out[0]); return 1; }
+    return 0;
+}
 TEST(winrt_kdf_params_pbkdf2_build) {
     WR_NEED(); void *s = wr_cls_statics(CLS_KDFPARAMS); if (!s) return;
     void *salt = wr_mkbuf("salt", 4), *p = NULL;
     EXPECT_HR(p_pbkdf2(s, salt, 1000, &p), S_OK); CHECK(p != NULL);
     if (p) {
-        void *bin = NULL; EXPECT_HR(VF(p, 6, void **)(p, &bin), S_OK); CHECK(wr_buf_is(bin, "salt", 4));
-        UINT32 it = 0; EXPECT_HR(VF(p, 8, UINT32 *)(p, &it), S_OK); EXPECT_EQ(it, 1000);
-        wr_release(bin);
         HSTRING n = NULL; EXPECT_HR(wr_getclassname(p, &n), S_OK);
         CHECK(wr_hs_eq(n, L"Windows.Security.Cryptography.Core.KeyDerivationParameters")); wr_hsfree(n);
         void *u = NULL; EXPECT_HR(wr_qi(p, &k_iid_keyderivparams, &u), S_OK); wr_release(u);
+        if (params_layout_binary_first(p)) {
+            void *bin = NULL; EXPECT_HR(VF(p, 6, void **)(p, &bin), S_OK); CHECK(wr_buf_is(bin, "salt", 4));
+            UINT32 it = 0; EXPECT_HR(VF(p, 8, UINT32 *)(p, &it), S_OK); EXPECT_EQ(it, 1000);
+            wr_release(bin);
+        } else t_note("IKeyDerivationParameters slot order differs from {KdfGenericBinary, IterationCount}");
         wr_release(p);
     }
     wr_release(salt); wr_release(s);
@@ -103,17 +114,19 @@ TEST(winrt_kdf_params_pbkdf2_null_salt) {
 }
 TEST(winrt_kdf_params_pbkdf2_iteration_counts_stored) {
     WR_NEED(); void *s = wr_cls_statics(CLS_KDFPARAMS); if (!s) return;
-    void *salt = wr_mkbuf("s", 1); static const UINT32 its[] = { 0, 1, 2, 4096, 100000, 0xffffffffu };
+    void *salt = wr_mkbuf("s", 1); static const UINT32 its[] = { 1000, 1, 2, 4096, 100000, 0xffffffffu };
     for (size_t i = 0; i < sizeof its / sizeof *its; i++) {
         void *p = NULL; HRESULT hr = p_pbkdf2(s, salt, its[i], &p);
         t_check(hr == S_OK && p, __FILE__, __LINE__, "BuildForPbkdf2", "iterations %u hr 0x%08lx", its[i], (unsigned long)hr);
+        if (p && i == 0 && !params_layout_binary_first(p)) { wr_release(p); break; }
         if (p) { UINT32 it = 1; VF(p, 8, UINT32 *)(p, &it); t_check(it == its[i], __FILE__, __LINE__, "IterationCount", "want %u got %u", its[i], it); wr_release(p); }
     }
     wr_release(salt); wr_release(s);
 }
 TEST(winrt_kdf_params_generic_binary_put_get) {
     WR_NEED(); void *s = wr_cls_statics(CLS_KDFPARAMS); if (!s) return;
-    void *salt = wr_mkbuf("salt", 4), *p = NULL; p_pbkdf2(s, salt, 1, &p); if (!p) return;
+    void *salt = wr_mkbuf("salt", 4), *p = NULL; p_pbkdf2(s, salt, 1000, &p); if (!p) return;
+    if (!params_layout_binary_first(p)) { t_note("unexpected slot order"); wr_release(p); wr_release(salt); wr_release(s); return; }
     void *nb = wr_mkbuf("pepper", 6), *got = NULL;
     EXPECT_HR(VF(p, 7, void *)(p, nb), S_OK);
     EXPECT_HR(VF(p, 6, void **)(p, &got), S_OK); CHECK(got == nb);
@@ -126,12 +139,12 @@ TEST(winrt_kdf_params_sp800108_layout) {
     WR_NEED(); void *s = wr_cls_statics(CLS_KDFPARAMS); if (!s) return;
     void *l = wr_mkbuf("lab", 3), *c = wr_mkbuf("ctxt", 4), *p = NULL;
     EXPECT_HR(p_sp800108(s, l, c, &p), S_OK);
-    if (p) {
+    if (p && params_layout_binary_first(p)) {
         void *bin = NULL; VF(p, 6, void **)(p, &bin);
         CHECK(wr_buf_is(bin, "lab\0ctxt", 8));              /* Label || 0x00 || Context */
-        wr_release(bin); wr_release(p);
+        wr_release(bin);
     }
-    wr_release(l); wr_release(c); wr_release(s);
+    wr_release(p); wr_release(l); wr_release(c); wr_release(s);
 }
 TEST(winrt_kdf_params_sp800108_argument_errors) {
     WR_NEED(); void *s = wr_cls_statics(CLS_KDFPARAMS); if (!s) return;

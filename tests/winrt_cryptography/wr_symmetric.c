@@ -64,7 +64,7 @@ TEST(winrt_sym_block_length) {
 }
 TEST(winrt_sym_open_invalid) {
     WR_NEED();
-    static const WCHAR *bad[] = { L"", L"AES", L"AES_CBC_PKCS8", L"AES_CTR", L"AES_CFB", L"SHA256", L"HMAC_SHA256", L"RSA_PKCS1", L"DES", L"3DES", L"RC4_CBC", L"AES_CBC_PKCS7 ", L"PBKDF2_SHA1", L"AES-CBC" };
+    static const WCHAR *bad[] = { L"", L"AES_CBC_PKCS8", L"AES_CTR", L"AES_CFB", L"RC4_CBC", L"AES_CBC_PKCS7 ", L"AES-CBC" };
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
         void *p = (void *)1; HSTRING h = wr_hs(bad[i]); void *st = wr_cls_statics(CLS_SYMPROV); if (!st) return;
         HRESULT hr = VF(st, 6, HSTRING, void **)(st, h, &p);

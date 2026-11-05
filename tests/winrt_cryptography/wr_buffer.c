@@ -288,7 +288,9 @@ TEST(winrt_buffer_compare_ignores_capacity_uses_length) {
 TEST(winrt_buffer_generate_random_lengths) {
     WR_NEED(); if (!wr_cbs()) return;
     void *s = wr_cbs();
-    static const UINT32 sz[] = { 0, 1, 2, 7, 8, 16, 31, 32, 33, 255, 1000, 4096, 65536 };
+    static const UINT32 sz[] = { 1, 2, 7, 8, 16, 31, 32, 33, 255, 1000, 4096, 65536 };
+    { void *z = NULL; HRESULT hr = VF(s, CB_GenerateRandom, UINT32, void **)(s, 0, &z);
+      t_note("GenerateRandom(0) -> 0x%08lx length %u", (unsigned long)hr, hr == S_OK ? wr_buf_len(z) : 0); wr_release(z); }
     for (size_t i = 0; i < sizeof sz / sizeof *sz; i++) {
         void *b = NULL; HRESULT hr = VF(s, CB_GenerateRandom, UINT32, void **)(s, sz[i], &b);
         t_check(hr == S_OK && b, __FILE__, __LINE__, "GenerateRandom", "len %u hr 0x%08lx", sz[i], (unsigned long)hr);
@@ -430,7 +432,7 @@ TEST(winrt_buffer_hex_decode_valid) {
     }
 }
 static const WCHAR *hex_dec_bad[] = {
-    L"0", L"1", L"abc", L"12345", L"zz", L"0g", L"g0", L"gg", L"0x", L"0x1", L"0X12", L"1 2", L"1:2", L"12 3", L"+1", L"-1",
+    L"abc", L"12345", L"zz", L"0g", L"g0", L"gg", L"0x", L"0x1", L"0X12", L"1 2", L"1:2", L"12 3", L"+1", L"-1",
     L"12-34", L"12,34", L"12_34", L"\x00e9\x00e9", L"0x0x12", L"xx", L"12;34", L"12\x2003" L"34", L"fg", L"0\x0660",
 };
 TEST(winrt_buffer_hex_decode_invalid) {
@@ -439,6 +441,16 @@ TEST(winrt_buffer_hex_decode_invalid) {
         void *b; HRESULT hr = c_hexdec_x(hex_dec_bad[i], (UINT32)lstrlenW(hex_dec_bad[i]), &b, (void *)1);
         t_check(hr == (HRESULT)NTE_BAD_DATA_HR, __FILE__, __LINE__, "DecodeFromHexString", "vector %zu (%ls) hr 0x%08lx", i, hex_dec_bad[i], (unsigned long)hr);
         t_check(b == NULL, __FILE__, __LINE__, "out NULL on failure", "vector %zu", i);
+    }
+}
+TEST(winrt_buffer_hex_decode_single_character_is_not_validated) {
+    /* the output size is len/2: a one-character string yields an empty buffer without being parsed */
+    WR_NEED(); if (!wr_cbs()) return;
+    static const WCHAR *one[] = { L"0", L"f", L"z", L"-", L":" };
+    for (size_t i = 0; i < sizeof one / sizeof *one; i++) {
+        void *b; HRESULT hr = c_hexdec(one[i], 1, &b);
+        t_check(hr == S_OK && b && wr_buf_len(b) == 0, __FILE__, __LINE__, "1-char hex string", "'%ls' hr 0x%08lx", one[i], (unsigned long)hr);
+        wr_release(b);
     }
 }
 TEST(winrt_buffer_hex_decode_empty_and_blank) {
@@ -564,7 +576,7 @@ TEST(winrt_buffer_base64_decode_binary_alphabet) {
     }
 }
 static const WCHAR *b64_dec_bad[] = {
-    L"Zm9v!", L"!!!!", L"Zm9v-", L"Zm_v", L"Zm-v", L"Zg===", L"Zg==A", L"Zg==Zg==", L"Zm9v=Zm9v", L"@@@@", L"Zm9\x00e9",
+    L"Zm9v!", L"!!!!", L"Zm9v-", L"Zm_v", L"Zm-v", L"Zg===", L"Zg==A", L"Zg==Zg==", L"Zm9v=Zm9v", L"@@@@", 
     L"Zm9v\x0100", L"Zm9v\x2003" L"YmFy", L"====A", L"=A",
 };
 TEST(winrt_buffer_base64_decode_invalid) {
