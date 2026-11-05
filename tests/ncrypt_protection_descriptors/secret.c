@@ -5,7 +5,7 @@ static LONG s_alloc_calls, s_free_calls;
 static PVOID WINAPI s_alloc(SIZE_T n) { s_alloc_calls++; return LocalAlloc(LPTR, n); }
 static void WINAPI s_free(PVOID p) { s_free_calls++; LocalFree(p); }
 
-/* protect then free helper: returns status, *blob/*cb set */
+/* protect helper: status returned, blob and size via out params */
 static LONG do_protect(void *d, DWORD fl, const BYTE *data, ULONG cb, BYTE **blob, ULONG *cbBlob) {
     *blob = NULL; *cbBlob = 0;
     return UN(NCryptProtectSecret)(d, fl, data, cb, NULL, NULL, blob, cbBlob);
