@@ -9,7 +9,7 @@ const BYTE *ml_memmem(const BYTE *h, size_t hn, const BYTE *n, size_t nn) {
 
 HCRYPTPROV ml_prov(const BYTE *blob, DWORD cb) {
     HCRYPTPROV p = 0; HCRYPTKEY k = 0;
-    if (!U(CryptAcquireContextW)(&p, NULL, MS_ENHANCED_PROV_W, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) return 0;
+    if (!U(CryptAcquireContextW)(&p, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) return 0;
     if (blob && !U(CryptImportKey)(p, blob, cb, 0, 0, &k)) { U(CryptReleaseContext)(p, 0); return 0; }
     if (k) U(CryptDestroyKey)(k);
     return p;

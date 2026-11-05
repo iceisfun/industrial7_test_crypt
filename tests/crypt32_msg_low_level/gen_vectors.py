@@ -36,6 +36,9 @@ arr("V_KEY2", blob(k2)); arr("V_CERT2", der(c2))
 # deterministic raw signatures over CONTENT (PKCS#1 v1.5) for encode-side byte search
 for hn, h in (("SHA1", hashes.SHA1()), ("SHA256", hashes.SHA256())):
     arr("V_SIG1_%s" % hn, k1.sign(CONTENT, padding.PKCS1v15(), h))
+crl = (x509.CertificateRevocationListBuilder().issuer_name(c1.subject).last_update(D(2022,1,1)).next_update(D(2060,1,1))
+       .add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(5).revocation_date(D(2022,1,1)).build()).sign(k1, hashes.SHA256()))
+arr("V_CRL1", der(crl))
 arr("V_SHA1", hashlib.sha1(CONTENT).digest()); arr("V_SHA256", hashlib.sha256(CONTENT).digest())
 arr("V_MD5", hashlib.md5(CONTENT).digest())
 
