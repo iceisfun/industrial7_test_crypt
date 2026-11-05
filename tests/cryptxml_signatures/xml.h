@@ -43,6 +43,7 @@ typedef HANDLE HCX;
 #define X_KEYINFO_ENCODED 1
 #define X_KEYINFO_PARAM 2
 #define X_SIGN_ADD_KEYVALUE 1
+#define X_NCRYPT_KEY_SPEC 0xFFFFFFFFu
 #define X_GROUP_HASH 1
 #define X_GROUP_SIGN 2
 #define X_FIND_URI 1

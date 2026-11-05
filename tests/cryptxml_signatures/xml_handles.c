@@ -352,11 +352,11 @@ TEST(xmlsig_close_decode_children_return_false)
     const XSIG *sig = x_first_sig(h);
     if (!sig) { XFN(CryptXmlClose)(h); return; }
     /* child handles are owned by the document: closing them is a no-op that reports S_FALSE */
-    XCHK_HR(XFN(CryptXmlClose)(sig->SignedInfo.rgpReference[0]->hReference), S_FALSE);
     XCHK_HR(XFN(CryptXmlClose)(sig->hSignature), S_FALSE);
     XCHK_HR(XFN(CryptXmlClose)(sig->hSignature), S_FALSE);   /* still valid: repeated close stays a no-op */
     const XSIG *again = NULL;
     XCHK_HR(XFN(CryptXmlGetSignature)(sig->hSignature, &again), S_OK);
+    XCHK_HR(XFN(CryptXmlClose)(sig->SignedInfo.rgpReference[0]->hReference), S_FALSE);
     XCHK_HR(XFN(CryptXmlClose)(h), S_OK);
 }
 
