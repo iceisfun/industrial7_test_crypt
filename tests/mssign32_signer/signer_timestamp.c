@@ -26,9 +26,9 @@ TEST(mssigner_ts_ex3_authenticode_requires_index_zero) {
     SUB s; sub_init(&s);
     EXPECT_EQ((DWORD)fn(1, 1, &s.sub, URL, NULL, NULL, NULL, NULL, NULL, NULL), HR_INVALIDARG);
     EXPECT_EQ((DWORD)fn(1, 0xFFFFFFFF, &s.sub, URL, NULL, NULL, NULL, NULL, NULL, NULL), HR_INVALIDARG);
-    /* RFC 3161 / sealing accept an index: the missing file is found first */
-    EXPECT_EQ((DWORD)fn(2, 1, &s.sub, URL, "2.16.840.1.101.3.4.2.1", NULL, NULL, NULL, NULL, NULL), HR_FILE_NOT_FOUND);
-    EXPECT_EQ((DWORD)fn(4, 3, &s.sub, URL, NULL, NULL, NULL, NULL, NULL, NULL), HR_FILE_NOT_FOUND);
+    /* RFC 3161 / sealing accept an index: the missing path is found first */
+    EXPECT_EQ((DWORD)fn(2, 1, &s.sub, URL, "2.16.840.1.101.3.4.2.1", NULL, NULL, NULL, NULL, NULL), HR_PATH_NOT_FOUND);
+    EXPECT_EQ((DWORD)fn(4, 3, &s.sub, URL, NULL, NULL, NULL, NULL, NULL, NULL), HR_PATH_NOT_FOUND);
 }
 TEST(mssigner_ts_ex3_reserved_parameter) {
     SignerTimeStampEx3_pfn fn = UN(SignerTimeStampEx3); REQUIRE(fn);
@@ -39,15 +39,15 @@ TEST(mssigner_ts_ex3_reserved_parameter) {
         CHECKF(HR_INVALIDARG == (DWORD)hr, "flags %lu: 0x%08lx", ok[i], (DWORD)hr);
     }
 }
-TEST(mssigner_ts_ex3_missing_file_is_reported_first) {
+TEST(mssigner_ts_ex3_missing_path_is_reported_first) {
     SignerTimeStampEx3_pfn fn = UN(SignerTimeStampEx3); REQUIRE(fn);
     static const DWORD ok[] = { 1, 2, 4 };
     for (int i = 0; i < 3; i++) {
         SUB s; sub_init(&s);
         HRESULT hr = fn(ok[i], 0, &s.sub, URL, NULL, NULL, NULL, NULL, NULL, NULL);
-        CHECKF(HR_FILE_NOT_FOUND == (DWORD)hr, "flags %lu: 0x%08lx", ok[i], (DWORD)hr);
+        CHECKF(HR_PATH_NOT_FOUND == (DWORD)hr, "flags %lu: 0x%08lx", ok[i], (DWORD)hr);
         hr = fn(ok[i], 0, &s.sub, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-        CHECKF(HR_FILE_NOT_FOUND == (DWORD)hr, "flags %lu no url: 0x%08lx", ok[i], (DWORD)hr);
+        CHECKF(HR_PATH_NOT_FOUND == (DWORD)hr, "flags %lu no url: 0x%08lx", ok[i], (DWORD)hr);
     }
 }
 TEST(mssigner_ts_ex3_bad_subject) {
@@ -68,16 +68,16 @@ TEST(mssigner_ts_wrappers_forward_flags) {
     REQUIRE(UN(SignerTimeStamp)); REQUIRE(UN(SignerTimeStampEx)); REQUIRE(UN(SignerTimeStampEx2));
     SUB s; sub_init(&s);
     /* SignerTimeStamp / SignerTimeStampEx always request Authenticode time stamps; their first Ex argument is ignored */
-    EXPECT_EQ((DWORD)UN(SignerTimeStamp)(&s.sub, URL, NULL, NULL), HR_FILE_NOT_FOUND);
-    EXPECT_EQ((DWORD)UN(SignerTimeStampEx)(0, &s.sub, URL, NULL, NULL, NULL), HR_FILE_NOT_FOUND);
-    EXPECT_EQ((DWORD)UN(SignerTimeStampEx)(0xFFFFFFFF, &s.sub, URL, NULL, NULL, NULL), HR_FILE_NOT_FOUND);
+    EXPECT_EQ((DWORD)UN(SignerTimeStamp)(&s.sub, URL, NULL, NULL), HR_PATH_NOT_FOUND);
+    EXPECT_EQ((DWORD)UN(SignerTimeStampEx)(0, &s.sub, URL, NULL, NULL, NULL), HR_PATH_NOT_FOUND);
+    EXPECT_EQ((DWORD)UN(SignerTimeStampEx)(0xFFFFFFFF, &s.sub, URL, NULL, NULL, NULL), HR_PATH_NOT_FOUND);
     EXPECT_EQ((DWORD)UN(SignerTimeStamp)(NULL, URL, NULL, NULL), HR_INVALIDARG);
     EXPECT_EQ((DWORD)UN(SignerTimeStampEx)(1, NULL, URL, NULL, NULL, NULL), HR_INVALIDARG);
     /* Ex2 passes its flag word through: it has to select exactly one mode */
     EXPECT_EQ((DWORD)UN(SignerTimeStampEx2)(0, &s.sub, URL, NULL, NULL, NULL, NULL), HR_INVALIDARG);
     EXPECT_EQ((DWORD)UN(SignerTimeStampEx2)(3, &s.sub, URL, NULL, NULL, NULL, NULL), HR_INVALIDARG);
-    EXPECT_EQ((DWORD)UN(SignerTimeStampEx2)(1, &s.sub, URL, NULL, NULL, NULL, NULL), HR_FILE_NOT_FOUND);
-    EXPECT_EQ((DWORD)UN(SignerTimeStampEx2)(2, &s.sub, URL, "2.16.840.1.101.3.4.2.1", NULL, NULL, NULL), HR_FILE_NOT_FOUND);
+    EXPECT_EQ((DWORD)UN(SignerTimeStampEx2)(1, &s.sub, URL, NULL, NULL, NULL, NULL), HR_PATH_NOT_FOUND);
+    EXPECT_EQ((DWORD)UN(SignerTimeStampEx2)(2, &s.sub, URL, "2.16.840.1.101.3.4.2.1", NULL, NULL, NULL), HR_PATH_NOT_FOUND);
 }
 TEST(mssigner_ts_context_out_pointer_untouched_on_failure) {
     SignerTimeStampEx3_pfn fn = UN(SignerTimeStampEx3); REQUIRE(fn);

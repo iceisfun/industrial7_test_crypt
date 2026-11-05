@@ -1,5 +1,5 @@
 /* mssign32 Pvk* private-key helpers, memory flavours (PVK image in a buffer).
- * Layout of a PVK image (verified against LoadKeyW): 24-byte header
+ * Layout of a PVK image: 24-byte header
  *   +0 magic 0xB0B5F11E  +4 reserved(0)  +8 keytype  +12 encrypt(0/1/2)  +16 saltlen(<=0x1000)  +20 keylen(1..0x1000)
  * followed by saltlen salt bytes and keylen bytes of PRIVATEKEYBLOB.
  * Only unencrypted images are used: the password of an encrypted image is obtained through a modal
@@ -44,15 +44,32 @@ TEST(mssigner_pvkmem_load_keyx_w) {
     CHECK(sig_matches_A(f.hProv, AT_KEYEXCHANGE));
     fx_close(&f);
 }
-TEST(mssigner_pvkmem_load_keyx_a) {
+/* The ANSI flavours of the Pvk loaders convert the key-name argument (the fifth parameter) with MultiByteToWideChar and
+ * return FALSE at once when it is NULL: no parameter is looked at, the key-type out value keeps its old value and the
+ * header is never read. Any non-NULL key name sends this Win10 build into a fault or a heap corruption (0xC0000005 /
+ * 0xC0000374, every path including the valid one), so the corpus only pins the NULL-name behaviour and never passes a
+ * name to an ANSI flavour. */
+TEST(mssigner_pvkmem_a_form_null_name_fails) {
     PvkPrivateKeyLoadFromMemoryA_pfn fn = P_LOAD_A; REQUIRE(fn);
     NEED_FX(f)
-    BYTE pvk[2048]; DWORD n = fx_pvk(FX_A, 1, 0, 0, pvk, sizeof pvk);
-    DWORD spec = 0;
-    BOOL r = fn(f.hProv, pvk, n, NULL, NULL, 0, &spec);
-    CHECK(r);
-    EXPECT_EQ(spec, 1);
-    CHECK(sig_matches_A(f.hProv, AT_KEYEXCHANGE));
+    BYTE pvk[2048], bad[2048];
+    DWORD n = fx_pvk(FX_A, 1, 0, 0, pvk, sizeof pvk);
+    memcpy(bad, pvk, n); fx_pvk_hdr(bad, 0xB0B5F11E, 9, 1, 0, 0, n - 24);
+    static const BYTE text[34] = "this is not a private key file...";
+    struct { const char *what; const BYTE *p; DWORD cb; DWORD spec_in; } t[] = {
+        { "valid keyx image", pvk, n, 0 },
+        { "valid image, key type mismatch", pvk, n, 2 },
+        { "bad header", bad, n, 5 },
+        { "text", text, sizeof text, 7 },
+        { "short", pvk, 10, 3 },
+    };
+    for (size_t i = 0; i < sizeof t / sizeof t[0]; i++) {
+        DWORD spec = t[i].spec_in;
+        BOOL r = fn(f.hProv, (PBYTE)t[i].p, t[i].cb, NULL, NULL, 0, &spec);
+        CHECKF(!r, "%s", t[i].what);
+        CHECKF(spec == t[i].spec_in, "%s: key type changed to %lu", t[i].what, spec);
+        CHECKF(!have_key(f.hProv, AT_KEYEXCHANGE), "%s: key imported", t[i].what);
+    }
     fx_close(&f);
 }
 TEST(mssigner_pvkmem_load_signature_key) {
@@ -94,17 +111,6 @@ TEST(mssigner_pvkmem_load_keyspec_in_mismatch_w) {
     CHECK(!r); EXPECT_ERR(PVK_E_WRONGTYPE);
     EXPECT_EQ(spec, 1);                 /* out value is the key type found in the header */
     CHECK(!have_key(f.hProv, AT_KEYEXCHANGE)); /* nothing was imported */
-    fx_close(&f);
-}
-TEST(mssigner_pvkmem_load_keyspec_in_mismatch_a) {
-    PvkPrivateKeyLoadFromMemoryA_pfn fn = P_LOAD_A; REQUIRE(fn);
-    NEED_FX(f)
-    BYTE pvk[2048]; DWORD n = fx_pvk(FX_A, 2, 0, 0, pvk, sizeof pvk);
-    DWORD spec = 1;
-    SET_ERR(0);
-    BOOL r = fn(f.hProv, pvk, n, NULL, NULL, 0, &spec);
-    CHECK(!r); EXPECT_ERR(PVK_E_WRONGTYPE);
-    EXPECT_EQ(spec, 2);
     fx_close(&f);
 }
 TEST(mssigner_pvkmem_load_header_keytype_not_validated) {
@@ -206,7 +212,7 @@ static const BADHDR bad[] = {
     { "short by half",     0xB0B5F11E, 0, 1, 0, 0, 0, 300 },
     { "header only",       0xB0B5F11E, 0, 1, 0, 0, 0, 1 << 20 },
 };
-static void run_bad(PvkPrivateKeyLoadFromMemory_pfn fn, int w) {
+static void run_bad(PvkPrivateKeyLoadFromMemory_pfn fn) {
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
         const BADHDR *b = &bad[i];
         FX f; if (!ctx_empty(&f)) return;
@@ -223,8 +229,7 @@ static void run_bad(PvkPrivateKeyLoadFromMemory_pfn fn, int w) {
         else if (b->trunc == 1 << 20) use = 24;
         DWORD spec = 1;
         SET_ERR(0);
-        BOOL r = w ? fn(f.hProv, pvk, use, NULL, NULL, 0, &spec)
-                   : ((PvkPrivateKeyLoadFromMemoryA_pfn)fn)(f.hProv, pvk, use, NULL, NULL, 0, &spec);
+        BOOL r = fn(f.hProv, pvk, use, NULL, NULL, 0, &spec);
         DWORD e = GetLastError();
         CHECKF(!r, "%s: unexpectedly succeeded", b->name);
         CHECKF(e == PVK_E_BADFILE, "%s: last error 0x%08lx", b->name, e);
@@ -235,11 +240,7 @@ static void run_bad(PvkPrivateKeyLoadFromMemory_pfn fn, int w) {
 }
 TEST(mssigner_pvkmem_bad_header_table_w) {
     PvkPrivateKeyLoadFromMemory_pfn fn = P_LOAD_W; REQUIRE(fn);
-    run_bad(fn, 1);
-}
-TEST(mssigner_pvkmem_bad_header_table_a) {
-    PvkPrivateKeyLoadFromMemoryA_pfn fn = P_LOAD_A; REQUIRE(fn);
-    run_bad((PvkPrivateKeyLoadFromMemory_pfn)fn, 0);
+    run_bad(fn);
 }
 TEST(mssigner_pvkmem_buffer_shorter_than_header) {
     PvkPrivateKeyLoadFromMemory_pfn fn = P_LOAD_W; REQUIRE(fn);
@@ -300,15 +301,6 @@ TEST(mssigner_pvkmem_load_wrong_magic_small_fails) {
     CHECK(!have_key(f.hProv, AT_KEYEXCHANGE));
     fx_close(&f);
 }
-TEST(mssigner_pvkmem_load_wrong_magic_text_a) {
-    PvkPrivateKeyLoadFromMemoryA_pfn fn = P_LOAD_A; REQUIRE(fn);
-    NEED_FX(f)
-    BYTE buf[40]; memcpy(buf, "this is not a private key file...", 34);
-    DWORD spec = 1;
-    CHECK(!fn(f.hProv, buf, 34, NULL, NULL, 0, &spec));
-    EXPECT_EQ(spec, 0);
-    fx_close(&f);
-}
 TEST(mssigner_pvkmem_load_invalid_provider_handle) {
     PvkPrivateKeyLoadFromMemory_pfn fn = P_LOAD_W; REQUIRE(fn);
     BYTE pvk[2048]; DWORD n = fx_pvk(FX_A, 1, 0, 0, pvk, sizeof pvk);
@@ -332,14 +324,27 @@ TEST(mssigner_pvkmem_load_corrupt_blob_rejected) {
     PvkPrivateKeyLoadFromMemory_pfn fn = P_LOAD_W; REQUIRE(fn);
     NEED_FX(f)
     BYTE pvk[2048]; DWORD n = fx_pvk(FX_A, 1, 0, 0, pvk, sizeof pvk);
-    pvk[24] = 0x06;           /* BLOBHEADER.bType -> PUBLICKEYBLOB, but the body is a private blob */
     pvk[24 + 8] = 'X';        /* RSAPUBKEY magic no longer RSA2 */
     DWORD spec = 0;
+    SET_ERR(0);
     CHECK(!fn(f.hProv, pvk, n, NULL, NULL, 0, &spec));
+    EXPECT_ERR(NTE_BAD_DATA);
     CHECK(!have_key(f.hProv, AT_KEYEXCHANGE));
     fx_close(&f);
 }
-
+TEST(mssigner_pvkmem_load_public_blob_type_succeeds_without_user_key) {
+    /* BLOBHEADER.bType = PUBLICKEYBLOB: CryptImportKey accepts the blob as a public key, so the loader reports success
+     * (with the header key type) although no user key appears in the container. */
+    PvkPrivateKeyLoadFromMemory_pfn fn = P_LOAD_W; REQUIRE(fn);
+    NEED_FX(f)
+    BYTE pvk[2048]; DWORD n = fx_pvk(FX_A, 1, 0, 0, pvk, sizeof pvk);
+    pvk[24] = 0x06;
+    DWORD spec = 0;
+    CHECK(fn(f.hProv, pvk, n, NULL, NULL, 0, &spec));
+    EXPECT_EQ(spec, 1);
+    CHECK(!have_key(f.hProv, AT_KEYEXCHANGE));
+    fx_close(&f);
+}
 /* ---- SaveToMemory: only the NULL-buffer form is exercised (a real write prompts for a password) ---- */
 TEST(mssigner_pvkmem_save_no_key_fails) {
     PvkPrivateKeySaveToMemory_pfn fn = UN(PvkPrivateKeySaveToMemory); REQUIRE(fn);
@@ -414,26 +419,15 @@ TEST(mssigner_pvkmem_acquire_context_w) {
     EXPECT_ERR(NTE_BAD_KEYSET);
     if (o) U(CryptReleaseContext)(h2, 0);
 }
-TEST(mssigner_pvkmem_acquire_context_a) {
+TEST(mssigner_pvkmem_acquire_context_a_null_name_fails) {
     PvkPrivateKeyAcquireContextFromMemoryA_pfn fn = UN(PvkPrivateKeyAcquireContextFromMemoryA); REQUIRE(fn);
-    PvkPrivateKeyReleaseContextA_pfn rel = UN(PvkPrivateKeyReleaseContextA); REQUIRE(rel);
-    BYTE pvk[2048]; DWORD n = fx_pvk(FX_A, 2, 0, 0, pvk, sizeof pvk), spec = 0;
+    BYTE pvk[2048]; DWORD n = fx_pvk(FX_A, 2, 0, 0, pvk, sizeof pvk), spec = 9;
     HCRYPTPROV h = 0x1234; LPSTR tmp = (LPSTR)(ULONG_PTR)0x1;
     BOOL r = fn(MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, pvk, n, NULL, NULL, &spec, &h, &tmp);
-    CHECK(r);
-    if (!r) return;
-    CHECK(h != 0);
-    CHECK(tmpname_ok_a(tmp));
-    EXPECT_EQ(spec, 2);
-    CHECK(have_key(h, AT_SIGNATURE));
-    char name[64]; lstrcpynA(name, tmp, 64);
-    CHECK(rel(h, MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, tmp));
-    HCRYPTPROV h2 = 0;
-    SET_ERR(0);
-    BOOL o = U(CryptAcquireContextA)(&h2, name, MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, 0);
-    CHECK(!o);
-    EXPECT_ERR(NTE_BAD_KEYSET);
-    if (o) U(CryptReleaseContext)(h2, 0);
+    CHECK(!r);                                  /* see the note on the ANSI flavours above */
+    EXPECT_EQ(h, 0);
+    CHECK(tmp == NULL);
+    EXPECT_EQ(spec, 9);                         /* untouched */
 }
 TEST(mssigner_pvkmem_acquire_context_names_unique) {
     PvkPrivateKeyAcquireContextFromMemory_pfn fn = UN(PvkPrivateKeyAcquireContextFromMemory); REQUIRE(fn);

@@ -17,7 +17,7 @@
 #define REQUIRE(ptr) do { if (!(ptr)) { t_skip("missing export: " #ptr); return; } \
     if (t_is_wine()) { t_skip("mssign32 exports are stubs under Wine"); return; } } while (0)
 
-/* ---- structures (x64 layouts, see decomp of CheckSigncodeParam / CheckSigncodeSubjectInfo) ---- */
+/* ---- structures (x64 layouts) ---- */
 typedef struct { DWORD cbSize; DWORD *pdwIndex; DWORD dwSubjectChoice; void *pInfo; } SG_SUBJECT;            /* 32 */
 typedef struct { DWORD cbSize; LPCWSTR pwszFileName; HANDLE hFile; } SG_FILE;                              /* 24 */
 typedef struct { DWORD cbSize; GUID *pGuidSubject; DWORD cbBlob; BYTE *pbBlob; LPCWSTR pwszDisplayName; } SG_BLOB; /* 40 */
@@ -41,6 +41,7 @@ typedef struct { DWORD cbSize; DWORD cbBlob; BYTE *pbBlob; } SG_CTX;            
 
 #define HR_INVALIDARG    0x80070057u
 #define HR_FILE_NOT_FOUND 0x80070002u
+#define HR_PATH_NOT_FOUND 0x80070003u
 #define HR_NO_PROVIDER   0x80092006u  /* CRYPT_E_NO_PROVIDER */
 #define HR_NO_MATCH      0x80092009u  /* CRYPT_E_NO_MATCH */
 #define HR_NO_KEY_PROP   0x8009200Bu  /* CRYPT_E_NO_KEY_PROPERTY */
@@ -98,15 +99,15 @@ const BYTE *fx_sig_sha1_abc(DWORD *cb);
 
 typedef struct {
     HCRYPTPROV hProv;
-    int persisted;            /* fell back to a named temporary key container */
+    int persisted;            /* named container holding the key */
     WCHAR name[64];
     int which, keyspec;
     PCCERT_CONTEXT cert;      /* certificate with CERT_KEY_CONTEXT_PROP_ID -> hProv (after fx_cert_attach) */
 } FX;
-/* Open an RSA_AES context holding key `which` as `keyspec`. Prefers CRYPT_VERIFYCONTEXT and falls back
- * to a uniquely named container (deleted by fx_close). Returns 1 on success. */
+/* Open an RSA_AES context holding key `which` as `keyspec` in a uniquely named container (deleted by fx_close;
+ * SHA-2 signing needs a persisted key). Returns 1 on success. */
 int  fx_open(FX *f, int which, int keyspec);
-/* Open an empty context (no key) the same way. */
+/* Open an empty ephemeral (CRYPT_VERIFYCONTEXT) context without a key. */
 int  fx_open_empty(FX *f);
 int  fx_cert_attach(FX *f);   /* create cert context, set CERT_KEY_CONTEXT_PROP_ID */
 void fx_close(FX *f);

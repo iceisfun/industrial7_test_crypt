@@ -1,6 +1,6 @@
-/* Signing a hand-built minimal PE with SignerSign* using an in-memory key (key context attached to the
- * certificate, no persisted container) and verifying the result with crypt32 / wintrust.
- * Expectations rely on Authenticode semantics and on the decompiled signer: certificate table appended at the end of
+/* Signing a hand-built minimal PE with SignerSign* using a key in a uniquely named container (key context attached to the
+ * certificate, deleted after each test) and verifying the result with crypt32 / wintrust.
+ * Expectations rely on Authenticode semantics and on observed signer behaviour: certificate table appended at the end of
  * the image, PKCS#7 SignedData with SPC_INDIRECT_DATA content, re-signing replaces the signature. */
 #include "mssfix.h"
 
@@ -319,7 +319,7 @@ TEST(mssigner_pe_authcode_attributes) {
     SG_SUBJECT sub = { sizeof sub, &idx, SG_SUBJECT_FILE, &fi };
     SG_CERTSTORE cs = { sizeof cs, f.cert, 0, NULL };
     SG_CERT cert = { sizeof cert, SG_CERT_STORE, &cs, NULL };
-    SG_AUTHCODE ac = { sizeof ac, 1, 0, L"cryptt product", L"http://127.0.0.1/info" };
+    SG_AUTHCODE ac = { sizeof ac, 0, 1, L"cryptt product", L"http://127.0.0.1/info" };   /* individual publisher */
     SG_SIGINFO si = { sizeof si, CALG_SHA1, SG_AUTHCODE_ATTR, &ac, NULL, NULL };
     HRESULT hr = UN(SignerSignEx)(0, &sub, &cert, &si, NULL, NULL, NULL, NULL, NULL);
     EXPECT_EQ((DWORD)hr, 0);
@@ -349,6 +349,36 @@ TEST(mssigner_pe_authcode_attributes) {
         free(s); U(CryptMsgClose)(m);
     }
     free(wp); cleanup(&f, p);
+}
+TEST(mssigner_pe_authcode_commercial_and_flag_combinations) {
+    /* Observed on Win10: every commercial-purpose request fails with TYPE_E_TYPEMISMATCH whatever name and URL are
+     * given, both purposes together are an invalid argument, no purpose at all and the individual purpose sign. */
+    NEED_FIX(f);
+    static const struct { const char *what; DWORD comm, ind; LPCWSTR name, info; DWORD hr; } v[] = {
+        { "commercial, name and url", 1, 0, L"cryptt product", L"http://127.0.0.1/info", 0x80028CA0u },
+        { "commercial, name only", 1, 0, L"cryptt product", NULL, 0x80028CA0u },
+        { "commercial, url only", 1, 0, NULL, L"http://127.0.0.1/info", 0x80028CA0u },
+        { "commercial, nothing else", 1, 0, NULL, NULL, 0x80028CA0u },
+        { "both purposes", 1, 1, L"cryptt product", L"http://127.0.0.1/info", 0x80070057u },
+        { "no purpose", 0, 0, L"cryptt product", L"http://127.0.0.1/info", 0 },
+        { "individual, nothing else", 0, 1, NULL, NULL, 0 },
+    };
+    for (size_t i = 0; i < sizeof v / sizeof v[0]; i++) {
+        char p[MAX_PATH]; fx_pe_new(p, sizeof p, "ac2.exe");
+        LPWSTR wp = fx_w(p);
+        DWORD idx = 0;
+        SG_FILE fi = { sizeof fi, wp, NULL };
+        SG_SUBJECT sub = { sizeof sub, &idx, SG_SUBJECT_FILE, &fi };
+        SG_CERTSTORE cs = { sizeof cs, f.cert, 0, NULL };
+        SG_CERT cert = { sizeof cert, SG_CERT_STORE, &cs, NULL };
+        SG_AUTHCODE ac = { sizeof ac, v[i].comm, v[i].ind, v[i].name, v[i].info };
+        SG_SIGINFO si = { sizeof si, CALG_SHA1, SG_AUTHCODE_ATTR, &ac, NULL, NULL };
+        t_label("%s", v[i].what);
+        HRESULT hr = UN(SignerSignEx)(0, &sub, &cert, &si, NULL, NULL, NULL, NULL, NULL);
+        EXPECT_EQ((DWORD)hr, v[i].hr);
+        free(wp); DeleteFileA(p);
+    }
+    fx_close(&f);
 }
 TEST(mssigner_pe_no_attr_has_no_opus_info) {
     NEED_FIX(f);
@@ -440,22 +470,24 @@ TEST(mssigner_pe_sharing_violation) {
     cleanup(&f, p);
 }
 TEST(mssigner_pe_unsupported_file_types) {
+    /* A failed attempt leaves the signer's handle on the file open (the file cannot be deleted or rewritten until the
+     * process ends), so every case has its own file; the leftovers are removed with the temp directory. */
     NEED_FIX(f);
-    static const struct { const char *name; const char *data; DWORD n; } t[] = {
-        { "text", "this is not a portable executable\r\n", 34 },
-        { "empty", "", 0 },
-        { "mz only", "MZ", 2 },
-        { "short mz", "MZ\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16 },
+    static const struct { const char *name; const char *data; DWORD n; DWORD hr; } t[] = {
+        { "text", "this is not a portable executable\r\n", 34, 0x800B0003u },   /* TRUST_E_SUBJECT_FORM_UNKNOWN */
+        { "empty", "", 0, 0x80070057u },
+        { "mz only", "MZ", 2, 0x80070057u },
+        { "short mz", "MZ\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16, 0x800B0003u },
     };
     for (int i = 0; i < 4; i++) {
-        char p[MAX_PATH]; t_tmpfile(p, sizeof p, "other.bin");
+        char p[MAX_PATH], leaf[32]; snprintf(leaf, sizeof leaf, "other%d.bin", i); t_tmpfile(p, sizeof p, leaf);
+        t_label("%s", t[i].name);
         CHECK(fx_write_file(p, t[i].data, t[i].n));
         HRESULT hr = fx_sign(&f, p, CALG_SHA1, 0, NULL);
-        CHECKF(hr < 0, "%s: unexpectedly 0x%08lx", t[i].name, (DWORD)hr);
-        t_note("signing a %s file: 0x%08lx", t[i].name, (DWORD)hr);
+        EXPECT_EQ((DWORD)hr, t[i].hr);
         DWORD n = 0; BYTE *b = fx_read_file(p, &n);
-        CHECKF(b && n == t[i].n && !memcmp(b, t[i].data, n), "%s modified", t[i].name);
-        free(b); DeleteFileA(p);
+        CHECK(b && n == t[i].n && !memcmp(b, t[i].data, n));      /* never modified */
+        free(b);
     }
     fx_close(&f);
 }

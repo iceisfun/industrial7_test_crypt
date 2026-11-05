@@ -1,6 +1,5 @@
 /* SignerSign / SignerSignEx / SignerSignEx2 / SignerSignEx3 argument validation and the failure ladder that
- * precedes any file access, SignerFreeSignerContext and SignError. All expectations come from the decompiled
- * validation helpers (CheckSigncodeParam, CheckSigncodeSubjectInfo) and SignerSignEx3_private.
+ * precedes any file access, SignerFreeSignerContext and SignError. All expectations are values observed on Win10 22H2.
  * Return values are HRESULTs: HRESULT_FROM_WIN32 for Win32 errors, CRYPT_E_* / NTE_* passed through. */
 #include "mssfix.h"
 
@@ -76,10 +75,17 @@ TEST(mssigner_args_null_pointers) {
         CHECKF(HR(hr) == HR_INVALIDARG, "%s subject NULL: 0x%08lx", vname[v], HR(hr));
         hr = call(v, 0, &a.sub, NULL, &a.si, NULL, NULL, NULL);
         CHECKF(HR(hr) == HR_INVALIDARG, "%s cert NULL: 0x%08lx", vname[v], HR(hr));
-        hr = call(v, 0, &a.sub, &a.cert, NULL, NULL, NULL, NULL);
-        CHECKF(HR(hr) == HR_INVALIDARG, "%s signature NULL: 0x%08lx", vname[v], HR(hr));
-        hr = call(v, 0, NULL, NULL, NULL, NULL, NULL, NULL);
-        CHECKF(HR(hr) == HR_INVALIDARG, "%s all NULL: 0x%08lx", vname[v], HR(hr));
+    }
+}
+TEST(mssigner_args_null_signature_info_faults) {
+    /* Win10 reads the signature info without a NULL check: a NULL pSignatureInfo is an access violation in
+     * every entry point, even when the other arguments are NULL too. */
+    NEED_SIGN();
+    ALLV {
+        ARGS a; t_label("%s", vname[v]);
+        args_init(&a);
+        T_EXPECT_FAULT(call(v, 0, &a.sub, &a.cert, NULL, NULL, NULL, NULL));
+        T_EXPECT_FAULT(call(v, 0, NULL, NULL, NULL, NULL, NULL, NULL));
     }
 }
 
@@ -240,7 +246,7 @@ TEST(mssigner_args_signer_context_out_pointer) {
     EXPECT_EQ(HR(hr), HR_INVALIDARG);
     CHECK(ctx == sentinel);
     ctx = sentinel;
-    hr = UN(SignerSignEx3)(0, &a.sub, &a.cert, NULL, NULL, 0, NULL, NULL, NULL, NULL, &ctx, NULL, NULL, NULL);
+    hr = UN(SignerSignEx3)(0, &a.sub, NULL, &a.si, NULL, 0, NULL, NULL, NULL, NULL, &ctx, NULL, NULL, NULL);
     EXPECT_EQ(HR(hr), HR_INVALIDARG);
     CHECK(ctx == sentinel);
     /* ... accepted arguments that fail later clear it */

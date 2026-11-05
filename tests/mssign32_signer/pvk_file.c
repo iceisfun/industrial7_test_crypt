@@ -31,15 +31,18 @@ TEST(mssigner_pvkfile_load_w) {
     EXPECT_EQ(pos, 24 + 1172);        /* the file is consumed up to the end of the key blob */
     CloseHandle(h); DeleteFileA(p); fx_close(&f);
 }
-TEST(mssigner_pvkfile_load_a) {
+/* ANSI flavours: see the note in pvk_memory.c. With the mandatory key name left NULL they fail without reading the
+ * file and without touching the key type. */
+TEST(mssigner_pvkfile_load_a_null_name_fails) {
     PvkPrivateKeyLoadA_pfn fn = UN(PvkPrivateKeyLoadA); REQUIRE(fn);
     FX f; if (!fx_open_empty(&f)) { t_skip("no context"); return; }
     char p[MAX_PATH]; CHECK(mkpvk(p, sizeof p, "k2.pvk", FX_A, 2));
     HANDLE h = open_ro(p);
-    DWORD spec = 0;
-    CHECK(fn(f.hProv, h, NULL, NULL, 0, &spec));
-    EXPECT_EQ(spec, 2);
-    CHECK(have_key(f.hProv, AT_SIGNATURE));
+    DWORD spec = 0x55;
+    CHECK(!fn(f.hProv, h, NULL, NULL, 0, &spec));
+    EXPECT_EQ(spec, 0x55);
+    CHECK(!have_key(f.hProv, AT_SIGNATURE));
+    EXPECT_EQ(SetFilePointer(h, 0, NULL, FILE_CURRENT), 0);        /* nothing was read */
     CloseHandle(h); DeleteFileA(p); fx_close(&f);
 }
 TEST(mssigner_pvkfile_load_keyspec_mismatch) {
@@ -65,11 +68,10 @@ TEST(mssigner_pvkfile_load_invalid_handles) {
         CHECK(!fn(f.hProv, hs[i], NULL, NULL, 0, &spec));
         EXPECT_ERR(PVK_E_BADFILE);
         EXPECT_EQ(spec, 0);
+        /* the ANSI flavour with a NULL key name never gets as far as the handle */
         spec = 1;
-        SET_ERR(0);
         CHECK(!fa(f.hProv, hs[i], NULL, NULL, 0, &spec));
-        EXPECT_ERR(PVK_E_BADFILE);
-        EXPECT_EQ(spec, 0);
+        EXPECT_EQ(spec, 1);
     }
     fx_close(&f);
 }
@@ -182,20 +184,15 @@ TEST(mssigner_pvkfile_acquire_context_w) {
     }
     CloseHandle(h); DeleteFileA(p);
 }
-TEST(mssigner_pvkfile_acquire_context_a) {
+TEST(mssigner_pvkfile_acquire_context_a_null_name_fails) {
     PvkPrivateKeyAcquireContextA_pfn fn = UN(PvkPrivateKeyAcquireContextA); REQUIRE(fn);
-    PvkPrivateKeyReleaseContextA_pfn rel = UN(PvkPrivateKeyReleaseContextA); REQUIRE(rel);
     char p[MAX_PATH]; CHECK(mkpvk(p, sizeof p, "ac2.pvk", FX_B, 2));
     HANDLE h = open_ro(p);
-    HCRYPTPROV hp = 0; LPSTR tmp = NULL; DWORD spec = 0;
-    BOOL r = fn(MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, h, NULL, NULL, &spec, &hp, &tmp);
-    CHECK(r);
-    if (r) {
-        EXPECT_EQ(spec, 2);
-        CHECK(have_key(hp, AT_SIGNATURE));
-        CHECK(tmp && strlen(tmp) == 38 && !strncmp(tmp, "TmpKey", 6));
-        CHECK(rel(hp, MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, tmp));
-    }
+    HCRYPTPROV hp = 0x1234; LPSTR tmp = (LPSTR)(ULONG_PTR)1; DWORD spec = 9;
+    CHECK(!fn(MS_ENH_RSA_AES_PROV_A, PROV_RSA_AES, h, NULL, NULL, &spec, &hp, &tmp));
+    EXPECT_EQ(hp, 0);
+    CHECK(tmp == NULL);
+    EXPECT_EQ(spec, 9);
     CloseHandle(h); DeleteFileA(p);
 }
 TEST(mssigner_pvkfile_acquire_context_failures_clear_outputs) {
@@ -256,13 +253,21 @@ TEST(mssigner_pvkfile_getcryptprov_missing_file) {
 }
 TEST(mssigner_pvkfile_getcryptprov_directory) {
     PvkGetCryptProv_pfn fn = UN(PvkGetCryptProv); REQUIRE(fn);
-    LPWSTR wp = fx_w(t_tmpdir());
-    HCRYPTPROV hp = 0x1234; LPWSTR tmp = (LPWSTR)(ULONG_PTR)1; DWORD spec = 0;
-    DWORD r = fn(NULL, L"cap", MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, wp, NULL, &spec, &tmp, &hp);
-    EXPECT_EQ(r, 0x80070005u);             /* CreateFile on a directory without BACKUP_SEMANTICS: access denied */
-    EXPECT_EQ(hp, 0);
-    CHECK(tmp == NULL);
-    free(wp);
+    char d[MAX_PATH]; snprintf(d, sizeof d, "%s", t_tmpdir());
+    size_t l = strlen(d);
+    if (l && d[l - 1] == '\\') d[l - 1] = 0;
+    for (int slash = 0; slash < 2; slash++) {
+        char q[MAX_PATH]; snprintf(q, sizeof q, "%s%s", d, slash ? "\\" : "");
+        LPWSTR wp = fx_w(q);
+        HCRYPTPROV hp = 0x1234; LPWSTR tmp = (LPWSTR)(ULONG_PTR)1; DWORD spec = 0;
+        DWORD r = fn(NULL, L"cap", MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, wp, NULL, &spec, &tmp, &hp);
+        /* a directory name opened without BACKUP_SEMANTICS is access denied; with a trailing backslash the
+         * name is not a valid file name at all and the path is reported as not found */
+        EXPECT_EQ(r, slash ? HR_PATH_NOT_FOUND : 0x80070005u);
+        EXPECT_EQ(hp, 0);
+        CHECK(tmp == NULL);
+        free(wp);
+    }
 }
 TEST(mssigner_pvkfile_getcryptprov_bad_file_content) {
     PvkGetCryptProv_pfn fn = UN(PvkGetCryptProv); REQUIRE(fn);

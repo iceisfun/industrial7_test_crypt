@@ -23,15 +23,12 @@ static BOOL gcp(int ex, PCCERT_CONTEXT c, OUTS *o) {
     return UN(GetCryptProvFromCert)(NULL, c, &o->h, &o->spec, &o->did, &o->tmp, &o->name, &o->type);
 }
 TEST(mssigner_gcp_null_cert) {
+    /* the certificate context is dereferenced before anything is validated */
     REQUIRE(UN(GetCryptProvFromCert)); REQUIRE(UN(GetCryptProvFromCertEx));
     for (int ex = 0; ex < 2; ex++) {
         OUTS o; outs_poison(&o);
-        SET_ERR(0);
-        BOOL r = gcp(ex, NULL, &o);
-        CHECKF(!r, "ex=%d", ex);
-        EXPECT_ERR(HR_NO_KEY_PROP);
-        EXPECT_EQ(o.h, 0); EXPECT_EQ(o.spec, 0); EXPECT_EQ(o.did, 0);
-        CHECK(o.tmp == NULL); CHECK(o.name == NULL);
+        t_label("ex=%d", ex);
+        T_EXPECT_FAULT(gcp(ex, NULL, &o));
     }
 }
 TEST(mssigner_gcp_cert_without_key_info) {
@@ -133,7 +130,7 @@ TEST(mssigner_gcp_pvk_property_missing_file) {
     SET_ERR(0);
     BOOL r = gcp(1, c, &o);
     CHECK(!r);
-    EXPECT_ERR(HR_FILE_NOT_FOUND);       /* PvkGetCryptProv's HRESULT is installed as the last error */
+    EXPECT_ERR(HR_PATH_NOT_FOUND);       /* the directory does not exist; PvkGetCryptProv's HRESULT is installed as the last error */
     EXPECT_EQ(o.h, 0); CHECK(o.tmp == NULL);
     U(CertFreeCertificateContext)(c);
 }
@@ -169,16 +166,15 @@ TEST(mssigner_freecp_releases_one_reference) {
     CHECK(U(CryptReleaseContext)(h, 0));
 }
 TEST(mssigner_freecp_ex_ncrypt_handle) {
-    /* dwKeySpec == CERT_NCRYPT_KEY_SPEC (-1) with no temporary container frees the handle with NCryptFreeObject */
+    /* dwKeySpec == CERT_NCRYPT_KEY_SPEC (-1) with no temporary container frees the handle with NCryptFreeObject.
+     * The handle must not be used afterwards (a second NCryptFreeObject is a double free that corrupts the heap),
+     * so only the absence of a fault is checked here. */
     REQUIRE(UN(FreeCryptProvFromCertEx));
     NCRYPT_PROV_HANDLE h = 0;
     SECURITY_STATUS s = U(NCryptOpenStorageProvider)(&h, MS_KEY_STORAGE_PROVIDER, 0);
     CHECK(s == 0 && h);
     if (s) return;
-    UN(FreeCryptProvFromCertEx)(TRUE, (HCRYPTPROV)h, (DWORD)-1, NULL, 0, NULL);
-    SECURITY_STATUS s2 = U(NCryptFreeObject)(h);                /* already freed */
-    EXPECT_EQ((DWORD)s2, (DWORD)NTE_INVALID_HANDLE);
-    if (!s2) { /* freed twice would be a bug of the test; nothing more to do */ }
+    T_TRY(UN(FreeCryptProvFromCertEx)(TRUE, (HCRYPTPROV)h, (DWORD)-1, NULL, 0, NULL));
 }
 TEST(mssigner_freecp_ex_ncrypt_not_acquired_keeps_handle) {
     REQUIRE(UN(FreeCryptProvFromCertEx));
@@ -238,7 +234,8 @@ TEST(mssigner_spcgetcert_null_output_pointer) {
     REQUIRE(UN(SpcGetCertFromKey));
     FX f; if (!fx_open(&f, FX_A, 1)) { t_skip("no key fixture"); return; }
     HCERTSTORE st = memstore(); add(st, FX_A);
-    EXPECT_EQ((DWORD)UN(SpcGetCertFromKey)(X509_ASN_ENCODING, st, f.hProv, 1, NULL), HR_INVALIDARG);
+    /* the result is written through the pointer without a NULL check */
+    T_EXPECT_FAULT(UN(SpcGetCertFromKey)(X509_ASN_ENCODING, st, f.hProv, 1, NULL));
     U(CertCloseStore)(st, 0);
     fx_close(&f);
 }

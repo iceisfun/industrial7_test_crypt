@@ -32,7 +32,6 @@ DWORD fx_pvk(int which, int keyspec, DWORD encrypt, DWORD saltlen, BYTE *out, DW
 }
 
 /* ---- contexts ---- */
-static int g_fxseq;
 static int import_ok(HCRYPTPROV h, int which, int keyspec) {
     BYTE blob[2048]; DWORD n = fx_keyblob(which, keyspec, blob, sizeof blob);
     HCRYPTKEY k = 0;
@@ -43,21 +42,25 @@ static int import_ok(HCRYPTPROV h, int which, int keyspec) {
     U(CryptDestroyKey)(k);
     return 1;
 }
+/* A key that signs with SHA-2 digests has to live in a named (persisted) container: with an ephemeral
+ * CRYPT_VERIFYCONTEXT provider the signer fails every non-SHA-1 digest with NTE_BAD_TYPE (0x8009000a) on Win10.
+ * Key-bearing contexts are therefore always named containers (I7T_<area>_fx_*), deleted by fx_close and swept at start
+ * and end. Contexts without a key (the Pvk loaders import into them) stay ephemeral. */
 static int open_ctx(FX *f, int which, int keyspec, int withkey) {
     memset(f, 0, sizeof *f);
     f->which = which; f->keyspec = keyspec;
     HCRYPTPROV h = 0;
-    if (U(CryptAcquireContextW)(&h, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) {
-        if (!withkey || import_ok(h, which, keyspec)) { f->hProv = h; return 1; }
-        U(CryptReleaseContext)(h, 0);
+    if (!withkey) {
+        if (!U(CryptAcquireContextW)(&h, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) return 0;
+        f->hProv = h;
+        return 1;
     }
-    /* fallback: unique named container, removed by fx_close */
-    _snwprintf(f->name, 63, L"cryptt_fx_%lu_%d", GetCurrentProcessId(), ++g_fxseq);
+    lstrcpynW(f->name, t_unique_w("fx"), 63);
     U(CryptAcquireContextW)(&h, f->name, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
     h = 0;
     if (!U(CryptAcquireContextW)(&h, f->name, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_NEWKEYSET)) return 0;
     f->persisted = 1;
-    if (withkey && !import_ok(h, which, keyspec)) {
+    if (!import_ok(h, which, keyspec)) {
         U(CryptReleaseContext)(h, 0);
         U(CryptAcquireContextW)(&h, f->name, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
         f->persisted = 0;
@@ -65,6 +68,25 @@ static int open_ctx(FX *f, int which, int keyspec, int withkey) {
     }
     f->hProv = h;
     return 1;
+}
+T_SWEEPER(fx_containers) {
+    (void)phase;
+    HCRYPTPROV p = 0;
+    if (!U(CryptAcquireContextW)(&p, NULL, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) return;
+    char stale[64][160]; int n = 0;
+    BYTE buf[512]; DWORD cb, fl = CRYPT_FIRST;
+    for (;;) {
+        cb = sizeof buf;
+        if (!U(CryptGetProvParam)(p, PP_ENUMCONTAINERS, buf, &cb, fl)) break;
+        fl = CRYPT_NEXT;
+        if (!strncmp((char *)buf, prefix, strlen(prefix)) && n < 64) lstrcpynA(stale[n++], (char *)buf, sizeof stale[0]);
+    }
+    U(CryptReleaseContext)(p, 0);
+    for (int i = 0; i < n; i++) {
+        WCHAR w[160]; HCRYPTPROV d = 0;
+        MultiByteToWideChar(CP_ACP, 0, stale[i], -1, w, 160);
+        U(CryptAcquireContextW)(&d, w, MS_ENH_RSA_AES_PROV_W, PROV_RSA_AES, CRYPT_DELETEKEYSET);
+    }
 }
 int fx_open(FX *f, int which, int keyspec) { return open_ctx(f, which, keyspec, 1); }
 int fx_open_empty(FX *f) { return open_ctx(f, FX_A, 1, 0); }
