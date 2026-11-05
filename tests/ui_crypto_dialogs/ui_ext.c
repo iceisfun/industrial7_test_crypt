@@ -91,3 +91,56 @@ TEST(ui_cryptext_a_w_parity_missing_file_same_title) {
     CHECK(!lstrcmpW(a.dlg_title, w.dlg_title));
     EXPECT_EQ(a.ret, w.ret);
 }
+
+/* ---- additional exports: P7R, MachineOnlyAndHwnd variants (verified in the Win10 binary) ---------- */
+UICASE(extnull_addcer_machine, UIF_NODLG) { ext_run(r, "CryptExtAddCERMachineOnlyAndHwndW", NULL); }
+UICASE(extnull_addpfx_machine, UIF_NODLG) { ext_run(r, "CryptExtAddPFXMachineOnlyAndHwndW", NULL); }
+UICASE(extargc_addpfx_machine, UIF_NODLG) {
+    /* exactly two arguments (file, hwnd) are required; otherwise E_INVALIDARG before any UI */
+    static const char *cl[] = { "", "onlyone.pfx", "a.pfx 1 extra" };
+    for (int i = 0; i < 3; i++) {
+        ext_fn f = ext_get("CryptExtAddPFXMachineOnlyAndHwndW"); WCHAR wp[MAX_PATH];
+        if (!f) { r->extra[7] = 1; return; }
+        ui_wide(cl[i], wp, MAX_PATH);
+        UI_SUB(r, (DWORD)f(NULL, NULL, wp, 1));
+    }
+}
+#define EXT_NULLX(tn, key, exp) TEST(ui_cryptext_null_cmdline_##tn) { if (!ext_get(exp)) { t_skip("missing export " exp); return; } UIRES r; \
+    if (!ui_exec(key, &r) || r.extra[7]) return; ui_expect_nodialog(&r); ui_chk_ret(r.ret & 0xFFFFFFFF, 0x80004005, exp "(NULL)"); }
+EXT_NULLX(AddCERMachineOnlyAndHwndW, "extnull_addcer_machine", "CryptExtAddCERMachineOnlyAndHwndW")
+EXT_NULLX(AddPFXMachineOnlyAndHwndW, "extnull_addpfx_machine", "CryptExtAddPFXMachineOnlyAndHwndW")
+TEST(ui_cryptext_addpfx_machine_wrong_argument_count_invalid_arg) {
+    if (!ext_get("CryptExtAddPFXMachineOnlyAndHwndW")) { t_skip("missing export"); return; } UIRES r;
+    if (!ui_exec("extargc_addpfx_machine", &r) || r.extra[7]) return;
+    ui_expect_nodialog(&r); EXPECT_EQ(r.nsub, 3);
+    for (DWORD i = 0; i < r.nsub; i++) ui_chk_ret(r.sub_ret[i] & 0xFFFFFFFF, 0x80070057, "AddPFXMachineOnlyAndHwndW argc");
+}
+
+/* ---- export presence (GetProcAddress by name) for the whole interactive surface ---------------------- */
+static void exp_table(const char *dll, const char *const *names, int n) {
+    HMODULE m = LoadLibraryA(dll);
+    if (!m) { t_skip("module %s not loadable", dll); return; }
+    for (int i = 0; i < n; i++) CHECKF(GetProcAddress(m, names[i]) != NULL || t_is_wine(), "%s!%s missing", dll, names[i]);
+    CHECK(GetProcAddress(m, "CryptttNoSuchExport") == NULL);
+}
+TEST(ui_exports_cryptui_dialog_entry_points) {
+    static const char *const n[] = { "CryptUIDlgViewCertificateW", "CryptUIDlgViewCertificateA", "CryptUIDlgSelectCertificateFromStore",
+        "CryptUIDlgSelectCertificateW", "CryptUIDlgSelectCertificateA", "CryptUIDlgSelectStoreW", "CryptUIDlgSelectStoreA", "CryptUIDlgCertMgr",
+        "CryptUIDlgViewCRLW", "CryptUIDlgViewCRLA", "CryptUIDlgViewCTLW", "CryptUIDlgViewCTLA", "CryptUIDlgViewSignerInfoW",
+        "CryptUIDlgViewSignerInfoA", "CryptUIDlgViewContext", "CryptUIStartCertMgr", "CryptUIWizImport", "CryptUIWizExport",
+        "CryptUIWizDigitalSign", "CryptUIWizBuildCTL", "CryptUIDlgViewCertificatePropertiesW" };
+    exp_table("cryptui.dll", n, (int)(sizeof n / sizeof *n));
+}
+TEST(ui_exports_cryptdlg_entry_points) {
+    static const char *const n[] = { "CertSelectCertificateW", "CertSelectCertificateA", "CertViewPropertiesW", "CertViewPropertiesA",
+        "CertConfigureTrustW", "CertConfigureTrustA", "CertTrustFinalPolicy", "CertTrustInit", "CertTrustCleanup", "CertTrustCertPolicy" };
+    exp_table("cryptdlg.dll", n, (int)(sizeof n / sizeof *n));
+}
+TEST(ui_exports_cryptext_handlers) {
+    static const char *const n[] = { "CryptExtOpenCER", "CryptExtOpenCERW", "CryptExtOpenCRL", "CryptExtOpenCRLW", "CryptExtOpenCTL",
+        "CryptExtOpenCTLW", "CryptExtOpenCAT", "CryptExtOpenCATW", "CryptExtOpenPKCS7", "CryptExtOpenPKCS7W", "CryptExtOpenPFX",
+        "CryptExtOpenPFXW", "CryptExtOpenSTR", "CryptExtOpenSTRW", "CryptExtOpenP7R", "CryptExtOpenP7RW", "CryptExtAddCER", "CryptExtAddCERW",
+        "CryptExtAddCRL", "CryptExtAddCRLW", "CryptExtAddCTL", "CryptExtAddCTLW", "CryptExtAddPFX", "CryptExtAddPFXW", "CryptExtAddSPC",
+        "CryptExtAddSPCW", "CryptExtAddP7R", "CryptExtAddP7RW", "CryptExtAddCERMachineOnlyAndHwndW", "CryptExtAddPFXMachineOnlyAndHwndW" };
+    exp_table("cryptext.dll", n, (int)(sizeof n / sizeof *n));
+}
