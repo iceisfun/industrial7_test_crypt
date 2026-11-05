@@ -27,7 +27,7 @@ static void run_row(const char *name, const ROW *r) {
     CHECKF(p.ret, "%s: call returned FALSE", name);
     if (r->soft) {
         if (p.err != r->want || p.ci != r->wci || p.ei != r->wei)
-            t_note("%s: got err=0x%08lx ci=%ld ei=%ld, decomp predicts err=0x%08lx ci=%ld ei=%ld", name, p.err, p.ci, p.ei, r->want, r->wci, r->wei);
+            t_note("%s: got err=0x%08lx ci=%ld ei=%ld, expected err=0x%08lx ci=%ld ei=%ld", name, p.err, p.ci, p.ei, r->want, r->wci, r->wei);
         return;
     }
     CHECKF(p.err == r->want, "%s: dwError got 0x%08lx want 0x%08lx", name, p.err, r->want);

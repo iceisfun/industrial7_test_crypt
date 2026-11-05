@@ -344,7 +344,7 @@ TEST(tbs_tpm2_tpm12_context_rejected_on_tpm2) {
 /* ----- Tbsip_Cancel_Commands ----- */
 TEST(tbs_cancel_null_context) {
     NEED(Tbsip_Cancel_Commands);
-    t_note("cancel(NULL) -> 0x%08x (decomp shows void return; unverified)", (unsigned)P(Tbsip_Cancel_Commands)(NULL));
+    t_note("cancel(NULL) -> 0x%08x (void return assumed; unverified)", (unsigned)P(Tbsip_Cancel_Commands)(NULL));
 }
 TEST(tbs_cancel_closed_handle) {
     NEED(Tbsip_Cancel_Commands);

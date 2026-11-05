@@ -162,7 +162,7 @@ TEST(be_flush_of_an_empty_allocated_buffer_appends_a_zero_byte) {
     Rig r; if (!rig_enc(&r, R_DER)) return;
     CHECK(OK8(A.ASN1BEREncFlush(r.e))); XEQ(r.e->len, 0);
     CHECK(OK8(A.ASN1BEREncFlush(r.e)));
-    t_note("second flush on empty buffer: len=%d (decomp: 1, one 00 byte)", (int)r.e->len);
+    t_note("second flush on empty buffer: len=%d (expected: 1, one 00 byte)", (int)r.e->len);
     rig_done(&r);
 }
 
@@ -339,7 +339,7 @@ TEST(be_char16string_reports_success_even_when_the_length_failed) {
     XEQ(A.ASN1_CreateEncoder(m, &e, buf, sizeof buf, NULL), 0);
     if (e) {
         U64 rv = A.ASN1BEREncChar16String(e, T_BMP, 2, u16_a);
-        t_note("Char16String after failed length: rv=%llx (decomp: success)", (unsigned long long)rv); XEQ(e->err, E_OVERFLOW);
+        t_note("Char16String after failed length: rv=%llx (expected: success)", (unsigned long long)rv); XEQ(e->err, E_OVERFLOW);
         A.ASN1_CloseEncoder(e);
     }
     A.ASN1_CloseModule(m);

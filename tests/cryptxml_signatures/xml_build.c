@@ -256,7 +256,7 @@ TEST(xmlsig_ref_as_object_creates_object_entry)
     /* the returned handle is an Object handle, not a Reference handle */
     const XREF *ref = (const XREF *)(ULONG_PTR)1;
     XCHK_HR(XFN(CryptXmlGetReference)(r, &ref), X_E_HANDLE);
-    { HRESULT chr_ = XFN(CryptXmlClose)(r); CHECK(chr_ == S_FALSE || chr_ == S_OK); if (chr_ != S_FALSE) t_note("child reference/object close returned 0x%08x (decomp: S_FALSE expected when parented)", (unsigned)chr_); }
+    { HRESULT chr_ = XFN(CryptXmlClose)(r); CHECK(chr_ == S_FALSE || chr_ == S_OK); if (chr_ != S_FALSE) t_note("child reference/object close returned 0x%08x (expected: S_FALSE expected when parented)", (unsigned)chr_); }
     XFN(CryptXmlClose)(hs);
 }
 

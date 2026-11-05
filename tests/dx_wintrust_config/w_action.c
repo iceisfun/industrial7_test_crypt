@@ -3,7 +3,7 @@
  * Key = HKLM\SOFTWARE\Microsoft\Cryptography\Providers\Trust\<kind>\{GUID}, values $DLL / $Function (REG_SZ, wide). */
 
 #define SETUP(fn) REQUIRE(U(fn)); if (!wcfg_begin_trust()) return
-#define SETUPW(fn) SETUP(fn); if (t_is_wine()) { t_skip("emulator differs from decomp"); wcfg_end(); return; }
+#define SETUPW(fn) SETUP(fn); if (t_is_wine()) { t_skip("emulator differs from Windows"); wcfg_end(); return; }
 #define E_INVAL 0x57
 
 static const char *const kind_field[8] = { "Init", "Object", "Signature", "Certificate", "CertificatePolicy", "Final", "Test", "Cleanup" };

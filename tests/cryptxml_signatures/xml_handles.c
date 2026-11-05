@@ -357,7 +357,7 @@ TEST(xmlsig_close_decode_children_return_false)
     XCHK_HR(XFN(CryptXmlClose)(sig->hSignature), S_FALSE);   /* still valid: repeated close stays a no-op */
     const XSIG *again = NULL;
     XCHK_HR(XFN(CryptXmlGetSignature)(sig->hSignature, &again), S_OK);
-    { HRESULT chr_ = XFN(CryptXmlClose)(sig->SignedInfo.rgpReference[0]->hReference); CHECK(chr_ == S_FALSE || chr_ == S_OK); if (chr_ != S_FALSE) t_note("child reference/object close returned 0x%08x (decomp: S_FALSE expected when parented)", (unsigned)chr_); }
+    { HRESULT chr_ = XFN(CryptXmlClose)(sig->SignedInfo.rgpReference[0]->hReference); CHECK(chr_ == S_FALSE || chr_ == S_OK); if (chr_ != S_FALSE) t_note("child reference/object close returned 0x%08x (expected: S_FALSE expected when parented)", (unsigned)chr_); }
     XCHK_HR(XFN(CryptXmlClose)(h), S_OK);
 }
 
@@ -379,7 +379,7 @@ TEST(xmlsig_close_encode_reference_returns_false)
     XCHK_HR(XFN(CryptXmlCreateReference)(hs, 0, L"r", L"urn:cryptt:x", NULL, &A_SHA256, 0, NULL, &hr), S_OK);
     CHECK(hr != NULL);
     if (hr) {
-    { HRESULT chr_ = XFN(CryptXmlClose)(hr); CHECK(chr_ == S_FALSE || chr_ == S_OK); if (chr_ != S_FALSE) t_note("child reference/object close returned 0x%08x (decomp: S_FALSE expected when parented)", (unsigned)chr_); }
+    { HRESULT chr_ = XFN(CryptXmlClose)(hr); CHECK(chr_ == S_FALSE || chr_ == S_OK); if (chr_ != S_FALSE) t_note("child reference/object close returned 0x%08x (expected: S_FALSE expected when parented)", (unsigned)chr_); }
     }
     XCHK_HR(XFN(CryptXmlClose)(hs), S_OK);
 }

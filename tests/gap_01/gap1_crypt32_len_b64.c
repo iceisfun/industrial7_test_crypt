@@ -334,7 +334,7 @@ TEST(gap1_b2s_binary_format_copies_bytes) {
     n = 9; SET_ERR(0);
     CHECK(!U(CryptBinaryToStringA)(b, 10, CRYPT_STRING_BINARY, (LPSTR)out, &n)); EXPECT_ERR(ERROR_MORE_DATA);
 }
-TEST(gap1_b2s_alias_formats_follow_decomp) {
+TEST(gap1_b2s_alias_formats_follow_windows) {
     /* formats 6 (BASE64_ANY) and 7 (ANY) encode as plain base64; 8 (HEX_ANY) as hex; 3 as a request header */
     REQUIRE(U(CryptBinaryToStringA));
     BYTE b[5] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x01 };

@@ -349,7 +349,7 @@ DECV(bd_s16_min, ASN1BERDecS16Val, short, T_INT, -32768, 0x02, 0x02, 0x80, 0x00)
 TEST(bd_s16_one_octet_ff_value) {
     NEED(ASN1BERDecS16Val); DEC_OPEN(r, 0x02, 0x01, 0xff); short v = 0;
     CHECK(OK8(A.ASN1BERDecS16Val(r.d, T_INT, &v)));
-    t_note("S16Val of 02 01 ff = %d (decomp: 255, zero-extended)", (int)v);
+    t_note("S16Val of 02 01 ff = %d (expected: 255, zero-extended)", (int)v);
     rig_done(&r);
 }
 DECE(bd_s16_three_octets_is_large, ASN1BERDecS16Val, short, T_INT, E_LARGE, 0x02, 0x03, 0x00, 0x00, 0x01)
@@ -1381,7 +1381,7 @@ TEST(bd_skip_on_empty_input_leaves_the_extended_warning) {
     static const BYTE nothing[1];
     Rig r; if (!rig_dec(&r, R_DER, nothing, 0)) return;
     CHECK(!OK8(A.ASN1BERDecSkip(r.d)));
-    t_note("skip on empty: err=%d (decomp: warning extended)", (int)r.d->err);
+    t_note("skip on empty: err=%d (expected: warning extended)", (int)r.d->err);
     rig_done(&r);
 }
 TEST(bd_decoder_sequence_of_primitives_end_to_end) {

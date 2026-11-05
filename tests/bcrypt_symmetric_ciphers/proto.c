@@ -11,7 +11,7 @@ static const char *K = KEY16;
 
 /* ================= argument validation ================= */
 TEST(bsc_enc_null_pcbresult_checked_first) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     REQUIRE(P_Enc);
     BYTE z[16] = {0}, o[16];
     /* pcbResult is validated before the key handle */
@@ -22,7 +22,7 @@ TEST(bsc_enc_null_pcbresult_checked_first) {
     fx_close(&f);
 }
 TEST(bsc_dec_null_pcbresult_checked_first) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     REQUIRE(P_Dec);
     BYTE z[16] = {0}, o[16];
     EXPECT_EQ(P_Dec(NULL, z, 16, NULL, NULL, 0, o, 16, NULL, 0), NS_INVALID_PARAM);
@@ -299,20 +299,20 @@ static NTSTATUS badpad(const BYTE *lastblock, ULONG *pcb) {
     return s;
 }
 TEST(bsc_pad_bad_last_byte_zero) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     BYTE b[16]; memset(b, 0x11, 16); b[15] = 0;
     NTSTATUS s = badpad(b, NULL); if (s == 0x7FFFFFFF) { t_skip("AES"); return; }
     EXPECT_EQ(s, NS_DATA_ERROR);
 }
 TEST(bsc_pad_bad_last_byte_over_block) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     BYTE b[16]; memset(b, 0x11, 16); b[15] = 17;
     NTSTATUS s = badpad(b, NULL); if (s == 0x7FFFFFFF) { t_skip("AES"); return; }
     EXPECT_EQ(s, NS_DATA_ERROR);
     b[15] = 0xFF; EXPECT_EQ(badpad(b, NULL), NS_DATA_ERROR);
 }
 TEST(bsc_pad_bad_inconsistent_pad_bytes) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     BYTE b[16]; memset(b, 0x11, 16); b[15] = 4; b[14] = 4; b[13] = 4; b[12] = 3;
     NTSTATUS s = badpad(b, NULL); if (s == 0x7FFFFFFF) { t_skip("AES"); return; }
     EXPECT_EQ(s, NS_DATA_ERROR);
@@ -335,7 +335,7 @@ TEST(bsc_pad_bad_padding_reports_length_note) {
     t_note("bad padding: status 0x%lx, *pcbResult = %lu", s, got);
 }
 TEST(bsc_pad_bad_padding_does_not_return_plaintext_status_ok) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     BYTE b[16]; memset(b, 0x11, 16); b[15] = 9;      /* 9 requested but only one 9 present */
     NTSTATUS s = badpad(b, NULL); if (s == 0x7FFFFFFF) { t_skip("AES"); return; }
     CHECK(s < 0);
@@ -405,7 +405,7 @@ TEST(bsc_iv_in_place_ct_over_pt_buffer) {
     fx_close(&f);
 }
 TEST(bsc_iv_too_short_is_buffer_size_error) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     fx f; FX_OR_SKIP(f, L"AES", CBC, K);
     BYTE in[16] = {0}, out[16], iv[32] = {0}; ULONG got = 0xAAAA;
     ULONG lens[] = { 0, 1, 8, 15 };
@@ -418,7 +418,7 @@ TEST(bsc_iv_too_short_is_buffer_size_error) {
     fx_close(&f);
 }
 TEST(bsc_iv_longer_than_block_uses_prefix) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     fx f; FX_OR_SKIP(f, L"AES", CBC, K);
     BYTE in[16] = {9}, ref[16], out[16], iv16[16], iv32[32]; fillseq(iv16, 16, 0x10); fillseq(iv32, 32, 0x10); iv32[16] = 0xCC;
     ULONG got = 0;
@@ -452,7 +452,7 @@ TEST(bsc_iv_ecb_with_iv_pointer_is_rejected) {
     fx_close(&f);
 }
 TEST(bsc_iv_ecb_with_short_iv_buffer_size_error) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     fx f; FX_OR_SKIP(f, L"AES", ECB, K);
     BYTE in[16] = {0}, out[16], iv[16] = {0}; ULONG got = 0;
     NTSTATUS s = enc(f.k.h, in, 16, iv, 8, out, 16, &got, 0);
@@ -547,7 +547,7 @@ TEST(bsc_iv_size_query_does_not_advance_state) {
     fx_close(&f); fx_close(&g);
 }
 TEST(bsc_iv_duplicate_key_copies_chain_state) {
-    WINE_SKIP("diverges from decompiled Windows behaviour");
+    WINE_SKIP("diverges from Windows behaviour here");
     fx f; FX_OR_SKIP(f, L"AES", CBC, K);
     BYTE in[32], a[32], b[32]; fillseq(in, 32, 4); ULONG got = 0;
     EXPECT_EQ(enc(f.k.h, in, 16, NULL, 0, a, 16, &got, 0), 0);

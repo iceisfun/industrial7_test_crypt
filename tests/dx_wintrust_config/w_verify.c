@@ -4,7 +4,7 @@
  * value WinVerifyTrust returns.  The subject file is never opened by any of these providers. */
 
 #define SETUP(fn) REQUIRE(U(fn)); if (!wcfg_begin_trust()) return
-#define SETUPW(fn) SETUP(fn); if (t_is_wine()) { t_skip("emulator differs from decomp"); wcfg_end(); return; }
+#define SETUPW(fn) SETUP(fn); if (t_is_wine()) { t_skip("emulator differs from Windows"); wcfg_end(); return; }
 
 static CRYPT_TRUST_REG_ENTRY *ent(wcfg_reg_t *x, int k) {
     CRYPT_TRUST_REG_ENTRY *e[8] = { &x->r.sInitProvider, &x->r.sObjectProvider, &x->r.sSignatureProvider, &x->r.sCertificateProvider,
