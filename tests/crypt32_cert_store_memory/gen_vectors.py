@@ -49,8 +49,8 @@ def integer(n):
 SHA1 = T(0x30, oid("1.3.14.3.2.26") + b"\x05\x00")
 def ctl(listid, seq, tu, subjects_certs):
     usage = T(0x30, oid("1.3.6.1.5.5.7.3.2"))
-    ents = b"".join(T(0x30, T(4, hashes.Hash(hashes.SHA1()) and __import__('hashlib').sha1(der(c)).digest())) for c in subjects_certs)
-    body = usage + T(4, listid) + integer(seq) + utc(tu) + SHA1 + (T(0x30, ents) if ents else b"")
+    ents = b"".join(T(0x30, T(4, __import__('hashlib').sha1(der(c)).digest()) + T(0x31, T(0x30, oid('1.2.3') + T(0x31, b'\x05\x00')))) for c in subjects_certs)
+    body = usage + T(4, listid) + integer(seq) + gt(tu) + SHA1 + (T(0x30, ents) if ents else b"")
     return T(0x30, body)
 def signed(content):
     ci = T(0x30, oid("1.3.6.1.4.1.311.10.1") + T(0xa0, content))
@@ -90,5 +90,7 @@ import hashlib
 for n, o in [("a", der(A)), ("a2", der(A2)), ("b", der(B)), ("c", der(C)), ("ca", der(ca))]:
     out += arr("v_sha1_" + n, hashlib.sha1(o).digest()) + arr("v_md5_" + n, hashlib.md5(o).digest())
 out += arr("v_name_a", A.subject.public_bytes()) + arr("v_name_b", B.subject.public_bytes()) + arr("v_name_ca", ca.subject.public_bytes())
+for n, o in [("crl_1a", der(crl1a)), ("crl_1b", der(crl1b)), ("crl_2", der(crl2)), ("ctl_1a", ctl1a), ("ctl_1b", ctl1b), ("ctl_2", ctl2)]:
+    out += arr("v_sha1_" + n, hashlib.sha1(o).digest())
 out += arr("v_serial_a", (0x1001).to_bytes(2,'little'))
 open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors.h"), "w").write(out)
