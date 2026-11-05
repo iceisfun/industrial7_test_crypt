@@ -909,7 +909,7 @@ TEST(bd_charstring_copy) {
     CHECK(OK8(A.ASN1BERDecCharString(r.d, T_PRINT, &s)));
     XEQ(s.length, 5);
     CHECK(s.value != NULL && (BYTE *)s.value != in_ + 2);
-    if (s.value) EXPECT_BYTES(s.value, 5, "Hello", 5);
+    if (s.value) { EXPECT_BYTES(s.value, 5, "Hello", 5); XEQ(s.value[5], 0); }     /* a terminator is stored after the counted string */
     XEQ(POS(r), 7);
     A.ASN1charstring_free(&s);
     rig_done(&r);
@@ -998,7 +998,7 @@ TEST(bd_char32string_big_endian) {
     CHECK(OK8(A.ASN1BERDecChar32String(r.d, 28, &s)));
     XEQ(s.length, 2);
     CHECK(s.value != NULL);
-    if (s.value) { XEQ(s.value[0], 0x41); XEQ(s.value[1], 0x1f600); }
+    if (s.value) { XEQ(s.value[0], 0x41); XEQ(s.value[1], 0x1f600); XEQ(s.value[2], 0); }
     A.ASN1char32string_free(&s);
     rig_done(&r);
 }

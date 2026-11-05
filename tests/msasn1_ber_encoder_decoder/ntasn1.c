@@ -237,7 +237,7 @@ TEST(nt_enc_null_and_bool) {
     nt_real(&c, buf, sizeof buf); XEQ(fb(&c, 0x1234, 1), 0);     /* any non-zero int is TRUE (FF) */
     { static const BYTE e[] = { 0x01, 0x01, 0xff }; EXPECT_BYTES(nt_out(&c), nt_outlen(&c), e, 3); }
     nt_real(&c, buf, sizeof buf); XEQ(fb(&c, 1, 0x81), 0);       /* tag number 129 is multi-octet: 1F 81 01 */
-    { static const BYTE e[] = { 0x1f, 0x81, 0x01, 0x01, 0x01, 0xff }; EXPECT_BYTES(nt_out(&c), nt_outlen(&c), e, 6); }
+    { static const BYTE e[] = { 0x1f, 0x81, 0x01, 0x01, 0xff }; EXPECT_BYTES(nt_out(&c), nt_outlen(&c), e, 5); }
     NTE s; nt_size(&s); XEQ(fn(&s, 5), 0); XEQ(0x100000 - s.pos, 2);
     nt_size(&s); XEQ(fb(&s, 1, 1), 0); XEQ(0x100000 - s.pos, 3);
 }
@@ -376,7 +376,8 @@ TEST(nt_dec_tag_errors) {
     { static const BYTE in[] = { 0x1f }; nt_dec(&d, in, 1); XEQ((DWORD)f(&d, &tag), NT_EOD); }                              /* number missing */
     { static const BYTE in[] = { 0x1f, 0x81 }; nt_dec(&d, in, 2); XEQ((DWORD)f(&d, &tag), NT_EOD); }                        /* continuation cut off */
     { static const BYTE in[] = { 0x1f, 0x80, 0x01 }; nt_dec(&d, in, 3); XEQ((DWORD)f(&d, &tag), NT_RULE); }                 /* non-minimal number */
-    { static const BYTE in[] = { 0x1f, 0xff, 0xff, 0xff, 0xff, 0x7f }; nt_dec(&d, in, 6); XEQ((DWORD)f(&d, &tag), NT_LARGE); }
+    { static const BYTE in[] = { 0x1f, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f }; nt_dec(&d, in, 7); XEQ((DWORD)f(&d, &tag), NT_LARGE); }       /* fifth continuation octet */
+    { static const BYTE in[] = { 0x1f, 0xff, 0xff, 0xff, 0xff, 0x7f }; nt_dec(&d, in, 6); XEQ(f(&d, &tag), 0); XEQ(tag, 0xffffffff); }   /* the final octet is not range checked: the value wraps */
 }
 TEST(nt_dec_peek_tag_restores_the_position) {
     d_taglen_t f = DEC_PEEK; NT_REQ(f, 38);
