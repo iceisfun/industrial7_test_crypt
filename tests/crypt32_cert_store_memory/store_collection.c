@@ -140,14 +140,14 @@ TEST(csl_new_existing_in_unwritable_sibling) {
     EXPECT_EQ(sm_ncerts(w), 0);
     sm_close(c); sm_close(s0); sm_close(w);
 }
-TEST(csl_replace_existing_replaces_in_holder) {
+TEST(csl_replace_other_bytes_goes_to_writable_sibling) {
     REQUIRE(U(CertAddStoreToCollection));
     HCERTSTORE c = coll(), s0 = mem1(VEC(v_cert_a)), w = sm_mem();
     sib(c, s0, 0, 0); sib(c, w, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, 0);
     CHECK(sm_addc(c, VEC(v_cert_a2), DISP_REPL, NULL));
-    /* decomp: the replacement is routed to the store that holds the matching element */
-    CHECK(first_is(s0, VEC(v_cert_a2)));
-    EXPECT_EQ(sm_ncerts(w), 0);
+    /* Win10: a2 does not match a (hash identity), so it is added to the writable sibling; s0 is untouched */
+    CHECK(first_is(s0, VEC(v_cert_a)));
+    EXPECT_EQ(sm_ncerts(w), 1);
     sm_close(c); sm_close(s0); sm_close(w);
 }
 TEST(csl_use_existing_does_not_add) {
@@ -392,11 +392,12 @@ TEST(csl_many_siblings) {
     EXPECT_EQ(sm_ncerts(c), 0);
     sm_close(c); for (int i = 0; i < 40; i++) sm_close(s[i]);
 }
-TEST(csl_newer_through_collection) {
+TEST(csl_newer_other_bytes_through_collection_adds) {
     REQUIRE(U(CertAddStoreToCollection));
     HCERTSTORE c = coll(), s0 = mem1(VEC(v_cert_a2)), w = sm_mem();
     sib(c, s0, 0, 0); sib(c, w, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, 0);
     SET_ERR(0);
-    CHECK(!sm_addc(c, VEC(v_cert_a), DISP_NEWER, NULL)); EXPECT_ERR(HR_EXISTS);
+    CHECK(sm_addc(c, VEC(v_cert_a), DISP_NEWER, NULL));      /* Win10: hash identity, a does not match a2 */
+    EXPECT_EQ(sm_ncerts(w), 1);
     sm_close(c); sm_close(s0); sm_close(w);
 }

@@ -242,20 +242,20 @@ TEST(csc_use_existing_different_encoding_same_issuer_serial) {
     PCCERT_CONTEXT c = (PCCERT_CONTEXT)(ULONG_PTR)1;
     SET_ERR(0);
     BOOL r = sm_addc(h, VEC(v_cert_a2), DISP_USE, &c);
-    /* decomp: for certificates the match is by issuer+serial; a different encoding yields CERT_E_MALFORMED */
-    CHECK(!r); EXPECT_ERR(HR_MALFORMED);
-    CHECK(c == NULL);
-    EXPECT_EQ(sm_ncerts(h), 1);
+    /* Win10 (probed): the memory store identifies a certificate by its encoding hash, not issuer+serial, so a
+     * same-issuer/serial certificate with other bytes is simply a new element. */
+    CHECK(r); CHECK(sm_same_enc(c, VEC(v_cert_a2)));
+    EXPECT_EQ(sm_ncerts(h), 2);
+    sm_freec(c);
     sm_close(h);
 }
-TEST(csc_new_matches_by_issuer_serial) {
+TEST(csc_new_same_issuer_serial_other_bytes_is_distinct) {
     REQUIRE(U(CertAddEncodedCertificateToStore));
     HCERTSTORE h = sm_mem(); if (!h) return;
     sm_addc(h, VEC(v_cert_a), DISP_NEW, NULL);
     SET_ERR(0);
-    CHECK(!sm_addc(h, VEC(v_cert_a2), DISP_NEW, NULL));   /* same issuer+serial, different bytes */
-    EXPECT_ERR(HR_EXISTS);
-    EXPECT_EQ(sm_ncerts(h), 1);
+    CHECK(sm_addc(h, VEC(v_cert_a2), DISP_NEW, NULL));   /* same issuer+serial, different bytes: no match on Win10 */
+    EXPECT_EQ(sm_ncerts(h), 2);
     sm_close(h);
 }
 
@@ -267,7 +267,7 @@ TEST(csc_replace_existing_swaps_context) {
     PCCERT_CONTEXT c = NULL;
     CHECK(sm_addc(h, VEC(v_cert_a2), DISP_REPL, &c));
     CHECK(sm_same_enc(c, VEC(v_cert_a2)));
-    EXPECT_EQ(sm_ncerts(h), 1);
+    EXPECT_EQ(sm_ncerts(h), 2);                          /* other bytes: no replacement, a2 is added next to a */
     PCCERT_CONTEXT e = U(CertEnumCertificatesInStore)(h, NULL);
     CHECK(sm_same_enc(e, VEC(v_cert_a2)));
     sm_freec(e); sm_freec(c); sm_close(h);
@@ -306,8 +306,8 @@ TEST(csc_replace_inherit_keeps_properties) {
     set_fn(c, g_fn); sm_freec(c); c = NULL;
     CHECK(sm_addc(h, VEC(v_cert_a2), DISP_REPL_INH, &c));
     CHECK(sm_same_enc(c, VEC(v_cert_a2)));
-    CHECK(c && has_fn(c));
-    EXPECT_EQ(sm_ncerts(h), 1);
+    CHECK(c && !has_fn(c));                              /* nothing matched, nothing to inherit */
+    EXPECT_EQ(sm_ncerts(h), 2);
     sm_freec(c); sm_close(h);
 }
 TEST(csc_replace_inherit_identical_cert_keeps_existing) {
@@ -363,20 +363,21 @@ TEST(csc_newer_replaces_older_notbefore) {
     PCCERT_CONTEXT c = NULL;
     CHECK(sm_addc(h, VEC(v_cert_a2), DISP_NEWER, &c));       /* NotBefore 2021 */
     CHECK(sm_same_enc(c, VEC(v_cert_a2)));
-    EXPECT_EQ(sm_ncerts(h), 1);
+    EXPECT_EQ(sm_ncerts(h), 2);                              /* hash identity: a2 does not replace a */
     sm_freec(c); sm_close(h);
 }
-TEST(csc_newer_older_candidate_rejected) {
+TEST(csc_newer_older_candidate_added_as_distinct) {
     REQUIRE(U(CertAddEncodedCertificateToStore));
     HCERTSTORE h = sm_mem(); if (!h) return;
     sm_addc(h, VEC(v_cert_a2), DISP_NEW, NULL);
     PCCERT_CONTEXT c = (PCCERT_CONTEXT)(ULONG_PTR)1;
     SET_ERR(0);
-    CHECK(!sm_addc(h, VEC(v_cert_a), DISP_NEWER, &c)); EXPECT_ERR(HR_EXISTS);
-    CHECK(c == NULL);
+    CHECK(sm_addc(h, VEC(v_cert_a), DISP_NEWER, &c));        /* no hash match: added, NotBefore is not compared */
+    CHECK(sm_same_enc(c, VEC(v_cert_a)));
     PCCERT_CONTEXT e = U(CertEnumCertificatesInStore)(h, NULL);
-    CHECK(sm_same_enc(e, VEC(v_cert_a2)));
-    sm_freec(e); sm_close(h);
+    CHECK(sm_same_enc(e, VEC(v_cert_a)));                    /* newest addition enumerates first */
+    EXPECT_EQ(sm_ncerts(h), 2);
+    sm_freec(e); sm_freec(c); sm_close(h);
 }
 TEST(csc_newer_equal_notbefore_rejected) {
     REQUIRE(U(CertAddEncodedCertificateToStore));
@@ -410,15 +411,16 @@ TEST(csc_newer_inherit_inherits) {
     sm_addc(h, VEC(v_cert_a), DISP_NEW, &c); set_fn(c, g_fn); sm_freec(c); c = NULL;
     CHECK(sm_addc(h, VEC(v_cert_a2), DISP_NEWER_INH, &c));
     CHECK(sm_same_enc(c, VEC(v_cert_a2)));
-    CHECK(c && has_fn(c));
+    CHECK(c && !has_fn(c));                                  /* no hash match: nothing inherited */
     sm_freec(c); sm_close(h);
 }
-TEST(csc_newer_inherit_older_rejected) {
+TEST(csc_newer_inherit_older_added_as_distinct) {
     REQUIRE(U(CertAddEncodedCertificateToStore));
     HCERTSTORE h = sm_mem(); if (!h) return;
     sm_addc(h, VEC(v_cert_a2), DISP_NEW, NULL);
     SET_ERR(0);
-    CHECK(!sm_addc(h, VEC(v_cert_a), DISP_NEWER_INH, NULL)); EXPECT_ERR(HR_EXISTS);
+    CHECK(sm_addc(h, VEC(v_cert_a), DISP_NEWER_INH, NULL));  /* no hash match: added */
+    EXPECT_EQ(sm_ncerts(h), 2);
     sm_close(h);
 }
 TEST(csc_newer_inherit_equal_rejected) {
@@ -453,8 +455,9 @@ TEST(csc_enum_end_sets_not_found) {
 TEST(csc_enum_null_store) {
     REQUIRE(U(CertEnumCertificatesInStore));
     SET_ERR(0);
-    PCCERT_CONTEXT c = U(CertEnumCertificatesInStore)(NULL, NULL);
-    t_note("enum NULL store -> %p gle=0x%lx", c, GetLastError());
+    PCCERT_CONTEXT volatile c = NULL;
+    T_EXPECT_FAULT(c = U(CertEnumCertificatesInStore)(NULL, NULL));   /* Win10: the NULL store handle is dereferenced */
+    (void)c;
 }
 TEST(csc_enum_prev_is_released_by_call) {
     REQUIRE(U(CertEnumCertificatesInStore));
@@ -966,8 +969,10 @@ TEST(csc_archived_cert_hidden_from_enum) {
     EXPECT_EQ(sm_ncerts(h), 2);
     CRYPT_HASH_BLOB hb = { 20, (BYTE *)v_sha1_a };
     SET_ERR(0);
-    CHECK(U(CertFindCertificateInStore)(h, X509_ASN_ENCODING, 0, CERT_FIND_SHA1_HASH, &hb, NULL) == NULL);
-    EXPECT_ERR(HR_NOT_FOUND);
+    /* Win10 (probed): a find by hash does not skip archived certificates (only enumeration does) */
+    PCCERT_CONTEXT f = U(CertFindCertificateInStore)(h, X509_ASN_ENCODING, 0, CERT_FIND_SHA1_HASH, &hb, NULL);
+    CHECK(f != NULL);
+    sm_freec(f);
     sm_close(h);
 }
 TEST(csc_archived_cert_visible_with_enum_archived_flag) {
@@ -998,7 +1003,7 @@ TEST(csc_enum_prev_from_other_store) {
     SET_ERR(0);
     PCCERT_CONTEXT n = U(CertEnumCertificatesInStore)(h2, c);
     if (t_is_wine()) t_note("emulator accepts a foreign prev context");
-    else { CHECK(n == NULL); EXPECT_ERR(HR_INVALIDARG); }
+    else { CHECK(n == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND); }   /* Win10 probed: 127, not E_INVALIDARG */
     sm_freec(n);
     sm_close(h1); sm_close(h2);
 }

@@ -553,7 +553,6 @@ TEST(csr_ctl_find_subject_in_ctl) {
     if (t_is_wine()) { t_skip("emulator aborts on this unimplemented export"); return; }
     PCCTL_CONTEXT ctl = U(CertCreateCTLContext)(ENC, VEC(v_ctl_1a));     /* subjects A and B */
     if (!ctl) { t_skip("ctl not parsed"); return; }
-    PCERT_CONTEXT dummy = NULL;
     PCCERT_CONTEXT a = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_a));
     PCCERT_CONTEXT c = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_c));
     PCTL_ENTRY e = U(CertFindSubjectInCTL)(X509_ASN_ENCODING, CTL_CERT_SUBJECT_TYPE, (void *)a, ctl, 0);
@@ -561,7 +560,9 @@ TEST(csr_ctl_find_subject_in_ctl) {
     if (e) CHECK(e->SubjectIdentifier.cbData == 20 && !memcmp(e->SubjectIdentifier.pbData, v_sha1_a, 20));
     SET_ERR(0);
     CHECK(U(CertFindSubjectInCTL)(X509_ASN_ENCODING, CTL_CERT_SUBJECT_TYPE, (void *)c, ctl, 0) == NULL);
-    CRYPT_DATA_BLOB id = { 20, (BYTE *)v_sha1_b };
+    CTL_ANY_SUBJECT_INFO id; memset(&id, 0, sizeof id);
+    id.SubjectAlgorithm.pszObjId = (LPSTR)"1.3.14.3.2.26";
+    id.SubjectIdentifier.cbData = 20; id.SubjectIdentifier.pbData = (BYTE *)v_sha1_b;
     e = U(CertFindSubjectInCTL)(X509_ASN_ENCODING, CTL_ANY_SUBJECT_TYPE, &id, ctl, 0);
     CHECK(e != NULL);
     sm_freec(a); sm_freec(c); freectl(ctl);

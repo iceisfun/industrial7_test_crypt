@@ -105,7 +105,7 @@ TEST(css_roundtrip_properties_preserved) {
     if (p) LocalFree(p);
     sm_close(h);
 }
-TEST(css_roundtrip_archived_cert_needs_flag) {
+TEST(css_roundtrip_archived_cert_not_saved) {
     REQUIRE(U(CertSaveStore));
     HCERTSTORE h = sm_abc(); if (!h) return;
     CRYPT_HASH_BLOB hb = { 20, (BYTE *)v_sha1_a };
@@ -117,7 +117,7 @@ TEST(css_roundtrip_archived_cert_needs_flag) {
     HCERTSTORE r1 = open_blob(CERT_STORE_PROV_SERIALIZED, ENC, 0, p, cb);
     HCERTSTORE r2 = open_blob(CERT_STORE_PROV_SERIALIZED, ENC, CERT_STORE_ENUM_ARCHIVED_FLAG, p, cb);
     if (r1) { EXPECT_EQ(sm_ncerts(r1), 2); sm_close(r1); }
-    if (r2) { EXPECT_EQ(sm_ncerts(r2), 3); sm_close(r2); }
+    if (r2) { EXPECT_EQ(sm_ncerts(r2), 2); sm_close(r2); }   /* Win10 probed: archived certs are not serialized by CertSaveStore */
     if (p) LocalFree(p);
     sm_close(h);
 }
