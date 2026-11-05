@@ -84,8 +84,7 @@ TEST(wvt_unsigned_pe_handle_without_path) {
     HANDLE h = CreateFileW(p, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     wvt_init_file(&w, &fi, NULL); fi.hFile = h;
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("handle-only unsigned PE: result 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ((DWORD)r, 0x800b0100u);
     CloseHandle(h); wvt_del(p);
 }
 TEST(wvt_unsigned_pe_cbstruct_variants) {
@@ -102,12 +101,14 @@ TEST(wvt_unsigned_pe_cbstruct_variants) {
 TEST(wvt_cbstruct_small_values_observed) {
     WVT_REQUIRE_WVT();
     static const DWORD sizes[] = { 0, 4, 0x18, 0x20, 0x30, 0x38, 0x40, 0x48 };
+    /* Win10: a cbStruct below the 0x20 header is rejected with 1; anything from 0x20 up reaches the provider (no signature) */
+    static const DWORD want[] = { 1, 1, 1, 0x800b0100u, 0x800b0100u, 0x800b0100u, 0x800b0100u, 0x800b0100u };
     WCHAR p[MAX_PATH]; wvt_path(p, "u6.exe"); wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned);
     for (int i = 0; i < 8; i++) {
         WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); w.d.cbStruct = sizes[i];
         DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-        t_note("cbStruct=0x%lx -> 0x%08lx lasterr 0x%08lx", (unsigned long)sizes[i], (unsigned long)r, (unsigned long)e);
-        CHECKF(r != 0, "cbStruct 0x%lx must not succeed on an unsigned image", (unsigned long)sizes[i]);
+        t_label("cbStruct 0x%lx", (unsigned long)sizes[i]);
+        EXPECT_EQ((DWORD)r, want[i]); EXPECT_EQ(e, want[i]);
     }
     wvt_del(p);
 }
@@ -175,17 +176,14 @@ TEST(wvt_missing_file_result) {
     WVT_REQUIRE_WVT();
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "nonexistent.exe"); wvt_del(p);
     wvt_init_file(&w, &fi, p); DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    CHECKF(r == WVT_E_FILE_ERROR || r == (LONG)HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) || r == (LONG)ERROR_FILE_NOT_FOUND || r == WVT_E_NOSIGNATURE,
-           "got 0x%08lx", (unsigned long)r);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR);
     EXPECT_EQ((DWORD)r, e);
-    t_note("missing file: result 0x%08lx", (unsigned long)r);
 }
 TEST(wvt_missing_directory_result) {
     WVT_REQUIRE_WVT();
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "nodir\\nofile.exe");
     wvt_init_file(&w, &fi, p); DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    CHECK(r != 0); EXPECT_EQ((DWORD)r, e);
-    t_note("missing directory: result 0x%08lx", (unsigned long)r);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR); EXPECT_EQ((DWORD)r, e);
 }
 TEST(wvt_missing_file_state_returned) {
     /* state data is still produced for a failed verification */
@@ -193,7 +191,7 @@ TEST(wvt_missing_file_state_returned) {
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "nonexistent2.exe"); wvt_del(p);
     wvt_init_file(&w, &fi, p); w.d.dwStateAction = WTD_STATEACTION_VERIFY;
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    CHECK(r != 0); CHECK(w.d.hWVTStateData != NULL);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR); CHECK(w.d.hWVTStateData != NULL);
     EXPECT_EQ(wvt_close(&WVT_V2, &w), 0);
     CHECK(w.d.hWVTStateData == NULL);
 }
@@ -201,8 +199,7 @@ TEST(wvt_empty_path_string) {
     WVT_REQUIRE_WVT();
     WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, L"");
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    CHECK(r != 0); EXPECT_EQ((DWORD)r, e);
-    t_note("empty path: 0x%08lx", (unsigned long)r);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR); EXPECT_EQ((DWORD)r, e);
 }
 
 /* ---- action GUIDs ------------------------------------------------------- */
@@ -250,8 +247,8 @@ TEST(wvt_known_actions_unsigned_pe_not_success) {
     for (int i = 0; i < 2; i++) {
         WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); DWORD e;
         LONG r = wvt_call(a[i].g, &w, &e);
-        t_note("%s on unsigned PE -> 0x%08lx", a[i].n, (unsigned long)r);
-        CHECKF(r != 0, "%s", a[i].n);
+        t_label("%s", a[i].n);
+        EXPECT_EQ(r, WVT_E_NOSIGNATURE);
     }
     wvt_del(p);
 }
@@ -260,11 +257,13 @@ TEST(wvt_cert_actions_reject_file_choice_observed) {
     if (t_is_wine()) { t_skip("provider coverage differs under emulation"); return; }
     WCHAR p[MAX_PATH]; wvt_path(p, "ca.exe"); wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned);
     const GUID *g[] = { &WVT_CERTV, &WVT_CHAINV, &WVT_HTTPS };
+    /* Win10: the cert and chain actions do not look at the file (no signature); the HTTPS action rejects the subject choice */
+    static const DWORD want[3] = { 0x800b0100u, 0x800b0100u, 0x57 };
     for (int i = 0; i < 3; i++) {
         WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); DWORD e;
         LONG r = wvt_call(g[i], &w, &e);
-        t_note("action %d with CHOICE_FILE on unsigned PE -> 0x%08lx (lasterr 0x%08lx)", i, (unsigned long)r, (unsigned long)e);
-        CHECK(r != 0);
+        t_label("action %d", i);
+        EXPECT_EQ((DWORD)r, want[i]); EXPECT_EQ(e, want[i]);
     }
     wvt_del(p);
 }
@@ -274,8 +273,7 @@ TEST(wvt_driver_action_without_policy_data_observed) {
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "dr.exe"); wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned);
     wvt_init_file(&w, &fi, p); DWORD e;
     LONG r = wvt_call(&WVT_DRIVER, &w, &e);
-    t_note("DRIVER_ACTION_VERIFY w/o DRIVER_VER_INFO -> 0x%08lx lasterr 0x%08lx", (unsigned long)r, (unsigned long)e);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE); EXPECT_EQ(e, (DWORD)WVT_E_NOSIGNATURE);
     wvt_del(p);
 }
 
@@ -376,11 +374,12 @@ TEST(wvt_state_data_shape_after_unsigned_verify) {
             EXPECT_EQ(pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_INITPROV], 0);
         }
         CHECK(pd->d.hProv != 0);
-        t_note("unsigned: dwError=0x%08lx dwFinalError=0x%08lx fOpenedFile=%d dwSubjectChoice=%lu",
-               (unsigned long)pd->d.dwError, (unsigned long)pd->d.dwFinalError, pd->d.fOpenedFile, (unsigned long)pd->d.dwSubjectChoice);
-        if (pd->d.padwTrustStepErrors)
-            t_note("step FINAL_OBJPROV=0x%08lx FINAL_POLICYPROV=0x%08lx", (unsigned long)pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_OBJPROV],
-                   (unsigned long)pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_POLICYPROV]);
+        EXPECT_EQ(pd->d.dwError, 0); EXPECT_EQ(pd->d.dwFinalError, (DWORD)WVT_E_NOSIGNATURE);
+        EXPECT_EQ(pd->d.fOpenedFile, 0); EXPECT_EQ(pd->d.dwSubjectChoice, 1);
+        if (pd->d.padwTrustStepErrors) {
+            EXPECT_EQ(pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_OBJPROV], (DWORD)WVT_E_NOSIGNATURE);
+            EXPECT_EQ(pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_POLICYPROV], 0);
+        }
     }
     wvt_close(&WVT_V2, &w);
     wvt_del(p);
@@ -427,8 +426,7 @@ TEST(wvt_mz_stub_without_safer_observed) {
     WVT_REQUIRE_WVT();
     static const BYTE mz[64] = { 'M', 'Z' };
     DWORD e; LONG r = wvt_verify_bytes(mz, sizeof mz, 0, "mz2.exe", &e);
-    t_note("MZ stub without SAFER flag -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_SUBJECT_FORM);
 }
 TEST(wvt_safer_flag_non_pe_not_shortcut) {
     WVT_REQUIRE_WVT();
@@ -441,14 +439,13 @@ TEST(wvt_safer_flag_signed_pe_takes_full_path) {
     EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);
 }
 TEST(wvt_safer_flag_requires_ignore_action) {
-    /* with a VERIFY state action the pre-check is skipped; the answer is the same but state is returned */
+    /* with a VERIFY state action the pre-check is skipped: the answer is NOSIGNATURE (not SUBJECT_FORM) and state is returned */
     WVT_REQUIRE_WVT();
     static const BYTE mz[64] = { 'M', 'Z' };
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "sv2.exe"); wvt_write(p, mz, sizeof mz);
     wvt_init_file(&w, &fi, p); w.d.dwProvFlags = WTD_SAFER_FLAG; w.d.dwStateAction = WTD_STATEACTION_VERIFY; DWORD e;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("MZ stub, SAFER+VERIFY -> 0x%08lx state=%p", (unsigned long)r, w.d.hWVTStateData);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE); CHECK(w.d.hWVTStateData != NULL);
     wvt_close(&WVT_V2, &w); wvt_del(p);
 }
 TEST(wvt_safer_flag_small_cbstruct_no_shortcut) {
@@ -457,8 +454,7 @@ TEST(wvt_safer_flag_small_cbstruct_no_shortcut) {
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "sm.exe"); wvt_write(p, mz, sizeof mz);
     wvt_init_file(&w, &fi, p); w.d.dwProvFlags = WTD_SAFER_FLAG; w.d.cbStruct = 0x48; DWORD e;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("MZ stub, SAFER, cbStruct 0x48 -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_SUBJECT_FORM);
     wvt_del(p);
 }
 TEST(wvt_safer_flag_ex_same_shortcut) {
@@ -480,8 +476,8 @@ TEST(wvt_invalid_union_choice_fails) {
     for (int i = 0; i < 5; i++) {
         WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); w.d.dwUnionChoice = ch[i]; DWORD e;
         LONG r = wvt_call(&WVT_V2, &w, &e);
-        t_note("dwUnionChoice=%lu -> 0x%08lx", (unsigned long)ch[i], (unsigned long)r);
-        CHECKF(r != 0, "choice %lu", (unsigned long)ch[i]);
+        t_label("choice %lu", (unsigned long)ch[i]);
+        EXPECT_EQ((DWORD)r, 0x57); EXPECT_EQ(e, 0x57);
     }
     wvt_del(p);
 }

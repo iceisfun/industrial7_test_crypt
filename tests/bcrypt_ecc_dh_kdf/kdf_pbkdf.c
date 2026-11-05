@@ -9,7 +9,7 @@ static BCRYPT_ALG_HANDLE hmac_alg(const WCHAR *hash) { return kc_open(hash, BCRY
 static NTSTATUS pbk(BCRYPT_ALG_HANDLE h, const void *pw, ULONG pwn, const void *salt, ULONG sn, ULONGLONG it, unsigned char *out, ULONG outn) {
     return U(BCryptDeriveKeyPBKDF2)(h, (PUCHAR)pw, pwn, (PUCHAR)salt, sn, it, out, outn, 0);
 }
-#define NEED_PB() do { NEED_CORE(); if (!U(BCryptDeriveKeyPBKDF2)) { t_skip("no BCryptDeriveKeyPBKDF2"); return; } } while (0)
+#define NEED_PB() do { NEED_CORE(); if (!U(BCryptDeriveKeyPBKDF2)) { KC_MISSING("no BCryptDeriveKeyPBKDF2"); return; } } while (0)
 
 /* ---- RFC 6070 and further known answers ----------------------------------------------------------------------------- */
 TEST(bckdf_pbkdf2_rfc6070_1) {
@@ -197,7 +197,7 @@ static BCRYPT_KEY_HANDLE kd_key(const WCHAR *alg, BCRYPT_ALG_HANDLE *ph, const v
     if (!NT_OK(U(BCryptGenerateSymmetricKey)(*ph, &k, NULL, 0, (PUCHAR)secret, n, 0))) return NULL;
     return k;
 }
-#define NEED_KD() do { NEED_CORE(); if (!U(BCryptKeyDerivation) || !U(BCryptGenerateSymmetricKey)) { t_skip("no BCryptKeyDerivation"); return; } if (t_is_wine()) { t_skip("BCryptKeyDerivation aborts under this emulator"); return; } } while (0)
+#define NEED_KD() do { NEED_CORE(); if (!U(BCryptKeyDerivation) || !U(BCryptGenerateSymmetricKey)) { KC_MISSING("no BCryptKeyDerivation"); return; } if (t_is_wine()) { t_skip("BCryptKeyDerivation aborts under this emulator"); return; } } while (0)
 
 static void pb_desc(kc_desc *d, const WCHAR *hash, const void *salt, ULONG sn, const ULONGLONG *it) {
     kc_desc_init(d);
@@ -209,7 +209,7 @@ static void pb_desc(kc_desc *d, const WCHAR *hash, const void *salt, ULONG sn, c
 TEST(bckdf_keyderivation_pbkdf2_vectors) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o[100]; ULONG n = 0; kc_desc d; ULONGLONG it;
     it = 1; pb_desc(&d, L"SHA1", SALT, 4, &it);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 20, &n, 0), 0); EXPECT_EQ(n, 20); CHECK_MEM(o, PB_RFC6070_1, 20);
@@ -224,7 +224,7 @@ TEST(bckdf_keyderivation_pbkdf2_vectors) {
 TEST(bckdf_keyderivation_pbkdf2_default_iterations) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d;
     pb_desc(&d, L"SHA256", SALT, 4, NULL);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), 0);           /* absent count means 10000 */
@@ -234,7 +234,7 @@ TEST(bckdf_keyderivation_pbkdf2_default_iterations) {
 TEST(bckdf_keyderivation_pbkdf2_generic_parameter_as_salt) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o[20]; ULONG n = 0; kc_desc d; ULONGLONG it = 4096;
     kc_desc_init(&d); kc_desc_wstr(&d, KDF_HASH_ALGORITHM, L"SHA1");
     kc_desc_add(&d, KDF_GENERIC_PARAMETER, SALT, 4); kc_desc_add(&d, KDF_ITERATION_COUNT, &it, 8);
@@ -245,31 +245,31 @@ TEST(bckdf_keyderivation_pbkdf2_generic_parameter_as_salt) {
 TEST(bckdf_keyderivation_pbkdf2_no_salt) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d; ULONGLONG it = 3;
     pb_desc(&d, L"SHA256", NULL, 0, &it);
     NTSTATUS s = U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0);
-    t_note("PBKDF2 key derivation without salt -> 0x%08lx", (unsigned long)s);
-    if (NT_OK(s)) { unsigned char w[32]; CHECK_NS(pbk(BCRYPT_HMAC_SHA256_ALG_HANDLE, PW, 8, NULL, 0, 3, w, 32), 0); CHECK_MEM(o, w, 32); }
+    CHECK_NS(s, 0);
+    { unsigned char w[32]; CHECK_NS(pbk(BCRYPT_HMAC_SHA256_ALG_HANDLE, PW, 8, NULL, 0, 3, w, 32), 0); CHECK_MEM(o, w, 32); }
     kc_destroy(k); kc_close(a);
 }
 TEST(bckdf_keyderivation_pbkdf2_requires_hash) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d; ULONGLONG it = 3;
     pb_desc(&d, NULL, SALT, 4, &it);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), NS_INVALID_PARAMETER);
     pb_desc(&d, L"NOSUCHHASH", SALT, 4, &it);
-    CHECK_NS_FAIL(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0));
+    CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), NS_NOT_SUPPORTED);
     pb_desc(&d, L"AES", SALT, 4, &it);
-    CHECK_NS_FAIL(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0));
+    CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), NS_NOT_SUPPORTED);
     kc_destroy(k); kc_close(a);
 }
 TEST(bckdf_keyderivation_pbkdf2_iteration_buffer) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d; ULONGLONG it = 0;
     pb_desc(&d, L"SHA256", SALT, 4, &it);                              /* zero iterations */
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), NS_INVALID_PARAMETER);
@@ -282,7 +282,7 @@ TEST(bckdf_keyderivation_pbkdf2_iteration_buffer) {
 TEST(bckdf_keyderivation_arguments) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d; ULONGLONG it = 2;
     pb_desc(&d, L"SHA256", SALT, 4, &it);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, NULL, 0), NS_INVALID_PARAMETER);
@@ -319,7 +319,7 @@ TEST(bckdf_keyderivation_wrong_key_class) {
 TEST(bckdf_keyderivation_same_key_repeatable) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_PBKDF2_ALGORITHM, &a, PW, 8);
-    if (!k) { t_skip("PBKDF2 key unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "PBKDF2 key unavailable"); kc_close(a); return; }
     unsigned char o1[32], o2[32]; ULONG n = 0; kc_desc d; ULONGLONG it = 7;
     pb_desc(&d, L"SHA256", SALT, 4, &it);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o1, 32, &n, 0), 0);
@@ -331,7 +331,8 @@ TEST(bckdf_keyderivation_pseudo_alg_handle) {
     NEED_KD();
     BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = U(BCryptGenerateSymmetricKey)(BCRYPT_PBKDF2_ALG_HANDLE, &k, NULL, 0, (PUCHAR)PW, 8, 0);
-    if (!NT_OK(s)) { t_note("PBKDF2 pseudo handle key -> 0x%08lx", (unsigned long)s); return; }
+    CHECK_NS(s, 0);
+    if (!NT_OK(s)) return;
     unsigned char o[20]; ULONG n = 0; kc_desc d; ULONGLONG it = 4096;
     pb_desc(&d, L"SHA1", SALT, 4, &it);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 20, &n, 0), 0);
@@ -349,7 +350,7 @@ static void s108_desc(kc_desc *d, const WCHAR *hash) {
 TEST(bckdf_sp800108_vectors) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_SP800108_CTR_HMAC_ALGORITHM, &a, S108_KEY, S108_KEY_LEN);
-    if (!k) { t_skip("SP800_108 unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "SP800_108 unavailable"); kc_close(a); return; }
     unsigned char o[100]; ULONG n = 0; kc_desc d;
     s108_desc(&d, L"SHA256");
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), 0); EXPECT_EQ(n, 32); CHECK_MEM(o, S108_256_32, 32);
@@ -361,7 +362,7 @@ TEST(bckdf_sp800108_vectors) {
 TEST(bckdf_sp800108_default_hash_sha256) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_SP800108_CTR_HMAC_ALGORITHM, &a, S108_KEY, S108_KEY_LEN);
-    if (!k) { t_skip("SP800_108 unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "SP800_108 unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d;
     s108_desc(&d, NULL);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), 0);
@@ -371,7 +372,7 @@ TEST(bckdf_sp800108_default_hash_sha256) {
 TEST(bckdf_sp800108_length_is_part_of_input) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_SP800108_CTR_HMAC_ALGORITHM, &a, S108_KEY, S108_KEY_LEN);
-    if (!k) { t_skip("SP800_108 unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "SP800_108 unavailable"); kc_close(a); return; }
     unsigned char o32[32], o80[80]; ULONG n = 0; kc_desc d;
     s108_desc(&d, L"SHA256");
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o32, 32, &n, 0), 0);
@@ -382,7 +383,7 @@ TEST(bckdf_sp800108_length_is_part_of_input) {
 TEST(bckdf_sp800108_label_context_rules) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_SP800108_CTR_HMAC_ALGORITHM, &a, S108_KEY, S108_KEY_LEN);
-    if (!k) { t_skip("SP800_108 unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "SP800_108 unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d;
     /* a generic (pre-formatted) parameter cannot be combined with a label or context */
     kc_desc_init(&d); kc_desc_wstr(&d, KDF_HASH_ALGORITHM, L"SHA256");
@@ -397,19 +398,19 @@ TEST(bckdf_sp800108_label_context_rules) {
     /* label and context alone, or neither, are fine */
     kc_desc_init(&d); kc_desc_wstr(&d, KDF_HASH_ALGORITHM, L"SHA256");
     NTSTATUS s = U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0);
-    t_note("SP800-108 without label/context -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, 0);
     kc_destroy(k); kc_close(a);
 }
 TEST(bckdf_sp800108_bad_flags_and_args) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a; BCRYPT_KEY_HANDLE k = kd_key(BCRYPT_SP800108_CTR_HMAC_ALGORITHM, &a, S108_KEY, S108_KEY_LEN);
-    if (!k) { t_skip("SP800_108 unavailable"); kc_close(a); return; }
+    if (!k) { CHECKF(0, "SP800_108 unavailable"); kc_close(a); return; }
     unsigned char o[32]; ULONG n = 0; kc_desc d; s108_desc(&d, L"SHA256");
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 1), NS_INVALID_PARAMETER);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0x80), NS_INVALID_PARAMETER);
     CHECK_NS(U(BCryptKeyDerivation)(k, NULL, o, 32, &n, 0), 0);      /* NULL list: defaults apply */
     s108_desc(&d, L"NOSUCHHASH");
-    CHECK_NS_FAIL(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0));
+    CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), NS_NOT_SUPPORTED);
     kc_destroy(k); kc_close(a);
 }
 
@@ -417,7 +418,7 @@ TEST(bckdf_sp800108_bad_flags_and_args) {
 TEST(bckdf_hkdf_rfc5869_case1) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a = kc_open(L"HKDF", 0);
-    if (!a) { t_note("HKDF algorithm not available"); return; }
+    if (!a) { CHECKF(0, "HKDF algorithm not available"); return; }
     BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = U(BCryptGenerateSymmetricKey)(a, &k, NULL, 0, (PUCHAR)HK1_IKM, HK1_IKM_LEN, 0);
     CHECK_NS(s, 0);
@@ -436,7 +437,7 @@ TEST(bckdf_hkdf_rfc5869_case1) {
 TEST(bckdf_hkdf_prk_path) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a = kc_open(L"HKDF", 0);
-    if (!a) { t_note("HKDF algorithm not available"); return; }
+    if (!a) { CHECKF(0, "HKDF algorithm not available"); return; }
     BCRYPT_KEY_HANDLE k = NULL;
     NTSTATUS s = U(BCryptGenerateSymmetricKey)(a, &k, NULL, 0, (PUCHAR)HK1_PRK, HK1_PRK_LEN, 0);
     CHECK_NS(s, 0);
@@ -452,14 +453,14 @@ TEST(bckdf_hkdf_prk_path) {
 TEST(bckdf_hkdf_sha512_and_misuse) {
     NEED_KD();
     BCRYPT_ALG_HANDLE a = kc_open(L"HKDF", 0);
-    if (!a) { t_note("HKDF algorithm not available"); return; }
+    if (!a) { CHECKF(0, "HKDF algorithm not available"); return; }
     BCRYPT_KEY_HANDLE k = NULL;
     CHECK_NS(U(BCryptGenerateSymmetricKey)(a, &k, NULL, 0, (PUCHAR)HK1_IKM, HK1_IKM_LEN, 0), 0);
     unsigned char o[42]; ULONG n = 0; kc_desc d;
     kc_desc_init(&d); kc_desc_add(&d, KDF_HKDF_INFO, HK1_INFO, HK1_INFO_LEN);
     /* deriving before the hash and salt/PRK have been set (key not finalized) must not succeed */
     NTSTATUS s = U(BCryptKeyDerivation)(k, &d.d, o, 42, &n, 0);
-    CHECK(!NT_OK(s)); t_note("HKDF derive on an unfinalized key -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_PARAMETER);
     CHECK_NS(U(BCryptSetProperty)(k, BCRYPT_HKDF_HASH_ALGORITHM, (PUCHAR)L"SHA512", 14, 0), 0);
     CHECK_NS(U(BCryptSetProperty)(k, BCRYPT_HKDF_SALT_AND_FINALIZE, (PUCHAR)HK1_SALT, HK1_SALT_LEN, 0), 0);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0), 0);
@@ -475,7 +476,7 @@ static BCRYPT_HASH_HANDLE capi_hash(BCRYPT_ALG_HANDLE *pa, const WCHAR *alg, int
     if (data) U(BCryptHashData)(h, (PUCHAR)"capi-password", 13, 0);
     return h;
 }
-#define NEED_CAPI() do { NEED_CORE(); if (!U(BCryptDeriveKeyCapi) || !U(BCryptCreateHash) || !U(BCryptHashData)) { t_skip("no BCryptDeriveKeyCapi"); return; } } while (0)
+#define NEED_CAPI() do { NEED_CORE(); if (!U(BCryptDeriveKeyCapi) || !U(BCryptCreateHash) || !U(BCryptHashData)) { KC_MISSING("no BCryptDeriveKeyCapi"); return; } } while (0)
 
 TEST(bckdf_capi_short_output_is_hash_prefix) {
     NEED_CAPI();
@@ -533,7 +534,7 @@ TEST(bckdf_capi_bad_arguments) {
     CHECK_NS(U(BCryptDeriveKeyCapi)(h, NULL, o, 20, 1), NS_INVALID_PARAMETER);
     CHECK_NS(U(BCryptDeriveKeyCapi)(h, NULL, o, 20, 0x80000000), NS_INVALID_PARAMETER);
     NTSTATUS s = U(BCryptDeriveKeyCapi)(NULL, NULL, o, 20, 0);
-    CHECK(!NT_OK(s)); t_note("DeriveKeyCapi with NULL hash -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_HANDLE);
     U(BCryptDestroyHash)(h); kc_close(a);
 }
 TEST(bckdf_capi_consumes_hash) {
@@ -542,9 +543,9 @@ TEST(bckdf_capi_consumes_hash) {
     unsigned char o[20];
     CHECK_NS(U(BCryptDeriveKeyCapi)(h, NULL, o, 20, 0), 0);
     NTSTATUS s = U(BCryptDeriveKeyCapi)(h, NULL, o, 20, 0);          /* the hash was finished by the first call */
-    CHECK(!NT_OK(s)); t_note("second DeriveKeyCapi on the same hash -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_HANDLE);
     s = U(BCryptHashData)(h, (PUCHAR)"x", 1, 0);
-    CHECK(!NT_OK(s)); t_note("HashData after DeriveKeyCapi -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_HANDLE);
     U(BCryptDestroyHash)(h); kc_close(a);
 }
 TEST(bckdf_capi_aes128_target_quirk) {
@@ -574,15 +575,21 @@ TEST(bckdf_capi_aes128_target_quirk) {
     U(BCryptDestroyHash)(h); kc_close(a);
     kc_close(aes); kc_close(rc4);
 }
-TEST(bckdf_capi_hmac_hash_rejected_or_accepted_note) {
+TEST(bckdf_capi_hmac_hash_accepted) {
     NEED_CAPI();
     BCRYPT_ALG_HANDLE a = kc_open(L"SHA1", BCRYPT_ALG_HANDLE_HMAC_FLAG);
     BCRYPT_HASH_HANDLE h = NULL;
     unsigned char key[4] = {1,2,3,4}, o[20];
-    if (a && NT_OK(U(BCryptCreateHash)(a, &h, NULL, 0, key, 4, 0))) {
+    CHECK(a != NULL);
+    NTSTATUS cs = a ? U(BCryptCreateHash)(a, &h, NULL, 0, key, 4, 0) : NS_INVALID_HANDLE;
+    CHECK_NS(cs, 0);
+    if (NT_OK(cs)) {
         U(BCryptHashData)(h, (PUCHAR)"capi-password", 13, 0);
         NTSTATUS s = U(BCryptDeriveKeyCapi)(h, NULL, o, 20, 0);
-        t_note("DeriveKeyCapi on an HMAC hash -> 0x%08lx", (unsigned long)s);
+        CHECK_NS(s, 0);
+        unsigned char w[20];
+        CHECK_NS(U(BCryptHash)(BCRYPT_HMAC_SHA1_ALG_HANDLE, key, 4, (PUCHAR)"capi-password", 13, w, 20), 0);
+        CHECK_MEM(o, w, 20);                              /* the derived bytes are the HMAC digest */
         U(BCryptDestroyHash)(h);
     }
     kc_close(a);

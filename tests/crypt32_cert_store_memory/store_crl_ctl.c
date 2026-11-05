@@ -179,7 +179,7 @@ TEST(csr_crl_garbage_fails) {
     SET_ERR(0);
     CHECK(!sm_addcrl(h, VEC(junk), DISP_NEW, NULL));
     DWORD e = GetLastError();
-    CHECKF((e & 0xFFFFFF00) == 0x80093100 || e == HR_INVALIDARG, "gle=0x%lx", e);
+    EXPECT_EQ(e, 0x80093102);   /* ASN.1 unexpected end of data */
     EXPECT_EQ(sm_ncrls(h), 0);
     sm_close(h);
 }
@@ -361,8 +361,7 @@ TEST(csr_crl_in_cert_enum_not_mixed) {
 TEST(csr_ctl_create_context_fields) {
     REQUIRE(U(CertCreateCTLContext));
     PCCTL_CONTEXT c = U(CertCreateCTLContext)(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, VEC(v_ctl_1b));
-    CHECK(c != NULL);
-    if (!c) { t_note("CertCreateCTLContext failed gle=0x%lx", GetLastError()); return; }
+    REQUIRE_NOTNULL(c);
     CHECK(ctl_is(c, VEC(v_ctl_1b)));
     CHECK(c->pCtlInfo->cCTLEntry == 3);
     CHECK(c->pCtlInfo->SubjectUsage.cUsageIdentifier == 1 &&
@@ -376,9 +375,10 @@ TEST(csr_ctl_create_context_garbage) {
     REQUIRE(U(CertCreateCTLContext));
     SET_ERR(0);
     CHECK(U(CertCreateCTLContext)(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, VEC(v_cert_a)) == NULL);
-    t_note("CTL from cert bytes gle=0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_INVALID_DATA);
     SET_ERR(0);
     CHECK(U(CertCreateCTLContext)(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, v_ctl_1a, 10) == NULL);
+    EXPECT_ERR(ERROR_INVALID_DATA);
 }
 TEST(csr_ctl_add_new_and_enum) {
     REQUIRE(U(CertAddEncodedCTLToStore));
@@ -419,8 +419,8 @@ TEST(csr_ctl_same_list_newer_thisupdate) {
     PCCTL_CONTEXT c = NULL;
     BOOL r = addctl(h, VEC(v_ctl_1b), DISP_NEWER, &c);
     CHECK(r);
-    t_note("NEWER with later ThisUpdate: added=%d count=%d (matching by usage+list id)", r, sm_nctls(h));
-    if (r) { CHECK(ctl_is(c, VEC(v_ctl_1b))); EXPECT_EQ(sm_nctls(h), 1); }
+    /* a later ThisUpdate replaces the older CTL with the same usage and list id */
+    REQUIRE_NOTNULL(c); CHECK(ctl_is(c, VEC(v_ctl_1b))); EXPECT_EQ(sm_nctls(h), 1);
     freectl(c); sm_close(h);
 }
 TEST(csr_ctl_same_list_older_rejected) {
@@ -544,7 +544,7 @@ TEST(csr_ctl_find_usage) {
     p.ListIdentifier.cbData = 0; p.ListIdentifier.pbData = NULL;
     SET_ERR(0);
     c = U(CertFindCTLInStore)(h, ENC, 0, CTL_FIND_USAGE, &p, NULL);
-    t_note("find usage serverAuth (not in any CTL) -> %p gle=0x%lx", c, GetLastError());
+    CHECK(c == NULL); EXPECT_ERR(0x80092004);   /* serverAuth is in no CTL */
     freectl(c);
     sm_close(h);
 }
@@ -552,7 +552,7 @@ TEST(csr_ctl_find_subject_in_ctl) {
     REQUIRE(U(CertFindSubjectInCTL)); REQUIRE(U(CertCreateCTLContext));
     if (t_is_wine()) { t_skip("emulator aborts on this unimplemented export"); return; }
     PCCTL_CONTEXT ctl = U(CertCreateCTLContext)(ENC, VEC(v_ctl_1a));     /* subjects A and B */
-    if (!ctl) { t_skip("ctl not parsed"); return; }
+    REQUIRE_NOTNULL(ctl);
     PCCERT_CONTEXT a = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_a));
     PCCERT_CONTEXT c = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_c));
     PCTL_ENTRY e = U(CertFindSubjectInCTL)(X509_ASN_ENCODING, CTL_CERT_SUBJECT_TYPE, (void *)a, ctl, 0);

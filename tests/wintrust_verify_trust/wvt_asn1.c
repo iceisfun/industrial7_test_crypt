@@ -242,8 +242,7 @@ TEST(wvt_asn1_statement_type_bad_oid) {
     BOOL (WINAPI *f)(DWORD, LPCSTR, const void *, BYTE *, DWORD *) = enc_fn("WVTAsn1SpcStatementTypeEncode"); REQUIRE(f);
     LPSTR o[1] = { "not.an.oid" }; WSTMT s = { 1, o }; BYTE b[64]; DWORD cb = sizeof b;
     SET_ERR(0); BOOL r = f(ENC_FLAGS, "x", &s, b, &cb);
-    t_note("statement type with malformed OID string: ret=%d err=0x%08lx cb=%lu", r, (unsigned long)GetLastError(), (unsigned long)cb);
-    CHECK(!r);
+    CHECK(!r); EXPECT_ERR(0x80092002); EXPECT_EQ(cb, 0);
 }
 
 /* ---- SpcSigInfo ------------------------------------------------------------------------------- */
@@ -337,7 +336,7 @@ TEST(wvt_asn1_indirect_data_bad_objid) {
     WINDIRECT c; memset(&c, 0, sizeof c); BYTE b[256]; DWORD cb = sizeof b;
     c.type = "bad oid"; c.alg.pszObjId = "2.16.840.1.101.3.4.2.1"; c.digest.cbData = 32; c.digest.pbData = (BYTE *)vec_digest32;
     SET_ERR(0); CHECK(!f(ENC_FLAGS, "x", &c, b, &cb)); EXPECT_EQ(cb, 0);
-    t_note("indirect data with malformed type OID: err=0x%08lx", (unsigned long)GetLastError());
+    EXPECT_ERR(0x80092002);
 }
 TEST(wvt_asn1_indirect_matches_embedded_signature) {
     /* the SpcIndirectData inside the embedded signed PE decodes to the PE image digest */

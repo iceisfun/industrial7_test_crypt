@@ -71,12 +71,10 @@ CURVE_TESTS(bcecdsa_verify_zero_signature) {
     BCRYPT_KEY_HANDLE pub = dsa_pub(c, a);
     unsigned char sig[200] = {0};
     NTSTATUS s = U(BCryptVerifySignature)(pub, NULL, (PUCHAR)c->hash, c->hashlen, sig, 2 * c->cb, 0);
-    CHECK(!NT_OK(s));
-    t_note("%s r=s=0 -> 0x%08lx", c->name, (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_SIGNATURE);
     memset(sig, 0xFF, sizeof(sig));
     s = U(BCryptVerifySignature)(pub, NULL, (PUCHAR)c->hash, c->hashlen, sig, 2 * c->cb, 0);
-    CHECK(!NT_OK(s));
-    t_note("%s r=s=ff.. -> 0x%08lx", c->name, (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_SIGNATURE);
     kc_destroy(pub); kc_close(a);
 }
 
@@ -223,7 +221,7 @@ CURVE_TESTS(bcecdsa_sign_public_only_key) {
     BCRYPT_ALG_HANDLE a = kc_open(c->dsa, 0);
     BCRYPT_KEY_HANDLE pub = dsa_pub(c, a);
     unsigned char sig[200]; ULONG r = 0;
-    CHECK_NS_FAIL(U(BCryptSignHash)(pub, NULL, (PUCHAR)c->hash, c->hashlen, sig, sizeof(sig), &r, 0));
+    CHECK_NS(U(BCryptSignHash)(pub, NULL, (PUCHAR)c->hash, c->hashlen, sig, sizeof(sig), &r, 0), NS_INVALID_PARAMETER);
     kc_destroy(pub); kc_close(a);
 }
 
@@ -358,7 +356,9 @@ CURVE_TESTS(bcecdh_agree_bad_args) {
 CURVE_TESTS(bcecdh_agree_public_only_private_arg) {
     BCRYPT_ALG_HANDLE a = kc_open(c->dh, 0);
     BCRYPT_KEY_HANDLE apub = kc_key(a, c, 1, 0, 0), bpub = kc_key(a, c, 1, 1, 0);
-    /* BCryptSecretAgreement with a public-only first key faults inside bcrypt on Win10, so it is not called */
+    BCRYPT_SECRET_HANDLE s = NULL;
+    /* Win10 does not check that the first key holds a private part: bcrypt faults */
+    T_EXPECT_FAULT(U(BCryptSecretAgreement)(apub, bpub, &s, 0));
     kc_destroy(apub); kc_destroy(bpub); kc_close(a);
 }
 
@@ -376,8 +376,7 @@ CURVE_TESTS(bcecdh_agree_ecdsa_key_public) {
     BCRYPT_KEY_HANDLE sk = kc_key(a, c, 0, 1, 0), prv = kc_key(b, c, 1, 0, 1);
     BCRYPT_SECRET_HANDLE s = NULL;
     NTSTATUS st = U(BCryptSecretAgreement)(prv, sk, &s, 0);
-    CHECK(!NT_OK(st));
-    t_note("%s ECDH private + ECDSA public -> 0x%08lx", c->name, (unsigned long)st);
+    CHECK_NS(st, NS_INVALID_PARAMETER);
     if (s) U(BCryptDestroySecret)(s);
     kc_destroy(sk); kc_destroy(prv); kc_close(a); kc_close(b);
 }
@@ -393,8 +392,7 @@ TEST(bcecdh_agree_mixed_curves) {
         if (kp && kq) {
             BCRYPT_SECRET_HANDLE s = NULL;
             NTSTATUS st = U(BCryptSecretAgreement)(kp, kq, &s, 0);
-            CHECKF(!NT_OK(st), "%s priv + %s pub unexpectedly agreed", p->name, q->name);
-            t_note("%s priv + %s pub -> 0x%08lx", p->name, q->name, (unsigned long)st);
+            t_label("%s priv + %s pub", p->name, q->name); CHECK_NS(st, NS_INVALID_PARAMETER);
             if (s) U(BCryptDestroySecret)(s);
         }
         kc_destroy(kp); kc_destroy(kq); kc_close(a); kc_close(b);
@@ -411,8 +409,7 @@ TEST(bcecdh_agree_with_rsa_key_note) {
         NTSTATUS st = U(BCryptSecretAgreement)(rk, ek, &s, 0);
         CHECK_NS(st, NS_NOT_SUPPORTED);            /* RSA is not a key-agreement algorithm */
         st = U(BCryptSecretAgreement)(ek, rk, &s, 0);
-        CHECK(!NT_OK(st));
-        t_note("ECDH priv + RSA pub -> 0x%08lx", (unsigned long)st);
+        CHECK_NS(st, NS_INVALID_PARAMETER);
         if (s) U(BCryptDestroySecret)(s);
     }
     kc_destroy(rk); kc_destroy(ek); kc_close(r); kc_close(b);

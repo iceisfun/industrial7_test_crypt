@@ -89,7 +89,7 @@ TEST(csc_add_garbage_encoding_fails) {
     SET_ERR(0);
     CHECK(!sm_addc(h, VEC(junk), DISP_NEW, &c));
     DWORD e = GetLastError();
-    CHECKF((e & 0xFFFFFF00) == 0x80093100 || e == HR_INVALIDARG, "gle=0x%lx", e);
+    EXPECT_EQ(e, 0x80093102);   /* ASN.1 unexpected end of data */
     CHECK(c == NULL);
     EXPECT_EQ(sm_ncerts(h), 0);
     sm_close(h);
@@ -108,8 +108,7 @@ TEST(csc_add_zero_length_fails) {
     REQUIRE(U(CertAddEncodedCertificateToStore));
     HCERTSTORE h = sm_mem(); if (!h) return;
     SET_ERR(0);
-    CHECK(!sm_addc(h, v_cert_a, 0, DISP_NEW, NULL));
-    t_note("zero-length cert add gle=0x%lx", GetLastError());
+    CHECK(!sm_addc(h, v_cert_a, 0, DISP_NEW, NULL)); EXPECT_ERR(0x80093102);   /* ASN.1 unexpected end of data */
     sm_close(h);
 }
 TEST(csc_add_crl_bytes_as_cert_fails) {
@@ -137,7 +136,7 @@ TEST(csc_add_encoding_type_zero) {
     HCERTSTORE h = sm_mem(); if (!h) return;
     SET_ERR(0);
     BOOL r = U(CertAddEncodedCertificateToStore)(h, 0, VEC(v_cert_a), DISP_NEW, NULL);
-    t_note("encoding type 0 -> %d gle=0x%lx", r, GetLastError());
+    CHECK(!r); EXPECT_ERR(HR_INVALIDARG);
     sm_close(h);
 }
 TEST(csc_add_encoding_with_pkcs7_bit) {
@@ -145,7 +144,9 @@ TEST(csc_add_encoding_with_pkcs7_bit) {
     HCERTSTORE h = sm_mem(); if (!h) return;
     PCCERT_CONTEXT c = NULL;
     CHECK(U(CertAddEncodedCertificateToStore)(h, ENC, VEC(v_cert_a), DISP_NEW, &c));
-    if (c) { t_note("ctx encoding type 0x%lx", c->dwCertEncodingType); sm_freec(c); }
+    REQUIRE_NOTNULL(c);
+    EXPECT_EQ(c->dwCertEncodingType, 1);   /* the PKCS7 bit is not kept on the context */
+    sm_freec(c);
     sm_close(h);
 }
 TEST(csc_add_context_copies_into_other_store) {
@@ -175,7 +176,7 @@ TEST(csc_add_context_from_create_context) {
     HCERTSTORE h = sm_mem(); if (!h) return;
     PCCERT_CONTEXT c = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_b));
     CHECK(c != NULL); if (!c) { sm_close(h); return; }
-    t_note("hCertStore of CertCreateCertificateContext result: %p", c->hCertStore);
+    CHECK(c->hCertStore != NULL && c->hCertStore != h);   /* a storeless context points at an internal store */
     PCCERT_CONTEXT out = NULL;
     CHECK(U(CertAddCertificateContextToStore)(h, c, DISP_NEW, &out));
     CHECK(out && out != c && out->hCertStore == h);
@@ -200,7 +201,7 @@ TEST(csc_use_existing_returns_existing) {
     sm_addc(h, VEC(v_cert_a), DISP_NEW, &first);
     CHECK(sm_addc(h, VEC(v_cert_a), DISP_USE, &second));
     CHECK(second != NULL);
-    t_note("USE_EXISTING returned same pointer: %d", first == second);
+    CHECK(first == second);   /* USE_EXISTING returns the existing context itself */
     CHECK(sm_same_enc(second, VEC(v_cert_a)));
     EXPECT_EQ(sm_ncerts(h), 1);
     sm_freec(first); sm_freec(second); sm_close(h);
@@ -499,7 +500,7 @@ TEST(csc_enum_delete_middle_only) {
         if (seen > 10) { sm_freec(c); break; }       /* bounded: an emulator may loop here */
         if (sm_same_enc(c, VEC(v_cert_b))) CHECK(U(CertDeleteCertificateFromStore)(U(CertDuplicateCertificateContext)(c)));
     }
-    t_note("contexts visited while deleting the middle one: %d", seen);
+    EXPECT_EQ(seen, 3);
     EXPECT_EQ(sm_ncerts(h), 2);
     sm_close(h);
 }
@@ -523,7 +524,7 @@ TEST(csc_enum_add_during_enumeration_visible) {
         if (seen == 1) sm_addc(h, VEC(v_cert_b), DISP_NEW, NULL);
         if (seen > 5) { sm_freec(c); break; }
     }
-    t_note("certs visited when adding mid-enumeration: %d", seen);
+    EXPECT_EQ(seen, 1);   /* the enumeration does not see the cert added during it */
     EXPECT_EQ(sm_ncerts(h), 2);
     sm_close(h);
 }
@@ -559,7 +560,7 @@ TEST(csc_delete_second_time) {
     CHECK(U(CertDeleteCertificateFromStore)(c));
     SET_ERR(0);
     BOOL r = U(CertDeleteCertificateFromStore)(d);
-    t_note("second delete of same context -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1);   /* the duplicate still deletes: Win10 reports success */
     sm_close(h);
 }
 TEST(csc_delete_context_without_store) {
@@ -568,7 +569,7 @@ TEST(csc_delete_context_without_store) {
     CHECK(c != NULL); if (!c) return;
     SET_ERR(0);
     BOOL r = U(CertDeleteCertificateFromStore)(c);
-    t_note("delete of context with no store -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1);
 }
 TEST(csc_delete_one_of_duplicates) {
     REQUIRE(U(CertDeleteCertificateFromStore));
@@ -618,7 +619,10 @@ TEST(csc_create_context_no_store) {
     PCCERT_CONTEXT c = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_c));
     CHECK(c != NULL);
     if (c) {
-        t_note("hCertStore of a storeless context: %p", c->hCertStore);
+        PCCERT_CONTEXT c2 = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_c));
+        CHECK(c->hCertStore != NULL);
+        CHECK(c2 != NULL && c2->hCertStore == c->hCertStore);   /* one shared internal store for storeless contexts */
+        if (c2) U(CertFreeCertificateContext)(c2);
         CHECK(sm_same_enc(c, VEC(v_cert_c)));
         CHECK(c->pbCertEncoded != v_cert_c);
         U(CertFreeCertificateContext)(c);
@@ -737,7 +741,7 @@ TEST(csc_find_existing_uses_issuer_serial) {
     HCERTSTORE h = sm_abc(); if (!h) return;
     PCCERT_CONTEXT probe = U(CertCreateCertificateContext)(X509_ASN_ENCODING, VEC(v_cert_a2));
     PCCERT_CONTEXT c = fnd(h, 0, CERT_FIND_EXISTING, probe, NULL);
-    t_note("CERT_FIND_EXISTING for same issuer+serial different bytes: %s", c ? "found" : "not found");
+    CHECK(c == NULL);   /* the memory store identifies a cert by its hash, not by issuer+serial */
     sm_freec(c);
     sm_freec(probe); sm_close(h);
 }
@@ -806,8 +810,7 @@ TEST(csc_find_unknown_type) {
     HCERTSTORE h = sm_abc(); if (!h) return;
     SET_ERR(0);
     PCCERT_CONTEXT c = U(CertFindCertificateInStore)(h, X509_ASN_ENCODING, 0, 0x7F0000, NULL, NULL);
-    CHECK(c == NULL);
-    t_note("unknown find type gle=0x%lx", GetLastError());
+    CHECK(c == NULL); EXPECT_ERR(0x80092004);
     sm_close(h);
 }
 TEST(csc_find_prev_from_deleted_context_continues) {
@@ -908,7 +911,7 @@ TEST(csc_prop_set_on_link_visible_on_original) {
     sm_addc(s, VEC(v_cert_a), DISP_NEW, &orig);
     CHECK(U(CertAddCertificateLinkToStore)(d, orig, DISP_NEW, &link));
     EXPECT_EQ(sm_ncerts(d), 1);
-    if (link) { set_fn(link, g_fn); t_note("friendly name set on link visible on original: %d", has_fn(orig)); CHECK(sm_same_enc(link, VEC(v_cert_a))); }
+    if (link) { set_fn(link, g_fn); CHECK(has_fn(orig)); CHECK(sm_same_enc(link, VEC(v_cert_a))); }
     sm_freec(orig); sm_freec(link); sm_close(s); sm_close(d);
 }
 TEST(csc_link_survives_original_delete) {

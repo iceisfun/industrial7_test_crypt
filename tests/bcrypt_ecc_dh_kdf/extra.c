@@ -43,7 +43,7 @@ CURVE_TESTS(bcx_generated_sign_verify) {
     EXPECT_EQ(n1, 2 * c->cb); EXPECT_EQ(n2, 2 * c->cb);
     CHECK_NS(U(BCryptVerifySignature)(k, NULL, (PUCHAR)c->hash, c->hashlen, sig1, n1, 0), 0);
     CHECK_NS(U(BCryptVerifySignature)(k, NULL, (PUCHAR)c->hash, c->hashlen, sig2, n2, 0), 0);
-    t_note("%s: two signatures over the same hash %s", c->name, memcmp(sig1, sig2, n1) ? "differ (randomized k)" : "are identical");
+    CHECK(memcmp(sig1, sig2, n1) != 0);   /* ECDSA signing is randomized: two signatures over the same hash differ */
     CHECK_NS(kc_export(k, BCRYPT_ECCPUBLIC_BLOB, pub, sizeof(pub), &pn), 0);
     EXPECT_EQ(pn, sizeof(BCRYPT_ECCKEY_BLOB) + 2 * c->cb);
     BCRYPT_KEY_HANDLE pk = NULL;

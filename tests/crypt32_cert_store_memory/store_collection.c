@@ -53,7 +53,7 @@ TEST(csl_add_goes_to_enabled_sibling) {
     CHECK(sm_addc(c, VEC(v_cert_a), DISP_NEW, &ctx));
     CHECK(sm_same_enc(ctx, VEC(v_cert_a)));
     EXPECT_EQ(sm_ncerts(s), 1); EXPECT_EQ(sm_ncerts(c), 1);
-    t_note("context returned by collection add: hCertStore is collection=%d sibling=%d", ctx && ctx->hCertStore == c, ctx && ctx->hCertStore == s);
+    CHECK(ctx->hCertStore == c); CHECK(ctx->hCertStore != s);   /* the returned context belongs to the collection, not the sibling */
     sm_freec(ctx); sm_close(c); sm_close(s);
 }
 TEST(csl_add_all_types_to_enabled_sibling) {
@@ -128,7 +128,7 @@ TEST(csl_add_skips_readonly_enabled_sibling) {
     sib(c, rw, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, 10);
     BOOL r = sm_addc(c, VEC(v_cert_a), DISP_NEW, NULL);
     CHECK(r);
-    t_note("readonly(prio 20)=%d writable(prio 10)=%d", sm_ncerts(ro), sm_ncerts(rw));
+    EXPECT_EQ(sm_ncerts(ro), 1); EXPECT_EQ(sm_ncerts(rw), 0);   /* the highest priority add-enabled sibling takes the cert, read-only or not */
     sm_close(c); sm_close(ro); sm_close(rw);
 }
 TEST(csl_new_existing_in_unwritable_sibling) {
@@ -173,8 +173,7 @@ TEST(csl_invalid_disposition) {
     HCERTSTORE c = coll(), w = sm_mem();
     sib(c, w, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, 0);
     SET_ERR(0);
-    CHECK(!sm_addc(c, VEC(v_cert_a), 0, NULL));
-    t_note("collection add with disposition 0 gle=0x%lx", GetLastError());
+    CHECK(!sm_addc(c, VEC(v_cert_a), 0, NULL)); EXPECT_ERR(HR_INVALIDARG);
     sm_close(c); sm_close(w);
 }
 TEST(csl_delete_through_collection_deletes_in_sibling) {
@@ -260,8 +259,7 @@ TEST(csl_same_sibling_twice) {
     REQUIRE(U(CertAddStoreToCollection));
     HCERTSTORE c = coll(), s = mem1(VEC(v_cert_a));
     BOOL r1 = sib(c, s, 0, 0), r2 = sib(c, s, 0, 0);
-    CHECK(r1);
-    t_note("second add of same sibling -> %d; collection count %d", r2, sm_ncerts(c));
+    CHECK(r1); EXPECT_EQ(r2, 1); EXPECT_EQ(sm_ncerts(c), 2);   /* the same sibling is added twice and enumerated twice */
     sm_close(c); sm_close(s);
 }
 TEST(csl_add_null_sibling) {
@@ -269,7 +267,7 @@ TEST(csl_add_null_sibling) {
     HCERTSTORE c = coll();
     SET_ERR(0);
     BOOL r = sib(c, NULL, 0, 0);
-    t_note("add NULL sibling -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1);   /* Win10 accepts a NULL sibling */
     sm_close(c);
 }
 TEST(csl_add_to_non_collection_store) {
@@ -277,7 +275,7 @@ TEST(csl_add_to_non_collection_store) {
     HCERTSTORE m = sm_mem(), s = sm_mem();
     SET_ERR(0);
     BOOL r = sib(m, s, 0, 0);
-    t_note("add sibling to a memory store -> %d gle=0x%lx", r, GetLastError());
+    CHECK(!r); EXPECT_ERR(HR_INVALIDARG);
     sm_close(m); sm_close(s);
 }
 TEST(csl_nested_collections) {
@@ -335,8 +333,7 @@ TEST(csl_link_into_collection_rejected) {
     sm_addc(s, VEC(v_cert_a), DISP_NEW, &x);
     SET_ERR(0);
     BOOL r = U(CertAddCertificateLinkToStore)(c, x, DISP_NEW, NULL);
-    CHECK(!r);                                       /* documented: links cannot be added to a collection */
-    t_note("link into collection gle=0x%lx", GetLastError());
+    CHECK(!r); EXPECT_ERR(HR_INVALIDARG);            /* documented: links cannot be added to a collection */
     sm_freec(x); sm_close(c); sm_close(w); sm_close(s);
 }
 TEST(csl_add_context_from_sibling_into_collection) {
@@ -361,7 +358,6 @@ TEST(csl_properties_visible_via_sibling) {
     PCCERT_CONTEXT y = U(CertEnumCertificatesInStore)(s, NULL);
     DWORD cb = 0;
     BOOL r = U(CertGetCertificateContextProperty)(y, CERT_FRIENDLY_NAME_PROP_ID, NULL, &cb);
-    t_note("property set via collection context visible in sibling: %d", r);
     CHECK(r);
     sm_freec(x); sm_freec(y); sm_close(c); sm_close(s);
 }

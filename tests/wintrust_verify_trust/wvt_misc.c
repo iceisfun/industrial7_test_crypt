@@ -33,9 +33,9 @@ TEST(wvt_load_function_pointers_generic_verify) {
     CHECK(p.pfnSignatureTrust == (PFN_PROVIDER_SIGTRUST_CALL)GetProcAddress(m, "SoftpubLoadSignature"));
     CHECK(p.pfnCertificateTrust == (PFN_PROVIDER_CERTTRUST_CALL)GetProcAddress(m, "WintrustCertificateTrust"));
     CHECK(p.pfnCertCheckPolicy == (PFN_PROVIDER_CERTCHKPOLICY_CALL)GetProcAddress(m, "SoftpubCheckCert"));
-    CHECK(p.pfnFinalPolicy != NULL);
-    t_note("V2 final policy=%p ConfigCiFinalPolicy=%p SoftpubAuthenticode=%p cleanup=%p", (void *)p.pfnFinalPolicy,
-           (void *)GetProcAddress(m, "ConfigCiFinalPolicy"), (void *)GetProcAddress(m, "SoftpubAuthenticode"), (void *)p.pfnCleanupPolicy);
+    CHECK(p.pfnFinalPolicy == (PFN_PROVIDER_FINALPOLICY_CALL)GetProcAddress(m, "SoftpubAuthenticode"));
+    CHECK(p.pfnCleanupPolicy == (PFN_PROVIDER_CLEANUP_CALL)GetProcAddress(m, "SoftpubCleanup"));
+    CHECK(p.pfnTestFinalPolicy == NULL);
 }
 TEST(wvt_load_function_pointers_cleanup_only_for_large_struct) {
     loadpfn_t f = (loadpfn_t)t_proc("WintrustLoadFunctionPointers"); REQUIRE(f);
@@ -43,10 +43,10 @@ TEST(wvt_load_function_pointers_cleanup_only_for_large_struct) {
     p.cbStruct = 0x78; p.pfnCleanupPolicy = (PFN_PROVIDER_CLEANUP_CALL)(ULONG_PTR)0x1234;
     CHECK(f((GUID *)&WVT_V2, &p));
     CHECK(p.pfnCleanupPolicy == (PFN_PROVIDER_CLEANUP_CALL)(ULONG_PTR)0x1234);   /* cbStruct 0x78 does not reach the cleanup slot */
-    CHECK(p.pfnTestFinalPolicy == p.pfnTestFinalPolicy);
+    CHECK(p.pfnTestFinalPolicy == NULL);
     p.cbStruct = 0x80;
     CHECK(f((GUID *)&WVT_V2, &p));
-    CHECK(p.pfnCleanupPolicy != (PFN_PROVIDER_CLEANUP_CALL)(ULONG_PTR)0x1234);
+    CHECK(p.pfnCleanupPolicy == (PFN_PROVIDER_CLEANUP_CALL)GetProcAddress(t_module("wintrust.dll"), "SoftpubCleanup"));
 }
 TEST(wvt_load_function_pointers_alloc_free_work) {
     loadpfn_t f = (loadpfn_t)t_proc("WintrustLoadFunctionPointers"); REQUIRE(f);
@@ -57,11 +57,24 @@ TEST(wvt_load_function_pointers_alloc_free_work) {
 TEST(wvt_load_function_pointers_other_known_actions) {
     loadpfn_t f = (loadpfn_t)t_proc("WintrustLoadFunctionPointers"); REQUIRE(f);
     const GUID *g[] = { &WVT_CERTV, &WVT_CHAINV, &WVT_HTTPS, &WVT_DRIVER, &WVT_TPTEST };
+    /* Win10 export bound to each action: initialize, certificate trust, final policy, cleanup */
+    static const char *const ex[5][4] = {
+        { "SoftpubDefCertInit", "WintrustCertificateTrust", "SoftpubAuthenticode", "SoftpubCleanup" },
+        { "SoftpubInitialize", "GenericChainCertificateTrust", "GenericChainFinalProv", "SoftpubCleanup" },
+        { "SoftpubInitialize", "HTTPSCertificateTrust", "HTTPSFinalProv", "SoftpubCleanup" },
+        { "DriverInitializePolicy", "WintrustCertificateTrust", "DriverFinalPolicy", "DriverCleanupPolicy" },
+        { "SoftpubInitialize", "WintrustCertificateTrust", "SoftpubAuthenticode", "SoftpubCleanup" } };
+    HMODULE m = t_module("wintrust.dll");
     for (int i = 0; i < 5; i++) {
         CRYPT_PROVIDER_FUNCTIONS p; memset(&p, 0, sizeof p); p.cbStruct = sizeof p;
         BOOL r = f((GUID *)g[i], &p);
-        t_note("action %d: loaded=%d init=%p final=%p", i, r, (void *)p.pfnInitialize, (void *)p.pfnFinalPolicy);
-        if (r) CHECK(p.pfnAlloc != NULL && p.pfnInitialize != NULL);
+        t_label("action %d", i);
+        EXPECT_EQ(r, 1);
+        CHECK(p.pfnAlloc != NULL);
+        CHECK((void *)p.pfnInitialize == (void *)GetProcAddress(m, ex[i][0]));
+        CHECK((void *)p.pfnCertificateTrust == (void *)GetProcAddress(m, ex[i][1]));
+        CHECK((void *)p.pfnFinalPolicy == (void *)GetProcAddress(m, ex[i][2]));
+        CHECK((void *)p.pfnCleanupPolicy == (void *)GetProcAddress(m, ex[i][3]));
     }
 }
 
@@ -76,10 +89,10 @@ TEST(wvt_softpub_check_cert_sets_flag) {
 TEST(wvt_softpub_initialize_no_step_errors) {
     HRESULT (WINAPI *f)(CRYPT_PROVIDER_DATA *) = (void *)t_proc("SoftpubInitialize"); REQUIRE(f);
     WVT_PD pd; memset(&pd, 0, sizeof pd); pd.d.cbStruct = sizeof pd;
-    CHECK(f(&pd.d) != 0);                                    /* no padwTrustStepErrors */
+    EXPECT_EQ(f(&pd.d), 1);                                    /* no padwTrustStepErrors */
     DWORD steps[38]; memset(steps, 0, sizeof steps); steps[TRUSTERROR_STEP_FINAL_WVTINIT] = 5;
     pd.d.padwTrustStepErrors = steps; pd.d.cdwTrustStepErrors = 38;
-    CHECK(f(&pd.d) != 0);                                    /* a previous WVTINIT error aborts */
+    EXPECT_EQ(f(&pd.d), 1);                                    /* a previous WVTINIT error aborts */
 }
 TEST(wvt_softpub_initialize_cert_choice) {
     HRESULT (WINAPI *f)(CRYPT_PROVIDER_DATA *) = (void *)t_proc("SoftpubInitialize"); REQUIRE(f);
@@ -114,7 +127,7 @@ TEST(wvt_certificate_trust_no_signers) {
     HRESULT (WINAPI *f)(CRYPT_PROVIDER_DATA *) = (void *)t_proc("WintrustCertificateTrust"); REQUIRE(f);
     WVT_PD pd; WVT_SIGSTATE ss; DWORD steps[38]; memset(&pd, 0, sizeof pd); memset(&ss, 0, sizeof ss); memset(steps, 0, sizeof steps);
     pd.d.cbStruct = sizeof pd; pd.pSigState = &ss; pd.d.padwTrustStepErrors = steps; pd.d.cdwTrustStepErrors = 38;
-    CHECK(f(&pd.d) != 0);
+    EXPECT_EQ(f(&pd.d), 1);
     EXPECT_EQ(steps[TRUSTERROR_STEP_FINAL_CERTPROV], (DWORD)WVT_E_NOSIGNATURE);
     EXPECT_EQ(ss.dwCryptoPolicySupport, 4);                  /* WSS_CERTTRUST_SUPPORT */
 }
@@ -144,10 +157,10 @@ TEST(wvt_state_signature_state_after_signed_verify) {
             EXPECT_EQ(ss->cSecondarySigs, 0);
             CHECK(ss->hPrimarySig != NULL);
             CHECK(ss->hPrimarySig == pd->d.hMsg);
-            t_note("sigstate: fFirstAttemptMade=%d fNoMoreSigs=%d dwCurrentIndex=%lu iAttemptCount=%lu fCheckedSealing=%d",
-                   ss->fFirstAttemptMade, ss->fNoMoreSigs, (unsigned long)ss->dwCurrentIndex, (unsigned long)ss->iAttemptCount, ss->fCheckedSealing);
+            EXPECT_EQ(ss->fFirstAttemptMade, 1); EXPECT_EQ(ss->fNoMoreSigs, 1); EXPECT_EQ(ss->dwCurrentIndex, 0);
+            EXPECT_EQ(ss->iAttemptCount, 2); EXPECT_EQ(ss->fCheckedSealing, 0);
         }
-        CHECK(pd->pSigSettings == NULL || pd->pSigSettings == w.pSignatureSettings);
+        CHECK(pd->pSigSettings == NULL);   /* no signature settings were supplied */
     }
     wvt_close(&WVT_V2, &w); wvt_del(p);
 }
@@ -200,7 +213,7 @@ TEST(wvt_getsignatureinfo_larger_cbsize_accepted) {
     BYTE si[SIGINFO_CB + 16]; memset(si, 0, sizeof si); *(DWORD *)si = sizeof si;
     WCHAR p[MAX_PATH]; wvt_path(p, "gs0.exe"); wvt_del(p);
     HRESULT hr = f(p, INVALID_HANDLE_VALUE, SIF_AUTHENTICODE_SIGNED, si, NULL, NULL);
-    CHECK(hr != (HRESULT)WVT_E_INVALIDARG);
+    EXPECT_EQ(hr, (HRESULT)HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND));   /* the larger cbSize is accepted: the missing file is reported */
 }
 TEST(wvt_getsignatureinfo_missing_file) {
     getsiginfo_t f = (getsiginfo_t)t_proc("WTGetSignatureInfo"); REQUIRE(f);
@@ -218,7 +231,7 @@ TEST(wvt_getsignatureinfo_unsigned_pe) {
     PCCERT_CONTEXT c = NULL; HANDLE st = NULL;
     HRESULT hr = f(p, INVALID_HANDLE_VALUE, SIF_AUTHENTICODE_SIGNED, si, &c, &st);
     DWORD *d = (DWORD *)si;
-    t_note("unsigned PE: hr=0x%08lx state=%lu type=%lu avail=0x%lx avail2=0x%lx cert=%p", (unsigned long)hr, (unsigned long)d[1], (unsigned long)d[2], (unsigned long)d[3], (unsigned long)d[4], c);
+    EXPECT_EQ(hr, 0); EXPECT_EQ(d[1], 0); EXPECT_EQ(d[2], 0); EXPECT_EQ(d[3], 0);   /* unsigned: state unknown, type none */
     EXPECT_EQ(d[0], SIGINFO_CB);
     CHECK(c == NULL);
     EXPECT_EQ(d[4], d[3]);                                    /* dwInfoAvailability mirrors dwSignatureInfoAvailability */
@@ -232,7 +245,6 @@ TEST(wvt_getsignatureinfo_signed_pe) {
     PCCERT_CONTEXT c = NULL; HANDLE st = NULL;
     HRESULT hr = f(p, INVALID_HANDLE_VALUE, SIF_AUTHENTICODE_SIGNED, si, &c, &st);
     DWORD *d = (DWORD *)si;
-    t_note("signed PE: hr=0x%08lx state=%lu type=%lu avail=0x%lx avail2=0x%lx cert=%p", (unsigned long)hr, (unsigned long)d[1], (unsigned long)d[2], (unsigned long)d[3], (unsigned long)d[4], c);
     EXPECT_EQ(hr, 0); EXPECT_EQ(d[1], 2); EXPECT_EQ(d[2], 1); EXPECT_EQ(d[3], 0);
     EXPECT_EQ(d[4], d[3]);
     REQUIRE_NOTNULL(c);
@@ -246,7 +258,7 @@ TEST(wvt_getsignatureinfo_caller_handle) {
     WCHAR p[MAX_PATH]; wvt_path(p, "gs4.exe"); wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned);
     HANDLE h = CreateFileW(p, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     HRESULT hr = f(p, h, SIF_AUTHENTICODE_SIGNED, si, NULL, NULL);
-    t_note("caller handle: hr=0x%08lx", (unsigned long)hr);
+    EXPECT_EQ(hr, 0);
     DWORD sz = GetFileSize(h, NULL); EXPECT_EQ(sz, sizeof fix_pe_unsigned);    /* handle is not closed */
     CloseHandle(h); wvt_del(p);
 }
@@ -255,7 +267,7 @@ TEST(wvt_getsignatureinfo_version_info_only_flag) {
     BYTE si[SIGINFO_CB]; memset(si, 0, sizeof si); *(DWORD *)si = SIGINFO_CB;
     WCHAR p[MAX_PATH]; wvt_path(p, "gs5.exe"); wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned);
     HRESULT hr = f(p, INVALID_HANDLE_VALUE, SIF_VERSION_INFO, si, NULL, NULL);
-    t_note("version-info-only on a PE without a version resource: hr=0x%08lx", (unsigned long)hr);
+    EXPECT_EQ(hr, 0);
     DWORD *d = (DWORD *)si; EXPECT_EQ(d[1], 0); EXPECT_EQ(d[2], 0);       /* no signature state requested */
     wvt_del(p);
 }

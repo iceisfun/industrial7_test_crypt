@@ -31,7 +31,7 @@ TEST(csm_open_memory_hash_number_string) {
     REQUIRE(U(CertOpenStore));
     /* "#<n>" selects the numeric provider n (the string is atol'd) */
     HCERTSTORE h = U(CertOpenStore)("#2", 0, 0, 0, NULL);
-    t_note("CertOpenStore(\"#2\") -> %p gle=%lu", h, GetLastError());
+    CHECK(h != NULL);   /* "#2" is the memory provider */
     sm_close(h);
 }
 TEST(csm_open_hash_number_too_large) {
@@ -57,14 +57,13 @@ TEST(csm_open_unknown_provider_number) {
     CHECK(h == NULL); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     SET_ERR(0);
     h = U(CertOpenStore)((LPCSTR)(ULONG_PTR)0, 0, 0, 0, NULL);
-    CHECK(h == NULL);
-    t_note("provider 0 gle=%lu", GetLastError());
+    CHECK(h == NULL); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
 }
 TEST(csm_open_unknown_provider_closes_nothing_leaks_prov) {
     /* a caller-supplied hCryptProv is released on failure unless NO_CRYPT_RELEASE */
     REQUIRE(U(CertOpenStore)); REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p = 0;
-    if (!U(CryptAcquireContextW)(&p, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) { t_skip("no csp"); return; }
+    if (!U(CryptAcquireContextW)(&p, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) { CHECKF(0, "CRYPT_VERIFYCONTEXT acquire failed gle=0x%lx", GetLastError()); return; }
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)("NoSuchProvider_cryptt", 0, p, CERT_STORE_NO_CRYPT_RELEASE_FLAG, NULL);
     CHECK(h == NULL);
@@ -73,7 +72,7 @@ TEST(csm_open_unknown_provider_closes_nothing_leaks_prov) {
 TEST(csm_open_no_crypt_release_keeps_provider) {
     REQUIRE(U(CertOpenStore)); REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p = 0;
-    if (!U(CryptAcquireContextW)(&p, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) { t_skip("no csp"); return; }
+    if (!U(CryptAcquireContextW)(&p, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) { CHECKF(0, "CRYPT_VERIFYCONTEXT acquire failed gle=0x%lx", GetLastError()); return; }
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, p, CERT_STORE_NO_CRYPT_RELEASE_FLAG, NULL);
     CHECK(h != NULL);
     sm_close(h);
@@ -82,20 +81,20 @@ TEST(csm_open_no_crypt_release_keeps_provider) {
 TEST(csm_open_provider_released_on_close_without_flag) {
     REQUIRE(U(CertOpenStore)); REQUIRE(U(CryptAcquireContextW)); REQUIRE(U(CryptReleaseContext));
     HCRYPTPROV p = 0;
-    if (!U(CryptAcquireContextW)(&p, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) { t_skip("no csp"); return; }
+    if (!U(CryptAcquireContextW)(&p, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) { CHECKF(0, "CRYPT_VERIFYCONTEXT acquire failed gle=0x%lx", GetLastError()); return; }
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, p, 0, NULL);
     CHECK(h != NULL);
     sm_close(h);
     SET_ERR(0);
     BOOL r = U(CryptReleaseContext)(p, 0);
-    t_note("release after store-owned close -> %d gle=%lu (store owned the handle)", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_INVALID_PARAMETER);   /* the store closing released the provider handle */
 }
 TEST(csm_open_delete_flag_unsupported_for_memory) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_DELETE_FLAG, NULL);
     CHECK(h == NULL);                       /* DELETE never returns a usable store */
-    t_note("memory + DELETE_FLAG gle=%lu (decomp: ERROR_CALL_NOT_IMPLEMENTED when provider lacks delete)", GetLastError());
+    EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);
     sm_close(h);
 }
 TEST(csm_open_flags_accepted_for_memory) {
@@ -112,22 +111,21 @@ TEST(csm_open_flags_accepted_for_memory) {
         }
     }
 }
-TEST(csm_open_memory_readonly_rejects_adds) {
+TEST(csm_open_memory_readonly_flag_still_accepts_adds) {
     REQUIRE(U(CertOpenStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_READONLY_FLAG, NULL);
-    if (!h) { t_note("memory+READONLY open failed gle=%lu", GetLastError()); return; }
-    SET_ERR(0);
+    REQUIRE_NOTNULL(h);
     BOOL r = sm_addc(h, VEC(v_cert_a), DISP_NEW, NULL);
-    t_note("add to READONLY memory store -> %d gle=0x%lx count=%d", r, GetLastError(), sm_ncerts(h));
+    EXPECT_EQ(r, 1); EXPECT_EQ(sm_ncerts(h), 1);   /* Win10: the READONLY flag does not stop a memory store from taking adds */
     sm_close(h);
 }
-TEST(csm_open_memory_with_initial_pkcs7_blob_ignored_or_used) {
+TEST(csm_open_memory_with_initial_pkcs7_blob_ignored) {
     REQUIRE(U(CertOpenStore));
     /* pvPara for PROV_MEMORY is ignored */
     CRYPT_DATA_BLOB b = { sizeof v_p7_certs, (BYTE *)v_p7_certs };
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, ENC, 0, 0, &b);
     CHECK(h != NULL);
-    if (h) { t_note("memory store with pvPara blob has %d certs", sm_ncerts(h)); sm_close(h); }
+    if (h) { EXPECT_EQ(sm_ncerts(h), 0); sm_close(h); }
 }
 TEST(csm_open_encoding_type_irrelevant_for_memory) {
     REQUIRE(U(CertOpenStore));
@@ -138,7 +136,7 @@ TEST(csm_close_null_store) {
     REQUIRE(U(CertCloseStore));
     SET_ERR(0);
     BOOL r = U(CertCloseStore)(NULL, 0);
-    t_note("CertCloseStore(NULL,0) -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1);   /* closing a NULL store succeeds */
 }
 TEST(csm_close_two_opens_independent) {
     REQUIRE(U(CertOpenStore));
@@ -196,7 +194,7 @@ TEST(csm_close_force_flag_with_outstanding_context) {
     PCCERT_CONTEXT c = NULL;
     sm_addc(h, VEC(v_cert_a), DISP_NEW, &c);
     CHECK(U(CertCloseStore)(h, CERT_CLOSE_STORE_FORCE_FLAG));
-    t_note("after FORCE close the outstanding context was not touched (freed by DLL? not accessed)");
+    /* the outstanding context is deliberately not touched after a forced close */
 }
 TEST(csm_close_force_flag_with_duplicates) {
     REQUIRE(U(CertOpenStore)); REQUIRE(U(CertDuplicateStore));
@@ -216,7 +214,7 @@ TEST(csm_defer_close_until_last_free) {
         /* the store stays alive while the context is outstanding: a context still reports its store */
         CHECK(sm_same_enc(c, VEC(v_cert_a)));
         PCCERT_CONTEXT n = U(CertEnumCertificatesInStore)(c->hCertStore, NULL);
-        t_note("deferred-close store still enumerable via context: %d", n != NULL);
+        CHECK(n != NULL);   /* the deferred-close store is still enumerable through the context */
         sm_freec(n);
         sm_freec(c);
     }
@@ -229,7 +227,7 @@ TEST(csm_defer_close_pending_check_is_ok) {
     sm_addc(h, VEC(v_cert_a), DISP_NEW, &c);
     SET_ERR(0);
     BOOL r = U(CertCloseStore)(h, CERT_CLOSE_STORE_CHECK_FLAG);
-    t_note("DEFER_CLOSE + CHECK_FLAG with outstanding ctx -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(0x8009200f);   /* CRYPT_E_PENDING_CLOSE */
     sm_freec(c);
 }
 TEST(csm_store_property_context_hcertstore_matches) {
@@ -252,7 +250,7 @@ TEST(csm_null_store_add_creates_standalone_context) {
     /* observed: a NULL store maps to an internal default store: the call succeeds and returns a context */
     PCCERT_CONTEXT c = NULL;
     BOOL r = sm_addc(NULL, VEC(v_cert_a), DISP_ALWAYS, &c);
-    t_note("NULL store add ALWAYS -> %d ctx=%p gle=0x%lx", r, c, GetLastError());
-    if (r && c) { CHECK(sm_same_enc(c, VEC(v_cert_a))); }
+    EXPECT_EQ(r, 1); REQUIRE_NOTNULL(c);
+    CHECK(sm_same_enc(c, VEC(v_cert_a)));
     sm_freec(c);
 }

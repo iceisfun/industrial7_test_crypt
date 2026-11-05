@@ -174,8 +174,8 @@ TEST(bckdf_hash_secret_flag_accepted) {
     kc_desc d; hash_of(L"SHA256", &d);
     unsigned char out[32]; ULONG n;
     NTSTATUS s = kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, KDF_USE_SECRET_AS_HMAC_KEY_FLAG);
-    t_note("KDF_HASH with secret-as-HMAC-key flag -> 0x%08lx", (unsigned long)s);
-    if (NT_OK(s)) CHECK_MEM(out, KDF_SHA256_Z, 32);
+    CHECK_NS(s, 0);
+    CHECK_MEM(out, KDF_SHA256_Z, 32);
     sec_close(&x);
 }
 
@@ -184,14 +184,14 @@ TEST(bckdf_hash_bad_algorithm_names) {
     unsigned char out[64]; ULONG n = 0;
     kc_desc d;
     hash_of(L"NOSUCHHASH", &d);
-    CHECK_NS_FAIL(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0));
+    CHECK_NS(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0), NS_NOT_SUPPORTED);
     hash_of(L"AES", &d);
-    CHECK_NS_FAIL(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0));
+    CHECK_NS(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0), NS_NOT_SUPPORTED);
     hash_of(L"", &d);
-    CHECK_NS_FAIL(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0));
+    CHECK_NS(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0), NS_NOT_SUPPORTED);
     /* name without a terminating NUL inside the buffer */
     kc_desc_init(&d); kc_desc_add(&d, KDF_HASH_ALGORITHM, L"SHA256", 12);
-    CHECK_NS_FAIL(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0));
+    CHECK_NS(kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0), NS_INVALID_PARAMETER);
     sec_close(&x);
 }
 
@@ -275,7 +275,7 @@ TEST(bckdf_hmac_size_query_without_key) {
     ULONG n = 0xCAFE;
     kc_desc d; hash_of(L"SHA256", &d);
     NTSTATUS s = kc_derive(x.s, BCRYPT_KDF_HMAC, &d, NULL, 0, &n, 0);
-    t_note("HMAC size query without key -> 0x%08lx n=%lu", (unsigned long)s, (unsigned long)n);
+    CHECK_NS(s, 0); EXPECT_EQ(n, 32);
     sec_close(&x);
 }
 
@@ -307,9 +307,9 @@ TEST(bckdf_invalid_flags) {
     static const ULONG flags[] = { 2, 4, 0x10, 0x100, 0x80000000, 0xFFFFFFFE };
     for (unsigned i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
         NTSTATUS s = kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, flags[i]);
-        CHECKF(!NT_OK(s), "flags 0x%lx -> 0x%08lx", (unsigned long)flags[i], (unsigned long)s);
+        t_label("flags 0x%lx", (unsigned long)flags[i]); CHECK_NS(s, NS_INVALID_PARAMETER);
         s = kc_derive(x.s, BCRYPT_KDF_RAW_SECRET, NULL, out, 32, &n, flags[i]);
-        CHECKF(!NT_OK(s), "raw flags 0x%lx -> 0x%08lx", (unsigned long)flags[i], (unsigned long)s);
+        t_label("raw flags 0x%lx", (unsigned long)flags[i]); CHECK_NS(s, NS_INVALID_PARAMETER);
     }
     sec_close(&x);
 }
@@ -330,9 +330,13 @@ TEST(bckdf_parameter_list_validation) {
     BCryptBuffer b[1];
     d.ulVersion = BCRYPTBUFFER_VERSION + 1; d.cBuffers = 0; d.pBuffers = NULL;
     NTSTATUS s = U(BCryptDeriveKey)(x.s, BCRYPT_KDF_RAW_SECRET, &d, out, 32, &n, 0);
-    CHECK_NS(s, 0); t_note("list version 1 -> 0x%08lx (version not checked)", (unsigned long)s);
-    /* cBuffers=1 with a NULL array faults inside bcrypt on Win10, so it is not called */
-    /* a buffer with a NULL pvBuffer and a non-zero length also faults inside bcrypt on Win10, so it is not called */
+    CHECK_NS(s, 0);   /* the list version is not checked */
+    /* Win10 does not validate these two parameter lists: bcrypt faults */
+    d.cBuffers = 1; d.pBuffers = NULL;
+    T_EXPECT_FAULT(U(BCryptDeriveKey)(x.s, BCRYPT_KDF_RAW_SECRET, &d, out, 32, &n, 0));
+    b[0].BufferType = KDF_HASH_ALGORITHM; b[0].cbBuffer = 12; b[0].pvBuffer = NULL;
+    d.cBuffers = 1; d.pBuffers = b;
+    T_EXPECT_FAULT(U(BCryptDeriveKey)(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0));
     d.cBuffers = 0; d.pBuffers = NULL;
     s = U(BCryptDeriveKey)(x.s, BCRYPT_KDF_RAW_SECRET, &d, out, 32, &n, 0);
     CHECK_NS(s, 0);                                             /* an empty list is fine */
@@ -345,8 +349,8 @@ TEST(bckdf_unknown_buffer_types_note) {
     kc_desc d; hash_of(L"SHA256", &d);
     kc_desc_add(&d, 0x7777, "xx", 2);
     NTSTATUS s = kc_derive(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0);
-    t_note("unknown buffer type 0x7777 -> 0x%08lx", (unsigned long)s);
-    if (NT_OK(s)) CHECK_MEM(out, KDF_SHA256_Z, 32);
+    CHECK_NS(s, 0);   /* an unknown buffer type is ignored */
+    CHECK_MEM(out, KDF_SHA256_Z, 32);
     sec_close(&x);
 }
 
@@ -423,7 +427,8 @@ TEST(bckdf_tls_prf_seed_length_rules) {
     for (unsigned i = 0; i < 2; i++) {
         kc_desc d; tls_desc(&d, L"SHA256", TLS_LABEL, TLS_LABEL_LEN, seed, good[i]);
         NTSTATUS s = kc_derive(x.s, BCRYPT_KDF_TLS_PRF, &d, out, 48, &n, 0);
-        t_note("TLS PRF seed length %lu -> 0x%08lx", (unsigned long)good[i], (unsigned long)s);
+        t_label("seed length %lu", (unsigned long)good[i]);
+        CHECK_NS(s, 0);
     }
     sec_close(&x);
 }
@@ -439,7 +444,7 @@ TEST(bckdf_tls_prf_protocol_buffer_size) {
     ULONG p32 = 0x0303;
     kc_desc_add(&d, KDF_TLS_PRF_PROTOCOL, &p32, 4);
     NTSTATUS s = kc_derive(x.s, BCRYPT_KDF_TLS_PRF, &d, out, 48, &n, 0);
-    t_note("TLS PRF with 4-byte protocol 0x0303 -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, 0);
     sec_close(&x);
 }
 
@@ -450,9 +455,9 @@ TEST(bckdf_tls_prf_tls12_vector_note) {
     kc_desc d; tls_desc(&d, L"SHA256", TLS_LABEL, TLS_LABEL_LEN, TLS_SEED, 64);
     kc_desc_add(&d, KDF_TLS_PRF_PROTOCOL, &proto, 4);
     NTSTATUS s = kc_derive(x.s, BCRYPT_KDF_TLS_PRF, &d, out, 48, &n, 0);
-    t_note("TLS1.2 PRF(SHA256) -> 0x%08lx, %s the PRF(Z, label, seed) vector", (unsigned long)s, NT_OK(s) && !memcmp(out, TLS12_PRF_Z, 48) ? "matches" : "differs from");
+    CHECK_NS(s, 0); CHECK_MEM(out, TLS12_PRF_Z, 48);
     s = kc_derive(x.s, BCRYPT_KDF_TLS_PRF, (tls_desc(&d, L"SHA256", TLS_LABEL, TLS_LABEL_LEN, TLS_SEED, 64), &d), out, 48, &n, 0);
-    t_note("TLS PRF without protocol -> 0x%08lx, %s the TLS1.2 SHA256 vector", (unsigned long)s, NT_OK(s) && !memcmp(out, TLS12_PRF_Z, 48) ? "matches" : "differs from");
+    CHECK_NS(s, 0); CHECK(memcmp(out, TLS12_PRF_Z, 48) != 0);   /* without the protocol buffer the PRF is not the TLS1.2 SHA256 one */
     sec_close(&x);
 }
 
@@ -533,7 +538,7 @@ TEST(bckdf_sp80056a_consumes_secret) {
     CHECK_NS(s, NS_INVALID_PARAMETER);
     unsigned char raw[32];
     s = kc_derive(x.s, BCRYPT_KDF_RAW_SECRET, NULL, raw, 32, &n, 0);
-    t_note("raw derive after SP800-56A -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_PARAMETER);
     sec_close(&x);
 }
 

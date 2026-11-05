@@ -31,8 +31,7 @@ TEST(wvt_known_usages_alloc_and_free) {
         CHECK((*p)->pszOID != NULL);
         if ((*p)->pszOID && !strcmp((*p)->pszOID, "1.3.6.1.5.5.7.3.3")) code = 1;
     }
-    CHECK(n > 5); CHECK(code);
-    t_note("known usages: %d entries", n);
+    EXPECT_EQ(n, 66); CHECK(code);   /* Win10 22H2 enumerates 66 usage entries */
     SET_ERR(0xdeadbeef);
     CHECK(f(2, &u)); CHECK(u == NULL);
 }
@@ -335,7 +334,7 @@ TEST(wvt_trust_find_issuer_in_store) {
     CHECK(iss != NULL);
     if (iss) {
         CHECK(iss->cbCertEncoded == sizeof fix_cert_ca && !memcmp(iss->pbCertEncoded, fix_cert_ca, sizeof fix_cert_ca));
-        CHECK(conf != 0xdeadbeef); t_note("issuer confidence 0x%08lx error 0x%08lx", (unsigned long)conf, (unsigned long)err);
+        EXPECT_EQ(conf, 0x11100000); EXPECT_EQ(err, 0);
         U(CertFreeCertificateContext)(iss);
     }
     /* the wrapper takes (count, stores, time, encoding) in a different order */
@@ -347,7 +346,7 @@ TEST(wvt_trust_find_issuer_in_store) {
     }
     U(CertFreeCertificateContext)(leaf); U(CertCloseStore)(st, 0);
 }
-TEST(wvt_trust_find_issuer_self_signed_returns_self) {
+TEST(wvt_trust_find_issuer_self_signed_not_found) {
     if (t_is_wine()) { t_skip("unimplemented stub aborts under emulation"); return; }
     PCCERT_CONTEXT (WINAPI *f)(PCCERT_CONTEXT, DWORD, DWORD, HCERTSTORE *, FILETIME *, DWORD *, DWORD *, DWORD) = (void *)t_proc("TrustFindIssuerCertificate");
     if (!f) { t_skip("missing export"); return; }
@@ -359,7 +358,7 @@ TEST(wvt_trust_find_issuer_self_signed_returns_self) {
     PCCERT_CONTEXT iss = f(c, X509_ASN_ENCODING, 1, arr, &ft, NULL, NULL, 0);
     EXPECT_EQ(GetLastError(), 0x80092004); /* CRYPT_E_NOT_FOUND */
     CHECK(iss == NULL);
-    if (iss) { CHECK(iss->cbCertEncoded == sizeof fix_cert_self && !memcmp(iss->pbCertEncoded, fix_cert_self, sizeof fix_cert_self)); U(CertFreeCertificateContext)(iss); }
+    if (iss) U(CertFreeCertificateContext)(iss);
     U(CertFreeCertificateContext)(c); U(CertCloseStore)(st, 0);
 }
 TEST(wvt_trust_find_issuer_not_present) {
@@ -372,7 +371,7 @@ TEST(wvt_trust_find_issuer_not_present) {
     DWORD err = 0xdeadbeef;
     PCCERT_CONTEXT iss = f(c, X509_ASN_ENCODING, 1, arr, &ft, NULL, &err, 0);
     CHECK(iss == NULL);
-    t_note("issuer absent: lasterror 0x%08lx pdwError 0x%08lx", (unsigned long)GetLastError(), (unsigned long)err);
+    EXPECT_ERR(0x80092004); EXPECT_EQ(err, 0);   /* CRYPT_E_NOT_FOUND, no per-cert error */
     U(CertFreeCertificateContext)(c); U(CertCloseStore)(st, 0);
 }
 TEST(wvt_trust_find_issuer_zero_stores) {
@@ -400,12 +399,13 @@ TEST(wvt_trust_open_stores_from_provider) {
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; DWORD e; wvt_path(p, "os.exe"); wvt_write(p, fix_pe_signed, sizeof fix_pe_signed);
     wvt_init_file(&w, &fi, p); w.d.dwStateAction = WTD_STATEACTION_VERIFY; wvt_call(&WVT_V2, &w, &e);
     CRYPT_PROVIDER_DATA *pd = U(WTHelperProvDataFromStateData)(w.d.hWVTStateData);
-    if (pd && pd->hProv) {
+    REQUIRE_NOTNULL(pd); REQUIRE_EQ(pd->hProv != 0, 1);
+    {
         DWORD n = 0; SET_ERR(0);
         BOOL r = f(pd->hProv, &n, NULL, 0);
-        t_note("TrustOpenStores size query: ret=%d n=%lu lasterr=0x%lx", r, (unsigned long)n, (unsigned long)GetLastError());
-        if (r && n) {
-            CHECK(GetLastError() == ERROR_MORE_DATA);      /* the size-only call leaves ERROR_MORE_DATA behind */
+        EXPECT_EQ(r, 1); EXPECT_EQ(n, 5);      /* Win10: five stores */
+        {
+            EXPECT_ERR(ERROR_MORE_DATA);      /* the size-only call leaves ERROR_MORE_DATA behind */
             HCERTSTORE *arr = (HCERTSTORE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (n + 1) * sizeof(HCERTSTORE));
             DWORD m = n - 1; SET_ERR(0);
             CHECK(!f(pd->hProv, &m, arr, 0)); EXPECT_ERR(ERROR_MORE_DATA); EXPECT_EQ(m, n);
@@ -427,8 +427,7 @@ TEST(wvt_open_known_stores_adds_stores) {
     if (pd) {
         DWORD before = pd->chStores;
         BOOL r = f(pd);
-        t_note("WTHelperOpenKnownStores: ret=%d chStores %lu -> %lu", r, (unsigned long)before, (unsigned long)pd->chStores);
-        CHECK(r); CHECK(pd->chStores > before);
+        EXPECT_EQ(r, 1); EXPECT_EQ(before, 1); EXPECT_EQ(pd->chStores, 6);   /* Win10 opens five more stores */
     }
     wvt_close(&WVT_V2, &w); wvt_del(p);
 }
@@ -479,8 +478,7 @@ TEST(wvt_get_file_hash_tampered_pe) {
 TEST(wvt_reg_policy_flags_read) {
     void (WINAPI *f)(DWORD *) = (void *)t_proc("WintrustGetRegPolicyFlags"); if (!f) { t_skip("missing export"); return; }
     DWORD fl = 0xdeadbeef; f(&fl);
-    CHECK(fl != 0xdeadbeef);
-    t_note("WintrustGetRegPolicyFlags = 0x%08lx (default 0x00023c00)", (unsigned long)fl);
+    EXPECT_EQ(fl, 0x00023c00);                                /* Win10 default policy flags */
     DWORD fl2 = 0x55555555; f(&fl2); EXPECT_EQ(fl, fl2);
 }
 TEST(wvt_default_for_usage_args) {
@@ -497,7 +495,7 @@ TEST(wvt_default_for_usage_code_signing_observed) {
     BOOL (WINAPI *f)(DWORD, const char *, CRYPT_PROVIDER_DEFUSAGE *) = (void *)t_proc("WintrustGetDefaultForUsage"); if (!f) { t_skip("missing export"); return; }
     CRYPT_PROVIDER_DEFUSAGE u; memset(&u, 0, sizeof u); u.cbStruct = sizeof u;
     SET_ERR(0); BOOL r = f(1, "1.3.6.1.5.5.7.3.3", &u);
-    t_note("default for code signing: ret=%d lasterr=%lu action {%08lx-%04x-%04x}", r, (unsigned long)GetLastError(),
-           (unsigned long)u.gActionID.Data1, u.gActionID.Data2, u.gActionID.Data3);
+    EXPECT_EQ(r, 1);
+    CHECK(IsEqualGUID(&u.gActionID, &WVT_V2));          /* code signing maps to the generic verify V2 action */
     if (r) { f(2, "1.3.6.1.5.5.7.3.3", &u); }
 }

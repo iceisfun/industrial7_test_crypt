@@ -54,7 +54,6 @@ TEST(bcdh_alg_open_properties) {
     NTSTATUS s = U(BCryptGetProperty)(a, BCRYPT_KEY_LENGTHS, (PUCHAR)&kl, sizeof(kl), &r, 0);
     CHECK_NS(s, 0);
     if (NT_OK(s)) {
-        t_note("DH key lengths min=%lu max=%lu inc=%lu", (unsigned long)kl.dwMinLength, (unsigned long)kl.dwMaxLength, (unsigned long)kl.dwIncrement);
         EXPECT_EQ(kl.dwMinLength, 512); EXPECT_EQ(kl.dwMaxLength, 4096); EXPECT_EQ(kl.dwIncrement, 8);
     }
     kc_close(a);
@@ -95,7 +94,7 @@ TEST(bcdh_generate_without_parameters_2048) {
     BCRYPT_DH_KEY_BLOB *h = (BCRYPT_DH_KEY_BLOB *)pub;
     EXPECT_EQ(h->dwMagic, BCRYPT_DH_PUBLIC_MAGIC);
     EXPECT_EQ(h->cbKey, DHB);
-    t_note("DH 2048 default group %s the RFC 3526 group 14 prime", !memcmp(pub + 8, DH_P2048, DHB) ? "is" : "is not");
+    CHECK(memcmp(pub + 8, DH_P2048, DHB) != 0);            /* the default 2048-bit group is not the RFC 3526 group 14 prime */
     CHECK(pub[8] & 0x80);                                  /* modulus is a full 2048-bit number */
     kc_destroy(k); kc_close(a);
 }
@@ -164,7 +163,7 @@ TEST(bcdh_import_roundtrip) {
         wn = dh_blob(want, BCRYPT_DH_PUBLIC_MAGIC, DH_B_Y, NULL);
         CHECK_NS(kc_export(kq, BCRYPT_DH_PUBLIC_BLOB, got, sizeof(got), &n), 0);
         if (n == wn) CHECK_MEM(got, want, wn);
-        CHECK_NS_FAIL(kc_export(kq, BCRYPT_DH_PRIVATE_BLOB, got, sizeof(got), &n));
+        CHECK_NS(kc_export(kq, BCRYPT_DH_PRIVATE_BLOB, got, sizeof(got), &n), NS_INVALID_PARAMETER);
     }
     kc_destroy(kp); kc_destroy(kq); kc_close(a);
 }
@@ -183,7 +182,7 @@ TEST(bcdh_agree_kat) {
         EXPECT_EQ(n1, DHB); EXPECT_EQ(n2, DHB);
         CHECK_MEM(r1, r2, DHB);
         kc_rev(rev, DH_Z, DHB);
-        t_note("DH raw secret %s", !memcmp(r1, rev, DHB) ? "is the reversed (little-endian) shared value" : (!memcmp(r1, DH_Z, DHB) ? "is the big-endian shared value" : "differs from both orders"));
+        CHECK_MEM(r1, rev, DHB);                           /* the raw secret is the reversed (little-endian) shared value */
     }
     if (x) U(BCryptDestroySecret)(x);
     if (y) U(BCryptDestroySecret)(y);
@@ -259,10 +258,10 @@ TEST(bcdh_agree_dh_with_ecdh_key) {
     BCRYPT_KEY_HANDLE ap = dh_import(a, 0, 1, NULL), ek = kc_gen(e, 256, 1);
     BCRYPT_SECRET_HANDLE s = NULL;
     NTSTATUS st = U(BCryptSecretAgreement)(ap, ek, &s, 0);
-    CHECK(!NT_OK(st)); t_note("DH priv + ECDH pub -> 0x%08lx", (unsigned long)st);
+    CHECK_NS(st, NS_INVALID_PARAMETER);
     if (s) U(BCryptDestroySecret)(s);
     st = U(BCryptSecretAgreement)(ek, ap, &s, 0);
-    CHECK(!NT_OK(st)); t_note("ECDH priv + DH pub -> 0x%08lx", (unsigned long)st);
+    CHECK_NS(st, NS_INVALID_PARAMETER);
     if (s) U(BCryptDestroySecret)(s);
     kc_destroy(ap); kc_destroy(ek); kc_close(a); kc_close(e);
 }
@@ -315,11 +314,11 @@ TEST(bcdh_set_parameters_bad_group) {
     CHECK_NS(U(BCryptGenerateKeyPair)(a, &k, 2048, 0), 0);
     p.pg[DHB - 1] &= ~1;                     /* even modulus */
     NTSTATUS s = U(BCryptSetProperty)(k, BCRYPT_DH_PARAMETERS, (PUCHAR)&p, pn, 0);
-    CHECK(!NT_OK(s)); t_note("even DH modulus -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, NS_INVALID_PARAMETER);
     dh_params(&p);
     memset(p.pg + DHB, 0, DHB);              /* generator 0 */
     s = U(BCryptSetProperty)(k, BCRYPT_DH_PARAMETERS, (PUCHAR)&p, pn, 0);
-    CHECK_NS(s, 0); t_note("DH generator 0 -> 0x%08lx (accepted; not validated at set time)", (unsigned long)s);
+    CHECK_NS(s, 0);                          /* a zero generator is accepted: not validated at set time */
     kc_destroy(k); kc_close(a);
 }
 
@@ -356,7 +355,7 @@ TEST(bcdh_unfinalized_unusable) {
     CHECK_NS(U(BCryptGenerateKeyPair)(a, &k, 2048, 0), 0);
     CHECK_NS(U(BCryptSetProperty)(k, BCRYPT_DH_PARAMETERS, (PUCHAR)&p, pn, 0), 0);
     unsigned char buf[8 + 4 * DHB]; ULONG n = 0;
-    CHECK_NS_FAIL(kc_export(k, BCRYPT_DH_PUBLIC_BLOB, buf, sizeof(buf), &n));
+    CHECK_NS(kc_export(k, BCRYPT_DH_PUBLIC_BLOB, buf, sizeof(buf), &n), NS_INVALID_HANDLE);
     kc_destroy(k); kc_destroy(pub); kc_close(a);
 }
 
@@ -388,7 +387,7 @@ TEST(bcdh_import_truncated_and_magic) {
     ULONG n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, DH_A_Y, NULL);
     CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n - 1, 0, &k), NS_INVALID_PARAMETER);
     memset(blob + n, 0, 16);
-    CHECK_NS_FAIL(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n + 1, 0, &k));   /* oversize blob: exact status unverified */
+    CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n + 1, 0, &k), NS_INVALID_PARAMETER);   /* oversize blob: exact status unverified */
     CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, 4, 0, &k), NS_INVALID_PARAMETER);
     CHECK_NS(kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, 0, 0, &k), NS_INVALID_PARAMETER);
     CHECK_NS(kc_import(a, BCRYPT_DH_PRIVATE_BLOB, blob, n, 0, &k), NS_INVALID_PARAMETER);    /* public magic, private type (also wrong size) */
@@ -410,23 +409,23 @@ TEST(bcdh_import_bad_public_values) {
     memset(bad, 0, DHB);
     ULONG n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     NTSTATUS s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK_NS(s, NS_INVALID_PARAMETER); t_note("Y=0 -> 0x%08lx", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, NS_INVALID_PARAMETER); kc_destroy(k); k = NULL;
     bad[DHB - 1] = 1;
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK_NS(s, 0); t_note("Y=1 -> 0x%08lx (accepted)", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, 0); kc_destroy(k); k = NULL;
     memcpy(bad, DH_P2048, DHB);
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK_NS(s, 0); t_note("Y=P -> 0x%08lx (accepted; range not checked on import)", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, 0); kc_destroy(k)   /* Y=P: range not checked on import */; k = NULL;
     bad[DHB - 1] ^= 1;                                    /* P-1 */
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK_NS(s, 0); t_note("Y=P-1 -> 0x%08lx (accepted)", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, 0); kc_destroy(k); k = NULL;
     memset(bad, 0xFF, DHB);
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK_NS(s, 0); t_note("Y=2^2048-1 -> 0x%08lx (accepted)", (unsigned long)s); kc_destroy(k);
+    CHECK_NS(s, 0); kc_destroy(k);
     kc_close(a);
 }
 
@@ -468,10 +467,10 @@ TEST(bcdh_export_wrong_type) {
     BCRYPT_ALG_HANDLE a = kc_open(BCRYPT_DH_ALGORITHM, 0);
     BCRYPT_KEY_HANDLE k = dh_import(a, 0, 1, NULL);
     unsigned char buf[8 + 4 * DHB]; ULONG n = 0;
-    CHECK_NS_FAIL(kc_export(k, BCRYPT_ECCPUBLIC_BLOB, buf, sizeof(buf), &n));
-    CHECK_NS_FAIL(kc_export(k, L"FOOBLOB", buf, sizeof(buf), &n));
-    CHECK_NS_FAIL(kc_export(k, BCRYPT_RSAPUBLIC_BLOB, buf, sizeof(buf), &n));
-    CHECK_NS_FAIL(kc_export(k, BCRYPT_ECCPRIVATE_BLOB, buf, sizeof(buf), &n));
+    CHECK_NS(kc_export(k, BCRYPT_ECCPUBLIC_BLOB, buf, sizeof(buf), &n), NS_NOT_SUPPORTED);
+    CHECK_NS(kc_export(k, L"FOOBLOB", buf, sizeof(buf), &n), NS_NOT_SUPPORTED);
+    CHECK_NS(kc_export(k, BCRYPT_RSAPUBLIC_BLOB, buf, sizeof(buf), &n), NS_NOT_SUPPORTED);
+    CHECK_NS(kc_export(k, BCRYPT_ECCPRIVATE_BLOB, buf, sizeof(buf), &n), NS_NOT_SUPPORTED);
     kc_destroy(k); kc_close(a);
 }
 
@@ -481,9 +480,9 @@ TEST(bcdh_legacy_blob_note) {
     BCRYPT_KEY_HANDLE k = dh_import(a, 0, 1, NULL);
     unsigned char buf[2048]; ULONG n = 0;
     NTSTATUS s = kc_export(k, LEGACY_DH_PUBLIC_BLOB, buf, sizeof(buf), &n);
-    t_note("CAPIDHPUBLICBLOB export -> 0x%08lx size=%lu", (unsigned long)s, (unsigned long)n);
+    CHECK_NS(s, 0); EXPECT_EQ(n, 816);
     s = kc_export(k, LEGACY_DH_PRIVATE_BLOB, buf, sizeof(buf), &n);
-    t_note("CAPIDHPRIVATEBLOB export -> 0x%08lx size=%lu", (unsigned long)s, (unsigned long)n);
+    CHECK_NS(s, 0); EXPECT_EQ(n, 1076);
     kc_destroy(k); kc_close(a);
 }
 
@@ -497,11 +496,11 @@ TEST(bcdh_key_properties) {
     v = 0;
     NTSTATUS s = U(BCryptGetProperty)(k, BCRYPT_KEY_STRENGTH, (PUCHAR)&v, 4, &r, 0);
     CHECK_NS(s, 0);
-    t_note("DH key strength property %lu", (unsigned long)v);
+    EXPECT_EQ(v, 2048);
     unsigned char buf[12 + 2 * DHB]; r = 0;
     s = U(BCryptGetProperty)(k, BCRYPT_DH_PARAMETERS, buf, sizeof(buf), &r, 0);
-    t_note("DH key DHParameters get -> 0x%08lx size=%lu", (unsigned long)s, (unsigned long)r);
-    if (NT_OK(s)) {
+    CHECK_NS(s, 0);
+    {
         BCRYPT_DH_PARAMETER_HEADER *h = (BCRYPT_DH_PARAMETER_HEADER *)buf;
         EXPECT_EQ(h->dwMagic, BCRYPT_DH_PARAMETERS_MAGIC);
         EXPECT_EQ(h->cbKeyLength, DHB);
@@ -529,9 +528,10 @@ TEST(bcdh_secret_kdf_sizes) {
         unsigned char h[32]; ULONG hn = 0;
         CHECK_NS(kc_derive(x, BCRYPT_KDF_HASH, &d, h, 32, &hn, 0), 0);
         EXPECT_EQ(hn, 32);
-        unsigned char be[DHB], rev[DHB];
-        memcpy(be, DH_Z, DHB); kc_rev(rev, DH_Z, DHB);
-        t_note("DH SHA256(secret) KDF computed");
+        unsigned char want[32];
+        /* KDF_HASH hashes the big-endian secret although KDF_RAW_SECRET returns it reversed */
+        CHECK_NS(U(BCryptHash)(BCRYPT_SHA256_ALG_HANDLE, NULL, 0, (PUCHAR)DH_Z, DHB, want, 32), 0);
+        CHECK_MEM(h, want, 32);
         U(BCryptDestroySecret)(x);
     }
     kc_destroy(ap); kc_destroy(bpub); kc_close(a);

@@ -13,8 +13,7 @@ TEST(wvt_catalog_missing_catalog_file) {
     WCHAR cat[MAX_PATH], pe[MAX_PATH]; wvt_path(cat, "none.cat"); wvt_del(cat); wvt_path(pe, "m1.exe"); wvt_write(pe, fix_pe_unsigned, sizeof fix_pe_unsigned);
     WVTD w; WINTRUST_CATALOG_INFO ci; cat_data(&w, &ci, cat, L"TAG", pe);
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("missing catalog file -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0); EXPECT_EQ((DWORD)r, e);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR); EXPECT_EQ((DWORD)r, e);
     wvt_del(pe);
 }
 TEST(wvt_catalog_missing_member_file) {
@@ -22,8 +21,7 @@ TEST(wvt_catalog_missing_member_file) {
     WCHAR cat[MAX_PATH], pe[MAX_PATH]; wvt_path(cat, "c2.cat"); wvt_write(cat, "junk", 4); wvt_path(pe, "m2.exe"); wvt_del(pe);
     WVTD w; WINTRUST_CATALOG_INFO ci; cat_data(&w, &ci, cat, L"TAG", pe);
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("missing member file -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR);
     wvt_del(cat);
 }
 TEST(wvt_catalog_garbage_catalog) {
@@ -32,8 +30,7 @@ TEST(wvt_catalog_garbage_catalog) {
     wvt_path(pe, "m3.exe"); wvt_write(pe, fix_pe_unsigned, sizeof fix_pe_unsigned);
     WVTD w; WINTRUST_CATALOG_INFO ci; cat_data(&w, &ci, cat, L"TAG", pe);
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("garbage catalog -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR);
     wvt_del(cat); wvt_del(pe);
 }
 TEST(wvt_catalog_null_member_tag_and_path) {
@@ -41,8 +38,7 @@ TEST(wvt_catalog_null_member_tag_and_path) {
     WCHAR cat[MAX_PATH]; wvt_path(cat, "c4.cat"); wvt_write(cat, "junk", 4);
     WVTD w; WINTRUST_CATALOG_INFO ci; cat_data(&w, &ci, cat, NULL, NULL);
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("catalog subject with no tag and no member -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_FILE_ERROR);
     wvt_del(cat);
 }
 TEST(wvt_catalog_state_returned_on_failure) {
@@ -51,9 +47,9 @@ TEST(wvt_catalog_state_returned_on_failure) {
     wvt_path(pe, "m5.exe"); wvt_write(pe, fix_pe_unsigned, sizeof fix_pe_unsigned);
     WVTD w; WINTRUST_CATALOG_INFO ci; cat_data(&w, &ci, cat, L"TAG", pe); w.d.dwStateAction = WTD_STATEACTION_VERIFY;
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    CHECK(r != 0);
-    t_note("state handle after failed catalog verify: %p", w.d.hWVTStateData);
-    if (w.d.hWVTStateData) { CHECK(wvt_close(&WVT_V2, &w) == 0); CHECK(w.d.hWVTStateData == NULL); }
+    EXPECT_EQ(r, WVT_E_FILE_ERROR);
+    REQUIRE_NOTNULL(w.d.hWVTStateData);   /* state is produced even for a failed catalog verify */
+    CHECK(wvt_close(&WVT_V2, &w) == 0); CHECK(w.d.hWVTStateData == NULL);
     wvt_del(cat); wvt_del(pe);
 }
 TEST(wvt_catalog_auto_cache_repeat_is_stable) {
@@ -65,7 +61,7 @@ TEST(wvt_catalog_auto_cache_repeat_is_stable) {
         WVTD w; WINTRUST_CATALOG_INFO ci; cat_data(&w, &ci, cat, L"TAG", pe); w.d.dwStateAction = WTD_STATEACTION_AUTO_CACHE;
         DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
         if (i == 0) first = r; else CHECK(r == first);
-        CHECK(r != 0);
+        EXPECT_EQ(r, WVT_E_FILE_ERROR);
         CHECK(w.d.dwStateAction == WTD_STATEACTION_AUTO_CACHE);
     }
     WVTD w; WINTRUST_CATALOG_INFO ci; cat_data(&w, &ci, cat, L"TAG", pe); w.d.dwStateAction = WTD_STATEACTION_AUTO_CACHE_FLUSH;
@@ -78,7 +74,7 @@ TEST(wvt_catalog_auto_cache_with_file_choice_is_plain_verify) {
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "ac.exe"); wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned);
     wvt_init_file(&w, &fi, p); w.d.dwStateAction = WTD_STATEACTION_AUTO_CACHE; DWORD e;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("AUTO_CACHE with file subject -> 0x%08lx state=%p", (unsigned long)r, w.d.hWVTStateData);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE);
     CHECK(w.d.hWVTStateData == NULL);
     wvt_del(p);
 }
@@ -88,7 +84,8 @@ TEST(wvt_catalog_v1_hash_calc_shape) {
     WCHAR pe[MAX_PATH]; wvt_path(pe, "hh.exe"); wvt_write(pe, fix_pe_unsigned, sizeof fix_pe_unsigned);
     HANDLE h = CreateFileW(pe, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     DWORD cb = 0; SET_ERR(0);
-    BOOL qr = calc(h, &cb, NULL, 0); t_note("size query: ret=%d err=%lu cb=%lu", qr, (unsigned long)GetLastError(), (unsigned long)cb);
+    BOOL qr = calc(h, &cb, NULL, 0);
+    EXPECT_EQ(qr, 1); EXPECT_ERR(ERROR_INSUFFICIENT_BUFFER);   /* Win10 returns TRUE for the size query and leaves 122 */
     EXPECT_EQ(cb, 20);
     BYTE hash[20]; cb = 20; CHECK(calc(h, &cb, hash, 0)); EXPECT_EQ(cb, 20);
     /* Authenticode SHA-1 over the same image regions */

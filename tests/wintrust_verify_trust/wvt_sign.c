@@ -99,12 +99,12 @@ static HRESULT sign_file(EPH *e, const WCHAR *path, ALG_ID hash) {
 }
 #define SIGN_SETUP(name, hashalg) \
     WVT_REQUIRE_WVT(); \
-    if (!t_proc_in("mssign32.dll", "SignerSign")) { t_skip("mssign32!SignerSign missing"); return; } \
+    if (!t_proc_in("mssign32.dll", "SignerSign")) { if (t_is_wine()) t_skip("mssign32!SignerSign missing"); else CHECKF(0, "mssign32!SignerSign missing"); return; } \
     EPH eph; WCHAR p[MAX_PATH]; wvt_path(p, name); \
-    if (!eph_make(&eph, L"CN=cryptt WVT runtime signer")) { eph_free(&eph); t_skip("cannot create ephemeral signing cert"); return; } \
+    if (!eph_make(&eph, L"CN=cryptt WVT runtime signer")) { CHECKF(0, "cannot create the ephemeral signing cert"); eph_free(&eph); return; } \
     wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned); \
     HRESULT shr = sign_file(&eph, p, hashalg); \
-    if (FAILED(shr)) { t_note("SignerSign failed 0x%08lx (lasterr %lu)", (unsigned long)shr, (unsigned long)GetLastError()); wvt_del(p); eph_free(&eph); t_skip("platform cannot sign"); return; }
+    if (FAILED(shr)) { CHECKF(0, "SignerSign failed 0x%08lx (lasterr %lu)", (unsigned long)shr, (unsigned long)GetLastError()); wvt_del(p); eph_free(&eph); return; }
 
 TEST(wvt_sign_selfsigned_untrusted_root) {
     SIGN_SETUP("sg1.exe", CALG_SHA_256)
@@ -137,21 +137,22 @@ TEST(wvt_sign_sha1_digest_algorithm) {
     SIGN_SETUP("sg4.exe", CALG_SHA1)
     DWORD e; WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); w.d.dwStateAction = WTD_STATEACTION_VERIFY;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("SHA-1 signed image verifies to 0x%08lx", (unsigned long)r);
-    CHECK(r == WVT_E_UNTRUSTEDROOT || r != 0);
+    EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);
     CRYPT_PROVIDER_DATA *pd = U(WTHelperProvDataFromStateData)(w.d.hWVTStateData);
     CRYPT_PROVIDER_SGNR *s = pd ? U(WTHelperGetProvSignerFromChain)(pd, 0, FALSE, 0) : NULL;
     if (s && s->psSigner) EXPECT_STR(s->psSigner->HashAlgorithm.pszObjId, "1.3.14.3.2.26");
     wvt_close(&WVT_V2, &w);
     LONG (WINAPI *gh)(const WCHAR *, DWORD, void *, BYTE *, DWORD *, ALG_ID *) = (void *)t_proc("WTHelperGetFileHash");
-    if (gh) { BYTE h[64]; DWORD cb = sizeof h; ALG_ID alg = 0; LONG hr = gh(p, 0, NULL, h, &cb, &alg);
-        if (hr == 0) { EXPECT_EQ(cb, 20); EXPECT_EQ(alg, CALG_SHA1); } else t_note("WTHelperGetFileHash -> 0x%08lx", (unsigned long)hr); }
+    REQUIRE_NOTNULL((void *)gh);
+    { BYTE h[64]; DWORD cb = sizeof h; ALG_ID alg = 0; LONG hr = gh(p, 0, NULL, h, &cb, &alg);
+        EXPECT_EQ(hr, 0); EXPECT_EQ(cb, 20); EXPECT_EQ(alg, CALG_SHA1); }
     wvt_del(p); eph_free(&eph);
 }
 TEST(wvt_sign_file_hash_helper_sha256) {
     SIGN_SETUP("sg5.exe", CALG_SHA_256)
     LONG (WINAPI *gh)(const WCHAR *, DWORD, void *, BYTE *, DWORD *, ALG_ID *) = (void *)t_proc("WTHelperGetFileHash");
-    if (gh) {
+    REQUIRE_NOTNULL((void *)gh);
+    {
         BYTE h[64]; DWORD cb = sizeof h; ALG_ID alg = 0;
         EXPECT_EQ(gh(p, 0, NULL, h, &cb, &alg), 0); EXPECT_EQ(cb, 32); EXPECT_EQ(alg, 0xffffffff); /* Win10 reports an ALG_ID only for SHA1 digests; SHA256 gives -1 */
         /* the Authenticode digest of the image is the same value the embedded fixture carries (identical image bytes) */
@@ -172,31 +173,31 @@ TEST(wvt_sign_tamper_after_signing) {
 TEST(wvt_sign_resign_observed) {
     SIGN_SETUP("sg7.exe", CALG_SHA_256)
     HRESULT hr2 = sign_file(&eph, p, CALG_SHA_256);
-    t_note("signing an already signed PE again: 0x%08lx", (unsigned long)hr2);
+    EXPECT_EQ(hr2, 0);
     DWORD e; WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); w.d.dwStateAction = WTD_STATEACTION_VERIFY;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("verification after second signing: 0x%08lx", (unsigned long)r);
+    EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);
     CRYPT_PROVIDER_DATA *pd = U(WTHelperProvDataFromStateData)(w.d.hWVTStateData);
-    if (pd) t_note("csSigners=%lu", (unsigned long)pd->csSigners);
+    REQUIRE_NOTNULL(pd);
+    EXPECT_EQ(pd->csSigners, 1);
     wvt_close(&WVT_V2, &w); wvt_del(p); eph_free(&eph);
 }
 TEST(wvt_sign_signature_info_reports_signed) {
     SIGN_SETUP("sg8.exe", CALG_SHA_256)
     typedef HRESULT (WINAPI *gsi_t)(const WCHAR *, HANDLE, DWORD, void *, PCCERT_CONTEXT *, HANDLE *);
     gsi_t f = (gsi_t)t_proc("WTGetSignatureInfo");
-    if (f) {
+    REQUIRE_NOTNULL((void *)f);
+    {
         BYTE si[0x58]; memset(si, 0, sizeof si); *(DWORD *)si = sizeof si; PCCERT_CONTEXT c = NULL;
         HRESULT hr = f(p, INVALID_HANDLE_VALUE, 1, si, &c, NULL); DWORD *d = (DWORD *)si;
-        t_note("WTGetSignatureInfo(signed): hr=0x%08lx state=%lu type=%lu", (unsigned long)hr, (unsigned long)d[1], (unsigned long)d[2]);
-        CHECK(SUCCEEDED(hr));
-        if (SUCCEEDED(hr)) { CHECK(d[1] >= 2); CHECK(c != NULL); }   /* signature present; trust level depends on the machine */
+        EXPECT_EQ(hr, 0); EXPECT_EQ(d[1], 2); EXPECT_EQ(d[2], 1); CHECK(c != NULL);   /* untrusted-root signature present */
         if (c) U(CertFreeCertificateContext)(c);
     }
     wvt_del(p); eph_free(&eph);
 }
 TEST(wvt_sign_cert_choice_runtime_cert) {
     WVT_REQUIRE_WVT();
-    EPH eph; if (!eph_make(&eph, L"CN=cryptt WVT runtime cert choice")) { eph_free(&eph); t_skip("cannot create ephemeral cert"); return; }
+    EPH eph; if (!eph_make(&eph, L"CN=cryptt WVT runtime cert choice")) { CHECKF(0, "cannot create the ephemeral cert"); eph_free(&eph); return; }
     WVTD w; WINTRUST_CERT_INFO ci; memset(&w, 0, sizeof w); memset(&ci, 0, sizeof ci);
     ci.cbStruct = sizeof ci; ci.psCertContext = (CERT_CONTEXT *)eph.cert; ci.dwFlags = WTCI_DONT_OPEN_STORES; ci.pcwszDisplayName = L"runtime";
     w.d.cbStruct = sizeof w; w.d.dwUIChoice = WTD_UI_NONE; w.d.dwUnionChoice = WTD_CHOICE_CERT; w.d.pCert = &ci;

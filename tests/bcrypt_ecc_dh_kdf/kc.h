@@ -21,8 +21,6 @@
 
 /* CHECK an NTSTATUS exactly, printing both values. */
 #define CHECK_NS(got, want) do { NTSTATUS g_ = (got); t_check(g_ == (NTSTATUS)(want), __FILE__, __LINE__, #got " == " #want, "got 0x%08lx want 0x%08lx", (unsigned long)g_, (unsigned long)(NTSTATUS)(want)); } while (0)
-/* CHECK that a call failed; the exact code is only recorded (unverified detail). */
-#define CHECK_NS_FAIL(got) do { NTSTATUS g_ = (got); t_check(!NT_OK(g_), __FILE__, __LINE__, #got " fails", "unexpected success"); if (NT_OK(g_)) ; else t_note("%s -> 0x%08lx", #got, (unsigned long)g_); } while (0)
 #define CHECK_MEM(a, b, n) t_check(memcmp((a), (b), (n)) == 0, __FILE__, __LINE__, "memcmp(" #a "," #b ")", "bytes differ (%lu)", (unsigned long)(n))
 
 /* Are the core exports there? */
@@ -32,7 +30,9 @@ static int kc_core(void) {
            U(BCryptSecretAgreement) && U(BCryptDeriveKey) && U(BCryptDestroySecret) && U(BCryptSignHash) &&
            U(BCryptVerifySignature) && U(BCryptGetProperty) && U(BCryptSetProperty);
 }
-#define NEED_CORE() do { if (!kc_core()) { t_skip("missing core bcrypt exports"); return; } } while (0)
+/* a missing export is a failure on Windows 10; only the emulator may lack them */
+#define KC_MISSING(msg) do { if (t_is_wine()) t_skip(msg); else CHECKF(0, "%s", msg); } while (0)
+#define NEED_CORE() do { if (!kc_core()) { KC_MISSING("missing core bcrypt exports"); return; } } while (0)
 
 static BCRYPT_ALG_HANDLE kc_open(const WCHAR *name, ULONG flags) {
     BCRYPT_ALG_HANDLE h = NULL;

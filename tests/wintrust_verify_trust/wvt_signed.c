@@ -33,8 +33,8 @@ TEST(wvt_signed_cache_only_and_no_revocation_flags) {
     for (unsigned i = 0; i < sizeof fl / sizeof fl[0]; i++) {
         WVTD w; WINTRUST_FILE_INFO fi; wvt_init_file(&w, &fi, p); w.d.dwProvFlags = fl[i]; DWORD e;
         LONG r = wvt_call(&WVT_V2, &w, &e);
-        t_note("signed, provflags 0x%lx -> 0x%08lx", (unsigned long)fl[i], (unsigned long)r);
-        CHECKF(r != 0, "flags 0x%lx unexpectedly trusted", (unsigned long)fl[i]);
+        t_label("flags 0x%lx", (unsigned long)fl[i]);
+        EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);
     }
     wvt_del(p);
 }
@@ -88,8 +88,7 @@ TEST(wvt_tamper_signature_value_fails) {
     /* flip a bit inside the RSA signature (last bytes of the PKCS#7 blob, before the 8-byte padding) */
     DWORD off = sizeof fix_pe_signed - 8 - 40;
     LONG r = verify_modified(off, 0x04, 0, "m9.exe");
-    t_note("corrupted RSA signature -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0 && r != WVT_E_UNTRUSTEDROOT);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE);
 }
 TEST(wvt_tamper_embedded_digest_fails) {
     WVT_REQUIRE_WVT();
@@ -99,7 +98,7 @@ TEST(wvt_tamper_embedded_digest_fails) {
     DWORD off = 0; for (DWORD i = 0x408; i < 0x700; i++) if (!memcmp(b + i, fix_pe_sha256, 32)) { off = i; break; }
     CHECK(off != 0);
     if (off) { b[off + 3] ^= 1; DWORD e; LONG r = wvt_verify_bytes(b, sizeof fix_pe_signed, 0, "m10.exe", &e);
-        t_note("corrupted embedded digest -> 0x%08lx", (unsigned long)r); CHECK(r != 0 && r != WVT_E_UNTRUSTEDROOT); }
+        EXPECT_EQ(r, WVT_E_BAD_DIGEST); }
     HeapFree(GetProcessHeap(), 0, b);
 }
 TEST(wvt_unsigned_twin_nosignature) {
@@ -111,14 +110,13 @@ TEST(wvt_signed_trailing_garbage_observed) {
     BYTE *b = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof fix_pe_signed + 16); DWORD e;
     memcpy(b, fix_pe_signed, sizeof fix_pe_signed); memset(b + sizeof fix_pe_signed, 0xAB, 16);
     LONG r = wvt_verify_bytes(b, sizeof fix_pe_signed + 16, 0, "m12.exe", &e);
-    t_note("signed PE with 16 bytes after the certificate table -> 0x%08lx", (unsigned long)r);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE);
     HeapFree(GetProcessHeap(), 0, b);
 }
 TEST(wvt_signed_cert_table_truncated) {
     WVT_REQUIRE_WVT();
     DWORD e; LONG r = wvt_verify_bytes(fix_pe_signed, sizeof fix_pe_signed - 100, WTD_HASH_ONLY_FLAG, "m13.exe", &e);
-    t_note("certificate table truncated by 100 bytes -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE);
 }
 
 /* ---- state, provider data ------------------------------------------------- */
@@ -150,7 +148,7 @@ TEST(wvt_state_signers_and_certs) {
         CHECK(U(WTHelperGetProvCertFromChain)(s0, 0xffffffff) == NULL);
         CHECK(U(WTHelperGetProvCertFromChain)(NULL, 0) == NULL);
         CHECK(U(WTHelperGetProvCertFromChain)(NULL, 1) == NULL);
-        t_note("sgnr cbStruct=%lu dwError=0x%08lx dwSignerType=%lu", (unsigned long)s0->cbStruct, (unsigned long)s0->dwError, (unsigned long)s0->dwSignerType);
+        EXPECT_EQ(s0->cbStruct, 64); EXPECT_EQ(s0->dwError, 0);
         EXPECT_EQ(s0->dwSignerType, 0);
         CHECK(s0->psSigner != NULL);
         CHECK(s0->pChainContext != NULL);
@@ -159,7 +157,7 @@ TEST(wvt_state_signers_and_certs) {
             CHECK(c0->fSelfSigned);
             CHECK(!c0->fTrustedRoot);
             CHECK(!c0->fTestCert);
-            t_note("cert0 dwError=0x%08lx dwConfidence=0x%08lx dwRevokedReason=%lu", (unsigned long)c0->dwError, (unsigned long)c0->dwConfidence, (unsigned long)c0->dwRevokedReason);
+            EXPECT_EQ(c0->dwError, (DWORD)WVT_E_UNTRUSTEDROOT); EXPECT_EQ(c0->dwConfidence, 0x11100000); EXPECT_EQ(c0->dwRevokedReason, 0);
         }
     }
     SIGNED_STATE_EPILOGUE
@@ -242,11 +240,10 @@ TEST(wvt_state_provider_data_fields) {
     ULONGLONG a = ((ULONGLONG)now.dwHighDateTime << 32) | now.dwLowDateTime;
     ULONGLONG b = ((ULONGLONG)pd->d.sftSystemTime.dwHighDateTime << 32) | pd->d.sftSystemTime.dwLowDateTime;
     CHECK((a > b ? a - b : b - a) < 10ULL * 60 * 10000000);
-    t_note("dwProvFlags=0x%08lx dwRegSec=%lu dwRegPol=0x%08lx dwError=0x%08lx dwFinalError=0x%08lx dwTrustPubSettings=0x%08lx dwUIStateFlags=0x%08lx",
-           (unsigned long)pd->d.dwProvFlags, (unsigned long)pd->d.dwRegSecuritySettings, (unsigned long)pd->d.dwRegPolicySettings,
-           (unsigned long)pd->d.dwError, (unsigned long)pd->d.dwFinalError, (unsigned long)pd->d.dwTrustPubSettings, (unsigned long)pd->d.dwUIStateFlags);
-    for (int i = 0; i < 38 && pd->d.padwTrustStepErrors; i++)
-        if (pd->d.padwTrustStepErrors[i]) t_note("trust step %d error 0x%08lx", i, (unsigned long)pd->d.padwTrustStepErrors[i]);
+    EXPECT_EQ(pd->d.dwProvFlags, 0x80000010); EXPECT_EQ(pd->d.dwRegSecuritySettings, 1); EXPECT_EQ(pd->d.dwRegPolicySettings, 0x00023c00);
+    EXPECT_EQ(pd->d.dwError, 0); EXPECT_EQ(pd->d.dwFinalError, (DWORD)WVT_E_UNTRUSTEDROOT);
+    EXPECT_EQ(pd->d.dwTrustPubSettings, 0); EXPECT_EQ(pd->d.dwUIStateFlags, 0);
+    for (int i = 0; i < 38 && pd->d.padwTrustStepErrors; i++) { t_label("trust step %d", i); EXPECT_EQ(pd->d.padwTrustStepErrors[i], 0); }
     EXPECT_EQ(pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_WVTINIT], 0);
     EXPECT_EQ(pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_INITPROV], 0);
     EXPECT_EQ(pd->d.padwTrustStepErrors[TRUSTERROR_STEP_FINAL_OBJPROV], 0);
@@ -264,8 +261,7 @@ TEST(wvt_state_provider_function_table) {
         CHECK(f->pfnSignatureTrust == (PFN_PROVIDER_SIGTRUST_CALL)GetProcAddress(m, "SoftpubLoadSignature"));
         CHECK(f->pfnCertificateTrust == (PFN_PROVIDER_CERTTRUST_CALL)GetProcAddress(m, "WintrustCertificateTrust"));
         CHECK(f->pfnCertCheckPolicy == (PFN_PROVIDER_CERTCHKPOLICY_CALL)GetProcAddress(m, "SoftpubCheckCert"));
-        t_note("FinalPolicy=%p (ConfigCiFinalPolicy=%p SoftpubAuthenticode=%p)", (void *)f->pfnFinalPolicy,
-               (void *)GetProcAddress(m, "ConfigCiFinalPolicy"), (void *)GetProcAddress(m, "SoftpubAuthenticode"));
+        CHECK((void *)f->pfnFinalPolicy == (void *)GetProcAddress(m, "SoftpubAuthenticode"));
         CHECK(f->pfnAlloc && f->pfnFree && f->pfnAddStore2Chain && f->pfnAddSgnr2Chain && f->pfnAddCert2Chain && f->pfnAddPrivData2Chain);
         void *blk = f->pfnAlloc(48);
         CHECK(blk != NULL);
@@ -280,11 +276,10 @@ TEST(wvt_state_private_data_lookup) {
     CHECK(U(WTHelperGetProvPrivateDataFromChain)(&pd->d, NULL) == NULL);
     CHECK(U(WTHelperGetProvPrivateDataFromChain)(NULL, (GUID *)&nope) == NULL);
     CHECK(U(WTHelperGetProvPrivateDataFromChain)(NULL, NULL) == NULL);
+    EXPECT_EQ(pd->d.csProvPrivData, 0);   /* Win10 records no provider private data for this verify */
     for (DWORD i = 0; i < pd->d.csProvPrivData && pd->d.pasProvPrivData; i++) {
         CRYPT_PROVIDER_PRIVDATA *pr = U(WTHelperGetProvPrivateDataFromChain)(&pd->d, &pd->d.pasProvPrivData[i].gProviderID);
         CHECKF(pr != NULL && pr->gProviderID.Data1 == pd->d.pasProvPrivData[i].gProviderID.Data1, "private data %lu", (unsigned long)i);
-        t_note("privdata[%lu] id=%08lx-%04x cb=%lu", (unsigned long)i, (unsigned long)pd->d.pasProvPrivData[i].gProviderID.Data1,
-               pd->d.pasProvPrivData[i].gProviderID.Data2, (unsigned long)pd->d.pasProvPrivData[i].cbProvData);
     }
     SIGNED_STATE_EPILOGUE
 }
@@ -315,9 +310,9 @@ TEST(wvt_state_open_file_handle_helper) {
     WVT_REQUIRE_WVT();
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; DWORD e; put_signed(p, "fh.exe");
     verify_signed_state(&w, &fi, p, 0, &e);
-    t_note("pFile->hFile after VERIFY (path only) = %p", fi.hFile);
+    CHECK(fi.hFile == INVALID_HANDLE_VALUE);   /* Win10 stores an invalid handle for a path-only subject */
     wvt_close(&WVT_V2, &w); wvt_del(p);
-    t_note("pFile->hFile after CLOSE = %p", fi.hFile);
+    CHECK(fi.hFile == INVALID_HANDLE_VALUE);
 }
 TEST(wvt_verify_twice_same_data_independent) {
     WVT_REQUIRE_WVT();
@@ -337,7 +332,7 @@ TEST(wvt_state_recall_verify_with_existing_state) {
     HANDLE h1 = w.d.hWVTStateData;
     w.d.dwStateAction = WTD_STATEACTION_VERIFY;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("recall: result 0x%08lx state %p -> %p", (unsigned long)r, h1, w.d.hWVTStateData);
+    EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT); CHECK(w.d.hWVTStateData == h1);
     wvt_close(&WVT_V2, &w); wvt_del(p);
 }
 
@@ -350,8 +345,8 @@ TEST(wvt_sigsettings_count_secondary) {
     ss.cSecondarySigs = 0xcccccccc; ss.dwVerifiedSigIndex = 0xcccccccc;
     w.pSignatureSettings = &ss;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("sigsettings count: r=0x%08lx cSecondary=%lu verifiedIdx=%lu", (unsigned long)r, (unsigned long)ss.cSecondarySigs, (unsigned long)ss.dwVerifiedSigIndex);
     EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);
+    EXPECT_EQ(ss.dwVerifiedSigIndex, 0xcccccccc);   /* not written for a count-only request */
     EXPECT_EQ(ss.cSecondarySigs, 0);
     wvt_close(&WVT_V2, &w); wvt_del(p);
 }
@@ -371,8 +366,7 @@ TEST(wvt_sigsettings_verify_specific_out_of_range) {
     WVT_SIGSET ss; memset(&ss, 0, sizeof ss); ss.cbStruct = sizeof ss; ss.dwFlags = 1; ss.dwIndex = 5;
     w.pSignatureSettings = &ss;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("verify-specific index 5 of 1 signature -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE);
     wvt_del(p);
 }
 TEST(wvt_sigsettings_too_small_cbstruct) {
@@ -382,7 +376,7 @@ TEST(wvt_sigsettings_too_small_cbstruct) {
     WVT_SIGSET ss; memset(&ss, 0, sizeof ss); ss.cbStruct = 0x1c;
     w.pSignatureSettings = &ss;
     LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("signature settings cbStruct 0x1c -> result 0x%08lx lasterr 0x%08lx", (unsigned long)r, (unsigned long)e);
+    EXPECT_EQ(r, 0);
     EXPECT_EQ(e, (DWORD)WVT_E_INVALIDARG);
     wvt_del(p);
 }
@@ -457,8 +451,7 @@ TEST(wvt_cert_verify_as_of_before_validity) {
     PCCERT_CONTEXT c = mkcert(fix_cert_self, sizeof fix_cert_self); if (!c) { CHECK(0); return; }
     SYSTEMTIME st = { 2010, 6, 0, 1, 12, 0, 0, 0 }; FILETIME ft; SystemTimeToFileTime(&st, &ft);
     DWORD e; LONG r = verify_cert(c, NULL, &ft, &e, &WVT_CERTV, NULL, NULL);
-    t_note("self-signed cert verified as of 2010 (NotBefore 2020) -> 0x%08lx", (unsigned long)r);
-    CHECK(r == (LONG)0x800B0101 || r == WVT_E_UNTRUSTEDROOT);
+    EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);   /* Win10 reports the untrusted root for an as-of time before NotBefore */
     U(CertFreeCertificateContext)(c);
 }
 TEST(wvt_cert_verify_as_of_after_validity) {
@@ -466,8 +459,7 @@ TEST(wvt_cert_verify_as_of_after_validity) {
     PCCERT_CONTEXT c = mkcert(fix_cert_self, sizeof fix_cert_self); if (!c) { CHECK(0); return; }
     SYSTEMTIME st = { 2125, 6, 0, 1, 12, 0, 0, 0 }; FILETIME ft; SystemTimeToFileTime(&st, &ft);
     DWORD e; LONG r = verify_cert(c, NULL, &ft, &e, &WVT_CERTV, NULL, NULL);
-    t_note("self-signed cert verified as of 2125 (NotAfter 2120) -> 0x%08lx", (unsigned long)r);
-    CHECK(r == (LONG)0x800B0101 || r == WVT_E_UNTRUSTEDROOT);
+    EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);   /* likewise for an as-of time after NotAfter */
     U(CertFreeCertificateContext)(c);
 }
 TEST(wvt_cert_verify_as_of_within_validity) {
@@ -489,7 +481,7 @@ TEST(wvt_cert_chain_action_with_cert_choice_observed) {
     if (t_is_wine()) { t_skip("chain provider needs policy callback data"); return; }
     PCCERT_CONTEXT c = mkcert(fix_cert_self, sizeof fix_cert_self); if (!c) { CHECK(0); return; }
     DWORD e; LONG r = verify_cert(c, NULL, NULL, &e, &WVT_CHAINV, NULL, NULL);
-    t_note("GENERIC_CHAIN_VERIFY without WTD_GENERIC_CHAIN_POLICY_DATA -> 0x%08lx", (unsigned long)r);
+    EXPECT_EQ(r, WVT_E_UNTRUSTEDROOT);
     U(CertFreeCertificateContext)(c);
 }
 
@@ -505,13 +497,12 @@ TEST(wvt_blob_unknown_subject_guid) {
     w.d.cbStruct = sizeof w; w.d.dwUIChoice = WTD_UI_NONE; w.d.dwUnionChoice = WTD_CHOICE_BLOB; w.d.pBlob = &bi;
     w.d.dwProvFlags = WTD_REVOCATION_CHECK_NONE; w.d.dwStateAction = WTD_STATEACTION_VERIFY;
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("blob with unregistered SIP guid -> 0x%08lx lasterr 0x%08lx", (unsigned long)r, (unsigned long)e);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_PROVIDER_UNKNOWN); EXPECT_EQ(e, (DWORD)WVT_E_PROVIDER_UNKNOWN);
     CRYPT_PROVIDER_DATA *pd = U(WTHelperProvDataFromStateData)(w.d.hWVTStateData);
     CHECK(pd != NULL && pd->padwTrustStepErrors != NULL);
     if (pd && pd->padwTrustStepErrors) {
-        t_note("TRUSTERROR_STEP_FINAL_OBJPROV = 0x%08lx", (unsigned long)pd->padwTrustStepErrors[TRUSTERROR_STEP_FINAL_OBJPROV]);
-        t_note("TRUSTERROR_STEP_SIP = 0x%08lx", (unsigned long)pd->padwTrustStepErrors[TRUSTERROR_STEP_SIP]);
+        EXPECT_EQ(pd->padwTrustStepErrors[TRUSTERROR_STEP_FINAL_OBJPROV], (DWORD)WVT_E_PROVIDER_UNKNOWN);
+        EXPECT_EQ(pd->padwTrustStepErrors[TRUSTERROR_STEP_SIP], (DWORD)WVT_E_SUBJECT_FORM);
     }
     wvt_close(&WVT_V2, &w);
 }
@@ -523,8 +514,7 @@ TEST(wvt_blob_pe_subject_unsigned_observed) {
     w.d.cbStruct = sizeof w; w.d.dwUIChoice = WTD_UI_NONE; w.d.dwUnionChoice = WTD_CHOICE_BLOB; w.d.pBlob = &bi;
     w.d.dwProvFlags = WTD_REVOCATION_CHECK_NONE;
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("PE SIP blob (unsigned image) -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE);
 }
 TEST(wvt_blob_pe_subject_signed_observed) {
     WVT_REQUIRE_WVT();
@@ -534,8 +524,7 @@ TEST(wvt_blob_pe_subject_signed_observed) {
     w.d.cbStruct = sizeof w; w.d.dwUIChoice = WTD_UI_NONE; w.d.dwUnionChoice = WTD_CHOICE_BLOB; w.d.pBlob = &bi;
     w.d.dwProvFlags = WTD_REVOCATION_CHECK_NONE;
     DWORD e; LONG r = wvt_call(&WVT_V2, &w, &e);
-    t_note("PE SIP blob (signed image) -> 0x%08lx", (unsigned long)r);
-    CHECK(r != 0);
+    EXPECT_EQ(r, WVT_E_NOSIGNATURE);
 }
 TEST(wvt_blob_with_state_unknown_guid_state_closed) {
     WVT_REQUIRE_WVT();
@@ -545,7 +534,7 @@ TEST(wvt_blob_with_state_unknown_guid_state_closed) {
     bi.cbMemObject = sizeof data; bi.pbMemObject = (BYTE *)data;
     w.d.cbStruct = sizeof w; w.d.dwUIChoice = WTD_UI_NONE; w.d.dwUnionChoice = WTD_CHOICE_BLOB; w.d.pBlob = &bi;
     w.d.dwStateAction = WTD_STATEACTION_VERIFY;
-    DWORD e; CHECK(wvt_call(&WVT_V2, &w, &e) != 0);
+    DWORD e; EXPECT_EQ(wvt_call(&WVT_V2, &w, &e), WVT_E_PROVIDER_UNKNOWN);
     CHECK(w.d.hWVTStateData != NULL);
     EXPECT_EQ(wvt_close(&WVT_V2, &w), 0);
     CHECK(w.d.hWVTStateData == NULL);
@@ -588,7 +577,7 @@ TEST(wvt_step_invalid_union_choice_objprov_invalid_parameter) {
         w.d.dwStateAction = WTD_STATEACTION_VERIFY; DWORD e;
         LONG r = wvt_call(&WVT_V2, &w, &e);
         CRYPT_PROVIDER_DATA *pd = U(WTHelperProvDataFromStateData)(w.d.hWVTStateData);
-        CHECK(r != 0);
+        EXPECT_EQ((DWORD)r, 0x57);
         if (pd && pd->padwTrustStepErrors)
             CHECKF(pd->padwTrustStepErrors[TRUSTERROR_STEP_FINAL_OBJPROV] == 0x57, "choice %lu step=0x%08lx", (unsigned long)ch[i], (unsigned long)pd->padwTrustStepErrors[TRUSTERROR_STEP_FINAL_OBJPROV]);
         else CHECK(0);

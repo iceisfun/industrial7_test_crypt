@@ -58,7 +58,7 @@ TEST(css_save_store_empty) {
     DWORD cb = 0; BYTE *p = save_mem(h, 0, CERT_STORE_SAVE_AS_STORE, &cb, 0);
     CHECK(p != NULL);
     if (p) {
-        t_note("empty serialized store is %lu bytes", cb);
+        EXPECT_EQ(cb, 20);   /* an empty serialized store is just the 20 byte header */
         HCERTSTORE r = open_blob(CERT_STORE_PROV_SERIALIZED, ENC, 0, p, cb);
         CHECK(r != NULL);
         if (r) { EXPECT_EQ(sm_ncerts(r), 0); sm_close(r); }
@@ -111,7 +111,7 @@ TEST(css_roundtrip_archived_cert_not_saved) {
     CRYPT_HASH_BLOB hb = { 20, (BYTE *)v_sha1_a };
     PCCERT_CONTEXT c = U(CertFindCertificateInStore)(h, ENC, 0, CERT_FIND_SHA1_HASH, &hb, NULL);
     static BYTE d[1]; CRYPT_DATA_BLOB ab = { 0, d };
-    if (!U(CertSetCertificateContextProperty)(c, CERT_ARCHIVED_PROP_ID, 0, &ab)) { sm_freec(c); sm_close(h); t_skip("cannot archive here"); return; }
+    if (!U(CertSetCertificateContextProperty)(c, CERT_ARCHIVED_PROP_ID, 0, &ab)) { CHECKF(0, "cannot archive: gle=0x%lx", GetLastError()); sm_freec(c); sm_close(h); return; }
     sm_freec(c);
     DWORD cb = 0; BYTE *p = save_mem(h, 0, CERT_STORE_SAVE_AS_STORE, &cb, 0);
     HCERTSTORE r1 = open_blob(CERT_STORE_PROV_SERIALIZED, ENC, 0, p, cb);
@@ -164,11 +164,9 @@ TEST(css_save_invalid_save_as_or_to) {
     HCERTSTORE h = sm_abc(); if (!h) return;
     CRYPT_DATA_BLOB b = { 0, NULL };
     SET_ERR(0);
-    CHECK(!U(CertSaveStore)(h, 0, 99, CERT_STORE_SAVE_TO_MEMORY, &b, 0));
-    t_note("save as 99 gle=0x%lx", GetLastError());
+    CHECK(!U(CertSaveStore)(h, 0, 99, CERT_STORE_SAVE_TO_MEMORY, &b, 0)); EXPECT_ERR(HR_INVALIDARG);
     SET_ERR(0);
-    CHECK(!U(CertSaveStore)(h, 0, CERT_STORE_SAVE_AS_STORE, 99, &b, 0));
-    t_note("save to 99 gle=0x%lx", GetLastError());
+    CHECK(!U(CertSaveStore)(h, 0, CERT_STORE_SAVE_AS_STORE, 99, &b, 0)); EXPECT_ERR(HR_INVALIDARG);
     SET_ERR(0);
     CHECK(!U(CertSaveStore)(h, 0, CERT_STORE_SAVE_AS_STORE, 0, &b, 0));
     sm_close(h);
@@ -179,7 +177,7 @@ TEST(css_save_to_missing_directory_fails) {
     char path[MAX_PATH]; t_tmpfile(path, sizeof path, "nodir\\x\\y.sst");
     SET_ERR(0);
     CHECK(!U(CertSaveStore)(h, 0, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_FILENAME_A, path, 0));
-    t_note("save into a missing directory gle=%lu (CreateFile gives 3)", GetLastError());
+    EXPECT_ERR(ERROR_PATH_NOT_FOUND);
     sm_close(h);
 }
 
@@ -206,7 +204,7 @@ TEST(css_save_pkcs7_includes_crls) {
     if (p) {
         HCERTSTORE r = open_blob(CERT_STORE_PROV_PKCS7, ENC, 0, p, cb);
         CHECK(r != NULL);
-        if (r) { EXPECT_EQ(sm_ncerts(r), 3); EXPECT_EQ(sm_ncrls(r), 1); t_note("CTLs in PKCS7 round trip: %d", sm_nctls(r)); sm_close(r); }
+        if (r) { EXPECT_EQ(sm_ncerts(r), 3); EXPECT_EQ(sm_ncrls(r), 1); EXPECT_EQ(sm_nctls(r), 0); sm_close(r); }   /* the PKCS7 form carries certs and CRLs only */
         LocalFree(p);
     }
     sm_close(h);
@@ -217,10 +215,10 @@ TEST(css_save_pkcs7_without_pkcs7_encoding) {
     CRYPT_DATA_BLOB b = { 0, NULL };
     SET_ERR(0);
     BOOL r = U(CertSaveStore)(h, 0, CERT_STORE_SAVE_AS_PKCS7, CERT_STORE_SAVE_TO_MEMORY, &b, 0);
-    t_note("PKCS7 save with encoding 0 -> %d gle=0x%lx", r, GetLastError());
+    CHECK(!r); EXPECT_ERR(HR_INVALIDARG);
     SET_ERR(0);
     r = U(CertSaveStore)(h, X509_ASN_ENCODING, CERT_STORE_SAVE_AS_PKCS7, CERT_STORE_SAVE_TO_MEMORY, &b, 0);
-    t_note("PKCS7 save with X509 encoding only -> %d gle=0x%lx", r, GetLastError());
+    CHECK(!r); EXPECT_ERR(HR_INVALIDARG);
     sm_close(h);
 }
 TEST(css_save_pkcs7_empty_store) {
@@ -229,7 +227,7 @@ TEST(css_save_pkcs7_empty_store) {
     CRYPT_DATA_BLOB b = { 0, NULL };
     SET_ERR(0);
     BOOL r = U(CertSaveStore)(h, ENC, CERT_STORE_SAVE_AS_PKCS7, CERT_STORE_SAVE_TO_MEMORY, &b, 0);
-    t_note("PKCS7 save of empty store -> %d size=%lu gle=0x%lx", r, b.cbData, GetLastError());
+    EXPECT_EQ(r, 1); EXPECT_EQ(b.cbData, 41);   /* the size query of an empty PKCS7 is 41 bytes */
     sm_close(h);
 }
 TEST(css_open_pkcs7_vector) {
@@ -254,7 +252,7 @@ TEST(css_open_pkcs7_without_pkcs7_encoding_flag) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_PKCS7, X509_ASN_ENCODING, 0, VEC(v_p7_certs));
-    t_note("PKCS7 open with X509-only encoding -> %p gle=0x%lx", r, GetLastError());
+    CHECK(r != NULL);   /* the PKCS7 bit of the encoding type is not required */
     sm_close(r);
 }
 TEST(css_open_pkcs7_garbage) {
@@ -262,19 +260,16 @@ TEST(css_open_pkcs7_garbage) {
     static const BYTE junk[] = { 0x30, 0x03, 0x02, 0x01, 0x05 };
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_PKCS7, ENC, 0, VEC(junk));
-    CHECK(r == NULL);
-    t_note("PKCS7 open garbage gle=0x%lx", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(0x80093102);
     SET_ERR(0);
     r = open_blob(CERT_STORE_PROV_PKCS7, ENC, 0, VEC(v_cert_a));
-    CHECK(r == NULL);
-    t_note("PKCS7 open of a plain certificate gle=0x%lx", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(0x8009310b);
 }
 TEST(css_open_pkcs7_truncated) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_PKCS7, ENC, 0, v_p7_certs, sizeof v_p7_certs - 30);
-    CHECK(r == NULL);
-    t_note("PKCS7 open truncated gle=0x%lx", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(0x80093102);
 }
 TEST(css_open_msg_provider) {
     REQUIRE(U(CertOpenStore)); REQUIRE(U(CryptMsgOpenToDecode)); REQUIRE(U(CryptMsgUpdate)); REQUIRE(U(CryptMsgClose));
@@ -314,23 +309,23 @@ TEST(css_open_pkcs12_empty_password) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_PKCS12, 0, PKCS12_NO_PERSIST_KEY, VEC(v_p12));
-    t_note("PKCS12 empty-password open -> %p gle=0x%lx", r, GetLastError());
-    if (r) { CHECK(sm_ncerts(r) >= 1); t_note("certs in pfx store: %d", sm_ncerts(r)); sm_close(r); }
+    REQUIRE_NOTNULL(r);
+    EXPECT_EQ(sm_ncerts(r), 2);
+    sm_close(r);
 }
 TEST(css_open_pkcs12_password_protected_fails) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_PKCS12, 0, PKCS12_NO_PERSIST_KEY, VEC(v_p12pw));
     CHECK(r == NULL);                                  /* no way to pass a password through CertOpenStore */
-    t_note("PKCS12 password-protected gle=0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_INVALID_PASSWORD);
     sm_close(r);
 }
 TEST(css_open_pkcs12_garbage) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_PKCS12, 0, PKCS12_NO_PERSIST_KEY, VEC(v_cert_a));
-    CHECK(r == NULL);
-    t_note("PKCS12 garbage gle=0x%lx", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(0x80092002);
 }
 
 /* ---------------- SERIALIZED provider ---------------- */
@@ -339,16 +334,14 @@ TEST(css_open_serialized_garbage) {
     static const BYTE junk[16] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_SERIALIZED, ENC, 0, VEC(junk));
-    CHECK(r == NULL);
-    t_note("serialized garbage gle=0x%lx", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(0x80092003);
 }
 TEST(css_open_serialized_wrong_magic) {
     REQUIRE(U(CertOpenStore));
     static const BYTE bad[8] = { 0, 0, 0, 0, 'X', 'E', 'R', 'T' };
     SET_ERR(0);
     HCERTSTORE r = open_blob(CERT_STORE_PROV_SERIALIZED, ENC, 0, VEC(bad));
-    CHECK(r == NULL);
-    t_note("serialized wrong magic gle=0x%lx", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(0x80092003);
 }
 TEST(css_open_serialized_truncated) {
     REQUIRE(U(CertOpenStore));
@@ -358,8 +351,7 @@ TEST(css_open_serialized_truncated) {
     if (p) {
         SET_ERR(0);
         HCERTSTORE r = open_blob(CERT_STORE_PROV_SERIALIZED, ENC, 0, p, cb - 100);
-        t_note("serialized truncated by 100 -> %p gle=0x%lx", r, GetLastError());
-        if (r) t_note("certs: %d", sm_ncerts(r));
+        CHECK(r == NULL); EXPECT_ERR(1100);   /* ERROR_END_OF_MEDIA */
         sm_close(r); LocalFree(p);
     }
     sm_close(h);
@@ -387,8 +379,7 @@ TEST(css_file_open_missing_with_open_existing) {
     t_tmpfile(path, sizeof path, "missing.sst"); wpath(path, w, MAX_PATH);
     SET_ERR(0);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, CERT_STORE_OPEN_EXISTING_FLAG, w);
-    CHECK(r == NULL);
-    t_note("FILENAME_W OPEN_EXISTING missing gle=%lu", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     CHECK(GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES);   /* nothing was created */
     sm_close(r);
 }
@@ -398,7 +389,7 @@ TEST(css_file_open_missing_without_flags) {
     t_tmpfile(path, sizeof path, "missing2.sst"); wpath(path, w, MAX_PATH);
     SET_ERR(0);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, 0, w);
-    t_note("FILENAME_W no flags missing -> %p gle=%lu", r, GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(ERROR_FILE_NOT_FOUND);
     sm_close(r);
     DeleteFileA(path);
 }
@@ -408,8 +399,9 @@ TEST(css_file_create_new_then_commit) {
     t_tmpfile(path, sizeof path, "new.sst"); wpath(path, w, MAX_PATH);
     DeleteFileA(path);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, CERT_STORE_CREATE_NEW_FLAG | CERT_FILE_STORE_COMMIT_ENABLE_FLAG, w);
-    t_note("FILENAME_W CREATE_NEW -> %p gle=%lu exists=%d", r, GetLastError(), GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES);
-    if (r) {
+    REQUIRE_NOTNULL(r);
+    CHECK(GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES);   /* the file is created at open */
+    {
         CHECK(sm_addc(r, VEC(v_cert_a), DISP_NEW, NULL));
         CHECK(sm_addc(r, VEC(v_cert_b), DISP_NEW, NULL));
         CHECK(U(CertControlStore)(r, 0, CERT_STORE_CTRL_COMMIT, NULL));
@@ -420,7 +412,7 @@ TEST(css_file_create_new_then_commit) {
     }
     DeleteFileA(path);
 }
-TEST(css_file_create_new_on_existing_file_fails) {
+TEST(css_file_create_new_on_existing_file_opens_store) {
     REQUIRE(U(CertOpenStore));
     HCERTSTORE h = sm_abc(); if (!h) return;
     char path[MAX_PATH]; WCHAR w[MAX_PATH];
@@ -428,7 +420,8 @@ TEST(css_file_create_new_on_existing_file_fails) {
     U(CertSaveStore)(h, 0, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_FILENAME_W, w, 0);
     SET_ERR(0);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, CERT_STORE_CREATE_NEW_FLAG, w);
-    t_note("FILENAME_W CREATE_NEW on existing file -> %p gle=%lu", r, GetLastError());
+    CHECK(r != NULL);   /* Win10 does not fail CREATE_NEW on an existing store file */
+    EXPECT_EQ(sm_ncerts(r), 3);   /* the existing contents are loaded */
     sm_close(r); sm_close(h); DeleteFileA(path);
 }
 TEST(css_file_commit_enable_flag_adds_persist) {
@@ -463,7 +456,7 @@ TEST(css_file_without_commit_flag_does_not_persist) {
         sm_addc(r, VEC(v_cert_b), DISP_NEW, NULL);
         SET_ERR(0);
         BOOL c = U(CertControlStore)(r, 0, CERT_STORE_CTRL_COMMIT, NULL);
-        t_note("COMMIT without COMMIT_ENABLE_FLAG -> %d gle=0x%lx", c, GetLastError());
+        CHECK(!c); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);
         sm_close(r);
         HCERTSTORE q = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, CERT_STORE_READONLY_FLAG, w);
         if (q) { EXPECT_EQ(sm_ncerts(q), 1); sm_close(q); }
@@ -482,7 +475,8 @@ TEST(css_file_readonly_store_loads_and_blocks_writes) {
         EXPECT_EQ(sm_ncerts(r), 3);
         SET_ERR(0);
         BOOL a = sm_addc(r, VEC(v_cert_ca), DISP_NEW, NULL);
-        t_note("add to READONLY file store -> %d gle=0x%lx", a, GetLastError());
+        EXPECT_EQ(a, 1);
+        EXPECT_EQ(sm_ncerts(r), 4);   /* the in-memory copy takes the add; the file is read-only */
         sm_close(r);
     }
     sm_close(h); DeleteFileA(path);
@@ -506,8 +500,8 @@ TEST(css_file_open_single_certificate_file) {
     DWORD wr = 0; WriteFile(f, v_cert_a, sizeof v_cert_a, &wr, NULL); CloseHandle(f);
     SET_ERR(0);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, CERT_STORE_READONLY_FLAG, w);
-    t_note("FILENAME_W of a bare DER certificate -> %p gle=0x%lx", r, GetLastError());
-    if (r) t_note("certs: %d", sm_ncerts(r));
+    REQUIRE_NOTNULL(r);
+    EXPECT_EQ(sm_ncerts(r), 1);   /* a bare DER certificate file opens as a one cert store */
     sm_close(r);
     DeleteFileA(path);
 }
@@ -519,8 +513,7 @@ TEST(css_file_open_garbage_file) {
     DWORD wr = 0; WriteFile(f, "this is not a certificate store", 31, &wr, NULL); CloseHandle(f);
     SET_ERR(0);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, CERT_STORE_READONLY_FLAG, w);
-    CHECK(r == NULL);
-    t_note("FILENAME_W garbage file gle=0x%lx", GetLastError());
+    CHECK(r == NULL); EXPECT_ERR(0x80092003);
     sm_close(r); DeleteFileA(path);
 }
 TEST(css_file_open_empty_file) {
@@ -530,19 +523,18 @@ TEST(css_file_open_empty_file) {
     HANDLE f = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL); CloseHandle(f);
     SET_ERR(0);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, CERT_STORE_READONLY_FLAG, w);
-    t_note("FILENAME_W zero-length file -> %p gle=0x%lx", r, GetLastError());
-    if (r) EXPECT_EQ(sm_ncerts(r), 0);
+    REQUIRE_NOTNULL(r);
+    EXPECT_EQ(sm_ncerts(r), 0);
     sm_close(r); DeleteFileA(path);
 }
 TEST(css_file_empty_name_and_bad_handle) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE r = U(CertOpenStore)(CERT_STORE_PROV_FILENAME_W, ENC, 0, 0, L"");
-    t_note("FILENAME_W empty name -> %p gle=0x%lx", r, GetLastError());
-    sm_close(r);
+    CHECK(r == NULL); EXPECT_ERR(ERROR_PATH_NOT_FOUND);
     SET_ERR(0);
     r = U(CertOpenStore)(CERT_STORE_PROV_FILE, ENC, 0, 0, INVALID_HANDLE_VALUE);
-    t_note("PROV_FILE INVALID_HANDLE_VALUE -> %p gle=0x%lx", r, GetLastError()); sm_close(r);
+    CHECK(r == NULL); EXPECT_ERR(ERROR_INVALID_HANDLE);
 }
 TEST(css_file_a_and_w_equivalent) {
     REQUIRE(U(CertOpenStore));
@@ -575,7 +567,7 @@ TEST(css_serialize_cert_size_protocol) {
     memcpy(&id, buf + off, 4); memcpy(&fl, buf + off + 4, 4); memcpy(&len, buf + off + 8, 4);
     EXPECT_EQ(id, 0x20); EXPECT_EQ(fl, 1); EXPECT_EQ(len, sizeof v_cert_a);
     CHECK(!memcmp(buf + off + 12, v_cert_a, sizeof v_cert_a));
-    t_note("serialized plain cert element = %lu bytes (cert %zu)", need, sizeof v_cert_a);
+    EXPECT_EQ(need, 12 + sizeof v_cert_a);
     LocalFree(buf); sm_freec(c);
 }
 TEST(css_serialize_cert_add_roundtrip) {
@@ -612,8 +604,7 @@ TEST(css_serialized_element_context_type_filter) {
     HCERTSTORE h = sm_mem(); if (!h) return;
     SET_ERR(0);
     BOOL r = U(CertAddSerializedElementToStore)(h, buf, cb, DISP_NEW, 0, CERT_STORE_CRL_CONTEXT_FLAG, NULL, NULL);
-    CHECK(!r);
-    t_note("cert element with CRL-only context filter gle=0x%lx", GetLastError());
+    CHECK(!r); EXPECT_ERR(HR_INVALIDARG);
     EXPECT_EQ(sm_ncerts(h), 0);
     LocalFree(buf); sm_freec(c); sm_close(h);
 }
@@ -655,10 +646,10 @@ TEST(css_add_serialized_garbage) {
     static const BYTE junk[12] = { 0x20, 0, 0, 0, 1, 0, 0, 0, 0xff, 0xff, 0, 0 };
     SET_ERR(0);
     CHECK(!U(CertAddSerializedElementToStore)(h, VEC(junk), DISP_NEW, 0, CERT_STORE_ALL_CONTEXT_FLAG, NULL, NULL));
-    t_note("serialized element with bogus length gle=0x%lx", GetLastError());
+    EXPECT_ERR(0x80092003);
     SET_ERR(0);
     CHECK(!U(CertAddSerializedElementToStore)(h, junk, 3, DISP_NEW, 0, CERT_STORE_ALL_CONTEXT_FLAG, NULL, NULL));
-    t_note("serialized element too short gle=0x%lx", GetLastError());
+    EXPECT_ERR(1100);   /* ERROR_END_OF_MEDIA */
     EXPECT_EQ(sm_ncerts(h), 0);
     sm_close(h);
 }
@@ -670,7 +661,7 @@ TEST(css_add_serialized_nonzero_flags) {
     HCERTSTORE h = sm_mem(); if (!h) return;
     SET_ERR(0);
     BOOL r = U(CertAddSerializedElementToStore)(h, buf, cb, DISP_NEW, 0x1234, CERT_STORE_ALL_CONTEXT_FLAG, NULL, NULL);
-    t_note("dwFlags=0x1234 -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1);   /* unknown dwFlags are ignored */
     LocalFree(buf); sm_freec(c); sm_close(h);
 }
 TEST(css_serialize_nonzero_flags_and_null) {
@@ -679,7 +670,7 @@ TEST(css_serialize_nonzero_flags_and_null) {
     DWORD cb = 0;
     SET_ERR(0);
     BOOL r = U(CertSerializeCertificateStoreElement)(c, 1, NULL, &cb);
-    t_note("serialize dwFlags=1 -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1);
     sm_freec(c);
 }
 
@@ -692,7 +683,8 @@ TEST(css_control_memory_store) {
     for (int i = 0; i < 5; i++) {
         SET_ERR(0);
         BOOL r = U(CertControlStore)(h, 0, ctl[i], NULL);
-        t_note("memory CertControlStore %s -> %d gle=0x%lx", nm[i], r, GetLastError());
+        t_label("%s", nm[i]);
+        CHECK(!r); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);
     }
     EXPECT_EQ(sm_ncerts(h), 3);
     sm_close(h);
@@ -702,8 +694,7 @@ TEST(css_control_invalid_type) {
     HCERTSTORE h = sm_mem(); if (!h) return;
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, 99, NULL);
-    CHECK(!r);
-    t_note("CertControlStore(99) gle=0x%lx", GetLastError());
+    CHECK(!r); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);
     sm_close(h);
 }
 TEST(css_control_notify_change_with_event) {
@@ -712,13 +703,7 @@ TEST(css_control_notify_change_with_event) {
     HANDLE ev = CreateEventA(NULL, FALSE, FALSE, NULL);
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, CERT_STORE_CTRL_NOTIFY_CHANGE, &ev);
-    t_note("memory NOTIFY_CHANGE -> %d gle=0x%lx", r, GetLastError());
-    if (r) {
-        sm_addc(h, VEC(v_cert_a), DISP_NEW, NULL);
-        DWORD w = WaitForSingleObject(ev, 500);
-        t_note("event signalled after add: %d", w == WAIT_OBJECT_0);
-        U(CertControlStore)(h, 0, CERT_STORE_CTRL_CANCEL_NOTIFY, &ev);
-    }
+    CHECK(!r); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);   /* a memory store has no change notification */
     CloseHandle(ev); sm_close(h);
 }
 TEST(css_control_resync_file_store) {
@@ -735,7 +720,8 @@ TEST(css_control_resync_file_store) {
         U(CertSaveStore)(h, 0, CERT_STORE_SAVE_AS_STORE, CERT_STORE_SAVE_TO_FILENAME_W, w, 0);
         SET_ERR(0);
         BOOL c = U(CertControlStore)(r, 0, CERT_STORE_CTRL_RESYNC, NULL);
-        t_note("RESYNC on file store -> %d gle=0x%lx count=%d", c, GetLastError(), sm_ncerts(r));
+        CHECK(!c); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED);
+        EXPECT_EQ(sm_ncerts(r), 1);   /* RESYNC is not implemented for the file store: the change is not picked up */
         sm_close(r);
     }
     sm_close(h); DeleteFileA(path);
@@ -749,8 +735,8 @@ TEST(css_store_property_localized_name_roundtrip) {
     CRYPT_DATA_BLOB b = { sizeof nm, (BYTE *)nm };
     SET_ERR(0);
     BOOL r = U(CertSetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, 0, &b);
-    t_note("CertSetStoreProperty(LOCALIZED_NAME) -> %d gle=0x%lx", r, GetLastError());
-    if (r) {
+    EXPECT_EQ(r, 1);
+    {
         DWORD cb = 0;
         CHECK(U(CertGetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, NULL, &cb));
         EXPECT_EQ(cb, sizeof nm);
@@ -772,8 +758,7 @@ TEST(css_store_property_unset_not_found) {
     SET_ERR(0);
     CHECK(!U(CertGetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, NULL, &cb)); EXPECT_ERR(HR_NOT_FOUND);
     SET_ERR(0);
-    CHECK(!U(CertGetStoreProperty)(h, 0x7777, NULL, &cb));
-    t_note("unknown store property gle=0x%lx", GetLastError());
+    CHECK(!U(CertGetStoreProperty)(h, 0x7777, NULL, &cb)); EXPECT_ERR(HR_NOT_FOUND);
     sm_close(h);
 }
 TEST(css_store_property_access_state) {
@@ -782,8 +767,7 @@ TEST(css_store_property_access_state) {
     DWORD st = 0xdeadbeef, cb = sizeof st;
     SET_ERR(0);
     BOOL r = U(CertGetStoreProperty)(h, CERT_ACCESS_STATE_PROP_ID, &st, &cb);
-    t_note("ACCESS_STATE on memory store -> %d state=0x%lx cb=%lu gle=0x%lx", r, st, cb, GetLastError());
-    if (r) EXPECT_EQ(cb, 4);
+    EXPECT_EQ(r, 1); EXPECT_EQ(cb, 4); EXPECT_EQ(st, 0);
     sm_close(h);
 }
 TEST(css_store_property_set_with_flags) {
@@ -793,6 +777,6 @@ TEST(css_store_property_set_with_flags) {
     CRYPT_DATA_BLOB b = { sizeof nm, (BYTE *)nm };
     SET_ERR(0);
     BOOL r = U(CertSetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, 0x55, &b);
-    t_note("CertSetStoreProperty with dwFlags=0x55 -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1);   /* the flags are ignored */
     sm_close(h);
 }

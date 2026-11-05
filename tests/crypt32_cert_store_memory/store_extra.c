@@ -49,13 +49,13 @@ TEST(cse_find_any_iterates_all_certs) {
     EXPECT_EQ(n, 3);
     sm_close(h);
 }
-TEST(cse_find_subject_name_matches_only_that_cert) {
+TEST(cse_find_subject_name_of_issuer_not_a_subject_in_store) {
     REQUIRE(U(CertFindCertificateInStore));
     HCERTSTORE h = sm_abc(); if (!h) return;
     CERT_NAME_BLOB nb = { (DWORD)sizeof v_name_ca, (BYTE *)v_name_ca };
+    SET_ERR(0);
     PCCERT_CONTEXT c = fx(h, CERT_FIND_SUBJECT_NAME, &nb, NULL);
-    t_note("subject CA name hit in A/B/C store: %p", (const void *)c);
-    if (c) sm_freec(c);
+    CHECK(c == NULL); EXPECT_ERR(HR_NOT_FOUND);   /* none of A/B/C has the CA name as its subject */
     sm_close(h);
 }
 TEST(cse_delete_cert_then_find_fails) {
