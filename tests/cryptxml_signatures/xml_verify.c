@@ -584,3 +584,18 @@ TEST(xmlsig_key_doc_disable_extensions_flag_on_verify)
         XCHK_HR(XFN(CryptXmlVerifySignature)(s->hSignature, s->pKeyInfo->hVerifyKey, X_FLAG_DISABLE_EXT), S_OK);
     if (h) XFN(CryptXmlClose)(h);
 }
+
+TEST(xmlsig_vectors_helper_selfcheck)
+{
+    char *e = x_b64((const BYTE *)"abc", 3), *f = x_b64(X_ABC_SHA256, 32), *g = x_b64((const BYTE *)"ab", 2), *h = x_b64((const BYTE *)"a", 1);
+    CHECK(!strcmp(e, "YWJj"));
+    CHECK(!strcmp(f, "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0="));      /* SHA-256("abc") as published in FIPS 180 examples */
+    CHECK(!strcmp(g, "YWI=")); CHECK(!strcmp(h, "YQ=="));
+    size_t n = 0; BYTE *d = x_unb64(f, &n);
+    CHECK(d && n == 32 && !memcmp(d, X_ABC_SHA256, 32));
+    free(d); free(e); free(f); free(g); free(h);
+    char *t = x_elem_text(X_H256_xml, "DigestValue");
+    char *w = x_b64(X_H256_digest, X_H256_digest_len);
+    CHECK(t && !strcmp(t, w));
+    free(t); free(w);
+}

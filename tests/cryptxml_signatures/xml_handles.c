@@ -331,7 +331,8 @@ TEST(xmlsig_getstatus_cbsize_and_handle_kinds)
         CHECKF(st.cbSize == sizeof(XSTATUS), "handle kind %d cbSize=%lu", i, st.cbSize);
         /* nothing has been resolved or verified yet: the reference is still NOT_RESOLVED */
         CHECKF(st.dwErrorStatus == XS_E_NOT_RESOLVED, "handle kind %d error=0x%lx", i, st.dwErrorStatus);
-        CHECKF(st.dwInfoStatus == 0, "handle kind %d info=0x%lx", i, st.dwInfoStatus);
+        /* "#d1" is a same-document reference: only the reference itself carries INTERNAL_REFERENCE */
+        CHECKF(st.dwInfoStatus == (i == 2 ? XS_I_INTERNAL_REFERENCE : 0), "handle kind %d info=0x%lx", i, st.dwInfoStatus);
     }
     XFN(CryptXmlClose)(h);
 }
