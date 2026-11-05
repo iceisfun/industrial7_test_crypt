@@ -5,6 +5,7 @@
 #include "t.h"
 #include <wincrypt.h>
 #include "vectors.h"
+#include "vectors2.h"
 
 #define NTE_BAD_UID_ 0x80090001L
 #define NTE_BAD_KEY_ 0x80090003L
