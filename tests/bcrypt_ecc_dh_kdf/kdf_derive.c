@@ -330,14 +330,9 @@ TEST(bckdf_parameter_list_validation) {
     BCryptBuffer b[1];
     d.ulVersion = BCRYPTBUFFER_VERSION + 1; d.cBuffers = 0; d.pBuffers = NULL;
     NTSTATUS s = U(BCryptDeriveKey)(x.s, BCRYPT_KDF_RAW_SECRET, &d, out, 32, &n, 0);
-    CHECK(!NT_OK(s)); t_note("list version 1 -> 0x%08lx", (unsigned long)s);
-    d.ulVersion = BCRYPTBUFFER_VERSION; d.cBuffers = 1; d.pBuffers = NULL;
-    s = U(BCryptDeriveKey)(x.s, BCRYPT_KDF_RAW_SECRET, &d, out, 32, &n, 0);
-    CHECK(!NT_OK(s)); t_note("cBuffers=1 with NULL array -> 0x%08lx", (unsigned long)s);
-    b[0].BufferType = KDF_HASH_ALGORITHM; b[0].cbBuffer = 14; b[0].pvBuffer = NULL;
-    d.pBuffers = b;
-    s = U(BCryptDeriveKey)(x.s, BCRYPT_KDF_HASH, &d, out, 32, &n, 0);
-    CHECK(!NT_OK(s)); t_note("NULL buffer pointer with length -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, 0); t_note("list version 1 -> 0x%08lx (version not checked)", (unsigned long)s);
+    /* cBuffers=1 with a NULL array faults inside bcrypt on Win10, so it is not called */
+    /* a buffer with a NULL pvBuffer and a non-zero length also faults inside bcrypt on Win10, so it is not called */
     d.cBuffers = 0; d.pBuffers = NULL;
     s = U(BCryptDeriveKey)(x.s, BCRYPT_KDF_RAW_SECRET, &d, out, 32, &n, 0);
     CHECK_NS(s, 0);                                             /* an empty list is fine */
@@ -580,11 +575,11 @@ TEST(bckdf_p384_p521_hash_vectors) {
         if (!s) { if (t_is_wine()) { t_skip("curve unusable here"); kc_destroy(ka); kc_destroy(kb); kc_close(a); return; } CHECK_NS(st, 0); }
         else {
             kc_desc d; hash_of(c->hashalg, &d);
-            unsigned char out[64]; ULONG n = 0;
+            unsigned char out[80]; ULONG n = 0;
             CHECK_NS(kc_derive(s, BCRYPT_KDF_HASH, &d, NULL, 0, &n, 0), 0);
             EXPECT_EQ(n, c->hashlen);
             CHECK_NS(kc_derive(s, BCRYPT_KDF_HASH, &d, out, sizeof(out), &n, 0), 0);
-            kc_derive(s, BCRYPT_KDF_RAW_SECRET, NULL, out, sizeof(out), &n, 0);
+            CHECK_NS(kc_derive(s, BCRYPT_KDF_RAW_SECRET, NULL, out, sizeof(out), &n, 0), 0);
             EXPECT_EQ(n, c->cb);
             unsigned char want[80]; kc_rev(want, c->z, c->cb);
             CHECK_MEM(out, want, c->cb);

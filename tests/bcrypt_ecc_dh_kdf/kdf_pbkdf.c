@@ -407,7 +407,7 @@ TEST(bckdf_sp800108_bad_flags_and_args) {
     unsigned char o[32]; ULONG n = 0; kc_desc d; s108_desc(&d, L"SHA256");
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 1), NS_INVALID_PARAMETER);
     CHECK_NS(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0x80), NS_INVALID_PARAMETER);
-    CHECK_NS(U(BCryptKeyDerivation)(k, NULL, o, 32, &n, 0), NS_INVALID_PARAMETER);
+    CHECK_NS(U(BCryptKeyDerivation)(k, NULL, o, 32, &n, 0), 0);      /* NULL list: defaults apply */
     s108_desc(&d, L"NOSUCHHASH");
     CHECK_NS_FAIL(U(BCryptKeyDerivation)(k, &d.d, o, 32, &n, 0));
     kc_destroy(k); kc_close(a);
@@ -566,7 +566,7 @@ TEST(bckdf_capi_aes128_target_quirk) {
     h = capi_hash(&a, L"SHA1", 1);
     unsigned char o24[24];
     CHECK_NS(U(BCryptDeriveKeyCapi)(h, aes, o24, 24, 0), 0);
-    CHECK_MEM(o24, CAPI_SHA1_H, 20);
+    CHECK_MEM(o24, CAPI_SHA1_40, 24);                                 /* longer than the digest: extended derivation */
     U(BCryptDestroyHash)(h); kc_close(a);
     h = capi_hash(&a, L"SHA256", 1);
     CHECK_NS(U(BCryptDeriveKeyCapi)(h, aes, o, 16, 0), 0);

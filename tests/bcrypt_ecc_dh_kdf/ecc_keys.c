@@ -199,9 +199,7 @@ CURVE_TESTS(bcecc_unfinalized_unusable) {
     CHECK_NS_FAIL(kc_export(k, BCRYPT_ECCPRIVATE_BLOB, buf, sizeof(buf), &n));
     CHECK_NS_FAIL(U(BCryptSignHash)(k, NULL, (PUCHAR)c->hash, c->hashlen, sig, sizeof(sig), &r, 0));
     BCRYPT_KEY_HANDLE good = kc_key(b, c, 1, 1, 0);
-    BCRYPT_SECRET_HANDLE s = NULL;
-    CHECK_NS_FAIL(U(BCryptSecretAgreement)(kd, good, &s, 0));
-    CHECK(s == NULL);
+    /* BCryptSecretAgreement with an unfinalized private key faults inside bcrypt on Win10, so it is not called */
     kc_destroy(good); kc_destroy(k); kc_destroy(kd); kc_close(a); kc_close(b);
 }
 
@@ -526,7 +524,7 @@ TEST(bcecc_import_bad_args) {
     CHECK_NS(U(BCryptImportKeyPair)(a, NULL, BCRYPT_ECCPUBLIC_BLOB, &k, in, n, 0x40), NS_INVALID_PARAMETER);
     /* hImportKey must be NULL for ECC */
     BCRYPT_KEY_HANDLE other = kc_gen(a, 256, 1);
-    CHECK_NS(U(BCryptImportKeyPair)(a, other, BCRYPT_ECCPUBLIC_BLOB, &k, in, n, 0), NS_NOT_SUPPORTED);
+    CHECK_NS(U(BCryptImportKeyPair)(a, other, BCRYPT_ECCPUBLIC_BLOB, &k, in, n, 0), NS_INVALID_HANDLE);
     kc_destroy(other); kc_close(a);
 }
 
@@ -584,13 +582,13 @@ CURVE_TESTS(bcecc_import_private_out_of_range) {
     /* d >= group order */
     ULONG n = kc_eccblob(in, c->dh_prv, c->cb, NULL, NULL, big);
     NTSTATUS s = kc_import(b, BCRYPT_ECCPRIVATE_BLOB, in, n, 0, &k);
-    CHECK(!NT_OK(s));
+    CHECK_NS(s, 0);                      /* the scalar is not range-checked on import */
     t_note("%s d=all-ones -> 0x%08lx", c->name, (unsigned long)s);
     kc_destroy(k);
     /* d = 0 with a valid public point */
     n = kc_eccblob(in, c->dh_prv, c->cb, c->xA, c->yA, zero);
     s = kc_import(b, BCRYPT_ECCPRIVATE_BLOB, in, n, 0, &k);
-    CHECK(!NT_OK(s));
+    CHECK_NS(s, NS_INVALID_PARAMETER);
     t_note("%s d=0 -> 0x%08lx", c->name, (unsigned long)s);
     kc_destroy(k);
     /* all zero private blob */

@@ -55,7 +55,7 @@ TEST(bcdh_alg_open_properties) {
     CHECK_NS(s, 0);
     if (NT_OK(s)) {
         t_note("DH key lengths min=%lu max=%lu inc=%lu", (unsigned long)kl.dwMinLength, (unsigned long)kl.dwMaxLength, (unsigned long)kl.dwIncrement);
-        EXPECT_EQ(kl.dwMinLength, 512); EXPECT_EQ(kl.dwMaxLength, 4096); EXPECT_EQ(kl.dwIncrement, 64);
+        EXPECT_EQ(kl.dwMinLength, 512); EXPECT_EQ(kl.dwMaxLength, 4096); EXPECT_EQ(kl.dwIncrement, 8);
     }
     kc_close(a);
 }
@@ -319,7 +319,7 @@ TEST(bcdh_set_parameters_bad_group) {
     dh_params(&p);
     memset(p.pg + DHB, 0, DHB);              /* generator 0 */
     s = U(BCryptSetProperty)(k, BCRYPT_DH_PARAMETERS, (PUCHAR)&p, pn, 0);
-    CHECK(!NT_OK(s)); t_note("DH generator 0 -> 0x%08lx", (unsigned long)s);
+    CHECK_NS(s, 0); t_note("DH generator 0 -> 0x%08lx (accepted; not validated at set time)", (unsigned long)s);
     kc_destroy(k); kc_close(a);
 }
 
@@ -410,23 +410,23 @@ TEST(bcdh_import_bad_public_values) {
     memset(bad, 0, DHB);
     ULONG n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     NTSTATUS s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK(!NT_OK(s)); t_note("Y=0 -> 0x%08lx", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, NS_INVALID_PARAMETER); t_note("Y=0 -> 0x%08lx", (unsigned long)s); kc_destroy(k); k = NULL;
     bad[DHB - 1] = 1;
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    t_note("Y=1 -> 0x%08lx", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, 0); t_note("Y=1 -> 0x%08lx (accepted)", (unsigned long)s); kc_destroy(k); k = NULL;
     memcpy(bad, DH_P2048, DHB);
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK(!NT_OK(s)); t_note("Y=P -> 0x%08lx", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, 0); t_note("Y=P -> 0x%08lx (accepted; range not checked on import)", (unsigned long)s); kc_destroy(k); k = NULL;
     bad[DHB - 1] ^= 1;                                    /* P-1 */
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    t_note("Y=P-1 -> 0x%08lx", (unsigned long)s); kc_destroy(k); k = NULL;
+    CHECK_NS(s, 0); t_note("Y=P-1 -> 0x%08lx (accepted)", (unsigned long)s); kc_destroy(k); k = NULL;
     memset(bad, 0xFF, DHB);
     n = dh_blob(blob, BCRYPT_DH_PUBLIC_MAGIC, bad, NULL);
     s = kc_import(a, BCRYPT_DH_PUBLIC_BLOB, blob, n, 0, &k);
-    CHECK(!NT_OK(s)); t_note("Y=2^2048-1 -> 0x%08lx", (unsigned long)s); kc_destroy(k);
+    CHECK_NS(s, 0); t_note("Y=2^2048-1 -> 0x%08lx (accepted)", (unsigned long)s); kc_destroy(k);
     kc_close(a);
 }
 
@@ -459,7 +459,7 @@ TEST(bcdh_import_flags_and_unknown_type) {
     CHECK_NS(kc_import(a, BCRYPT_ECCPUBLIC_BLOB, blob, n, 0, &k), NS_INVALID_PARAMETER);
     CHECK_NS(kc_import(a, L"", blob, n, 0, &k), NS_INVALID_PARAMETER);
     BCRYPT_KEY_HANDLE other = dh_import(a, 1, 0, NULL);
-    CHECK_NS(U(BCryptImportKeyPair)(a, other, BCRYPT_DH_PUBLIC_BLOB, &k, blob, n, 0), NS_NOT_SUPPORTED);
+    CHECK_NS(U(BCryptImportKeyPair)(a, other, BCRYPT_DH_PUBLIC_BLOB, &k, blob, n, 0), NS_INVALID_HANDLE);   /* hImportKey is not a decrypt key handle */
     kc_destroy(other); kc_close(a);
 }
 
