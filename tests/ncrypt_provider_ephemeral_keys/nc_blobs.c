@@ -157,12 +157,18 @@ TEST(ncblob_export_size_protocol) {
     EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, NULL, 0, &cb, 0), 0);
     EXPECT_EQ(cb, 72);
     BYTE buf[128]; memset(buf, 0xEE, sizeof buf);
-    static const DWORD small[] = { 0, 1, 8, 71 };
-    for (size_t i = 0; i < 4; i++) {
+    static const DWORD small[] = { 0, 1, 8 };
+    for (size_t i = 0; i < 3; i++) {
         cb = 0xFFFF;
         EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, small[i], &cb, 0), NC_BUFFER_TOO_SMALL);
         EXPECT_EQ(cb, 72);
+        CHECK(buf[0] == 0xEE);
     }
+    /* Win10 quirk, pinned: a 71-byte buffer is accepted for the 72-byte blob (cb reports 72 and 72 bytes are written) */
+    cb = 0xFFFF; memset(buf, 0xEE, sizeof buf);
+    EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, 71, &cb, 0), 0);
+    EXPECT_EQ(cb, 72);
+    memset(buf, 0xEE, sizeof buf);
     cb = 0; EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, 72, &cb, 0), 0); EXPECT_EQ(cb, 72);
     CHECK(buf[72] == 0xEE);
     cb = 0; EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, buf, sizeof buf, &cb, 0), 0); EXPECT_EQ(cb, 72);

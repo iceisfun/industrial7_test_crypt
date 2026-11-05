@@ -109,7 +109,15 @@ TEST(ncops_rsa_sign_parameter_errors) {
     s = U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 0, sig, 128, &cb, BCRYPT_PAD_PKCS1);
     EXPECT_SS_FAIL(s);
     s = U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 32, sig, 128, &cb, BCRYPT_PAD_PKCS1 | BCRYPT_PAD_PSS);
-    EXPECT_SS_FAIL(s);
+    EXPECT_SS(s, 0); EXPECT_EQ(cb, 128);   /* both flags together are accepted */
+    { BYTE ref[128]; DWORD cr = 0;
+      EXPECT_SS(U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 32, ref, 128, &cr, BCRYPT_PAD_PKCS1), 0);
+      /* with both flags Win10 produces a randomized PSS-style signature that only verifies when both flags are passed again */
+      CHECKF(memcmp(sig, ref, 128) != 0, "PKCS1|PSS signature differs from the plain PKCS1 signature");
+      NCRYPT_KEY_HANDLE pb = rsa_pub(p);
+      EXPECT_SS(U(NCryptVerifySignature)(pb, &pi, (PBYTE)k_dig_sha256, 32, sig, 128, BCRYPT_PAD_PKCS1 | BCRYPT_PAD_PSS), 0);
+      EXPECT_SS(U(NCryptVerifySignature)(pb, &pi, (PBYTE)k_dig_sha256, 32, sig, 128, BCRYPT_PAD_PKCS1), NC_BAD_SIGNATURE);
+      nc_free(pb); }
     s = U(NCryptSignHash)(k, &pi, (PBYTE)k_dig_sha256, 32, sig, 128, &cb, 0x10000000);
     EXPECT_SS_FAIL(s); t_note("unknown sign flag -> 0x%08lx", (DWORD)s);
     nc_free(k); nc_free(p);
@@ -153,8 +161,8 @@ TEST(ncops_rsa_pss_sign_random_salt) {
     EXPECT_EQ(ca, 128); CHECK(memcmp(a, b, 128) != 0);
     EXPECT_SS(U(NCryptVerifySignature)(pub, &pi, (PBYTE)k_dig_sha256, 32, a, 128, BCRYPT_PAD_PSS), 0);
     EXPECT_SS(U(NCryptVerifySignature)(pub, &pi, (PBYTE)k_dig_sha256, 32, b, 128, BCRYPT_PAD_PSS), 0);
-    a[10] ^= 4;
-    EXPECT_SS(U(NCryptVerifySignature)(pub, &pi, (PBYTE)k_dig_sha256, 32, a, 128, BCRYPT_PAD_PSS), NC_BAD_SIGNATURE);
+    a[10] ^= 4;   /* a damaged PSS block fails encoding validation: INVALID_PARAMETER, not BAD_SIGNATURE (same at positions 0, 10, 64, 127) */
+    EXPECT_SS(U(NCryptVerifySignature)(pub, &pi, (PBYTE)k_dig_sha256, 32, a, 128, BCRYPT_PAD_PSS), NC_INVALID_PARAMETER);
     /* too large a salt for the modulus: 128 - 32 - 2 = 94 is the maximum */
     BCRYPT_PSS_PADDING_INFO big = { BCRYPT_SHA256_ALGORITHM, 95 };
     SECURITY_STATUS s = U(NCryptSignHash)(prv, &big, (PBYTE)k_dig_sha256, 32, a, 128, &ca, BCRYPT_PAD_PSS);
@@ -285,9 +293,11 @@ TEST(ncops_ecdh_key_cannot_sign_or_verify) {
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDH_P256_ALGORITHM, 0, 0, TRUE); NEED(k, "key");
     BYTE sig[64]; DWORD cb = 0;
     SECURITY_STATUS s = U(NCryptSignHash)(k, NULL, (PBYTE)k_dig_sha256, 32, sig, 64, &cb, 0);
-    EXPECT_SS_FAIL(s); t_note("sign with ECDH key -> 0x%08lx", (DWORD)s);
+    EXPECT_SS(s, 0); EXPECT_EQ(cb, 64);   /* Win10 does not enforce the key-agreement algorithm for signing */
+    s = U(NCryptVerifySignature)(k, NULL, (PBYTE)k_dig_sha256, 32, sig, 64, 0);
+    EXPECT_SS(s, 0);
     s = U(NCryptVerifySignature)(k, NULL, (PBYTE)k_dig_sha256, 32, (PBYTE)k_ec256_sig_sha256, 64, 0);
-    EXPECT_SS_FAIL(s); t_note("verify with ECDH key -> 0x%08lx", (DWORD)s);
+    EXPECT_SS(s, NC_BAD_SIGNATURE); t_note("verify with ECDH key -> 0x%08lx", (DWORD)s);
     nc_free(k); nc_free(p);
 }
 TEST(ncops_dsa_sign_verify_note) {
@@ -374,10 +384,11 @@ TEST(ncops_rsa_encrypt_plaintext_limits) {
     EXPECT_SS_FAIL(U(NCryptEncrypt)(k, in, 87, &o1, out, 256, &cb, NCRYPT_PAD_OAEP_FLAG));
     EXPECT_SS(U(NCryptEncrypt)(k, in, 62, &o256, out, 256, &cb, NCRYPT_PAD_OAEP_FLAG), 0);         /* 128 - 2*32 - 2 */
     EXPECT_SS_FAIL(U(NCryptEncrypt)(k, in, 63, &o256, out, 256, &cb, NCRYPT_PAD_OAEP_FLAG));
-    SECURITY_STATUS s = U(NCryptEncrypt)(k, in, 129, NULL, out, 256, &cb, NCRYPT_NO_PADDING_FLAG);
-    EXPECT_SS_FAIL(s);
+    /* raw RSA: input shorter than the modulus is rejected; input longer is accepted (extra bytes ignored) */
+    cb = 0; SECURITY_STATUS s = U(NCryptEncrypt)(k, in, 129, NULL, out, 256, &cb, NCRYPT_NO_PADDING_FLAG);
+    EXPECT_SS(s, 0); EXPECT_EQ(cb, 128);
     s = U(NCryptEncrypt)(k, in, 127, NULL, out, 256, &cb, NCRYPT_NO_PADDING_FLAG);
-    t_note("raw RSA encrypt of 127 bytes -> 0x%08lx", (DWORD)s);
+    EXPECT_SS(s, NC_INVALID_PARAMETER);
     nc_free(k); nc_free(p);
 }
 TEST(ncops_rsa_roundtrip_paddings) {
@@ -416,10 +427,12 @@ TEST(ncops_rsa_decrypt_errors) {
     EXPECT_SS_FAIL(s); t_note("decrypt tampered PKCS1 ciphertext -> 0x%08lx", (DWORD)s);
     s = U(NCryptDecrypt)(k, (PBYTE)k_rsa_enc_pkcs1, 127, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG);
     EXPECT_SS_FAIL(s); t_note("decrypt 127-byte ciphertext -> 0x%08lx", (DWORD)s);
-    s = U(NCryptDecrypt)(k, (PBYTE)k_rsa_enc_pkcs1, 129, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG);
-    EXPECT_SS_FAIL(s);
-    s = U(NCryptDecrypt)(k, (PBYTE)k_rsa_enc_pkcs1, 128, NULL, out, sizeof out, &cb, 0);
-    EXPECT_SS_FAIL(s); t_note("decrypt with no padding flag -> 0x%08lx", (DWORD)s);
+    /* Win10 ignores bytes beyond the modulus size */
+    cb = 0; s = U(NCryptDecrypt)(k, (PBYTE)k_rsa_enc_pkcs1, 129, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG);
+    EXPECT_SS(s, 0); EXPECT_EQ(cb, 21);
+    /* no padding flag: raw RSA, the full 128-byte block comes back unpadded */
+    cb = 0; s = U(NCryptDecrypt)(k, (PBYTE)k_rsa_enc_pkcs1, 128, NULL, out, sizeof out, &cb, 0);
+    EXPECT_SS(s, 0); EXPECT_EQ(cb, 128); CHECK(out[0] == 0 && out[1] == 2);
     s = U(NCryptDecrypt)(k, (PBYTE)k_rsa_enc_oaep_sha1, 128, NULL, out, sizeof out, &cb, NCRYPT_PAD_OAEP_FLAG);
     EXPECT_SS_FAIL(s); t_note("OAEP flag without padding info -> 0x%08lx", (DWORD)s);
     s = U(NCryptDecrypt)(pub, (PBYTE)k_rsa_enc_pkcs1, 128, NULL, out, sizeof out, &cb, NCRYPT_PAD_PKCS1_FLAG);
@@ -537,15 +550,15 @@ TEST(ncops_agreement_hash_prepend_append) {
     static const BYTE pre[] = "PRE", app[] = "appendix!";
     NCryptBuffer nb[3] = { hb, { sizeof pre, KDF_SECRET_PREPEND, (void *)pre }, { sizeof app, KDF_SECRET_APPEND, (void *)app } };
     NCryptBufferDesc d = { BCRYPTBUFFER_VERSION, 3, nb };
-    BYTE got[32], want[32], cat[3 + 32 + 9];
+    BYTE got[32], want[32], cat[4 + 32 + 10];   /* cbBuffer counts the terminating NUL of each literal */
     EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, got, 32, &cb, 0), 0);
-    memcpy(cat, pre, 3); memcpy(cat + 3, sec, 32); memcpy(cat + 35, app, 9);
+    memcpy(cat, pre, 4); memcpy(cat + 4, sec, 32); memcpy(cat + 36, app, 10);
     nc_hash(BCRYPT_SHA256_ALGORITHM, NULL, 0, cat, sizeof cat, want, 32);
     CHECK(!memcmp(got, want, 32));
     d.cBuffers = 2; nb[1] = (NCryptBuffer){ sizeof pre, KDF_SECRET_PREPEND, (void *)pre };
     EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, got, 32, &cb, 0), 0);
-    memcpy(cat, pre, 3); memcpy(cat + 3, sec, 32);
-    nc_hash(BCRYPT_SHA256_ALGORITHM, NULL, 0, cat, 35, want, 32);
+    memcpy(cat, pre, 4); memcpy(cat + 4, sec, 32);
+    nc_hash(BCRYPT_SHA256_ALGORITHM, NULL, 0, cat, 36, want, 32);
     CHECK(!memcmp(got, want, 32));
     sec_cleanup(a, ap, b, bp, sa, sb, p);
 }
@@ -601,11 +614,17 @@ TEST(ncops_derive_buffer_protocol) {
     NCryptBuffer nb = { sizeof(BCRYPT_SHA256_ALGORITHM), KDF_HASH_ALGORITHM, (void *)BCRYPT_SHA256_ALGORITHM };
     NCryptBufferDesc d = { BCRYPTBUFFER_VERSION, 1, &nb };
     BYTE out[64]; DWORD cb;
-    static const DWORD small[] = { 0, 1, 31 };
+    /* Win10: a zero-size buffer is a size query (32); a short non-zero buffer is not an error, the digest is truncated */
+    BYTE full[32]; memset(out, 0xEE, sizeof out);
+    cb = 0xFFFF; EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, full, 32, &cb, 0), 0); EXPECT_EQ(cb, 32);
+    cb = 0xFFFF; EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, out, 0, &cb, 0), 0);
+    EXPECT_EQ(cb, 32); CHECK(out[0] == 0xEE);
+    static const DWORD small[] = { 1, 2, 31 };
     for (int i = 0; i < 3; i++) {
-        cb = 0xFFFF;
-        EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, out, small[i], &cb, 0), NC_BUFFER_TOO_SMALL);
-        EXPECT_EQ(cb, 32);
+        memset(out, 0xEE, sizeof out); cb = 0xFFFF;
+        EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, out, small[i], &cb, 0), 0);
+        EXPECT_EQ(cb, small[i]);
+        CHECKF(!memcmp(out, full, small[i]) && out[small[i]] == 0xEE, "truncated to %lu bytes", small[i]);
     }
     cb = 0; EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, out, 32, &cb, 0), 0); EXPECT_EQ(cb, 32);
     cb = 0; EXPECT_SS(U(NCryptDeriveKey)(sa, BCRYPT_KDF_HASH, &d, out, 64, &cb, 0), 0); EXPECT_EQ(cb, 32);
@@ -690,9 +709,11 @@ TEST(ncops_agreement_dh_modp2048) {
     BCRYPT_DH_PARAMETER_HEADER *h = (BCRYPT_DH_PARAMETER_HEADER *)blob;
     h->cbLength = sizeof blob; h->dwMagic = BCRYPT_DH_PARAMETERS_MAGIC; h->cbKeyLength = 256;
     memcpy(blob + sizeof *h, k_dh2048_p, 256); memcpy(blob + sizeof *h + 256, k_dh2048_g, 256);
-    BYTE *pub[2] = {0, 0}; DWORD cpub[2] = {0, 0};
+    BYTE *pub[2] = {0, 0}; DWORD cpub[2] = {0, 0}; DWORD bits2048 = 2048;
     for (int i = 0; i < 2; i++) {
         if (U(NCryptCreatePersistedKey)(p, &k[i], BCRYPT_DH_ALGORITHM, NULL, 0, 0) != 0) break;
+        /* Win10 rejects the parameter blob (INVALID_PARAMETER) unless LENGTH already equals the blob's key size */
+        if (U(NCryptSetProperty)(k[i], NCRYPT_LENGTH_PROPERTY, (PBYTE)&bits2048, 4, 0) != 0) break;
         if (U(NCryptSetProperty)(k[i], NCRYPT_DH_PARAMETERS_PROPERTY, blob, sizeof blob, 0) != 0) break;
         if (U(NCryptFinalizeKey)(k[i], 0) != 0) break;
         U(NCryptExportKey)(k[i], 0, BCRYPT_DH_PUBLIC_BLOB, NULL, NULL, 0, &cpub[i], 0);

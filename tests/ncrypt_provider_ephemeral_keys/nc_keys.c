@@ -213,7 +213,7 @@ TEST(nckey_length_default_rsa) {
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_RSA_ALGORITHM, 0, 0xFFFFFFFFu, TRUE); NEED(k, "key");
     DWORD v; EXPECT_SS(nc_getdw(k, NCRYPT_LENGTH_PROPERTY, &v), 0);
-    EXPECT_EQ(v, 2048);
+    EXPECT_EQ(v, 1024);   /* Win10 22H2 software KSP default RSA size */
     nc_free(k); nc_free(p);
 }
 TEST(nckey_length_default_ecc) {
@@ -285,10 +285,12 @@ TEST(nckey_length_set_after_finalize_fails) {
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_RSA_ALGORITHM, 1024, 0xFFFFFFFFu, TRUE); NEED(k, "key");
     DWORD v = 2048;
     SECURITY_STATUS s = U(NCryptSetProperty)(k, NCRYPT_LENGTH_PROPERTY, (PBYTE)&v, 4, 0);
-    EXPECT_SS_FAIL(s);
-    t_note("set LENGTH after finalize -> 0x%08lx", (DWORD)s);
+    EXPECT_SS(s, 0);   /* Win10 accepts the write after finalize; it only changes the reported value, not the key */
     DWORD g; nc_getdw(k, NCRYPT_LENGTH_PROPERTY, &g);
-    EXPECT_EQ(g, 1024);
+    EXPECT_EQ(g, 2048);
+    BYTE pub[512]; DWORD cp = 0;
+    EXPECT_SS(U(NCryptExportKey)(k, 0, BCRYPT_RSAPUBLIC_BLOB, NULL, pub, sizeof pub, &cp, 0), 0);
+    EXPECT_EQ(cp, sizeof(BCRYPT_RSAKEY_BLOB) + 3 + 128);   /* the key itself is still 1024 bits */
     nc_free(k); nc_free(p);
 }
 TEST(nckey_length_set_ecc_note) {
@@ -326,7 +328,7 @@ TEST(nckey_lengths_rsa) {
     if (b) {
         EXPECT_EQ(cb, sizeof(NCRYPT_SUPPORTED_LENGTHS));
         NCRYPT_SUPPORTED_LENGTHS *l = (NCRYPT_SUPPORTED_LENGTHS *)b;
-        EXPECT_EQ(l->dwMinLength, 512); EXPECT_EQ(l->dwMaxLength, 16384); EXPECT_EQ(l->dwIncrement, 64);
+        EXPECT_EQ(l->dwMinLength, 512); EXPECT_EQ(l->dwMaxLength, 16384); EXPECT_EQ(l->dwIncrement, 8);
         t_note("RSA default length in LENGTHS = %lu", l->dwDefaultLength);
         nc_hfree(b);
     }
@@ -630,9 +632,9 @@ TEST(nckey_impl_type_of_key) {
     REQUIRE(U(NCryptGetProperty));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_ECDSA_P256_ALGORITHM, 0, 0xFFFFFFFFu, TRUE); NEED(k, "key");
-    DWORD v; EXPECT_SS(nc_getdw(k, NCRYPT_IMPL_TYPE_PROPERTY, &v), 0);
-    EXPECT_EQ(v & NCRYPT_IMPL_SOFTWARE_FLAG, NCRYPT_IMPL_SOFTWARE_FLAG);
-    EXPECT_EQ(v & NCRYPT_IMPL_HARDWARE_FLAG, 0);
+    /* Win10: IMPL_TYPE is a provider property; a key handle answers NOT_SUPPORTED and leaves the output untouched */
+    DWORD v; EXPECT_SS(nc_getdw(k, NCRYPT_IMPL_TYPE_PROPERTY, &v), NC_NOT_SUPPORTED);
+    EXPECT_EQ(v, 0xCDCDCDCDu);
     nc_free(k); nc_free(p);
 }
 TEST(nckey_misc_key_properties_note) {
@@ -679,7 +681,10 @@ TEST(nckey_ecc_curve_name_property) {
         CHECKF(k != 0, "%ls", ALGS[i].alg);
         if (!k) continue;
         DWORD cb = 0; BYTE *b = nc_getprop(k, L"ECCCurveName", &cb);
-        CHECKF(b && !lstrcmpW((WCHAR *)b, ALGS[i].curve), "%ls curve name (%ls)", ALGS[i].alg, b ? (WCHAR *)b : L"unavailable");
+        /* Win10: an ephemeral key has no ECCCurveName property (NOT_FOUND), even finalized */
+        CHECKF(b == NULL, "%ls curve name property unexpectedly present", ALGS[i].alg);
+        DWORD cq = 0; SECURITY_STATUS sq = U(NCryptGetProperty)(k, L"ECCCurveName", NULL, 0, &cq, 0);
+        CHECKF(sq == (SECURITY_STATUS)NC_NOT_FOUND, "%ls ECCCurveName -> 0x%08lx", ALGS[i].alg, (DWORD)sq);
         nc_hfree(b); nc_free(k);
     }
     NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_RSA_ALGORITHM, 1024, 0xFFFFFFFFu, TRUE);
@@ -736,7 +741,8 @@ TEST(nckey_uipolicy_bad_input) {
 TEST(nckey_dh_parameters_property) {
     REQUIRE(U(NCryptSetProperty));
     NCRYPT_PROV_HANDLE p = nc_prov(); NEED(p, "provider");
-    NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_DH_ALGORITHM, 0, NC_EXP_ALL, FALSE); NEED(k, "DH key");
+    /* Win10 only accepts the parameter blob when LENGTH was already set to the blob's key size (default 1024 is rejected) */
+    NCRYPT_KEY_HANDLE k = nc_newkey(p, BCRYPT_DH_ALGORITHM, 2048, NC_EXP_ALL, FALSE); NEED(k, "DH key");
     BYTE blob[sizeof(BCRYPT_DH_PARAMETER_HEADER) + 512];
     BCRYPT_DH_PARAMETER_HEADER *h = (BCRYPT_DH_PARAMETER_HEADER *)blob;
     h->cbLength = sizeof blob; h->dwMagic = BCRYPT_DH_PARAMETERS_MAGIC; h->cbKeyLength = 256;
