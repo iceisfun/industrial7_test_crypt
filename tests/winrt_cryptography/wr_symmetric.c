@@ -390,8 +390,8 @@ TEST(winrt_sym_engine_null_arguments) {
 TEST(winrt_sym_engine_rejects_non_key_object) {
     WR_NEED(); void *k = mk_key(L"AES_CBC_PKCS7", "000102030405060708090a0b0c0d0e0f"); if (!k) return;
     void *pt = wr_mkbuf_hex("0011"), *o = NULL;
-    HRESULT hr = wr_encrypt(pt, pt, NULL, &o);       /* an IBuffer is not an ICryptographicKey */
-    CHECK(FAILED(hr)); t_note("Encrypt(IBuffer as key) -> 0x%08lx", (unsigned long)hr);
+    HRESULT hr = wr_encrypt(pt, pt, NULL, &o);       /* an IBuffer does not implement the engine's private key interfaces */
+    EXPECT_HR(hr, HR_E_NOINTERFACE);
     wr_release(k); wr_release(pt);
 }
 TEST(winrt_sym_engine_encrypt_with_mac_key_fails) {
@@ -407,7 +407,7 @@ TEST(winrt_sym_engine_sign_with_symmetric_key_fails) {
     WR_NEED(); void *k = mk_key(L"AES_CBC_PKCS7", "000102030405060708090a0b0c0d0e0f"); if (!k) return;
     void *e = wr_engine(), *pt = wr_mkbuf_hex("0011"), *o = (void *)1;
     HRESULT hr = VF(e, EN_Sign, void *, void *, void **)(e, k, pt, &o);
-    CHECK(FAILED(hr)); t_note("Sign(AES key) -> 0x%08lx", (unsigned long)hr);
+    EXPECT_HR(hr, HR_E_NOINTERFACE);                  /* symmetric keys expose no signing interface */
     wr_release(k); wr_release(pt);
 }
 TEST(winrt_sym_rc4_stateless_keystream_note) {
