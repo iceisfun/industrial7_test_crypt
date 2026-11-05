@@ -48,7 +48,7 @@ extern int      wcfg_pd_same;          /* all calls saw the same pd */
 typedef struct {
     DWORD cbStruct; WINTRUST_DATA *pWintrustData; HWND hWnd; GUID *pgActionID; HCRYPTPROV hProv;
     DWORD dwError, secSettings, polSettings; CRYPT_PROVIDER_FUNCTIONS *psPfns; DWORD cbPfns;
-    WCHAR path[MAX_PATH]; DWORD fOpened; int valid; DWORD dwErrorAtFinal; DWORD dwProvFlags;
+    WCHAR path[MAX_PATH]; DWORD fOpened; int valid; DWORD dwErrorAtFinal; DWORD dwProvFlags; CRYPT_PROVIDER_FUNCTIONS pfns;
 } wcfg_snap_t;
 extern wcfg_snap_t wcfg_snap;
 void wcfg_log_reset(void);
@@ -65,6 +65,7 @@ BOOL wcfg_add(const GUID *g, DWORD flags, wcfg_reg_t *x);
 #define WCFG_REG_SIZE_FULL      0xC8
 
 /* verify an unsigned file with the given action; returns WinVerifyTrust's value */
+extern WINTRUST_DATA wcfg_wd;
 LONG wcfg_verify(const GUID *g, HWND hwnd, DWORD uichoice, const wchar_t *file, WINTRUST_DATA *out_wd);
 
 /* ---- usage-callback exports ---- */

@@ -170,7 +170,7 @@ static LONG common(int id, CRYPT_PROVIDER_DATA *pd) {
         wcfg_snap.pgActionID = pd->pgActionID; wcfg_snap.hProv = pd->hProv; wcfg_snap.dwError = pd->dwError;
         wcfg_snap.secSettings = pd->dwRegSecuritySettings; wcfg_snap.polSettings = pd->dwRegPolicySettings;
         wcfg_snap.psPfns = pd->psPfns; wcfg_snap.fOpened = pd->fOpenedFile; wcfg_snap.dwProvFlags = pd->dwProvFlags;
-        if (pd->psPfns) wcfg_snap.cbPfns = pd->psPfns->cbStruct;
+        if (pd->psPfns) { wcfg_snap.cbPfns = pd->psPfns->cbStruct; memcpy(&wcfg_snap.pfns, pd->psPfns, pd->psPfns->cbStruct > sizeof(CRYPT_PROVIDER_FUNCTIONS) ? sizeof(CRYPT_PROVIDER_FUNCTIONS) : pd->psPfns->cbStruct); }
         if (pd->pWintrustData && pd->pWintrustData->dwUnionChoice == WTD_CHOICE_FILE && pd->pWintrustData->pFile &&
             pd->pWintrustData->pFile->pcwszFilePath)
             wcsncpy(wcfg_snap.path, pd->pWintrustData->pFile->pcwszFilePath, MAX_PATH - 1);
@@ -202,14 +202,16 @@ void wcfg_fill_reg(wcfg_reg_t *x) {
 }
 BOOL wcfg_add(const GUID *g, DWORD flags, wcfg_reg_t *x) { return U(WintrustAddActionID)((GUID *)g, flags, &x->r); }
 
+WINTRUST_DATA wcfg_wd;
 LONG wcfg_verify(const GUID *g, HWND hwnd, DWORD ui, const wchar_t *file, WINTRUST_DATA *out) {
-    WINTRUST_FILE_INFO fi; WINTRUST_DATA wd;
+    static WINTRUST_FILE_INFO fi; WINTRUST_DATA wd;
     memset(&fi, 0, sizeof fi); fi.cbStruct = sizeof fi; fi.pcwszFilePath = file;
     memset(&wd, 0, sizeof wd); wd.cbStruct = sizeof wd; wd.dwUIChoice = ui; wd.fdwRevocationChecks = WTD_REVOKE_NONE;
     wd.dwUnionChoice = WTD_CHOICE_FILE; wd.pFile = &fi; wd.dwStateAction = WTD_STATEACTION_IGNORE;
     wd.dwProvFlags = WTD_REVOCATION_CHECK_NONE | WTD_CACHE_ONLY_URL_RETRIEVAL;
-    LONG r = U(WinVerifyTrust)(hwnd, (GUID *)g, &wd);
-    if (out) *out = wd;
+    wcfg_wd = wd;
+    LONG r = U(WinVerifyTrust)(hwnd, (GUID *)g, &wcfg_wd);
+    if (out) *out = wcfg_wd;
     return r;
 }
 
