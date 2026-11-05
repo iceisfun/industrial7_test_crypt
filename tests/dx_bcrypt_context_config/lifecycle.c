@@ -45,18 +45,14 @@ TEST(dxctx_ctx_create_duplicate_other_case) {
     wcscpy(up, n); CharUpperW(up);
     CRYPT_CONTEXT_CONFIG c = {0, 0};
     ULONG st = (ULONG)U(BCryptCreateContext)(CRYPT_LOCAL, up, &c);
-    t_note("create of case-variant name -> 0x%lx (registry keys are case-insensitive)", st);
-    CHECK(st == S_NAME_COLLISION);
-    if (NT_OK(st)) U(BCryptDeleteContext)(CRYPT_LOCAL, up);
+    ST_EQ(st, S_NAME_COLLISION);   /* registry keys are case-insensitive */
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_delete_nonexistent_fails) {
     if (!cfg_begin()) return;
     WCHAR n[96]; cfg_name(n, 96, "nx", 0);
     ULONG st = (ULONG)U(BCryptDeleteContext)(CRYPT_LOCAL, n);
-    CHECKF(!NT_OK(st), "delete of a context that does not exist returned 0x%lx", st);
-    t_note("delete of nonexistent context -> 0x%lx", st);
-    CHECKF(st == S_NOT_FOUND || st == S_OBJECT_NAME_NOT_FOUND || st == 0xC0000001, "status 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_delete_twice) {
@@ -64,7 +60,7 @@ TEST(dxctx_ctx_delete_twice) {
     WCHAR n[96]; ST_OK(mkctx(n, "del2", 0));
     ST_OK(U(BCryptDeleteContext)(CRYPT_LOCAL, n));
     ULONG st = (ULONG)U(BCryptDeleteContext)(CRYPT_LOCAL, n);
-    CHECKF(!NT_OK(st), "second delete returned 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_recreate_after_delete) {
@@ -80,8 +76,8 @@ TEST(dxctx_ctx_create_null_config) {
     if (!cfg_begin()) return;
     WCHAR n[96]; cfg_name(n, 96, "nullcfg", 0);
     ULONG st = (ULONG)U(BCryptCreateContext)(CRYPT_LOCAL, n, NULL);
-    t_note("BCryptCreateContext with NULL config -> 0x%lx", st);
-    if (NT_OK(st)) CHECK(cfg_has_ctx(CRYPT_LOCAL, n));
+    ST_OK(st);   /* a NULL configuration creates a context with default flags */
+    CHECK(cfg_has_ctx(CRYPT_LOCAL, n));
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_create_visible_in_enum_and_counted) {
@@ -106,9 +102,10 @@ TEST(dxctx_ctx_enum_builtin_default) {
     static WCHAR l[512][96]; NTSTATUS st;
     int n = cfg_enum_ctx(CRYPT_LOCAL, l, 512, &st);
     ST_OK(st);
-    CHECK(n > 0);
-    int d = find(l, n, L"Default");
-    t_note("%d local contexts; \"Default\" %s", n, d >= 0 ? "present" : "absent");
+    /* a clean machine has exactly the two built-in local contexts */
+    EXPECT_EQ(n, 2);
+    CHECK(find(l, n, L"Default") >= 0);
+    CHECK(find(l, n, L"SSL") >= 0);
 }
 TEST(dxctx_ctx_enum_allocates_via_cng) {
     if (!cfg_begin()) return;
@@ -129,15 +126,16 @@ TEST(dxctx_ctx_query_config_flags_roundtrip) {
     static const ULONG fl[] = {0, CRYPT_EXCLUSIVE, CRYPT_OVERRIDE, CRYPT_EXCLUSIVE | CRYPT_OVERRIDE};
     for (int i = 0; i < 4; i++) {
         WCHAR n[96]; NTSTATUS st = mkctx(n, "flags", fl[i]);
-        if (!NT_OK(st)) { t_note("create with flags 0x%lx -> 0x%lx", fl[i], (ULONG)st); continue; }
+        t_label("flags 0x%lx", fl[i]);
+        if (fl[i] & CRYPT_OVERRIDE) { ST_EQ(st, S_INVALID_PARAMETER); continue; }   /* CRYPT_OVERRIDE (0x10000) is not valid on create */
+        ST_OK(st);
         ULONG cb = 0; PCRYPT_CONTEXT_CONFIG q = NULL;
         st = U(BCryptQueryContextConfiguration)(CRYPT_LOCAL, n, &cb, &q);
         ST_OK(st);
-        if (NT_OK(st) && q) {
-            CHECK(cb >= sizeof *q);
-            EXPECT_EQ(q->dwFlags, fl[i]);
-            U(BCryptFreeBuffer)(q);
-        }
+        REQUIRE_NOTNULL(q);
+        CHECK(cb >= sizeof *q);
+        EXPECT_EQ(q->dwFlags, fl[i]);
+        U(BCryptFreeBuffer)(q);
     }
     cfg_cleanup_all();
 }
@@ -148,12 +146,14 @@ TEST(dxctx_ctx_configure_changes_flags) {
     ST_OK(U(BCryptConfigureContext)(CRYPT_LOCAL, n, &c));
     ULONG cb = 0; PCRYPT_CONTEXT_CONFIG q = NULL;
     ST_OK(U(BCryptQueryContextConfiguration)(CRYPT_LOCAL, n, &cb, &q));
-    if (q) { EXPECT_EQ(q->dwFlags, CRYPT_EXCLUSIVE); U(BCryptFreeBuffer)(q); }
+    REQUIRE_NOTNULL(q);
+    EXPECT_EQ(q->dwFlags, CRYPT_EXCLUSIVE); U(BCryptFreeBuffer)(q);
     c.dwFlags = 0;
     ST_OK(U(BCryptConfigureContext)(CRYPT_LOCAL, n, &c));
     q = NULL; cb = 0;
     ST_OK(U(BCryptQueryContextConfiguration)(CRYPT_LOCAL, n, &cb, &q));
-    if (q) { EXPECT_EQ(q->dwFlags, 0); U(BCryptFreeBuffer)(q); }
+    REQUIRE_NOTNULL(q);
+    EXPECT_EQ(q->dwFlags, 0); U(BCryptFreeBuffer)(q);
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_configure_nonexistent_fails) {
@@ -161,8 +161,7 @@ TEST(dxctx_ctx_configure_nonexistent_fails) {
     WCHAR n[96]; cfg_name(n, 96, "cfgnx", 0);
     CRYPT_CONTEXT_CONFIG c = {0, 0};
     ULONG st = (ULONG)U(BCryptConfigureContext)(CRYPT_LOCAL, n, &c);
-    CHECKF(!NT_OK(st), "configure of a missing context returned 0x%lx", st);
-    t_note("configure nonexistent -> 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     CHECK(!cfg_has_ctx(CRYPT_LOCAL, n));
     cfg_cleanup_all();
 }
@@ -171,9 +170,8 @@ TEST(dxctx_ctx_query_config_nonexistent_fails) {
     WCHAR n[96]; cfg_name(n, 96, "qnx", 0);
     ULONG cb = 0; PCRYPT_CONTEXT_CONFIG q = NULL;
     ULONG st = (ULONG)U(BCryptQueryContextConfiguration)(CRYPT_LOCAL, n, &cb, &q);
-    CHECKF(!NT_OK(st), "query of a missing context returned 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     CHECK(q == NULL);
-    t_note("query nonexistent -> 0x%lx", st);
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_query_config_reserved_zero) {
@@ -181,7 +179,8 @@ TEST(dxctx_ctx_query_config_reserved_zero) {
     WCHAR n[96]; ST_OK(mkctx(n, "rsv", 0));
     ULONG cb = 0; PCRYPT_CONTEXT_CONFIG q = NULL;
     ST_OK(U(BCryptQueryContextConfiguration)(CRYPT_LOCAL, n, &cb, &q));
-    if (q) { EXPECT_EQ(q->dwReserved, 0x10004); U(BCryptFreeBuffer)(q); }
+    REQUIRE_NOTNULL(q);
+    EXPECT_EQ(q->dwReserved, 0x10004); U(BCryptFreeBuffer)(q);
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_names_with_spaces_and_unicode) {
@@ -191,12 +190,12 @@ TEST(dxctx_ctx_names_with_spaces_and_unicode) {
     swprintf(n, 96, L"%ls x y", base);
     CRYPT_CONTEXT_CONFIG c = {0, 0};
     ULONG st = (ULONG)U(BCryptCreateContext)(CRYPT_LOCAL, n, &c);
-    t_note("context name with spaces -> 0x%lx", st);
-    if (NT_OK(st)) { CHECK(cfg_has_ctx(CRYPT_LOCAL, n)); ST_OK(U(BCryptDeleteContext)(CRYPT_LOCAL, n)); }
+    ST_OK(st);
+    CHECK(cfg_has_ctx(CRYPT_LOCAL, n)); ST_OK(U(BCryptDeleteContext)(CRYPT_LOCAL, n));
     swprintf(n, 96, L"%ls_é中", base);
     st = (ULONG)U(BCryptCreateContext)(CRYPT_LOCAL, n, &c);
-    t_note("context name with non-ASCII -> 0x%lx", st);
-    if (NT_OK(st)) { CHECK(cfg_has_ctx(CRYPT_LOCAL, n)); ST_OK(U(BCryptDeleteContext)(CRYPT_LOCAL, n)); }
+    ST_OK(st);
+    CHECK(cfg_has_ctx(CRYPT_LOCAL, n)); ST_OK(U(BCryptDeleteContext)(CRYPT_LOCAL, n));
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_name_with_backslash) {
@@ -206,19 +205,17 @@ TEST(dxctx_ctx_name_with_backslash) {
     swprintf(n, 96, L"%ls\\sub", base);
     CRYPT_CONTEXT_CONFIG c = {0, 0};
     ULONG st = (ULONG)U(BCryptCreateContext)(CRYPT_LOCAL, n, &c);
-    t_note("context name containing a backslash -> 0x%lx", st);
-    if (NT_OK(st)) U(BCryptDeleteContext)(CRYPT_LOCAL, n);
+    ST_EQ(st, S_OBJECT_NAME_NOT_FOUND);   /* the missing parent key of "base\\sub" is not created */
     /* nothing may be left behind under the base name either */
-    U(BCryptDeleteContext)(CRYPT_LOCAL, base);
+    ST_EQ(U(BCryptDeleteContext)(CRYPT_LOCAL, base), S_NOT_FOUND);
     cfg_cleanup_all();
 }
 TEST(dxctx_ctx_many_contexts) {
     if (!cfg_begin()) return;
     WCHAR n[20][96]; int made = 0;
-    for (int i = 0; i < 20; i++) if (NT_OK(mkctx(n[i], "many", 0))) made++;
-    CHECK(made == 20);
+    for (int i = 0; i < 20; i++) { ST_OK(mkctx(n[i], "many", 0)); made++; }
     for (int i = 0; i < made; i++) CHECK(cfg_has_ctx(CRYPT_LOCAL, n[i]));
-    for (int i = 0; i < 20; i++) U(BCryptDeleteContext)(CRYPT_LOCAL, n[i]);
+    for (int i = 0; i < 20; i++) ST_OK(U(BCryptDeleteContext)(CRYPT_LOCAL, n[i]));
     for (int i = 0; i < 20; i++) CHECK(!cfg_has_ctx(CRYPT_LOCAL, n[i]));
     cfg_cleanup_all();
 }
@@ -233,7 +230,7 @@ TEST(dxctx_ctx_delete_context_with_functions) {
     ST_OK(U(BCryptCreateContext)(CRYPT_LOCAL, n, &c));
     static WCHAR l[16][96]; NTSTATUS st;
     int k = cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 16, &st);
-    CHECKF(k <= 0, "recreated context still lists %d functions", k);
+    EXPECT_EQ(k, -1); ST_EQ(st, S_NOT_FOUND);   /* a recreated context has no entry for the interface at all */
     cfg_cleanup_all();
 }
 
@@ -250,7 +247,7 @@ TEST(dxctx_fn_add_enum_remove_roundtrip) {
     if (k == 1) EXPECT_WSTR(l[0], L"cryptt_fn_one");
     ST_OK(U(BCryptRemoveContextFunction)(CRYPT_LOCAL, n, BCRYPT_CIPHER_INTERFACE, L"cryptt_fn_one"));
     k = cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_CIPHER_INTERFACE, l, 16, &st);
-    CHECKF(k <= 0, "%d functions remain", k);
+    EXPECT_EQ(k, 0); ST_OK(st);   /* an emptied list enumerates as empty */
     cfg_cleanup_all();
 }
 TEST(dxctx_fn_priority_top_bottom) {
@@ -293,11 +290,11 @@ TEST(dxctx_fn_priority_index_beyond_end) {
     WCHAR n[96]; ST_OK(mkctx(n, "far", 0));
     ST_OK(U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_f1", CRYPT_PRIORITY_BOTTOM));
     ULONG st = (ULONG)U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_f2", 500);
-    t_note("add at position 500 of a 1 element list -> 0x%lx", st);
+    ST_OK(st);   /* a position past the end appends */
     static WCHAR l[16][96]; NTSTATUS s2;
     int k = cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 16, &s2);
-    if (NT_OK(st)) { CHECK(k == 2); if (k == 2) EXPECT_WSTR(l[1], L"cryptt_f2"); }
-    else CHECK(k == 1);
+    REQUIRE_EQ(k, 2);
+    EXPECT_WSTR(l[1], L"cryptt_f2");
     cfg_cleanup_all();
 }
 TEST(dxctx_fn_add_duplicate_is_idempotent) {
@@ -329,7 +326,6 @@ TEST(dxctx_fn_remove_nonexistent_function) {
     WCHAR n[96]; ST_OK(mkctx(n, "frmnx", 0));
     ST_OK(U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_f1", CRYPT_PRIORITY_BOTTOM));
     ULONG st = (ULONG)U(BCryptRemoveContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_other");
-    CHECKF(!NT_OK(st), "remove of unknown function returned 0x%lx", st);
     ST_EQ(st, S_NOT_FOUND);
     static WCHAR l[16][96]; NTSTATUS s2;
     CHECK(cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 16, &s2) == 1);
@@ -340,7 +336,7 @@ TEST(dxctx_fn_remove_from_wrong_interface) {
     WCHAR n[96]; ST_OK(mkctx(n, "fwrongif", 0));
     ST_OK(U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_f1", CRYPT_PRIORITY_BOTTOM));
     ULONG st = (ULONG)U(BCryptRemoveContextFunction)(CRYPT_LOCAL, n, BCRYPT_CIPHER_INTERFACE, L"cryptt_f1");
-    CHECKF(!NT_OK(st), "remove via another interface returned 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     static WCHAR l[16][96]; NTSTATUS s2;
     CHECK(cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 16, &s2) == 1);
     cfg_cleanup_all();
@@ -349,7 +345,6 @@ TEST(dxctx_fn_add_to_nonexistent_context) {
     if (!cfg_begin()) return;
     WCHAR n[96]; cfg_name(n, 96, "fnoctx", 0);
     ULONG st = (ULONG)U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_f1", CRYPT_PRIORITY_BOTTOM);
-    CHECKF(!NT_OK(st), "add into a missing context returned 0x%lx", st);
     ST_EQ(st, S_NOT_FOUND);
     CHECK(!cfg_has_ctx(CRYPT_LOCAL, n));
     cfg_cleanup_all();
@@ -359,8 +354,8 @@ TEST(dxctx_fn_enum_nonexistent_context) {
     WCHAR n[96]; cfg_name(n, 96, "enoctx", 0);
     static WCHAR l[4][96]; NTSTATUS st;
     int k = cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 4, &st);
-    CHECK(k < 0 || k == 0);
-    t_note("enum functions of nonexistent context -> k=%d status 0x%lx", k, (ULONG)st);
+    EXPECT_EQ(k, -1);
+    ST_EQ(st, S_NOT_FOUND);
     cfg_cleanup_all();
 }
 TEST(dxctx_fn_per_interface_isolation) {
@@ -369,7 +364,8 @@ TEST(dxctx_fn_per_interface_isolation) {
     for (int i = 0; i < 11; i++) {
         WCHAR f[32]; swprintf(f, 32, L"cryptt_if%d", i);
         ULONG st = (ULONG)U(BCryptAddContextFunction)(CRYPT_LOCAL, n, cfg_valid_ifaces[i], f, CRYPT_PRIORITY_BOTTOM);
-        if (!NT_OK(st)) t_note("add to interface 0x%lx -> 0x%lx", cfg_valid_ifaces[i], st);
+        t_label("interface 0x%lx", cfg_valid_ifaces[i]);
+        ST_OK(st);
     }
     for (int i = 0; i < 7; i++) {   /* the seven public interface ids must all work */
         WCHAR f[32]; swprintf(f, 32, L"cryptt_if%d", i);
@@ -386,11 +382,10 @@ TEST(dxctx_fn_kernel_mode_interfaces) {
     static const ULONG km[] = {0x10001, 0x10002, 0x10003, 0x10004};
     for (int i = 0; i < 4; i++) {
         ULONG st = (ULONG)U(BCryptAddContextFunction)(CRYPT_LOCAL, n, km[i], L"cryptt_kmf", CRYPT_PRIORITY_BOTTOM);
-        t_note("add to interface 0x%lx -> 0x%lx", km[i], st);
-        if (NT_OK(st)) {
-            static WCHAR l[4][96]; NTSTATUS s;
-            CHECK(cfg_enum_funcs(CRYPT_LOCAL, n, km[i], l, 4, &s) == 1);
-        }
+        t_label("interface 0x%lx", km[i]);
+        ST_OK(st);   /* the kernel-mode interface ids are accepted like the public ones */
+        static WCHAR l[4][96]; NTSTATUS s;
+        EXPECT_EQ(cfg_enum_funcs(CRYPT_LOCAL, n, km[i], l, 4, &s), 1);
     }
     cfg_cleanup_all();
 }
@@ -421,11 +416,11 @@ TEST(dxctx_fn_long_function_name) {
     WCHAR n[96]; ST_OK(mkctx(n, "long", 0));
     WCHAR f[200]; for (int i = 0; i < 150; i++) f[i] = L'a' + (i % 26); f[150] = 0;
     ULONG st = (ULONG)U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, f, CRYPT_PRIORITY_BOTTOM);
-    t_note("150 character function name -> 0x%lx", st);
-    if (NT_OK(st)) {
+    ST_OK(st);
+    {
         static WCHAR l[4][96]; NTSTATUS s;
         int k = cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 4, &s);
-        CHECK(k == 1);
+        EXPECT_EQ(k, 1);
     }
     cfg_cleanup_all();
 }
@@ -446,10 +441,13 @@ TEST(dxctx_fn_config_roundtrip) {
     for (int i = 0; i < 4; i++) {
         CRYPT_CONTEXT_FUNCTION_CONFIG c = {fl[i], 0};
         ULONG st = (ULONG)U(BCryptConfigureContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", &c);
-        if (!NT_OK(st)) { t_note("configure function flags 0x%lx -> 0x%lx", fl[i], st); continue; }
+        t_label("flags 0x%lx", fl[i]);
+        if (fl[i] & 0x10000) { ST_EQ(st, S_INVALID_PARAMETER); continue; }   /* a flag value outside the function flag set */
+        ST_OK(st);
         ULONG cb = 0; PCRYPT_CONTEXT_FUNCTION_CONFIG q = NULL;
         ST_OK(U(BCryptQueryContextFunctionConfiguration)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", &cb, &q));
-        if (q) { CHECK(cb >= sizeof *q); EXPECT_EQ(q->dwFlags, fl[i]); U(BCryptFreeBuffer)(q); }
+        REQUIRE_NOTNULL(q);
+        CHECK(cb >= sizeof *q); EXPECT_EQ(q->dwFlags, fl[i]); U(BCryptFreeBuffer)(q);
     }
     cfg_cleanup_all();
 }
@@ -462,12 +460,12 @@ TEST(dxctx_fn_config_unknown_function_fails) {
      * query of such a function returns the default (all zero) configuration */
     ST_OK(st);
     static WCHAR l[4][96]; NTSTATUS s2;
-    CHECK(cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 4, &s2) <= 0);
+    EXPECT_EQ(cfg_enum_funcs(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, l, 4, &s2), 0);   /* configuring does not add the function */
     ULONG cb = 0; PCRYPT_CONTEXT_FUNCTION_CONFIG q = NULL;
     st = (ULONG)U(BCryptQueryContextFunctionConfiguration)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_missing", &cb, &q);
     ST_OK(st);
-    if (q) { EXPECT_EQ(q->dwFlags, 0); EXPECT_EQ(cb, 8); U(BCryptFreeBuffer)(q); }
-    else CHECK(q != NULL);
+    REQUIRE_NOTNULL(q);
+    EXPECT_EQ(q->dwFlags, 0); EXPECT_EQ(cb, 8); U(BCryptFreeBuffer)(q);
     cfg_cleanup_all();
 }
 
@@ -479,11 +477,12 @@ TEST(dxctx_prop_set_query_roundtrip) {
     UCHAR v[8] = {1, 2, 3, 4, 5, 6, 7, 8};
     ULONG st = (ULONG)U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttProp", sizeof v, v);
     ST_OK(st);
-    if (NT_OK(st)) {
+    {
         ULONG cb = 0; PUCHAR out = NULL;
         ST_OK(U(BCryptQueryContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttProp", &cb, &out));
         EXPECT_EQ(cb, sizeof v);
-        if (out) { CHECK(cb == sizeof v && !memcmp(out, v, sizeof v)); U(BCryptFreeBuffer)(out); }
+        REQUIRE_NOTNULL(out);
+        CHECK(!memcmp(out, v, sizeof v)); U(BCryptFreeBuffer)(out);
     }
     cfg_cleanup_all();
 }
@@ -493,13 +492,15 @@ TEST(dxctx_prop_overwrite_changes_size) {
     ST_OK(addfn_p(n));
     UCHAR big[300]; for (int i = 0; i < 300; i++) big[i] = (UCHAR)i;
     UCHAR small[2] = {0xAA, 0x55};
-    if (NT_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttProp", sizeof big, big))) {
+    ST_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttProp", sizeof big, big));
+    {
         ST_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttProp", sizeof small, small));
         ULONG cb = 0; PUCHAR out = NULL;
         ST_OK(U(BCryptQueryContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttProp", &cb, &out));
-        CHECK(cb == 2);
-        if (out && cb == 2) CHECK(!memcmp(out, small, 2));
-        if (out) U(BCryptFreeBuffer)(out);
+        EXPECT_EQ(cb, 2);
+        REQUIRE_NOTNULL(out);
+        CHECK(!memcmp(out, small, 2));
+        U(BCryptFreeBuffer)(out);
     }
     cfg_cleanup_all();
 }
@@ -512,12 +513,14 @@ TEST(dxctx_prop_sizes) {
     for (int i = 0; i < 4096; i++) buf[i] = (UCHAR)(i * 7 + 3);
     for (int i = 0; i < 11; i++) {
         ULONG st = (ULONG)U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttSz", sizes[i], buf);
-        if (!NT_OK(st)) { t_note("set property of %lu bytes -> 0x%lx", sizes[i], st); continue; }
+        t_label("size %lu", sizes[i]);
+        ST_OK(st);
         ULONG cb = 0; PUCHAR out = NULL;
         ST_OK(U(BCryptQueryContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"CrypttSz", &cb, &out));
-        CHECKF(cb == sizes[i], "size %lu came back as %lu", sizes[i], cb);
-        if (out && cb == sizes[i]) CHECK(!memcmp(out, buf, cb));
-        if (out) U(BCryptFreeBuffer)(out);
+        EXPECT_EQ(cb, sizes[i]);
+        REQUIRE_NOTNULL(out);
+        CHECK(!memcmp(out, buf, cb));
+        U(BCryptFreeBuffer)(out);
     }
     cfg_cleanup_all();
 }
@@ -538,9 +541,8 @@ TEST(dxctx_prop_query_unset_property) {
     ST_OK(addfn_p(n));
     ULONG cb = 0; PUCHAR out = NULL;
     ULONG st = (ULONG)U(BCryptQueryContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"NeverSet", &cb, &out);
-    CHECKF(!NT_OK(st), "query of an unset property returned 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     CHECK(out == NULL);
-    t_note("query unset property -> 0x%lx", st);
     cfg_cleanup_all();
 }
 TEST(dxctx_prop_set_unknown_function) {
@@ -548,8 +550,7 @@ TEST(dxctx_prop_set_unknown_function) {
     WCHAR n[96]; ST_OK(mkctx(n, "propnofn", 0));
     UCHAR v[2] = {1, 2};
     ULONG st = (ULONG)U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_none", L"CrypttProp", 2, v);
-    CHECKF(!NT_OK(st), "set on a function that is not in the context returned 0x%lx", st);
-    t_note("set property on unknown function -> 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     cfg_cleanup_all();
 }
 TEST(dxctx_prop_two_properties_independent) {
@@ -557,14 +558,15 @@ TEST(dxctx_prop_two_properties_independent) {
     WCHAR n[96]; ST_OK(mkctx(n, "prop2", 0));
     ST_OK(addfn_p(n));
     UCHAR a[3] = {1, 2, 3}, b[5] = {9, 8, 7, 6, 5};
-    if (NT_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropA", 3, a))) {
+    ST_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropA", 3, a));
+    {
         ST_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropB", 5, b));
         ULONG cb = 0; PUCHAR o = NULL;
         ST_OK(U(BCryptQueryContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropA", &cb, &o));
-        CHECK(cb == 3 && o && !memcmp(o, a, 3)); if (o) U(BCryptFreeBuffer)(o);
+        EXPECT_EQ(cb, 3); REQUIRE_NOTNULL(o); CHECK(!memcmp(o, a, 3)); U(BCryptFreeBuffer)(o);
         o = NULL; cb = 0;
         ST_OK(U(BCryptQueryContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropB", &cb, &o));
-        CHECK(cb == 5 && o && !memcmp(o, b, 5)); if (o) U(BCryptFreeBuffer)(o);
+        EXPECT_EQ(cb, 5); REQUIRE_NOTNULL(o); CHECK(!memcmp(o, b, 5)); U(BCryptFreeBuffer)(o);
     }
     cfg_cleanup_all();
 }
@@ -573,14 +575,15 @@ TEST(dxctx_prop_survives_function_removal) {
     WCHAR n[96]; ST_OK(mkctx(n, "proprm", 0));
     ST_OK(addfn_p(n));
     UCHAR a[3] = {1, 2, 3};
-    if (NT_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropA", 3, a))) {
+    ST_OK(U(BCryptSetContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropA", 3, a));
+    {
         ST_OK(U(BCryptRemoveContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256"));
         ST_OK(addfn_p(n));
         ULONG cb = 0; PUCHAR o = NULL;
         ULONG st = (ULONG)U(BCryptQueryContextFunctionProperty)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"PropA", &cb, &o);
         /* removing a function from the list does not delete its stored properties */
         ST_OK(st);
-        if (o) { CHECK(cb == 3 && !memcmp(o, a, 3)); U(BCryptFreeBuffer)(o); }
+        EXPECT_EQ(cb, 3); REQUIRE_NOTNULL(o); CHECK(!memcmp(o, a, 3)); U(BCryptFreeBuffer)(o);
     }
     cfg_cleanup_all();
 }
@@ -593,14 +596,14 @@ TEST(dxctx_fprov_add_enum_remove) {
     ST_OK(U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", CRYPT_PRIORITY_BOTTOM));
     ULONG st = (ULONG)UN(BCryptAddContextFunctionProvider)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"Microsoft Primitive Provider", CRYPT_PRIORITY_BOTTOM);
     ST_OK(st);
-    if (NT_OK(st)) {
+    {
         static WCHAR l[8][96]; NTSTATUS s;
         int k = cfg_enum_fprov(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", l, 8, &s);
-        CHECK(k == 1);
-        if (k == 1) EXPECT_WSTR(l[0], L"Microsoft Primitive Provider");
+        REQUIRE_EQ(k, 1);
+        EXPECT_WSTR(l[0], L"Microsoft Primitive Provider");
         ST_OK(UN(BCryptRemoveContextFunctionProvider)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"Microsoft Primitive Provider"));
         k = cfg_enum_fprov(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", l, 8, &s);
-        CHECKF(k <= 0, "%d providers remain", k);
+        EXPECT_EQ(k, 0); ST_OK(s);
     }
     cfg_cleanup_all();
 }
@@ -636,7 +639,8 @@ TEST(dxctx_fprov_duplicate_and_missing) {
     WCHAR n[96]; ST_OK(mkctx(n, "fprovdup", 0));
     ST_OK(U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", CRYPT_PRIORITY_BOTTOM));
     ULONG st = (ULONG)UN(BCryptAddContextFunctionProvider)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"Microsoft Primitive Provider", CRYPT_PRIORITY_BOTTOM);
-    if (NT_OK(st)) {
+    ST_OK(st);
+    {
         ULONG d = (ULONG)UN(BCryptAddContextFunctionProvider)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"SHA256", L"Microsoft Primitive Provider", CRYPT_PRIORITY_BOTTOM);
         /* attaching the same provider twice is accepted (idempotent) */
         ST_OK(d);
@@ -664,7 +668,7 @@ TEST(dxctx_notify_fires_on_change) {
     HANDLE ev = NULL;
     ULONG st = (ULONG)U(BCryptRegisterConfigChangeNotify)(&ev);
     ST_OK(st);
-    if (!NT_OK(st) || !ev) { cfg_cleanup_all(); return; }
+    REQUIRE_NOTNULL(ev);
     /* drain a possibly pending signal from earlier tests / other processes */
     WaitForSingleObject(ev, 0);
     WCHAR n[96]; ST_OK(mkctx(n, "notify", 0));
@@ -682,7 +686,8 @@ TEST(dxctx_notify_function_change) {
     if (!U(BCryptRegisterConfigChangeNotify) || !U(BCryptUnregisterConfigChangeNotify)) { t_skip("missing export"); return; }
     WCHAR n[96]; ST_OK(mkctx(n, "notify2", 0));
     HANDLE ev = NULL;
-    if (!NT_OK(U(BCryptRegisterConfigChangeNotify)(&ev)) || !ev) { cfg_cleanup_all(); return; }
+    ST_OK(U(BCryptRegisterConfigChangeNotify)(&ev));
+    REQUIRE_NOTNULL(ev);
     WaitForSingleObject(ev, 200); WaitForSingleObject(ev, 0);
     ST_OK(U(BCryptAddContextFunction)(CRYPT_LOCAL, n, BCRYPT_HASH_INTERFACE, L"cryptt_f1", CRYPT_PRIORITY_BOTTOM));
     CHECK(WaitForSingleObject(ev, 5000) == WAIT_OBJECT_0);
@@ -696,7 +701,8 @@ TEST(dxctx_notify_unregister_twice) {
     if (!cfg_begin()) return;
     if (!U(BCryptRegisterConfigChangeNotify) || !U(BCryptUnregisterConfigChangeNotify)) { t_skip("missing export"); return; }
     HANDLE ev = NULL;
-    if (!NT_OK(U(BCryptRegisterConfigChangeNotify)(&ev)) || !ev) return;
+    ST_OK(U(BCryptRegisterConfigChangeNotify)(&ev));
+    REQUIRE_NOTNULL(ev);
     ST_OK(U(BCryptUnregisterConfigChangeNotify)(ev));
     ULONG st = (ULONG)U(BCryptUnregisterConfigChangeNotify)(ev);
     ST_EQ(st, 0xC0000008);
@@ -709,28 +715,37 @@ TEST(dxctx_notify_register_returns_distinct_events) {
     ST_OK(U(BCryptRegisterConfigChangeNotify)(&b));
     CHECK(a != NULL && b != NULL);
     CHECK(a != b);
-    if (a) U(BCryptUnregisterConfigChangeNotify)(a);
-    if (b) U(BCryptUnregisterConfigChangeNotify)(b);
+    ST_OK(U(BCryptUnregisterConfigChangeNotify)(a));
+    ST_OK(U(BCryptUnregisterConfigChangeNotify)(b));
 }
 
 /* ---- elevation ---------------------------------------------------------- */
-TEST(dxctx_noadmin_create_access_denied) {
-    REQUIRE(U(BCryptCreateContext));
-    if (t_is_wine()) { t_skip("emulator"); return; }
-    if (cfg_is_elevated()) { t_skip("process is elevated; this test only runs unelevated"); return; }
+/* These need a token that is not elevated. In an elevated run (dx mode) the body runs in a child process with a
+ * LUA restricted copy of the token (cfg_run_unelevated); in a standard user run it runs in place. The bodies return
+ * 0, or the number of the failing step. Nothing may be created: both calls must be denied. */
+static int noadm_create_body(void) {
+    if (cfg_is_elevated()) return 1;
     WCHAR n[96]; cfg_name(n, 96, "noadm", 0);
     CRYPT_CONTEXT_CONFIG c = {0, 0};
     ULONG st = (ULONG)U(BCryptCreateContext)(CRYPT_LOCAL, n, &c);
-    CHECK(st == S_ACCESS_DENIED);
-    if (NT_OK(st)) U(BCryptDeleteContext)(CRYPT_LOCAL, n);
+    if (st != S_ACCESS_DENIED) return 0x20000000 | (st & 0xFFFF);
     st = (ULONG)U(BCryptDeleteContext)(CRYPT_LOCAL, L"Default");
-    CHECKF(st == S_ACCESS_DENIED, "unelevated delete of a system context returned 0x%lx", st);
-    cfg_cleanup_all();
+    if (st != S_INVALID_PARAMETER) return 0x30000000 | (st & 0xFFFF);   /* a built-in context cannot be deleted, access check or not */
+    st = (ULONG)U(BCryptConfigureContext)(CRYPT_LOCAL, L"Default", &c);
+    if (st != S_ACCESS_DENIED) return 0x40000000 | (st & 0xFFFF);
+    st = (ULONG)U(BCryptDeleteContext)(CRYPT_LOCAL, n);
+    if (st != S_ACCESS_DENIED) return 0x50000000 | (st & 0xFFFF);
+    return 0;
 }
-TEST(dxctx_noadmin_register_provider_access_denied) {
-    REQUIRE(UN(BCryptRegisterProvider));
+CHILD(dxctx_noadm_create) { return noadm_create_body(); }
+TEST(dxctx_noadmin_create_access_denied) {
+    REQUIRE(U(BCryptCreateContext));
     if (t_is_wine()) { t_skip("emulator"); return; }
-    if (cfg_is_elevated()) { t_skip("process is elevated; this test only runs unelevated"); return; }
+    if (cfg_is_elevated()) EXPECT_EQ(cfg_run_unelevated("dxctx_noadm_create", 30000), 0);
+    else EXPECT_EQ(noadm_create_body(), 0);
+}
+static int noadm_register_body(void) {
+    if (cfg_is_elevated()) return 1;
     WCHAR n[96], img[MAX_PATH]; cfg_name(n, 96, "noadmprov", 1);
     cfg_sysdll(img, MAX_PATH, L"bcryptprimitives.dll");
     PWSTR fns[1] = {L"AES"};
@@ -739,7 +754,15 @@ TEST(dxctx_noadmin_register_provider_access_denied) {
     CRYPT_IMAGE_REG im = {img, 1, irs};
     CRYPT_PROVIDER_REG reg = {0, NULL, &im, NULL};
     ULONG st = (ULONG)UN(BCryptRegisterProvider)(n, 0, &reg);
-    CHECK(st == S_ACCESS_DENIED);
-    if (NT_OK(st)) UN(BCryptUnregisterProvider)(n);
-    cfg_cleanup_all();
+    if (st != S_ACCESS_DENIED) return 2;
+    st = (ULONG)UN(BCryptUnregisterProvider)(L"Microsoft Primitive Provider");
+    if (st != S_ACCESS_DENIED) return 3;
+    return 0;
+}
+CHILD(dxctx_noadm_register) { return noadm_register_body(); }
+TEST(dxctx_noadmin_register_provider_access_denied) {
+    REQUIRE(UN(BCryptRegisterProvider));
+    if (t_is_wine()) { t_skip("emulator"); return; }
+    if (cfg_is_elevated()) EXPECT_EQ(cfg_run_unelevated("dxctx_noadm_register", 30000), 0);
+    else EXPECT_EQ(noadm_register_body(), 0);
 }

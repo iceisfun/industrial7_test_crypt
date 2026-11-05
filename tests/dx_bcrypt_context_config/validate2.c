@@ -119,6 +119,5 @@ TEST(dxctx_val2_enum_registered_providers_buffer_untouched_on_error) {
 TEST(dxctx_val2_free_buffer_null) {
     REQUIRE(U(BCryptFreeBuffer));
     /* freeing a NULL buffer is a documented no-op that must not crash */
-    U(BCryptFreeBuffer)(NULL);
-    CHECK(1);
+    T_TRY(U(BCryptFreeBuffer)(NULL));
 }

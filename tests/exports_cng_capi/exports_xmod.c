@@ -160,7 +160,7 @@ TEST(exports_cng_capi_xmod_ncrypt_bcrypt_forward_targets_listed_in_bcrypt) {
         EXPECT_STR(sym, nc->e[i].name);   /* same-name forwarders only */
     }
     CHECK(fwd > 0);
-    t_note("ncrypt.dll forwards %d BCrypt* names to bcrypt.dll", fwd);
+    EXPECT_EQ(fwd, 56);
 }
 TEST(exports_cng_capi_xmod_ncrypt_ncrypt_names_are_own_code) {
     HMODULE h = t_module("ncrypt.dll"); XDIR d;
@@ -192,7 +192,7 @@ TEST(exports_cng_capi_xmod_ncrypt_has_no_ssl_in_snapshot) {
 }
 
 /* ---- advapi32 -> cryptsp / cryptbase / ntdll forwarding -------------------------------------------- */
-static void adv_fwd_to(const char *tgt_upper, const char *tgt_dll) {
+static void adv_fwd_to(const char *tgt_upper, const char *tgt_dll, int want) {
     const XM *ad = ex_find("advapi32.dll"), *tm = ex_find(tgt_dll);
     HMODULE ha = t_module("advapi32.dll"), ht = t_module(tgt_dll);
     if (!ha || !ht) { t_skip("module missing"); return; }
@@ -207,11 +207,10 @@ static void adv_fwd_to(const char *tgt_upper, const char *tgt_dll) {
         FARPROC a = GetProcAddress(ha, ad->e[i].name), b = GetProcAddress(ht, sym);
         CHECKF(a && a == b, "advapi32!%s vs %s!%s", ad->e[i].name, tgt_dll, sym);
     }
-    CHECKF(n > 0 || t_is_wine(), "no advapi32 forwarders to %s", tgt_dll);
-    t_note("advapi32.dll forwards %d names to %s", n, tgt_dll);
+    if (!t_is_wine()) EXPECT_EQ(n, want);
 }
-TEST(exports_cng_capi_xmod_advapi32_forwards_to_cryptbase) { adv_fwd_to("CRYPTBASE", "cryptbase.dll"); }
-TEST(exports_cng_capi_xmod_advapi32_forwards_to_cryptsp) { adv_fwd_to("CRYPTSP", "cryptsp.dll"); }
+TEST(exports_cng_capi_xmod_advapi32_forwards_to_cryptbase) { adv_fwd_to("CRYPTBASE", "cryptbase.dll", 11); }
+TEST(exports_cng_capi_xmod_advapi32_forwards_to_cryptsp) { adv_fwd_to("CRYPTSP", "cryptsp.dll", 25); }
 TEST(exports_cng_capi_xmod_advapi32_systemfunction036_is_cryptbase) {
     HMODULE ha = t_module("advapi32.dll"), hb = t_module("cryptbase.dll");
     if (!ha || !hb) { t_skip("module missing"); return; }
@@ -295,16 +294,17 @@ TEST(exports_cng_capi_xmod_csp_spi_not_exported_by_cryptsp) {
 TEST(exports_cng_capi_xmod_cryptsp_names_also_in_advapi32) {
     const XM *cs = ex_find("cryptsp.dll"), *ad = ex_find("advapi32.dll");
     HMODULE h = t_module("advapi32.dll");
-    int shared = 0;
+    int shared = 0, notshared = 0;
     for (int i = 0; i < cs->n; i++) {
         const char *n = cs->e[i].name;
         if (strncmp(n, "Crypt", 5)) continue;
         int f = 0;
         for (int j = 0; j < ad->n; j++) if (ad->e[j].name && !strcmp(ad->e[j].name, n)) f = 1;
         if (f) { shared++; CHECK(h && GetProcAddress(h, n)); }
-        else t_note("cryptsp!%s is not exported by advapi32", n);
+        else notshared++;
     }
-    CHECK(shared > 0);
+    EXPECT_EQ(shared, 39);      /* every Crypt* name of cryptsp is also exported by advapi32 */
+    EXPECT_EQ(notshared, 0);
 }
 TEST(exports_cng_capi_xmod_cryptsp_exports_signature_and_check_helpers) {
     HMODULE h = t_module("cryptsp.dll");
@@ -314,8 +314,8 @@ TEST(exports_cng_capi_xmod_cryptsp_exports_signature_and_check_helpers) {
     if (a) {
         /* advapi32 SystemFunction035 forwards to cryptsp!CheckSignatureInFile */
         FARPROC x = GetProcAddress(a, "SystemFunction035");
+        CHECK(x != NULL);
         if (x) EXPECT_EQ(x, GetProcAddress(h, "CheckSignatureInFile"));
-        else t_note("advapi32 has no SystemFunction035");
     }
 }
 

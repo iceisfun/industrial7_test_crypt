@@ -63,7 +63,8 @@ TEST(dxctx_prov_register_overwrite) {
     ULONG cb = 0; PCRYPT_PROVIDER_REG r = NULL;
     ULONG st = (ULONG)U(BCryptQueryProviderRegistration)(n, CRYPT_UM, BCRYPT_HASH_INTERFACE, &cb, &r);
     ST_OK(st);
-    if (NT_OK(st) && r) {
+    REQUIRE_NOTNULL(r);
+    {
         EXPECT_EQ(r->cAliases, 2);
         U(BCryptFreeBuffer)(r);
     }
@@ -74,17 +75,16 @@ TEST(dxctx_prov_overwrite_flag_on_new_name) {
     NEEDP();
     PR p; pr_init(&p, 0, 0); WCHAR n[96]; cfg_name(n, 96, "provowN", 1);
     ULONG st = (ULONG)reg(n, CRYPT_OVERWRITE, &p);
-    t_note("CRYPT_OVERWRITE on a name that does not exist -> 0x%lx", st);
-    if (NT_OK(st)) { CHECK(cfg_has_provider(n)); ST_OK(unreg(n)); }
+    ST_OK(st);   /* CRYPT_OVERWRITE on a name that does not exist registers it */
+    CHECK(cfg_has_provider(n));
+    ST_OK(unreg(n));
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_unregister_nonexistent) {
     NEEDP();
     WCHAR n[96]; cfg_name(n, 96, "provnx", 1);
     ULONG st = (ULONG)unreg(n);
-    CHECKF(!NT_OK(st), "unregister of an unknown provider returned 0x%lx", st);
-    t_note("unregister nonexistent provider -> 0x%lx", st);
-    CHECKF(st == S_NOT_FOUND || st == S_OBJECT_NAME_NOT_FOUND || st == 0xC0000001, "0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_unregister_twice) {
@@ -92,7 +92,7 @@ TEST(dxctx_prov_unregister_twice) {
     PR p; pr_init(&p, 0, 0); WCHAR n[96]; cfg_name(n, 96, "prov2x", 1);
     ST_OK(reg(n, 0, &p));
     ST_OK(unreg(n));
-    CHECK(!NT_OK(unreg(n)));
+    ST_EQ(unreg(n), S_NOT_FOUND);
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_enum_registered_contains_system_providers) {
@@ -124,7 +124,8 @@ TEST(dxctx_prov_query_registration_um) {
     ULONG cb = 0; PCRYPT_PROVIDER_REG r = NULL;
     ULONG st = (ULONG)U(BCryptQueryProviderRegistration)(n, CRYPT_UM, 0, &cb, &r);
     ST_OK(st);
-    if (NT_OK(st) && r) {
+    REQUIRE_NOTNULL(r);
+    {
         CHECK(cb >= sizeof *r);
         EXPECT_EQ(r->cAliases, 2);
         if (r->cAliases == 2) {
@@ -149,18 +150,21 @@ TEST(dxctx_prov_query_registration_interface_filter) {
     ULONG cb = 0; PCRYPT_PROVIDER_REG r = NULL;
     ULONG st = (ULONG)U(BCryptQueryProviderRegistration)(n, CRYPT_UM, BCRYPT_CIPHER_INTERFACE, &cb, &r);
     ST_OK(st);
-    if (NT_OK(st) && r) {
-        CHECK(r->pUM && r->pUM->cInterfaces == 1);
-        if (r->pUM && r->pUM->cInterfaces == 1) {
-            EXPECT_EQ(r->pUM->rgpInterfaces[0]->dwInterface, BCRYPT_CIPHER_INTERFACE);
-            EXPECT_EQ(r->pUM->rgpInterfaces[0]->cFunctions, 2);
-        }
+    REQUIRE_NOTNULL(r);
+    {
+        REQUIRE_NOTNULL(r->pUM);
+        REQUIRE_EQ(r->pUM->cInterfaces, 1);
+        EXPECT_EQ(r->pUM->rgpInterfaces[0]->dwInterface, BCRYPT_CIPHER_INTERFACE);
+        EXPECT_EQ(r->pUM->rgpInterfaces[0]->cFunctions, 2);
         U(BCryptFreeBuffer)(r);
     }
     r = NULL; cb = 0;
     st = (ULONG)U(BCryptQueryProviderRegistration)(n, CRYPT_UM, BCRYPT_HASH_INTERFACE, &cb, &r);
-    t_note("query of an interface the provider does not implement -> 0x%lx", st);
-    if (NT_OK(st) && r) { CHECK(!r->pUM || r->pUM->cInterfaces == 0); U(BCryptFreeBuffer)(r); }
+    /* an interface the provider does not implement: the query succeeds and returns the registration with no interfaces */
+    ST_OK(st);
+    REQUIRE_NOTNULL(r);
+    CHECK(r->pUM == NULL);
+    U(BCryptFreeBuffer)(r);
     ST_OK(unreg(n));
     cfg_cleanup_all();
 }
@@ -169,9 +173,8 @@ TEST(dxctx_prov_query_registration_nonexistent) {
     WCHAR n[96]; cfg_name(n, 96, "provqnx", 1);
     ULONG cb = 0; PCRYPT_PROVIDER_REG r = NULL;
     ULONG st = (ULONG)U(BCryptQueryProviderRegistration)(n, CRYPT_UM, 0, &cb, &r);
-    CHECKF(!NT_OK(st), "query of an unregistered provider returned 0x%lx", st);
+    ST_EQ(st, S_NOT_FOUND);
     CHECK(r == NULL);
-    t_note("query unregistered provider -> 0x%lx", st);
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_query_registration_after_unregister) {
@@ -181,8 +184,8 @@ TEST(dxctx_prov_query_registration_after_unregister) {
     ST_OK(unreg(n));
     ULONG cb = 0; PCRYPT_PROVIDER_REG r = NULL;
     ULONG st = (ULONG)U(BCryptQueryProviderRegistration)(n, CRYPT_UM, 0, &cb, &r);
-    CHECKF(!NT_OK(st), "registration still queryable (0x%lx)", st);
-    if (r) U(BCryptFreeBuffer)(r);
+    ST_EQ(st, S_NOT_FOUND);
+    CHECK(r == NULL);
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_query_system_provider) {
@@ -190,9 +193,10 @@ TEST(dxctx_prov_query_system_provider) {
     ULONG cb = 0; PCRYPT_PROVIDER_REG r = NULL;
     ULONG st = (ULONG)U(BCryptQueryProviderRegistration)(L"Microsoft Primitive Provider", CRYPT_UM, 0, &cb, &r);
     ST_OK(st);
-    if (NT_OK(st) && r) {
-        CHECK(r->pUM != NULL);
-        if (r->pUM && r->pUM->pszImage) t_note("Primitive provider UM image: %ls", r->pUM->pszImage);
+    REQUIRE_NOTNULL(r);
+    {
+        REQUIRE_NOTNULL(r->pUM);
+        EXPECT_WSTR(r->pUM->pszImage, L"bcryptprimitives.dll");
         U(BCryptFreeBuffer)(r);
     }
 }
@@ -201,8 +205,9 @@ TEST(dxctx_prov_register_km_only) {
     PR p; pr_init(&p, 0, 0); WCHAR n[96]; cfg_name(n, 96, "provkm", 1);
     p.reg.pKM = p.reg.pUM; p.reg.pUM = NULL;
     ULONG st = (ULONG)reg(n, 0, &p);
-    t_note("kernel-mode-only registration -> 0x%lx", st);
-    if (NT_OK(st)) { CHECK(cfg_has_provider(n)); ST_OK(unreg(n)); }
+    ST_OK(st);   /* a kernel-mode-only registration is accepted */
+    CHECK(cfg_has_provider(n));
+    ST_OK(unreg(n));
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_register_um_and_km) {
@@ -210,8 +215,9 @@ TEST(dxctx_prov_register_um_and_km) {
     PR p; pr_init(&p, 0, 0); WCHAR n[96]; cfg_name(n, 96, "provboth", 1);
     p.reg.pKM = p.reg.pUM;
     ULONG st = (ULONG)reg(n, 0, &p);
-    t_note("UM+KM registration -> 0x%lx", st);
-    if (NT_OK(st)) { CHECK(cfg_has_provider(n)); ST_OK(unreg(n)); }
+    ST_OK(st);
+    CHECK(cfg_has_provider(n));
+    ST_OK(unreg(n));
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_register_many_aliases) {
@@ -219,7 +225,10 @@ TEST(dxctx_prov_register_many_aliases) {
     PR p; pr_init(&p, 0, 3); WCHAR n[96]; cfg_name(n, 96, "provals", 1);
     ST_OK(reg(n, 0, &p));
     ULONG cb = 0; PCRYPT_PROVIDER_REG r = NULL;
-    if (NT_OK(U(BCryptQueryProviderRegistration)(n, CRYPT_UM, 0, &cb, &r)) && r) { EXPECT_EQ(r->cAliases, 3); U(BCryptFreeBuffer)(r); }
+    ST_OK(U(BCryptQueryProviderRegistration)(n, CRYPT_UM, 0, &cb, &r));
+    REQUIRE_NOTNULL(r);
+    EXPECT_EQ(r->cAliases, 3);
+    U(BCryptFreeBuffer)(r);
     ST_OK(unreg(n));
     cfg_cleanup_all();
 }
@@ -237,9 +246,7 @@ TEST(dxctx_prov_name_case_insensitive) {
     ST_OK(reg(n, 0, &p));
     wcscpy(u, n); CharUpperW(u);
     ULONG st = (ULONG)reg(u, 0, &p);
-    t_note("registration of case variant name -> 0x%lx", st);
-    CHECK(st == S_NAME_COLLISION);
-    if (NT_OK(st)) unreg(u);
+    ST_EQ(st, S_NAME_COLLISION);
     ST_OK(unreg(n));
     cfg_cleanup_all();
 }
@@ -249,9 +256,8 @@ TEST(dxctx_prov_resolve_providers_unregistered) {
     WCHAR n[96]; cfg_name(n, 96, "provres", 1);
     ULONG cb = 0; PCRYPT_PROVIDER_REFS r = NULL;
     ULONG st = (ULONG)U(BCryptResolveProviders)(NULL, BCRYPT_HASH_INTERFACE, NULL, n, CRYPT_UM, 0, &cb, &r);
-    CHECKF(!NT_OK(st), "resolving an unregistered provider returned 0x%lx", st);
-    t_note("resolve unregistered provider -> 0x%lx", st);
-    if (r) U(BCryptFreeBuffer)(r);
+    ST_EQ(st, S_NOT_FOUND);
+    CHECK(r == NULL);
     cfg_cleanup_all();
 }
 TEST(dxctx_prov_registered_provider_in_context) {
@@ -264,14 +270,13 @@ TEST(dxctx_prov_registered_provider_in_context) {
     ST_OK(U(BCryptAddContextFunction)(CRYPT_LOCAL, c, BCRYPT_CIPHER_INTERFACE, L"cryptt_fnx", CRYPT_PRIORITY_BOTTOM));
     ULONG st = (ULONG)UN(BCryptAddContextFunctionProvider)(CRYPT_LOCAL, c, BCRYPT_CIPHER_INTERFACE, L"cryptt_fnx", n, CRYPT_PRIORITY_BOTTOM);
     ST_OK(st);
-    if (NT_OK(st)) {
+    {
         static WCHAR l[8][96]; NTSTATUS s;
         int k = cfg_enum_fprov(CRYPT_LOCAL, c, BCRYPT_CIPHER_INTERFACE, L"cryptt_fnx", l, 8, &s);
-        CHECK(k == 1);
-        if (k == 1) CHECK(!lstrcmpiW(l[0], n));
-        /* unregistering a provider that a context still references */
-        ULONG u = (ULONG)unreg(n);
-        t_note("unregister provider still referenced by a context function -> 0x%lx", u);
+        REQUIRE_EQ(k, 1);
+        EXPECT_WSTR(l[0], n);
+        /* unregistering a provider that a context function still references succeeds (the reference stays) */
+        ST_OK(unreg(n));
     }
     U(BCryptDeleteContext)(CRYPT_LOCAL, c);
     unreg(n);

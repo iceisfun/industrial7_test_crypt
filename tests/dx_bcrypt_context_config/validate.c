@@ -252,19 +252,18 @@ TEST(dxctx_val_unregister_notify_null_handle) {
     REQUIRE(U(BCryptUnregisterConfigChangeNotify));
     if (t_is_wine()) { t_skip("emulator stub aborts"); return; }
     ULONG st = (ULONG)U(BCryptUnregisterConfigChangeNotify)(NULL);
-    CHECKF(!NT_OK(st), "status 0x%lx", st);
-    t_note("BCryptUnregisterConfigChangeNotify(NULL) = 0x%lx", st);
+    ST_EQ(st, S_INVALID_PARAMETER);
 }
 TEST(dxctx_val_interface_table_matrix) {
     /* Every valid interface id is accepted by the validators: the call must get past parameter
      * validation, i.e. it must NOT return STATUS_INVALID_PARAMETER for a well-formed request about a
-     * context that does not exist (elevation permitting, the result is a not-found style status). */
+     * context that does not exist: STATUS_NOT_FOUND when elevated, STATUS_ACCESS_DENIED for a standard user. */
     REQUIRE(U(BCryptRemoveContextFunction));
     if (t_is_wine()) { t_skip("emulator does not validate"); return; }
     for (int t = 1; t <= 2; t++)
         for (int i = 0; i < 11; i++) {
             ULONG st = (ULONG)U(BCryptRemoveContextFunction)(t, L"cryptt_never_ctx", cfg_valid_ifaces[i], L"fn");
-            if (st == S_INVALID_PARAMETER) t_note("table %d iface 0x%lx -> INVALID_PARAMETER for a nonexistent context", t, cfg_valid_ifaces[i]);
-            CHECKF(!NT_OK(st), "table %d iface 0x%lx unexpectedly succeeded", t, cfg_valid_ifaces[i]);
+            t_label("table %d iface 0x%lx", t, cfg_valid_ifaces[i]);
+            ST_EQ(st, cfg_is_elevated() ? S_NOT_FOUND : S_ACCESS_DENIED);   /* the access check comes before the lookup */
         }
 }

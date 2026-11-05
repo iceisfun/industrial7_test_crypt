@@ -20,6 +20,24 @@ int cfg_is_elevated(void) {
     return r;
 }
 
+/* Runs "exe --child <child>" with a LUA (standard user) restricted copy of this process token: the Administrators
+ * group becomes deny-only and the privileges are dropped, so the child is not elevated. Returns the exit code of the
+ * child, 0xDEAD0010..13 when the token or the process could not be created, 0xDEAD0001 on timeout (killed). */
+DWORD cfg_run_unelevated(const char *child, DWORD ms) {
+    HANDLE tok = NULL, rt = NULL; char cmd[2048]; STARTUPINFOA si; PROCESS_INFORMATION pi; DWORD code = 0xDEAD0013;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY, &tok)) return 0xDEAD0010;
+    if (!CreateRestrictedToken(tok, LUA_TOKEN | DISABLE_MAX_PRIVILEGE, 0, NULL, 0, NULL, 0, NULL, &rt)) { CloseHandle(tok); return 0xDEAD0011; }
+    CloseHandle(tok);
+    memset(&si, 0, sizeof si); si.cb = sizeof si; memset(&pi, 0, sizeof pi);
+    snprintf(cmd, sizeof cmd, "\"%s\" --child %s", t_self_path(), child);
+    if (!CreateProcessAsUserA(rt, NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) { CloseHandle(rt); return 0xDEAD0012; }
+    CloseHandle(rt);
+    if (WaitForSingleObject(pi.hProcess, ms) != WAIT_OBJECT_0) { TerminateProcess(pi.hProcess, 1); WaitForSingleObject(pi.hProcess, 5000); code = 0xDEAD0001; }
+    else GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+    return code;
+}
+
 void cfg_name(WCHAR *out, size_t cch, const char *tag, int kind) {
     WCHAR wt[40]; int i;
     for (i = 0; tag[i] && i < 39; i++) wt[i] = (WCHAR)tag[i];

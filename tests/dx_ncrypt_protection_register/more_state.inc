@@ -258,7 +258,7 @@ TEST(dxnpr_named_descriptor_logon_and_machine_variants) {
         EXPECT_SS(reg(n, ds[i], 0), 0);
         BYTE in[24]; npd_fill(in, 24, 40 + i); int prc;
         int ok = protect_roundtrip_named(n, NPD_NAMED_FLAG, in, 24, &prc);
-        if (!ok) t_note("%ls via name: rc 0x%lx", ds[i], (unsigned long)(DWORD)prc);
+        CHECKF(ok, "%ls via name: rc 0x%lx", ds[i], (unsigned long)(DWORD)prc);
     }
     npr_end();
 }
@@ -280,7 +280,10 @@ TEST(dxnpr_named_sid_descriptor_roundtrip) {
     EXPECT_SS(reg(n, d, 0), 0);
     BYTE in[32]; npd_fill(in, 32, 77); int prc;
     int good = protect_roundtrip_named(n, NPD_NAMED_FLAG, in, 32, &prc);
-    if (!good) t_note("SID descriptor via name: rc 0x%lx (may need domain / key distribution)", (unsigned long)(DWORD)prc);
+    /* a SID descriptor needs domain key distribution: on a workgroup machine protecting fails with this status */
+    REQUIRE_WORKGROUP();
+    CHECK(!good);
+    EXPECT_EQ((DWORD)prc, 0x80090034u);
     npr_end();
 }
 
@@ -348,8 +351,8 @@ TEST(dxnpr_named_flag_variants_on_create) {
     /* flag 0x20 alone: the string is taken as a descriptor, not a name; HKCU registration is not consulted */
     h = (void *)(ULONG_PTR)1;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(n, NPD_MACHINE_FLAG, &h);
-    t_note("machine flag without named flag, plain string -> 0x%lx", (unsigned long)SS(rc));
-    if (rc == 0) npd_desc_close(h);
+    EXPECT_SS(rc, 0x80090005u);   /* NTE_BAD_DATA: the string is parsed as a descriptor and is not one */
+    CHECK(h == NULL);
     npr_end();
 }
 

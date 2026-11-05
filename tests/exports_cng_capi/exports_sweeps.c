@@ -7,6 +7,27 @@
     if (!h) { t_skip("cannot load %s", dll); return; } \
     if (!ex_dir(h, &d)) { t_skip("no export directory in %s", dll); return; }
 
+/* Export directory shape on Windows 10 22H2 (probed on the oracle). The tables in exports_data.c list only the
+ * CNG / CAPI names (ncrypt: no Ssl*; advapi32: Crypt* and SystemFunction*), so "unlisted" is the exact count of
+ * every other exported name. nfwd_snap: forwarders in the table; nfwd_dir: forwarder slots in the directory. */
+typedef struct { const char *dll; DWORD base, nfunc, nnames; int unlisted, nfwd_snap, nfwd_dir, aw_pairs; } XSHAPE;
+static const XSHAPE shapes[] = {
+    {"bcrypt.dll", 1, 58, 58, 0, 0, 0, 0},
+    {"bcryptprimitives.dll", 1, 10, 10, 0, 0, 0, 0},
+    {"ncrypt.dll", 1, 149, 149, 45, 56, 56, 0},
+    {"ncryptprov.dll", 1, 3, 3, 0, 0, 0, 0},
+    {"cryptsp.dll", 1, 65, 65, 0, 0, 0, 16},
+    {"cryptbase.dll", 1, 11, 11, 0, 0, 0, 0},
+    {"cryptdll.dll", 1, 20, 20, 0, 3, 3, 0},
+    {"dpapi.dll", 1, 7, 7, 0, 0, 0, 0},
+    {"rsaenh.dll", 1, 27, 27, 0, 0, 0, 0},
+    {"dssenh.dll", 1, 27, 27, 0, 0, 0, 0},
+    {"advapi32.dll", 1000, 861, 860, 783, 36, 96, 16},
+};
+static const XSHAPE *ex_shape(const char *dll) {
+    for (unsigned i = 0; i < sizeof shapes / sizeof *shapes; i++) if (!lstrcmpiA(shapes[i].dll, dll)) return &shapes[i];
+    return &shapes[0];
+}
 static int is_fwd_wine(void) { return t_is_wine(); }
 
 void sw_loads(const char *dll) {
@@ -91,11 +112,9 @@ void sw_json_ordinals(const char *dll) {
         if (!m_->e[i].name) continue;
         DWORD ord;
         if (!ex_dir_find(&d, m_->e[i].name, &ord, NULL, NULL)) continue;
-        if (ord != m_->e[i].ord) { diff++; if (diff <= 5) t_note("%s!%s ordinal %lu, snapshot %u", dll, m_->e[i].name, ord, m_->e[i].ord); }
+        if (ord != m_->e[i].ord) { diff++; CHECKF(0, "%s!%s ordinal %lu, Windows 10 22H2 has %u", dll, m_->e[i].name, ord, m_->e[i].ord); }
     }
-    if (diff) t_note("%s: %d ordinals differ from the authoring snapshot (build dependent)", dll, diff);
-    /* the snapshot ordinal always lies inside [Base, Base+NumberOfFunctions) on the snapshot build */
-    CHECK(d.dir->Base >= 1);
+    EXPECT_EQ(diff, 0);
 }
 void sw_ordinal_only(const char *dll) {
     LOADM(dll, h, d);
@@ -106,15 +125,11 @@ void sw_ordinal_only(const char *dll) {
         SET_ERR(0);
         FARPROC p = GetProcAddress(h, MAKEINTRESOURCEA(m_->e[i].ord));
         if (!p && t_is_wine()) { t_note("wine lacks %s ordinal-only export #%u", dll, m_->e[i].ord); continue; }
-        /* ordinal-only slots are build specific (undocumented): note, do not fail */
-        if (!p) { t_note("%s ordinal-only export #%u not present on this build", dll, m_->e[i].ord); continue; }
-        CHECK(ex_in_image(&d, p));
+        CHECKF(p != NULL, "%s ordinal-only export #%u does not resolve", dll, m_->e[i].ord);
+        if (p) CHECK(ex_in_image(&d, p));
     }
-    if (!seen) {
-        /* no ordinal-only exports in this module: every function slot with an RVA is named, or count gap */
-        t_note("%s has no ordinal-only exports in the snapshot", dll);
-        CHECK(d.dir->NumberOfFunctions >= d.dir->NumberOfNames);
-    }
+    /* the number of unnamed slots in the directory equals the number of ordinal-only entries in the table */
+    EXPECT_EQ(d.dir->NumberOfFunctions - d.dir->NumberOfNames, (DWORD)seen);
 }
 void sw_fwd_strings(const char *dll) {
     LOADM(dll, h, d);
@@ -128,7 +143,13 @@ void sw_fwd_strings(const char *dll) {
         CHECKF(fwd != NULL, "%s!%s should be a forwarder", dll, m_->e[i].name);
         if (fwd) CHECKF(!lstrcmpiA(fwd, m_->e[i].fwd), "%s forwarder %s vs %s", m_->e[i].name, fwd, m_->e[i].fwd);
     }
-    if (!nf) t_note("%s has no forwarders", dll);
+    EXPECT_EQ(nf, ex_shape(dll)->nfwd_snap);
+    /* every forwarder slot of the real directory (listed or not) */
+    const BYTE *b = (const BYTE *)h; const DWORD *fn = (const DWORD *)(b + d.dir->AddressOfFunctions);
+    int real = 0;
+    for (DWORD i = 0; i < d.dir->NumberOfFunctions; i++)
+        if (fn[i] >= d.dir_rva && fn[i] < d.dir_rva + d.dir_size) real++;
+    EXPECT_EQ(real, ex_shape(dll)->nfwd_dir);
 }
 void sw_fwd_same_address(const char *dll) {
     LOADM(dll, h, d);
@@ -156,12 +177,13 @@ void sw_nonfwd_not_forwarder(const char *dll) {
 }
 void sw_counts(const char *dll) {
     LOADM(dll, h, d);
+    const XSHAPE *sh = ex_shape(dll);
     int named = 0;
     for (int i = 0; i < m_->n; i++) if (m_->e[i].name) named++;
-    CHECK(d.dir->NumberOfNames >= (DWORD)named || t_is_wine());
-    if (d.dir->NumberOfNames != (DWORD)named)
-        t_note("%s: NumberOfNames %lu, snapshot (filtered) %d", dll, d.dir->NumberOfNames, named);
-    t_note("%s: Base %lu NumberOfFunctions %lu NumberOfNames %lu", dll, d.dir->Base, d.dir->NumberOfFunctions, d.dir->NumberOfNames);
+    EXPECT_EQ(d.dir->Base, sh->base);
+    EXPECT_EQ(d.dir->NumberOfFunctions, sh->nfunc);
+    EXPECT_EQ(d.dir->NumberOfNames, sh->nnames);
+    EXPECT_EQ((int)d.dir->NumberOfNames - named, sh->unlisted);
 }
 static int listed(const XM *m, const char *n) {
     for (int i = 0; i < m->n; i++) if (m->e[i].name && !strcmp(m->e[i].name, n)) return 1;
@@ -173,10 +195,9 @@ void sw_unlisted(const char *dll) {
     int extra = 0;
     for (DWORD i = 0; i < d.dir->NumberOfNames; i++) {
         const char *n = (const char *)(b + nm[i]);
-        if (!listed(m_, n)) { extra++; if (extra <= 10) t_note("%s exports unlisted name %s", dll, n); }
+        if (!listed(m_, n)) extra++;
     }
-    t_note("%s: %d exported names not in the authoring snapshot", dll, extra);
-    CHECK(d.dir->NumberOfNames > 0);
+    EXPECT_EQ(extra, ex_shape(dll)->unlisted);
 }
 void sw_case_sensitive(const char *dll) {
     LOADM(dll, h, d);
@@ -249,8 +270,7 @@ void sw_aw_pairs(const char *dll) {
         CHECKF(a != NULL && b != NULL, "%s: %s / %s", dll, n, tw);
         if (a && b && strlen(n) && n[strlen(n) - 1] == 'A') CHECKF(a != b, "%s A and W entry points identical", n);
     }
-    if (!pairs) t_note("%s: no A/W pairs exported", dll);
-    else t_note("%s: %d A/W name pairs (counted twice)", dll, pairs);
+    EXPECT_EQ(pairs, ex_shape(dll)->aw_pairs);
 }
 void sw_stable(const char *dll) {
     LOADM(dll, h, d);

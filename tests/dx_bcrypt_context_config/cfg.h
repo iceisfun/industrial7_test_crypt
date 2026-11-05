@@ -24,6 +24,7 @@ extern const ULONG cfg_bad_ifaces[7];
 extern const ULONG cfg_bad_tables[6];
 
 int  cfg_is_elevated(void);
+DWORD cfg_run_unelevated(const char *child, DWORD ms);
 /* Returns 1 when the test may touch HKLM (elevated, not an emulator). Otherwise t_skip()s. Sweeps leftovers once. */
 int  cfg_begin(void);
 /* Unique name "cryptt_<tag>_<pid>_<n>"; also remembered for cleanup at exit. kind: 0 context, 1 provider */

@@ -112,24 +112,33 @@ TEST(dxnpr_query_unknown_name_machine) {
     npr_end();
 }
 
-TEST(dxnpr_register_machine_flag_not_elevated_denied) {
-    NPR_GUARD();
-    if (is_elevated()) { t_skip("elevated: HKLM write allowed"); return; }
+/* HKLM registration needs elevation. The bodies run in a standard user child (npr_run_unelevated) when this process is
+ * elevated (dx mode), in place otherwise. They return 0 or the unexpected status (never create anything). */
+static int mden_register_body(void) {
+    if (is_elevated()) return 1;
     wchar_t n[128]; npr_name(n, 128, L"mden");
     LONG rc = reg(n, L"LOCAL=machine", NPD_MACHINE_FLAG);
-    if (SS(rc) == 0) { t_note("HKLM NamedDescriptors writable without elevation"); reg(n, NULL, NPD_MACHINE_FLAG); return; }
-    EXPECT_SS(rc, 0x80070005u);    /* ERROR_ACCESS_DENIED from RegCreateKeyEx, mapped to HRESULT_FROM_WIN32 */
-    npr_end();
+    return SS(rc) == 0x80070005u ? 0 : (SS(rc) ? (int)SS(rc) : 2);   /* ERROR_ACCESS_DENIED as HRESULT */
+}
+static int mden_delete_body(void) {
+    if (is_elevated()) return 1;
+    wchar_t n[128]; npr_name(n, 128, L"mdel");
+    LONG rc = reg(n, NULL, NPD_MACHINE_FLAG);
+    return SS(rc) == 0x80070005u ? 0 : (SS(rc) ? (int)SS(rc) : 2);   /* denied before the missing value is looked at */
+}
+CHILD(dxnpr_mden_register) { return mden_register_body(); }
+CHILD(dxnpr_mden_delete) { return mden_delete_body(); }
+
+TEST(dxnpr_register_machine_flag_not_elevated_denied) {
+    NPR_GUARD();
+    if (is_elevated()) EXPECT_EQ(npr_run_unelevated("dxnpr_mden_register", 30000), 0);
+    else EXPECT_EQ(mden_register_body(), 0);
 }
 
 TEST(dxnpr_delete_machine_flag_not_elevated_denied) {
     NPR_GUARD();
-    if (is_elevated()) { t_skip("elevated: HKLM write allowed"); return; }
-    wchar_t n[128]; npr_name(n, 128, L"mdel");
-    LONG rc = reg(n, NULL, NPD_MACHINE_FLAG);
-    t_note("non-elevated machine delete of unknown name -> 0x%lx", (unsigned long)SS(rc));
-    CHECK(SS(rc) == 0x80070005u || SS(rc) == NPD_HR_FILE_NOT_FOUND);
-    npr_end();
+    if (is_elevated()) EXPECT_EQ(npr_run_unelevated("dxnpr_mden_delete", 30000), 0);
+    else EXPECT_EQ(mden_delete_body(), 0);
 }
 
 TEST(dxnpr_user_flag_set_does_not_touch_hklm) {
@@ -245,11 +254,10 @@ TEST(dxnpr_query_value_without_terminator_sizes) {
     EXPECT_EQ(raw_set(0, n, REG_SZ, L"ABCD", 4 * sizeof(wchar_t)), 0);   /* 4 characters, no NUL */
     SIZE_T cch = 0;
     EXPECT_SS(query(n, NULL, &cch, 0), 0);
-    t_note("unterminated REG_SZ size query -> %lu chars", (unsigned long)cch);   /* registry layer may add room for a NUL */
-    CHECK(cch == 4 || cch == 5);
+    EXPECT_EQ(cch, 5);   /* the size query includes room for the terminator */
     wchar_t buf[8]; memset(buf, 0x44, sizeof buf); cch = 8;
     EXPECT_SS(query(n, buf, &cch, 0), 0);
-    CHECK(cch == 4 || cch == 5);
+    EXPECT_EQ(cch, 5);
     CHECK(buf[0] == L'A' && buf[1] == L'B' && buf[2] == L'C');
     if (cch >= 1 && cch <= 8) CHECK(buf[cch - 1] == 0);                   /* last returned slot is always NUL */
     npr_end();
@@ -405,13 +413,7 @@ TEST(dxnpr_create_unnamed_does_not_consult_registry) {
     /* without the named flag the string itself is parsed as a descriptor; a registered name is just text */
     void *h = (void *)(ULONG_PTR)1;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(n, 0, &h);
-    CHECKF(SS(rc) != 0 || h != NULL, "inconsistent result");
-    if (SS(rc) == 0) {
-        t_note("plain name accepted as descriptor string");
-        npd_desc_close(h);
-    } else {
-        CHECK(h == NULL);
-        t_note("plain name rejected as descriptor: 0x%lx", (unsigned long)SS(rc));
-    }
+    EXPECT_SS(rc, 0x80090005u);   /* NTE_BAD_DATA from the descriptor parser */
+    CHECK(h == NULL);
     npr_end();
 }

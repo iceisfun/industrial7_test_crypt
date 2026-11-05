@@ -4,8 +4,8 @@
  *
  * Every lookup is LoadLibrary (harness) -> GetProcAddress. Nothing exported is ever called.
  * exports_data.c is an authoring-time snapshot of the Windows 10 x64 export directories; checks tied to
- * names and forwarders are hard, checks that depend on the exact build (ordinal numbers, unlisted
- * extra exports, counts) are notes.
+ * names and forwarders, ordinals, directory counts and the number of unlisted exports are pinned to the values
+ * observed on Windows 10 22H2.
  *
  * Forwarder tables (export -> target), from the Windows 10 x64 export directories.
  * Targets are resolved with GetProcAddress on the forwarding module and must equal the address

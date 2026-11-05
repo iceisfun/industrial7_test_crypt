@@ -77,6 +77,23 @@ static void npr_begin(void) {
     sweep_one(0);
     if (is_elevated()) sweep_one(1);
 }
+/* Runs "exe --child <child>" with a LUA (standard user) restricted copy of this process token: Administrators become
+ * deny-only and the privileges are dropped, so the child is not elevated. Returns the child's exit code, or
+ * 0xDEAD0010..13 when the token / process could not be created, 0xDEAD0001 on timeout (killed). */
+static DWORD npr_run_unelevated(const char *child, DWORD ms) {
+    HANDLE tok = NULL, rt = NULL; char cmd[2048]; STARTUPINFOA si; PROCESS_INFORMATION pi; DWORD code = 0xDEAD0013;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY, &tok)) return 0xDEAD0010;
+    if (!CreateRestrictedToken(tok, LUA_TOKEN | DISABLE_MAX_PRIVILEGE, 0, NULL, 0, NULL, 0, NULL, &rt)) { CloseHandle(tok); return 0xDEAD0011; }
+    CloseHandle(tok);
+    memset(&si, 0, sizeof si); si.cb = sizeof si; memset(&pi, 0, sizeof pi);
+    snprintf(cmd, sizeof cmd, "\"%s\" --child %s", t_self_path(), child);
+    if (!CreateProcessAsUserA(rt, NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) { CloseHandle(rt); return 0xDEAD0012; }
+    CloseHandle(rt);
+    if (WaitForSingleObject(pi.hProcess, ms) != WAIT_OBJECT_0) { TerminateProcess(pi.hProcess, 1); WaitForSingleObject(pi.hProcess, 5000); code = 0xDEAD0001; }
+    else GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+    return code;
+}
 static void npr_end(void) { sweep_one(0); if (is_elevated()) sweep_one(1); }
 
 #define NPR_GUARD() do { if (!UN(NCryptRegisterProtectionDescriptorName) || !UN(NCryptQueryProtectionDescriptorName)) { t_skip("missing export"); return; } \
@@ -232,9 +249,8 @@ TEST(dxnpr_register_does_not_validate_descriptor) {
     EXPECT_WSTR(buf, L"this is not a descriptor");
     void *h = (void *)(ULONG_PTR)1;
     LONG rc = UN(NCryptCreateProtectionDescriptor)(n, NPD_NAMED_FLAG, &h);
-    /* the garbage is only judged when the name is used; the exact status comes from the descriptor parser */
-    CHECK(SS(rc) != 0);
-    t_note("garbage registered descriptor used via name -> 0x%lx", (unsigned long)SS(rc));
+    /* the garbage is only judged when the name is used: the descriptor parser reports NTE_BAD_DATA */
+    EXPECT_SS(rc, 0x80090005u);
     CHECK(h == NULL);
     npr_end();
 }
@@ -314,9 +330,8 @@ TEST(dxnpr_query_forces_terminator_on_unterminated_value) {
     EXPECT_EQ(raw_set(0, n, REG_SZ, L"LOCAL=user", 10 * sizeof(wchar_t)), 0);
     wchar_t buf[16]; memset(buf, 0x55, sizeof buf); SIZE_T cch = 16;
     EXPECT_SS(query(n, buf, &cch, 0), 0);
-    t_note("unterminated value: cch %lu", (unsigned long)cch);   /* registry layer may or may not append a NUL */
-    CHECK(cch == 10 || cch == 11);
-    if (cch >= 1 && cch <= 16) CHECK(buf[cch - 1] == 0);   /* the final returned slot is always NUL */
+    EXPECT_EQ(cch, 11);          /* the 10 stored characters plus the terminator that is added */
+    EXPECT_EQ(buf[10], 0);
     npr_end();
 }
 
@@ -327,7 +342,11 @@ TEST(dxnpr_query_ignores_value_type_observed) {
     EXPECT_EQ(raw_set(0, n, REG_DWORD, &v, 4), 0);
     wchar_t buf[8]; SIZE_T cch = 8;
     LONG rc = query(n, buf, &cch, 0);
-    t_note("REG_DWORD value queried -> 0x%lx cch=%lu", (unsigned long)SS(rc), (unsigned long)cch);
+    /* the value type is ignored: the 4 data bytes make 2 wide characters, and the final slot is forced to NUL */
+    EXPECT_SS(rc, 0);
+    EXPECT_EQ(cch, 2);
+    EXPECT_EQ(buf[0], 0x42);
+    EXPECT_EQ(buf[1], 0);
     npr_end();
 }
 
@@ -400,15 +419,10 @@ TEST(dxnpr_register_validation_leaves_no_value) {
     npr_end();
 }
 
-TEST(dxnpr_machine_register_requires_elevation_or_succeeds) {
+TEST(dxnpr_machine_register_elevated_roundtrip) {
     NPR_GUARD();
     wchar_t n[128]; npr_name(n, 128, L"mach");
-    if (!is_elevated()) {
-        LONG rc = reg(n, L"LOCAL=machine", NPD_MACHINE_FLAG);
-        t_note("non-elevated machine registration -> 0x%lx", (unsigned long)SS(rc));
-        if (rc == 0) reg(n, NULL, NPD_MACHINE_FLAG);
-        return;
-    }
+    REQUIRE_ELEVATED();   /* the unelevated outcome is pinned by dxnpr_register_machine_flag_not_elevated_denied */
     EXPECT_SS(reg(n, L"LOCAL=machine", NPD_MACHINE_FLAG), 0);
     wchar_t buf[32]; SIZE_T cch = 32;
     EXPECT_SS(query(n, buf, &cch, NPD_MACHINE_FLAG), 0);
