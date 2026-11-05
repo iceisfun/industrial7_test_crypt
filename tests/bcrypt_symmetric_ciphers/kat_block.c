@@ -14,6 +14,7 @@ static void kat_run(const kcfg *c, const struct kat *v) {
     if (!a) { t_skip("algorithm %ls/%ls not available", c->alg, c->mode ? c->mode : L"-"); if (!t_is_wine()) CHECK(a != NULL); return; }
     if (c->mbl) {
         NTSTATUS s = P_SetProp(a, BCRYPT_MESSAGE_BLOCK_LENGTH, (PUCHAR)&c->mbl, 4, 0);
+        if (WINE_UNSUP(s)) { t_skip("MessageBlockLength unsupported under wine"); bsc_close(a); return; }
         EXPECT_EQ(s, 0);
     }
     BYTE pt[256], ct[256], iv0[32], iv[32], out[256], back[256];
