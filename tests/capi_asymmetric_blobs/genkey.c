@@ -157,7 +157,7 @@ TEST(capiab_rsagen_null_output_pointer) {
     SET_ERR(0);
     BOOL r = U(CryptGenKey)(h, AT_KEYEXCHANGE, 512u << 16, NULL);
     CHECK(!r);
-    t_note("CryptGenKey with NULL phKey: err 0x%lx", r ? 0 : GetLastError());
+    EXPECT_ERR(ERROR_INVALID_PARAMETER); /* probed std and adm */
     cab_rel(h);
 }
 
@@ -328,7 +328,7 @@ TEST(capiab_rsagen_large_size_4096) {
     DWORD t0 = GetTickCount();
     BOOL r = U(CryptGenKey)(h, AT_KEYEXCHANGE, 4096u << 16, &k);
     CHECKF(r, "err 0x%lx", GetLastError());
-    t_note("4096-bit RSA generation took %lu ms", GetTickCount() - t0);
+    t_note("4096-bit RSA generation took %lu ms", GetTickCount() - t0); /* timing is informational only */
     if (r) EXPECT_EQ(cab_keylen(k), 4096);
     cab_kd(r ? k : 0); cab_rel(h);
 }
@@ -341,7 +341,7 @@ TEST(capiab_rsagen_duplicate_key_observe) {
     CHECK(k != 0);
     SET_ERR(0);
     BOOL r = U(CryptDuplicateKey)(k, NULL, 0, &d);
-    t_note("CryptDuplicateKey of an RSA public key: %d err 0x%lx", r, r ? 0 : GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm: duplicating an RSA public key succeeds */
     if (r) {
         cab_kd(k);
         EXPECT_EQ(cab_keylen(d), 1024);

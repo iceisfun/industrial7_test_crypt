@@ -137,7 +137,8 @@ TEST(sss_store_enum_my_root_ca_order) {
             if (!lstrcmpiW(c.names[i], L"CA")) ic = i;
         }
         CHECK(im >= 0 && ir >= 0 && ic >= 0);
-        t_note("loc %d order My=%d Root=%d CA=%d", l, im, ir, ic);
+        t_label("loc %d", l);
+        EXPECT_EQ(im, 0); EXPECT_EQ(ir, 1); EXPECT_EQ(ic, 3); /* probed std and adm: registry key order My, Root, Trust, CA */
     }
 }
 TEST(sss_store_enum_names_wellformed) {
@@ -166,7 +167,7 @@ TEST(sss_store_enum_repeatable) {
     CHECK(U(CertEnumSystemStore)(CERT_SYSTEM_STORE_LOCAL_MACHINE, NULL, &b, sss_cb_store));
     CHECK(a.n > 0);
     if (a.n == b.n) for (int i = 0; i < a.n && i < 64; i++) CHECK(!lstrcmpW(a.names[i], b.names[i]));
-    else t_note("store set changed between enumerations: %d vs %d", a.n, b.n);
+    else CHECKF(0, "store set changed between enumerations: %d vs %d", a.n, b.n);
 }
 TEST(sss_store_enum_stop_at_each_position) {
     REQUIRE(U(CertEnumSystemStore));
@@ -202,7 +203,7 @@ TEST(sss_store_enum_location_ids_dispatch) {
 
 /* ---- CertEnumPhysicalStore parameter validation ---- */
 TEST(sss_phys_enum_null_store_name_einvalidarg) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertEnumPhysicalStore));
     sss_cap_t c; memset(&c, 0, sizeof c);
     SET_ERR(0);
@@ -212,7 +213,7 @@ TEST(sss_phys_enum_null_store_name_einvalidarg) {
     EXPECT_EQ(c.n, 0);
 }
 TEST(sss_phys_enum_empty_store_name_einvalidarg) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertEnumPhysicalStore));
     sss_cap_t c; memset(&c, 0, sizeof c);
     SET_ERR(0);
@@ -222,7 +223,7 @@ TEST(sss_phys_enum_empty_store_name_einvalidarg) {
     EXPECT_EQ(c.n, 0);
 }
 TEST(sss_phys_enum_relocate_null_para_einvalidarg) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertEnumPhysicalStore));
     sss_cap_t c; memset(&c, 0, sizeof c);
     SET_ERR(0);
@@ -232,7 +233,7 @@ TEST(sss_phys_enum_relocate_null_para_einvalidarg) {
     EXPECT_EQ(c.n, 0);
 }
 TEST(sss_phys_enum_relocate_null_hkey_einvalidarg) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertEnumPhysicalStore));
     CERT_SYSTEM_STORE_RELOCATE_PARA p; memset(&p, 0, sizeof p);
     p.hKeyBase = NULL; p.pwszSystemStore = L"Root";
@@ -251,7 +252,10 @@ TEST(sss_phys_enum_default_present_for_predefined_all_locs_note) {
             sss_cap_t c; BOOL r;
             memset(&c, 0, sizeof c);
             r = U(CertEnumPhysicalStore)(st[s], l ? CERT_SYSTEM_STORE_LOCAL_MACHINE : CERT_SYSTEM_STORE_CURRENT_USER, &c, sss_cb_phys);
-            t_note("%ls %s: r=%d n=%d default=%d", st[s], l ? "LM" : "CU", r, c.n, sss_has(&c, L".Default"));
+            t_label("%ls %s", st[s], l ? "LM" : "CU");
+            /* probed std and adm: succeeds and lists .Default; the other physical stores differ (CU Root 3, LM Root 5, others 3) */
+            EXPECT_EQ(r, 1); EXPECT_EQ(sss_has(&c, L".Default") != 0, 1);
+            EXPECT_EQ(c.n, (s == 1 && l == 1) ? 5 : (s == 0) ? 1 : 3);
         }
 }
 TEST(sss_phys_enum_same_thread) {
@@ -288,7 +292,7 @@ static DWORD access_state(HCERTSTORE h, BOOL *ok) {
     return v;
 }
 TEST(sss_access_state_cu_readonly_root) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO2, L"Root");
     CHECK(h != NULL); if (!h) return;
@@ -298,7 +302,7 @@ TEST(sss_access_state_cu_readonly_root) {
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_access_state_lm_readonly_root) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_LOCAL_MACHINE | OPEN_RO2, L"Root");
     CHECK(h != NULL); if (!h) return;
@@ -308,10 +312,11 @@ TEST(sss_access_state_lm_readonly_root) {
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_access_state_cu_gp_readonly) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER_GROUP_POLICY | OPEN_RO2, L"Root");
-    if (!h) { t_note("CU group policy Root absent gle=%lu", GetLastError()); return; }
+    CHECKF(h != NULL, "CU group policy Root gle=%lu", GetLastError()); /* probed std and adm: opens (read only) even though no policy store exists */
+    if (!h) return;
     BOOL ok; DWORD v = access_state(h, &ok);
     CHECK(ok);
     CHECK(v & SSS_ACC_SYSTEM);
@@ -320,7 +325,7 @@ TEST(sss_access_state_cu_gp_readonly) {
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_access_state_open_system_store_has_system_bit) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenSystemStoreW)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenSystemStoreW)(0, L"CA");
     CHECK(h != NULL); if (!h) return;
@@ -331,7 +336,7 @@ TEST(sss_access_state_open_system_store_has_system_bit) {
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_access_state_memory_store_no_system_bits) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, 0, 0, NULL);
     CHECK(h != NULL); if (!h) return;
@@ -341,7 +346,7 @@ TEST(sss_access_state_memory_store_no_system_bits) {
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_access_state_size_protocol) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO2, L"Root");
     CHECK(h != NULL); if (!h) return;
@@ -368,7 +373,7 @@ TEST(sss_access_state_size_protocol) {
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_access_state_stable_across_calls) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_LOCAL_MACHINE | OPEN_RO2, L"CA");
     CHECK(h != NULL); if (!h) return;
@@ -386,7 +391,7 @@ TEST(sss_access_state_collection_of_readonly_members) {
         CHECK(U(CertAddStoreToCollection)(col, a, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, 0));
         BOOL ok; DWORD v = access_state(col, &ok);
         CHECK(ok);
-        t_note("collection access state = 0x%lx", v);
+        EXPECT_EQ(v, 0); /* probed std and adm: a collection reports no system/write bits */
     }
     if (col) U(CertCloseStore)(col, 0);
     if (a) U(CertCloseStore)(a, 0);
@@ -394,7 +399,7 @@ TEST(sss_access_state_collection_of_readonly_members) {
 
 /* ---- unset / unknown properties ---- */
 TEST(sss_prop_unknown_sets_cb_zero_and_not_found) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_MEMORY, 0, 0, 0, NULL);
     CHECK(h != NULL); if (!h) return;
@@ -416,7 +421,7 @@ TEST(sss_prop_unknown_sets_cb_zero_and_not_found) {
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_prop_unknown_on_system_stores) {
-    if (t_is_wine()) { t_skip("emulator differs from decomp-verified behaviour"); return; }
+    if (t_is_wine()) { t_skip("emulator differs from Windows behaviour"); return; }
     REQUIRE(U(CertGetStoreProperty)); REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
     DWORD locs[2] = { CERT_SYSTEM_STORE_CURRENT_USER, CERT_SYSTEM_STORE_LOCAL_MACHINE };
     for (int l = 0; l < 2; l++) {
@@ -458,7 +463,8 @@ TEST(sss_open_registry_provider_matches_system_provider) {
     HCERTSTORE b = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_LOCAL_MACHINE | OPEN_RO2, L"Root");
     CHECK(a != NULL);
     CHECK(b != NULL);
-    if (a && b) t_note("registry-provider LM Root=%d, system-provider LM Root=%d", sss_count_certs(a), sss_count_certs(b));
+    /* probed std and adm: the registry provider sees only the .Default physical store; the system provider also merges .AuthRoot and others, so it holds more */
+    if (a && b) CHECK(sss_count_certs(a) < sss_count_certs(b));
     if (a) U(CertCloseStore)(a, 0);
     if (b) U(CertCloseStore)(b, 0);
 }
@@ -491,7 +497,7 @@ TEST(sss_enum_certs_independent_cursors) {
         CHECK(b != NULL);
         if (b) { CHECK(b->cbCertEncoded == a->cbCertEncoded); U(CertFreeCertificateContext)(b); }
         U(CertFreeCertificateContext)(a);
-    } else t_note("CU Root empty");
+    } else CHECK(a != NULL); /* probed std and adm: CurrentUser Root is never empty */
     U(CertCloseStore)(h, 0);
 }
 
@@ -566,7 +572,7 @@ TEST(sss_locname_does_not_clobber_last_error_note) {
     REQUIRE(U(CryptFindLocalizedName));
     SET_ERR(1234);
     U(CryptFindLocalizedName)(L"NoSuch_cryptt");
-    t_note("last error after unknown name: %lu", GetLastError());
+    EXPECT_ERR(ERROR_PROC_NOT_FOUND); /* probed std and adm: an unknown name leaves 127, not the previous value */
 }
 TEST(sss_locname_enumerated_store_names_note) {
     REQUIRE(U(CertEnumSystemStore)); REQUIRE(U(CryptFindLocalizedName));
@@ -574,7 +580,9 @@ TEST(sss_locname_enumerated_store_names_note) {
     CHECK(U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_USER, NULL, &c, sss_cb_store));
     for (int i = 0; i < c.n && i < 64; i++) {
         LPCWSTR l = U(CryptFindLocalizedName)(c.names[i]);
-        t_note("%ls -> %ls", c.names[i], l ? l : L"(none)");
+        t_label("%ls", c.names[i]);
+        /* probed std and adm: every store enumerated for CurrentUser has a localized name */
+        CHECK(l != NULL && *l);
     }
 }
 TEST(sss_locname_location_names_from_enumeration_note) {
@@ -583,7 +591,8 @@ TEST(sss_locname_location_names_from_enumeration_note) {
     CHECK(U(CertEnumSystemStoreLocation)(0, &c, sss_cb_loc));
     for (int i = 0; i < c.n && i < 64; i++) {
         LPCWSTR l = U(CryptFindLocalizedName)(c.names[i]);
-        t_note("location %ls -> %ls", c.names[i], l ? l : L"(none)");
+        t_label("%ls", c.names[i]);
+        CHECK(l == NULL); /* probed std and adm: location names have no localized form */
     }
 }
 
@@ -593,7 +602,7 @@ TEST(sss_open_unknown_location_id_fails) {
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, SSS_LOC(0x7F) | OPEN_RO2, L"Root");
     CHECK(h == NULL);
-    t_note("unknown location id open gle=0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(sss_open_nonexistent_does_not_create) {
@@ -625,7 +634,8 @@ TEST(sss_open_every_enumerated_lm_store_readonly_note) {
     CHECK(U(CertEnumSystemStore)(CERT_SYSTEM_STORE_LOCAL_MACHINE, NULL, &c, sss_cb_store));
     for (int i = 0; i < c.n && i < 64; i++) {
         HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_LOCAL_MACHINE | OPEN_RO2, c.names[i]);
-        t_note("LM %ls -> %s", c.names[i], h ? "opened" : "absent");
+        t_label("%ls", c.names[i]);
+        CHECK(h != NULL); /* probed std and adm: every enumerated LocalMachine store opens read only */
         if (h) U(CertCloseStore)(h, 0);
     }
 }
@@ -634,7 +644,8 @@ TEST(sss_open_predefined_names_cu_openable_readonly) {
     static const wchar_t *n[] = { L"Root", L"My", L"CA" };
     for (int i = 0; i < 3; i++) {
         HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO2, n[i]);
-        t_note("CU %ls existing-open -> %s gle=%lu", n[i], h ? "ok" : "fail", h ? 0 : GetLastError());
+        t_label("%ls", n[i]);
+        CHECKF(h != NULL, "gle=%lu", GetLastError());
         if (h) U(CertCloseStore)(h, 0);
     }
 }

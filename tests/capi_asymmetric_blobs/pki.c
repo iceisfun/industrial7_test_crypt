@@ -59,7 +59,7 @@ TEST(capiab_pki_export_rsa_matches_der) {
             BYTE der[1200]; size_t dn = der_rsa_pubkey(der, CAB_RKS[i].pub);
             CHECKF(pki->PublicKey.cbData == dn && !memcmp(pki->PublicKey.pbData, der, dn), "%s RSAPublicKey DER differs (cb %lu want %zu)", CAB_RKS[i].name, pki->PublicKey.cbData, dn);
             EXPECT_EQ(pki->PublicKey.cUnusedBits, 0);
-            t_note("%s: exported rsaEncryption parameters cb=%lu", CAB_RKS[i].name, pki->Algorithm.Parameters.cbData);
+            EXPECT_EQ(pki->Algorithm.Parameters.cbData, 0); /* probed std and adm: no NULL parameters are emitted */
         }
         cab_kd(k); cab_rel(p);
     }
@@ -89,7 +89,7 @@ TEST(capiab_pki_export_without_key) {
     SET_ERR(0);
     BOOL r = U(CryptExportPublicKeyInfo)(p, AT_KEYEXCHANGE, X509_ASN_ENCODING, NULL, &n);
     CHECK(!r);
-    t_note("CryptExportPublicKeyInfo in an empty VERIFYCONTEXT: err 0x%lx", GetLastError());
+    EXPECT_ERR(CAB_NTE_NO_KEY); /* probed std and adm */
     cab_rel(p);
 }
 
@@ -100,10 +100,10 @@ TEST(capiab_pki_export_bad_encoding_type) {
     DWORD n = 0;
     SET_ERR(0);
     BOOL r = U(CryptExportPublicKeyInfo)(p, AT_KEYEXCHANGE, 0, NULL, &n);
-    t_note("CryptExportPublicKeyInfo with encoding type 0: err 0x%lx (E_INVALIDARG=0x%lx)", GetLastError(), (DWORD)E_INVALIDARG);
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm: encoding type 0 selects no encoder */
     SET_ERR(0);
     r = U(CryptExportPublicKeyInfo)(p, AT_KEYEXCHANGE, PKCS_7_ASN_ENCODING, NULL, &n);
-    t_note("CryptExportPublicKeyInfo with PKCS_7 only: err 0x%lx", GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm: the PKCS_7 bit alone is accepted for a size query */
     cab_kd(k); cab_rel(p);
 }
 
@@ -158,11 +158,11 @@ TEST(capiab_pki_import_rejects_unknown_algorithm_oid) {
         HCRYPTKEY ik = 0;
         SET_ERR(0);
         BOOL r = U(CryptImportPublicKeyInfo)(p, X509_ASN_ENCODING, &bad, &ik);
-        t_note("CryptImportPublicKeyInfo with unknown algorithm OID: err 0x%lx", GetLastError());
+        EXPECT_EQ(r, 1); /* probed std and adm: the algorithm OID is not consulted, the RSA key bits are imported */
         if (r) cab_kd(ik);
         SET_ERR(0);
         r = U(CryptImportPublicKeyInfo)(p, 0, pki, &ik);
-        t_note("CryptImportPublicKeyInfo with encoding type 0: err 0x%lx", GetLastError());
+        EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
         if (r) cab_kd(ik);
     }
     cab_kd(k); cab_rel(p);
@@ -292,6 +292,6 @@ TEST(capiab_pki_export_ex_unknown_oid_observe) {
     DWORD n = 0;
     SET_ERR(0);
     BOOL r = U(CryptExportPublicKeyInfoEx)(p, AT_KEYEXCHANGE, X509_ASN_ENCODING, (LPSTR)"1.2.3.4.5.6.7.8", 0, NULL, NULL, &n);
-    t_note("CryptExportPublicKeyInfoEx with an unknown algorithm OID: %d err 0x%lx", r, r ? 0 : GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm: the algorithm OID is not consulted on export either */
     cab_kd(k); cab_rel(p);
 }

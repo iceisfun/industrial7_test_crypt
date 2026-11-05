@@ -134,8 +134,8 @@ TEST(capiab_dss_export_public_from_public) {
     CHECK(U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n));
     EXPECT_EQ(n, DSSPUBLEN);
     CHECK(n == DSSPUBLEN && !memcmp(b, dss1024_pub, DSS_Y_END));
-    if (n == DSSPUBLEN && memcmp(b + DSS_Y_END, dss1024_pub + DSS_Y_END, 24))
-        t_note("DSSSEED tail of exported public blob differs from the imported (no-seed) one");
+    /* probed std and adm: the DSSSEED tail of the exported blob equals the imported (no-seed) one */
+    CHECK(n == DSSPUBLEN && !memcmp(b + DSS_Y_END, dss1024_pub + DSS_Y_END, 24));
     n = (DWORD)DSSPUBLEN - 1; SET_ERR(0);
     EXPECT_FAIL(!U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n), ERROR_MORE_DATA);
     EXPECT_EQ(n, DSSPUBLEN - 1);   /* dssenh leaves the length unchanged on ERROR_MORE_DATA (probed) */
@@ -180,7 +180,7 @@ TEST(capiab_dss_export_private_nonexportable) {
     SET_ERR(0);
     BOOL r = U(CryptExportKey)(k, 0, PRIVATEKEYBLOB, 0, b, &n);
     CHECK(!r);
-    t_note("non-exportable DSS private export: err 0x%lx", GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_KEY_STATE); /* probed std and adm */
     cab_kd(k); cab_rel(p);
 }
 
@@ -244,7 +244,8 @@ TEST(capiab_dss_verify_signature_lengths) {
         SET_ERR(0);
         BOOL r = U(CryptVerifySignatureW)(h, s, lens[i], k, NULL, 0);
         CHECKF(!r, "length %lu accepted", lens[i]);
-        t_note("DSS verify with signature length %lu: err 0x%lx", lens[i], r ? 0 : GetLastError());
+        t_label("siglen %lu", lens[i]);
+        EXPECT_ERR(CAB_NTE_BAD_LEN); /* probed std and adm: every length other than 40 is NTE_BAD_LEN */
         cab_hd(h);
     }
     cab_kd(k); cab_rel(p);
@@ -319,8 +320,9 @@ TEST(capiab_dss_hash_algs_supported) {
         HCRYPTHASH h = 0;
         SET_ERR(0);
         BOOL r = U(CryptCreateHash)(p, algs[i], 0, 0, &h);
-        t_note("dssenh CryptCreateHash(%s): %d err 0x%lx", nm[i], r, r ? 0 : GetLastError());
-        if (i == 0) CHECK(r);
+        t_label("%s", nm[i]);
+        /* probed std and adm: SHA-1 and MD5 hashes can be created, MD2 and SHA-256 give NTE_BAD_ALGID */
+        if (i < 2) CHECK(r); else { EXPECT_EQ(r, 0); EXPECT_ERR(CAB_NTE_BAD_ALGID); }
         cab_hd(r ? h : 0);
     }
     cab_rel(p);
@@ -332,11 +334,12 @@ TEST(capiab_dss_sign_with_non_sha1_hash) {
     HCRYPTPROV p = cab_dss(); if (!p) { t_skip("no dss"); return; }
     HCRYPTKEY sk = cab_imp(p, dss1024_prv, sizeof dss1024_prv, 0);
     HCRYPTHASH h = cab_hash(p, CALG_MD5, rsa_msg, sizeof rsa_msg);
+    CHECK(h != 0); /* probed std and adm: the provider creates MD5 hashes but cannot sign them */
     if (h) {
         BYTE s[64]; DWORD n = sizeof s;
         SET_ERR(0);
         EXPECT_FAIL(!U(CryptSignHashW)(h, AT_SIGNATURE, NULL, 0, s, &n), CAB_NTE_BAD_HASH);
-    } else t_note("provider rejects MD5 hashes outright (err 0x%lx)", GetLastError());
+    }
     cab_hd(h); cab_kd(sk); cab_rel(p);
 }
 
@@ -365,19 +368,20 @@ TEST(capiab_dss_import_bad_blobs) {
     SET_ERR(0);
     r = U(CryptImportKey)(p, b, sizeof dss1024_pub, 0, 0, &k);
     CHECK(!r); if (r) cab_kd(k);
-    t_note("DSS public blob with DSS2 magic: err 0x%lx", r ? 0 : GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_DATA); /* probed std and adm */
     memcpy(b, dss1024_prv, sizeof dss1024_prv); cab_setmagic(b, MAGIC_DSS1);
     SET_ERR(0);
     r = U(CryptImportKey)(p, b, sizeof dss1024_prv, 0, 0, &k);
     CHECK(!r); if (r) cab_kd(k);
-    t_note("DSS private blob with DSS1 magic: err 0x%lx", r ? 0 : GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_DATA); /* probed std and adm */
     /* truncated */
     DWORD cuts[] = { 16, 100, 200, (DWORD)sizeof dss1024_pub - 25 };
     for (int i = 0; i < 4; i++) {
         SET_ERR(0);
         r = U(CryptImportKey)(p, dss1024_pub, cuts[i], 0, 0, &k);
         CHECKF(!r, "DSS public blob truncated to %lu imported", cuts[i]);
-        t_note("DSS public blob truncated to %lu: err 0x%lx", cuts[i], r ? 0 : GetLastError());
+        t_label("cut %lu", cuts[i]);
+        EXPECT_ERR(CAB_NTE_BAD_DATA); /* probed std and adm */
         if (r) cab_kd(k);
     }
     cab_rel(p);
@@ -391,7 +395,9 @@ TEST(capiab_dss_import_flags) {
         HCRYPTKEY k = 0;
         SET_ERR(0);
         BOOL r = U(CryptImportKey)(p, dss1024_pub, sizeof dss1024_pub, 0, fl[i], &k);
-        t_note("DSS import with flags 0x%lx: %d err 0x%lx", fl[i], r, r ? 0 : GetLastError());
+        t_label("flags 0x%lx", fl[i]);
+        /* probed std and adm: flag 0x8 gives ERROR_INVALID_PARAMETER, all other unsupported flags NTE_BAD_FLAGS */
+        EXPECT_EQ(r, 0); EXPECT_ERR(fl[i] == 0x8 ? ERROR_INVALID_PARAMETER : CAB_NTE_BAD_FLAGS);
         if (r) cab_kd(k);
     }
     HCRYPTKEY k = cab_imp(p, dss1024_prv, sizeof dss1024_prv, CRYPT_EXPORTABLE);
@@ -406,7 +412,7 @@ TEST(capiab_dss_import_public_with_hpubkey) {
     HCRYPTKEY k = 0;
     SET_ERR(0);
     BOOL r = U(CryptImportKey)(p, dss1024_pub, sizeof dss1024_pub, other, 0, &k);
-    t_note("DSS public import with nonzero hPubKey: %d err 0x%lx", r, r ? 0 : GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm: hPubKey is ignored for a public blob */
     if (r) cab_kd(k);
     cab_kd(other); cab_rel(p);
 }
@@ -419,9 +425,9 @@ TEST(capiab_dss_keyparam_permissions) {
     HCRYPTKEY b = cab_imp(p, dss1024_pub, sizeof dss1024_pub, 0);
     int ok;
     DWORD v = cab_kp(a, KP_PERMISSIONS, &ok); CHECK(ok);
-    t_note("DSS private key KP_PERMISSIONS = 0x%lx", v);
+    EXPECT_EQ(v, 0x18); /* probed std and adm */
     v = cab_kp(b, KP_PERMISSIONS, &ok); CHECK(ok);
-    t_note("DSS public key KP_PERMISSIONS = 0x%lx", v);
+    EXPECT_EQ(v, 0x18); /* probed std and adm */
     cab_kd(a); cab_kd(b); cab_rel(p);
 }
 
@@ -520,7 +526,7 @@ TEST(capiab_dss_genkey_not_exportable_private) {
     SET_ERR(0);
     BOOL r = U(CryptExportKey)(k, 0, PRIVATEKEYBLOB, 0, b, &n);
     CHECK(!r);
-    t_note("generated non-exportable DSS private export: err 0x%lx", r ? 0 : GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_KEY_STATE); /* probed std and adm */
     n = sizeof b;
     CHECK(U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, b, &n));
     cab_kd(k); cab_rel(p);
@@ -532,7 +538,7 @@ TEST(capiab_dss_genkey_user_protected_verifycontext) {
     HCRYPTKEY k = 0;
     SET_ERR(0);
     BOOL r = U(CryptGenKey)(p, AT_SIGNATURE, (512 << 16) | CRYPT_USER_PROTECTED, &k);
-    t_note("DSS CryptGenKey(CRYPT_USER_PROTECTED) in VERIFYCONTEXT: %d err 0x%lx", r, r ? 0 : GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(0x80090022); /* probed std and adm: NTE_SILENT_CONTEXT */
     cab_kd(r ? k : 0);
     cab_rel(p);
 }

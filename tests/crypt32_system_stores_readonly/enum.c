@@ -61,8 +61,15 @@ TEST(sss_store_enum_each_location) {
         sss_cap_t c; memset(&c, 0, sizeof c);
         SET_ERR(0);
         BOOL r = U(CertEnumSystemStore)(sss_locs[i].flag, NULL, &c, sss_cb_store);
-        t_note("%ls: ret=%d n=%d gle=%lu", sss_locs[i].name, r, c.n, GetLastError());
-        for (int k = 0; k < c.n && k < 64; k++) t_note("    %ls (flags 0x%lx)", c.names[k], c.flags[k]);
+        DWORD e = GetLastError();
+        t_label("%ls", sss_locs[i].name);
+        /* probed std and adm: every location enumerates (the store counts depend on what has been created, so only reported), except
+           Services (ERROR_FILE_NOT_FOUND, no callbacks) and Users, which a standard user cannot enumerate (ERROR_ACCESS_DENIED after
+           10 callbacks) but an elevated one can */
+        if (sss_locs[i].flag == CERT_SYSTEM_STORE_SERVICES) { EXPECT_EQ(r, 0); EXPECT_EQ(e, ERROR_FILE_NOT_FOUND); EXPECT_EQ(c.n, 0); }
+        else if (sss_locs[i].flag == CERT_SYSTEM_STORE_USERS && !t_is_elevated()) { EXPECT_EQ(r, 0); EXPECT_EQ(e, ERROR_ACCESS_DENIED); }
+        else EXPECT_EQ(r, 1);
+        t_note("%ls: n=%d", sss_locs[i].name, c.n);
     }
 }
 static void store_present(DWORD loc, const wchar_t *locname, const wchar_t *const *names, int nn) {
@@ -89,7 +96,13 @@ TEST(sss_store_enum_optional_names_note) {
     for (int l = 0; l < 2; l++) {
         sss_cap_t c; memset(&c, 0, sizeof c);
         U(CertEnumSystemStore)(locs[l], NULL, &c, sss_cb_store);
-        for (unsigned i = 0; i < sizeof n / sizeof n[0]; i++) t_note("loc %d store %ls present=%d", l, n[i], sss_has(&c, n[i]));
+        for (unsigned i = 0; i < sizeof n / sizeof n[0]; i++) {
+            /* probed std and adm: AuthRoot, TrustedPublisher, Disallowed, TrustedPeople, Trust and ClientAuthIssuer exist in both locations; UserDS only
+               in CurrentUser; SmartCardRoot only in LocalMachine, and in CurrentUser only once an elevated process has touched it (adm) */
+            int want = !wcscmp(n[i], L"UserDS") ? (l == 0) : !wcscmp(n[i], L"SmartCardRoot") ? (l == 1 || t_is_elevated()) : 1;
+            t_label("loc %d %ls", l, n[i]);
+            EXPECT_EQ(sss_has(&c, n[i]) != 0, want);
+        }
     }
 }
 TEST(sss_store_enum_callback_flags_are_location_only) {
@@ -135,7 +148,8 @@ TEST(sss_store_enum_all_enumerated_names_openable) {
         HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0,
             CERT_SYSTEM_STORE_CURRENT_USER | CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG, c.names[i]);
         DWORD e = GetLastError();
-        t_note("open existing %ls -> %p (gle=%lu)", c.names[i], h, h ? 0 : e);
+        t_label("%ls", c.names[i]);
+        CHECKF(h != NULL, "gle=%lu", e); /* probed std and adm: every enumerated CurrentUser store opens */
         if (h) U(CertCloseStore)(h, 0);
     }
 }
@@ -146,14 +160,15 @@ TEST(sss_store_enum_unknown_location_fails) {
     BOOL r = U(CertEnumSystemStore)(SSS_LOC(0xF0), NULL, &c, sss_cb_store);
     CHECK(!r);
     EXPECT_EQ(c.n, 0);
-    t_note("unknown location id 0xF0 gle=%lu", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
 }
 TEST(sss_store_enum_current_service_without_para_note) {
     REQUIRE(U(CertEnumSystemStore));
     sss_cap_t c; memset(&c, 0, sizeof c);
     SET_ERR(0);
     BOOL r = U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_SERVICE, NULL, &c, sss_cb_store);
-    t_note("CURRENT_SERVICE NULL para -> %d n=%d gle=0x%lx", r, c.n, GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm: enumerates the service store list of the calling service (here the 9 base stores) */
+    CHECK(c.n >= 1);
 }
 TEST(sss_store_enum_services_users_note) {
     REQUIRE(U(CertEnumSystemStore));
@@ -161,8 +176,10 @@ TEST(sss_store_enum_services_users_note) {
     for (int i = 0; i < 2; i++) {
         sss_cap_t c; memset(&c, 0, sizeof c);
         BOOL r = U(CertEnumSystemStore)(f[i], NULL, &c, sss_cb_store);
-        t_note("loc 0x%lx -> %d n=%d", f[i], r, c.n);
-        for (int k = 0; k < c.n && k < 8; k++) t_note("   %ls", c.names[k]);
+        t_label("loc 0x%lx", f[i]);
+        /* probed std and adm: Services fails with no callbacks; Users fails for a standard user and lists the per-SID stores when elevated */
+        if (f[i] == CERT_SYSTEM_STORE_SERVICES) { EXPECT_EQ(r, 0); EXPECT_EQ(c.n, 0); }
+        else if (!t_is_elevated()) EXPECT_EQ(r, 0); else { EXPECT_EQ(r, 1); CHECK(c.n > 0); }
     }
 }
 TEST(sss_store_enum_policy_and_enterprise_note) {
@@ -171,7 +188,8 @@ TEST(sss_store_enum_policy_and_enterprise_note) {
     for (int i = 0; i < 3; i++) {
         sss_cap_t c; memset(&c, 0, sizeof c);
         BOOL r = U(CertEnumSystemStore)(f[i], NULL, &c, sss_cb_store);
-        t_note("loc 0x%lx -> %d n=%d gle=%lu", f[i], r, c.n, GetLastError());
+        t_label("loc 0x%lx", f[i]);
+        EXPECT_EQ(r, 1); CHECK(c.n > 0); /* probed std and adm: policy and enterprise locations enumerate their base stores even when empty */
     }
 }
 TEST(sss_store_enum_relocate_hkcu_base_note) {
@@ -181,7 +199,8 @@ TEST(sss_store_enum_relocate_hkcu_base_note) {
     sss_cap_t c; memset(&c, 0, sizeof c);
     SET_ERR(0);
     BOOL r = U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_USER | CERT_SYSTEM_STORE_RELOCATE_FLAG, &p, &c, sss_cb_store);
-    t_note("relocate enum -> %d n=%d gle=%lu", r, c.n, GetLastError());
+    /* probed std and adm: CertEnumSystemStore with the relocate flag and pvSystemStore (not pwszSystemStore) -> E_INVALIDARG, nothing enumerated */
+    EXPECT_EQ(r, 0); EXPECT_ERR(SSS_E_INVALIDARG); EXPECT_EQ(c.n, 0);
 }
 
 /* ---- CertEnumPhysicalStore ---- */
@@ -211,7 +230,9 @@ TEST(sss_phys_enum_report_names) {
         for (int s = 0; s < 6; s++) {
             sss_cap_t c; BOOL r;
             phys_enum(locs[l], stores[s], &c, &r);
-            t_note("loc %d %ls -> %d n=%d", l, stores[s], r, c.n);
+            t_label("loc %d %ls", l, stores[s]);
+            EXPECT_EQ(r, 1); /* probed std and adm; the physical store lists are reported below, CurrentUser Root has 3 and LocalMachine Root 5 on the image */
+            t_note("loc %d %ls n=%d", l, stores[s], c.n);
             for (int k = 0; k < c.n && k < 16; k++) t_note("    %ls", c.names[k]);
         }
 }
@@ -236,7 +257,11 @@ TEST(sss_phys_enum_callback_false_stops) {
 }
 static BOOL WINAPI sss_cb_info(const void *s, DWORD f, LPCWSTR n, PCERT_PHYSICAL_STORE_INFO i, void *r, void *a) {
     if (!lstrcmpiW(n, L".Default") && i)
-        t_note(".Default: provider=%s flags=0x%lx openflags=0x%lx", i->pszOpenStoreProvider ? i->pszOpenStoreProvider : "(null)", i->dwFlags, i->dwOpenFlags);
+    {
+        /* probed std and adm */
+        EXPECT_STR(i->pszOpenStoreProvider ? i->pszOpenStoreProvider : "(null)", "SystemRegistry");
+        EXPECT_EQ(i->dwFlags, 1); EXPECT_EQ(i->dwOpenFlags, 0x10000);
+    }
     return TRUE;
 }
 TEST(sss_phys_enum_default_info_note) {
@@ -249,7 +274,8 @@ TEST(sss_phys_enum_nonexistent_store_note) {
     sss_cap_t c; BOOL r;
     SET_ERR(0);
     phys_enum(CERT_SYSTEM_STORE_CURRENT_USER, nm, &c, &r);
-    t_note("nonexistent physical enum -> %d n=%d gle=%lu", r, c.n, GetLastError());
+    /* probed std and adm: the call still succeeds and reports the 3 default physical stores of the location */
+    EXPECT_EQ(r, 1); EXPECT_EQ(c.n, 3);
 }
 TEST(sss_phys_enum_invalid_flag_bits_note) {
     REQUIRE(U(CertEnumPhysicalStore));
@@ -258,7 +284,8 @@ TEST(sss_phys_enum_invalid_flag_bits_note) {
         sss_cap_t c; BOOL r;
         SET_ERR(0);
         phys_enum(CERT_SYSTEM_STORE_CURRENT_USER | bits[i], L"Root", &c, &r);
-        t_note("phys flags CU|0x%lx -> %d n=%d gle=0x%lx", bits[i], r, c.n, GetLastError());
+        t_label("CU|0x%lx", bits[i]);
+        EXPECT_EQ(r, 0); EXPECT_EQ(c.n, 0); EXPECT_ERR(SSS_E_INVALIDARG); /* probed std and adm */
     }
 }
 TEST(sss_phys_enum_unknown_location_note) {
@@ -267,14 +294,14 @@ TEST(sss_phys_enum_unknown_location_note) {
     SET_ERR(0);
     phys_enum(SSS_LOC(0xF0), L"Root", &c, &r);
     CHECK(!r);
-    t_note("phys unknown loc gle=0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
 }
 TEST(sss_phys_enum_services_current_service_note) {
     REQUIRE(U(CertEnumPhysicalStore));
     sss_cap_t c; BOOL r;
     SET_ERR(0);
     phys_enum(CERT_SYSTEM_STORE_CURRENT_SERVICE, L"My", &c, &r);
-    t_note("CURRENT_SERVICE My -> %d n=%d gle=0x%lx", r, c.n, GetLastError());
+    EXPECT_EQ(r, 1); EXPECT_EQ(c.n, 1); /* probed std and adm */
 }
 TEST(sss_phys_enum_policy_locations_note) {
     REQUIRE(U(CertEnumPhysicalStore));
@@ -282,7 +309,8 @@ TEST(sss_phys_enum_policy_locations_note) {
     for (int i = 0; i < 3; i++) {
         sss_cap_t c; BOOL r;
         phys_enum(f[i], L"Root", &c, &r);
-        t_note("phys loc 0x%lx Root -> %d n=%d gle=%lu", f[i], r, c.n, GetLastError());
+        t_label("loc 0x%lx", f[i]);
+        EXPECT_EQ(r, 1); EXPECT_EQ(c.n, 1); /* probed std and adm: one physical store each (.GroupPolicy / .Enterprise style default) */
     }
 }
 TEST(sss_phys_enum_store_name_case_insensitive) {

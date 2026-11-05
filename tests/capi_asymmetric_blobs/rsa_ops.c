@@ -41,7 +41,7 @@ TEST(capiab_rsa_sign_known_answer_keyexchange) {
     CAB_NEED();
     for (int i = 0; i < NSV; i++) {
         const sv_t *v = &SVS[i];
-        HCRYPTPROV p = sv_prov(v); if (!p) { t_note("%s: provider unavailable", v->name); continue; }
+        HCRYPTPROV p = sv_prov(v); CHECKF(p != 0, "%s: provider unavailable", v->name); if (!p) continue;
         HCRYPTKEY k = cab_imp(p, v->prv, (DWORD)v->prvn, 0);
         CHECKF(k != 0, "%s import err 0x%lx", v->name, GetLastError());
         BYTE sig[512];
@@ -150,7 +150,8 @@ TEST(capiab_rsa_verify_signature_ge_modulus_fails) {
         SET_ERR(0);
         BOOL r = U(CryptVerifySignatureW)(h, s, 128, k, NULL, 0);
         CHECK(!r);
-        t_note("all-ones signature: err 0x%lx", GetLastError());
+        /* probed std and adm: a signature of 128 x 0xFF is not below the modulus, ERROR_INVALID_PARAMETER */
+        EXPECT_ERR(ERROR_INVALID_PARAMETER);
     }
     cab_hd(h); cab_kd(k); cab_rel(p);
 }
@@ -331,10 +332,12 @@ TEST(capiab_rsa_sign_ansi_wide_parity) {
     CHECK(na == 128 && !memcmp(a, rsa1024_sig_sha1, 128));
     HCRYPTKEY pk = cab_imp(p, rsa1024_pub, sizeof rsa1024_pub, 0);
     CHECK(U(CryptVerifySignatureA)(h, a, na, pk, NULL, 0));
-    /* a description string is accepted and ignored on current systems */
-    nw = sizeof w;
+    /* probed std and adm: a non-NULL description is rejected with NTE_BAD_HASH_STATE (0x8009000c); the same call with a NULL description succeeds */
+    nw = sizeof w; SET_ERR(0);
     BOOL r = U(CryptSignHashW)(h, AT_KEYEXCHANGE, L"desc", 0, w, &nw);
-    t_note("CryptSignHashW with sDescription: %d err 0x%lx", r, r ? 0 : GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(0x8009000c);
+    nw = sizeof w;
+    CHECK(U(CryptSignHashW)(h, AT_KEYEXCHANGE, NULL, 0, w, &nw));
     cab_hd(h); cab_kd(k); cab_kd(pk); cab_rel(p);
 }
 
@@ -432,7 +435,8 @@ TEST(capiab_rsa_decrypt_no_padding_check_flag) {
     CHECK(k != 0);
     BYTE b[256]; memcpy(b, rsa1024_ct_fixedpad, 128); DWORD n = 128;
     BOOL r = U(CryptDecrypt)(k, 0, TRUE, CRYPT_DECRYPT_RSA_NO_PADDING_CHECK, b, &n);
-    t_note("decrypt with CRYPT_DECRYPT_RSA_NO_PADDING_CHECK: r=%d n=%lu err=0x%lx", r, n, r ? 0 : GetLastError());
+    /* probed std and adm: succeeds, raw 128 bytes returned */
+    EXPECT_EQ(r, 1); EXPECT_EQ(n, 128);
     cab_kd(k); cab_rel(p);
 }
 
@@ -465,7 +469,9 @@ TEST(capiab_rsa_decrypt_wrong_length_fails) {
         memset(b, 0, sizeof b); memcpy(b, rsa1024_ct_pkcs1, 128); n = lens[i];
         SET_ERR(0);
         BOOL r = U(CryptDecrypt)(k, 0, TRUE, 0, b, &n);
-        t_note("decrypt with ciphertext length %lu: r=%d err 0x%lx", lens[i], r, r ? 0 : GetLastError());
+        t_label("len %lu", lens[i]);
+        /* probed std and adm: lengths below the modulus size are NTE_BAD_DATA; 129 and 256 succeed (only the first 128 bytes are used) */
+        if (lens[i] < 128) { EXPECT_EQ(r, 0); EXPECT_ERR(CAB_NTE_BAD_DATA); } else { EXPECT_EQ(r, 1); EXPECT_EQ(n, 9); }
     }
     cab_kd(k); cab_rel(p);
 }
@@ -492,7 +498,8 @@ TEST(capiab_rsa_decrypt_with_public_key_only_fails) {
     SET_ERR(0);
     BOOL r = U(CryptDecrypt)(k, 0, TRUE, 0, b, &n);
     CHECK(!r);
-    t_note("decrypt with public key only: err 0x%lx", GetLastError());
+    /* probed std and adm: NTE_NO_KEY */
+    EXPECT_ERR(CAB_NTE_NO_KEY);
     cab_kd(k); cab_rel(p);
 }
 
@@ -634,7 +641,8 @@ TEST(capiab_rsa_encrypt_final_false_observe) {
     BYTE b[256]; memset(b, 0x42, 10); DWORD n = 10;
     SET_ERR(0);
     BOOL r = U(CryptEncrypt)(pk, 0, FALSE, 0, b, &n, sizeof b);
-    t_note("RSA CryptEncrypt with Final=FALSE: r=%d n=%lu err=0x%lx", r, n, r ? 0 : GetLastError());
+    /* probed std and adm: Final=FALSE still pads and encrypts one block */
+    EXPECT_EQ(r, 1); EXPECT_EQ(n, 128);
     cab_kd(pk); cab_rel(p);
 }
 

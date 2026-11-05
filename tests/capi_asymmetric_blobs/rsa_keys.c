@@ -25,7 +25,7 @@ TEST(capiab_rsa_import_public_all_providers) {
     for (int p = 0; p < CAB_NRSA; p++)
         for (int i = 0; i < CAB_NRK; i++) {
             HCRYPTPROV h = cab_acq(CAB_RSA[p].name, CAB_RSA[p].type);
-            if (!h) { t_note("provider %s unavailable", CAB_RSA[p].tag); continue; }
+            CHECKF(h != 0, "provider %s unavailable", CAB_RSA[p].tag); if (!h) continue;
             HCRYPTKEY k = cab_imp(h, CAB_RKS[i].pub, (DWORD)CAB_RKS[i].pubn, 0);
             CHECKF(k != 0, "%s %s pub import err 0x%lx", CAB_RSA[p].tag, CAB_RKS[i].name, GetLastError());
             if (k) {
@@ -41,7 +41,7 @@ TEST(capiab_rsa_import_private_enhanced_aes) {
     for (int p = 0; p < 2; p++)
         for (int i = 0; i < CAB_NRK; i++) {
             HCRYPTPROV h = cab_acq(CAB_RSA[p].name, CAB_RSA[p].type);
-            if (!h) { t_note("provider %s unavailable", CAB_RSA[p].tag); continue; }
+            CHECKF(h != 0, "provider %s unavailable", CAB_RSA[p].tag); if (!h) continue;
             HCRYPTKEY k = cab_imp(h, CAB_RKS[i].prv, (DWORD)CAB_RKS[i].prvn, 0);
             CHECKF(k != 0, "%s %s prv import err 0x%lx", CAB_RSA[p].tag, CAB_RKS[i].name, GetLastError());
             if (k) {
@@ -58,8 +58,10 @@ TEST(capiab_rsa_import_private_base_provider_observe) {
     if (!h) { t_skip("base provider unavailable"); return; }
     for (int i = 0; i < CAB_NRK; i++) {
         HCRYPTKEY k = cab_imp(h, CAB_RKS[i].prv, (DWORD)CAB_RKS[i].prvn, 0);
-        t_note("base provider import of %s private blob: %s (err 0x%lx)", CAB_RKS[i].name, k ? "ok" : "fail", k ? 0 : GetLastError());
-        if (CAB_RKS[i].bits == 512) CHECK(k != 0);
+        /* probed std and adm: the base provider imports 512 and 1024 bit private keys and rejects 2048 with NTE_BAD_DATA */
+        t_label("%s", CAB_RKS[i].name);
+        if (CAB_RKS[i].bits <= 1024) CHECKF(k != 0, "err 0x%lx", GetLastError());
+        else { CHECK(k == 0); EXPECT_ERR(CAB_NTE_BAD_DATA); }
         cab_kd(k);
     }
     cab_rel(h);
@@ -176,11 +178,11 @@ TEST(capiab_rsa_permissions_default_import) {
     int ok;
     if (kp) { DWORD v = cab_kp(kp, KP_PERMISSIONS, &ok); CHECK(ok);
         CHECKF(!(v & CRYPT_EXPORT), "private non-exportable perms 0x%lx", v);
-        t_note("non-exportable private key KP_PERMISSIONS=0x%lx", v); }
+        EXPECT_EQ(v, 0x3b); /* probed std and adm */ }
     if (ke) { DWORD v = cab_kp(ke, KP_PERMISSIONS, &ok); CHECK(ok);
         CHECKF(v & CRYPT_EXPORT, "exportable perms 0x%lx", v);
-        t_note("exportable private key KP_PERMISSIONS=0x%lx", v); }
-    if (kb) { DWORD v = cab_kp(kb, KP_PERMISSIONS, &ok); CHECK(ok); t_note("public key KP_PERMISSIONS=0x%lx", v); }
+        EXPECT_EQ(v, 0x3f); /* probed std and adm */ }
+    if (kb) { DWORD v = cab_kp(kb, KP_PERMISSIONS, &ok); CHECK(ok); EXPECT_EQ(v, 0x3b); /* probed std and adm */ }
     cab_kd(kp); cab_kd(ke); cab_kd(kb); cab_rel(h);
 }
 
@@ -283,7 +285,7 @@ TEST(capiab_rsa_export_errors) {
     n = sizeof buf; SET_ERR(0);
     BOOL r = U(CryptExportKey)(k, 0, SIMPLEBLOB, 0, buf, &n);
     CHECK(!r);
-    t_note("SIMPLEBLOB export of RSA key without export key: err 0x%lx", GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_KEY); /* probed std and adm */
     cab_kd(k); cab_rel(h);
 }
 
@@ -298,7 +300,8 @@ TEST(capiab_rsa_export_bad_blob_types) {
         SET_ERR(0);
         BOOL r = U(CryptExportKey)(k, 0, bad[i], 0, buf, &n);
         CHECKF(!r, "blob type %lu exported", bad[i]);
-        t_note("export blob type %lu: err 0x%lx", bad[i], GetLastError());
+        t_label("type %lu", bad[i]);
+        EXPECT_ERR(CAB_NTE_BAD_TYPE); /* probed std and adm */
     }
     cab_kd(k); cab_rel(h);
 }
@@ -337,7 +340,9 @@ TEST(capiab_rsa_import_truncated_blobs) {
         HCRYPTKEY k = 0;
         SET_ERR(0);
         BOOL r = U(CryptImportKey)(h, rsa1024_prv, pc[i], 0, 0, &k);
-        t_note("private blob cut to %lu bytes: %s (err 0x%lx)", pc[i], r ? "imported" : "rejected", r ? 0 : GetLastError());
+        /* probed std and adm: cuts of 20, 148 and 300 bytes fail with ERROR_INVALID_DATA; losing only the last byte still imports */
+        t_label("cut %lu", pc[i]);
+        if (i < 3) { EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_INVALID_DATA); } else EXPECT_EQ(r, 1);
         cab_kd(r ? k : 0);
     }
     cab_rel(h);
@@ -350,7 +355,7 @@ TEST(capiab_rsa_import_trailing_bytes_tolerated) {
     memset(b, 0xAA, sizeof b);
     memcpy(b, rsa1024_pub, sizeof rsa1024_pub);
     HCRYPTKEY k = cab_imp(h, b, sizeof rsa1024_pub + 32, 0);
-    t_note("public blob with 32 trailing bytes: %s (err 0x%lx)", k ? "accepted" : "rejected", k ? 0 : GetLastError());
+    EXPECT_EQ(k != 0, 1); /* probed std and adm: trailing bytes are tolerated */
     cab_kd(k); cab_rel(h);
 }
 
@@ -390,15 +395,18 @@ TEST(capiab_rsa_import_bad_magic) {
         CHECKF(!r, "%s imported", t[i].what);
         if (!r) EXPECT_ERR(CAB_NTE_BAD_DATA); else cab_kd(k);
     }
-    /* public path does not look at the magic (observed: copies it into the key) */
-    DWORD pm[] = { 0x41414141, MAGIC_RSA2, 0 };
-    for (int i = 0; i < 3; i++) {
+    /* probed std and adm: the public import accepts any magic, but only a key imported with RSA1 can be exported again (NTE_BAD_KEY otherwise) */
+    DWORD pm[] = { 0x41414141, MAGIC_RSA2, 0, MAGIC_RSA1 };
+    for (int i = 0; i < 4; i++) {
         memcpy(b, rsa1024_pub, sizeof rsa1024_pub); cab_setmagic(b, pm[i]);
         HCRYPTKEY k = cab_imp(h, b, sizeof rsa1024_pub, 0);
         CHECKF(k != 0, "public blob magic 0x%lx err 0x%lx", pm[i], GetLastError());
         if (k) {
             BYTE o[512]; DWORD n = sizeof o;
-            if (U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, o, &n)) { DWORD m; memcpy(&m, o + 8, 4); t_note("export of public blob imported with magic 0x%lx carries 0x%lx", pm[i], m); }
+            t_label("magic 0x%lx", pm[i]);
+            SET_ERR(0); BOOL er = U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, o, &n);
+            if (pm[i] == MAGIC_RSA1) { EXPECT_EQ(er, 1); EXPECT_EQ(n, sizeof rsa1024_pub); DWORD m = 0; if (er) memcpy(&m, o + 8, 4); EXPECT_EQ(m, MAGIC_RSA1); }
+            else { EXPECT_EQ(er, 0); EXPECT_ERR(CAB_NTE_BAD_KEY); }
         }
         cab_kd(k);
     }
@@ -490,8 +498,8 @@ TEST(capiab_rsa_import_zero_exponent_and_small_exponents) {
         HCRYPTKEY k = 0;
         SET_ERR(0);
         BOOL r = U(CryptImportKey)(h, b, sizeof rsa1024_pub, 0, 0, &k);
-        t_note("public import with pubexp %lu: %s (err 0x%lx)", exps[i], r ? "ok" : "fail", r ? 0 : GetLastError());
-        if (exps[i] == 65537 || exps[i] == 3 || exps[i] == 17) CHECKF(r, "pubexp %lu rejected", exps[i]);
+        t_label("pubexp %lu", exps[i]);
+        EXPECT_EQ(r, 1); /* probed std and adm: every exponent imports, including 0 and 1 */
         if (r) {
             BYTE o[512]; DWORD n = sizeof o;
             if (U(CryptExportKey)(k, 0, PUBLICKEYBLOB, 0, o, &n)) {
@@ -532,12 +540,12 @@ TEST(capiab_rsa_two_private_imports_replace_userkey) {
         HCRYPTKEY u = 0;
         BOOL r = U(CryptGetUserKey)(h, AT_KEYEXCHANGE, &u);
         CHECKF(r, "CryptGetUserKey err 0x%lx", GetLastError());
-        if (r) t_note("AT_KEYEXCHANGE key length after two imports: %lu", cab_keylen(u));
+        if (r) EXPECT_EQ(cab_keylen(u), 2048); /* probed std and adm: the second import replaced the first */
         cab_kd(u);
         u = 0; SET_ERR(0);
         r = U(CryptGetUserKey)(h, AT_SIGNATURE, &u);
         CHECK(!r);
-        t_note("AT_SIGNATURE user key before any signature import: err 0x%lx", GetLastError());
+        EXPECT_ERR(CAB_NTE_NO_KEY); /* probed std and adm */
         cab_kd(r ? u : 0);
     }
     cab_kd(a); cab_kd(b); cab_rel(h);
@@ -555,7 +563,7 @@ TEST(capiab_rsa_getuserkey_verifycontext_empty) {
     SET_ERR(0);
     BOOL r = U(CryptGetUserKey)(h, 3, &u);
     CHECK(!r);
-    t_note("CryptGetUserKey bad keyspec 3: err 0x%lx", GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_KEY); /* probed std and adm */
     cab_rel(h);
 }
 
@@ -619,7 +627,9 @@ TEST(capiab_rsa_import_private_bad_crt_fields_observe) {
         HCRYPTKEY k = 0;
         SET_ERR(0);
         BOOL r = U(CryptImportKey)(h, b, sizeof rsa1024_prv, 0, 0, &k);
-        t_note("private blob with zeroed %s: %s (err 0x%lx)", z[i].what, r ? "imported" : "rejected", r ? 0 : GetLastError());
+        /* probed std and adm: zeroed prime1/prime2 are rejected with ERROR_GEN_FAILURE (31); zeroed exponent1, coefficient and private exponent import */
+        t_label("zeroed %s", z[i].what);
+        if (i < 2) { EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_GEN_FAILURE); } else EXPECT_EQ(r, 1);
         cab_kd(r ? k : 0);
     }
     cab_rel(h);

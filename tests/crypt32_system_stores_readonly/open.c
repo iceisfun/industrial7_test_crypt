@@ -21,6 +21,11 @@ TEST(sss_open_sysstore_w_standard) {
         if (h) { CHECK(U(CertCloseStore)(h, 0)); }
     }
 }
+/* display names are language dependent: pinned exactly only on an English UI (the oracle), where Win10 gives the strings below */
+static void sss_pin_en(LPCWSTR got, LPCWSTR want) {
+    if ((GetUserDefaultUILanguage() & 0xFF) == 0x09) { CHECKF(got && !lstrcmpW(got, want), "got %ls want %ls", got ? got : L"(null)", want); }
+    else CHECK(got != NULL && *got);
+}
 TEST(sss_open_sysstore_a_w_parity_counts) {
     REQUIRE(U(CertOpenSystemStoreA)); REQUIRE(U(CertOpenSystemStoreW)); REQUIRE(U(CertEnumCertificatesInStore));
     HCERTSTORE a = U(CertOpenSystemStoreA)(0, "Root"), w = U(CertOpenSystemStoreW)(0, L"Root");
@@ -52,7 +57,9 @@ TEST(sss_open_sysstore_spc_is_local_machine_note) {
     REQUIRE(U(CertOpenSystemStoreA)); REQUIRE(U(CertCloseStore));
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenSystemStoreA)(0, "SPC");
-    t_note("OpenSystemStoreA(SPC) -> %p gle=%lu", h, GetLastError());
+    /* probed std and adm: "SPC" is the LocalMachine store of that name, which a non-elevated process cannot open for write (ERROR_ACCESS_DENIED) */
+    DWORD e = GetLastError();
+    if (t_is_elevated()) { CHECK(h != NULL); } else { CHECK(h == NULL); EXPECT_EQ(e, ERROR_ACCESS_DENIED); }
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(sss_open_sysstore_local_machine_stores) {
@@ -119,7 +126,8 @@ TEST(sss_open_nonexistent_other_locations_note) {
         SET_ERR(0);
         HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, f[i] | OPEN_RO, nm);
         CHECKF(h == NULL, "loc %d opened", i);
-        t_note("loc 0x%lx nonexistent -> gle=%lu", f[i], GetLastError());
+        t_label("loc 0x%lx", f[i]);
+        EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
         if (h) U(CertCloseStore)(h, 0);
     }
 }
@@ -136,14 +144,14 @@ TEST(sss_open_null_name) {
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO, NULL);
     CHECK(h == NULL);
-    t_note("system store NULL name gle=0x%lx", GetLastError());
+    EXPECT_ERR(SSS_E_INVALIDARG); /* probed std and adm */
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(sss_open_empty_name_note) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO, L"");
-    t_note("system store empty name -> %p gle=0x%lx", h, GetLastError());
+    EXPECT_EQ(h == NULL, 1); EXPECT_ERR(SSS_E_INVALIDARG); /* probed std and adm */
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(sss_open_handles_independent_close_order) {
@@ -160,7 +168,8 @@ TEST(sss_open_cert_context_outlives_store) {
     HCERTSTORE h = U(CertOpenSystemStoreW)(0, L"Root");
     if (!h) { CHECK(h != NULL); return; }
     PCCERT_CONTEXT c = U(CertEnumCertificatesInStore)(h, NULL);
-    if (!c) { t_note("CU Root empty"); U(CertCloseStore)(h, 0); return; }
+    CHECK(c != NULL); /* probed std and adm: CurrentUser Root is never empty */
+    if (!c) { U(CertCloseStore)(h, 0); return; }
     PCCERT_CONTEXT d = U(CertDuplicateCertificateContext)(c);
     U(CertFreeCertificateContext)(c);
     CHECK(U(CertCloseStore)(h, 0));
@@ -174,7 +183,8 @@ TEST(sss_open_close_check_flag_active_context) {
     HCERTSTORE h = U(CertOpenSystemStoreW)(0, L"Root");
     if (!h) { CHECK(h != NULL); return; }
     PCCERT_CONTEXT c = U(CertEnumCertificatesInStore)(h, NULL);
-    if (!c) { U(CertCloseStore)(h, 0); t_skip("CU Root empty"); return; }
+    CHECK(c != NULL); /* probed std and adm: CurrentUser Root is never empty */
+    if (!c) { U(CertCloseStore)(h, 0); return; }
     SET_ERR(0);
     BOOL r = U(CertCloseStore)(h, CERT_CLOSE_STORE_CHECK_FLAG);
     CHECK(!r);
@@ -225,7 +235,7 @@ TEST(sss_collection_add_to_readonly_system_member_note) {
         /* priority-0 writable member flag set on a read-only store: report only */
         SET_ERR(0);
         BOOL r = U(CertAddStoreToCollection)(col, a, CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, 0);
-        t_note("add RO store with flag 0x%x -> %d gle=0x%lx", CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG, r, GetLastError());
+        EXPECT_EQ(r, 1); /* probed std and adm: accepted; the flag only matters for later writes */
     }
     if (col) U(CertCloseStore)(col, 0);
     if (a) U(CertCloseStore)(a, 0);
@@ -240,7 +250,8 @@ TEST(sss_collection_of_enumerated_physical_stores) {
         wchar_t full[200];
         _snwprintf(full, 200, L"Root\\%s", c.names[i]);
         HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_PHYSICAL_W, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER | OPEN_RO, full);
-        t_note("physical open %ls -> %p gle=%lu", full, h, h ? 0 : GetLastError());
+        t_label("%ls", full);
+        CHECKF(h != NULL, "gle=%lu", GetLastError()); /* probed std and adm: every enumerated physical store opens by its Name\\Physical path */
         if (h) U(CertCloseStore)(h, 0);
     }
 }
@@ -264,14 +275,14 @@ TEST(sss_reloc_registry_provider_nonexistent) {
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_REGISTRY_W, 0, 0, CERT_SYSTEM_STORE_RELOCATE_FLAG | OPEN_RO, &p);
     CHECK(h == NULL);
-    t_note("registry provider relocate nonexistent gle=0x%lx", GetLastError());
+    EXPECT_ERR(SSS_E_INVALIDARG); /* probed std and adm: the registry provider rejects the relocate flag */
 }
 TEST(sss_reloc_null_para_fails) {
     REQUIRE(U(CertOpenStore));
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_RELOCATE_FLAG | OPEN_RO, NULL);
     CHECK(h == NULL);
-    t_note("reloc NULL para gle=0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(sss_reloc_null_hkey_fails) {
@@ -280,7 +291,8 @@ TEST(sss_reloc_null_hkey_fails) {
     p.hKeyBase = NULL; p.pwszSystemStore = L"Root";
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_RELOCATE_FLAG | OPEN_RO, &p);
-    t_note("reloc NULL hKeyBase -> %p gle=0x%lx", h, GetLastError());
+    CHECK(h == NULL);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(sss_reloc_null_store_name_fails) {
@@ -290,7 +302,7 @@ TEST(sss_reloc_null_store_name_fails) {
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_RELOCATE_FLAG | OPEN_RO, &p);
     CHECK(h == NULL);
-    t_note("reloc NULL store name gle=0x%lx", GetLastError());
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND); /* probed std and adm */
     if (h) U(CertCloseStore)(h, 0);
 }
 TEST(sss_reloc_hkcu_base_existing_root_note) {
@@ -299,8 +311,10 @@ TEST(sss_reloc_hkcu_base_existing_root_note) {
     p.hKeyBase = HKEY_CURRENT_USER; p.pwszSystemStore = L"Root";
     SET_ERR(0);
     HCERTSTORE h = U(CertOpenStore)(CERT_STORE_PROV_SYSTEM_W, 0, 0, CERT_SYSTEM_STORE_RELOCATE_FLAG | OPEN_RO, &p);
-    t_note("reloc HKCU Root -> %p gle=%lu", h, h ? 0 : GetLastError());
-    if (h) { t_note("  certs=%d", sss_count_certs(h)); U(CertCloseStore)(h, 0); }
+    /* probed std and adm: HKCU is the base key, so the store would be HKCU\\Root, which does not exist */
+    CHECK(h == NULL);
+    EXPECT_ERR(ERROR_FILE_NOT_FOUND);
+    if (h) U(CertCloseStore)(h, 0);
 }
 
 /* ---- localized names ---- */
@@ -320,7 +334,8 @@ TEST(sss_loc_name_standard_stores_have_names) {
     for (int i = 0; i < 3; i++) {
         LPCWSTR r = U(CryptFindLocalizedName)(n[i]);
         CHECKF(r != NULL && *r, "%ls", n[i]);
-        t_note("%ls -> %ls", n[i], r ? r : L"(null)");
+        t_label("%ls", n[i]);
+        sss_pin_en(r, i == 0 ? L"Trusted Root Certification Authorities" : i == 1 ? L"Personal" : L"Intermediate Certification Authorities");
     }
 }
 TEST(sss_loc_name_case_insensitive) {
@@ -342,9 +357,14 @@ TEST(sss_loc_name_other_known_names_note) {
     REQUIRE(U(CryptFindLocalizedName));
     static const wchar_t *n[] = { L"AuthRoot", L"TrustedPublisher", L"Disallowed", L"TrustedPeople", L"Trust", L"ClientAuthIssuer", L"SmartCardRoot",
         L"CurrentUser", L"LocalMachine", L"Services", L"Users", L"CurrentService", L".Default", L".GroupPolicy", L".LocalMachine", L".Enterprise", L".AuthRoot" };
+    /* probed std and adm (English UI): store names have display names, location names do not; the .Xxx physical store names do */
+    static const wchar_t *want[] = { L"Third-Party Root Certification Authorities", L"Trusted Publishers", L"Untrusted Certificates", L"Trusted People",
+        L"Enterprise Trust", L"Client Authentication Issuers", L"Smart Card Trusted Roots", NULL, NULL, NULL, NULL, NULL,
+        L"Registry", L"Group Policy", L"Local Computer", L"Enterprise", L"Third-Party" };
     for (unsigned i = 0; i < sizeof n / sizeof n[0]; i++) {
         LPCWSTR r = U(CryptFindLocalizedName)(n[i]);
-        t_note("%ls -> %ls", n[i], r ? r : L"(null)");
+        t_label("%ls", n[i]);
+        if (!want[i]) CHECK(r == NULL); else sss_pin_en(r, want[i]);
     }
 }
 
@@ -356,15 +376,8 @@ TEST(sss_prop_localized_name_system_store) {
     DWORD cb = 0;
     SET_ERR(0);
     BOOL r = U(CertGetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, NULL, &cb);
-    t_note("localized name prop size query -> %d cb=%lu gle=0x%lx", r, cb, GetLastError());
-    if (r && cb) {
-        wchar_t buf[128] = {0};
-        DWORD cb2 = sizeof buf;
-        if (cb <= sizeof buf) {
-            CHECK(U(CertGetStoreProperty)(h, CERT_STORE_LOCALIZED_NAME_PROP_ID, buf, &cb2));
-            t_note("   name=%ls cb=%lu", buf, cb2);
-        }
-    }
+    /* probed std and adm: the property is not stored on a system store handle (the name comes from CryptFindLocalizedName), size left 0 */
+    EXPECT_EQ(r, 0); EXPECT_ERR(CRYPT_E_NOT_FOUND); EXPECT_EQ(cb, 0);
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_prop_unset_property_not_found) {
@@ -386,7 +399,7 @@ TEST(sss_control_memory_store_resync_unsupported) {
     CHECK(h != NULL); if (!h) return;
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, CERT_STORE_CTRL_RESYNC, NULL);
-    t_note("memory store RESYNC -> %d gle=%lu", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED); /* probed std and adm */
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_control_empty_collection_resync_ok) {
@@ -404,7 +417,7 @@ TEST(sss_control_system_store_resync_note) {
     HANDLE ev = CreateEventW(NULL, TRUE, FALSE, NULL);
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, CERT_STORE_CTRL_RESYNC, &ev);
-    t_note("system store RESYNC -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm */
     CloseHandle(ev);
     U(CertCloseStore)(h, 0);
 }
@@ -415,12 +428,12 @@ TEST(sss_control_notify_change_not_signaled_without_change) {
     HANDLE ev = CreateEventW(NULL, FALSE, FALSE, NULL);
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, CERT_STORE_CTRL_NOTIFY_CHANGE, &ev);
-    t_note("NOTIFY_CHANGE on CU Root -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm */
     if (r) {
         DWORD w = WaitForSingleObject(ev, 300);
-        t_note("event wait after registration (no change): %lu", w);
+        EXPECT_EQ(w, WAIT_TIMEOUT); /* probed std and adm: not signalled without a change */
         BOOL c = U(CertControlStore)(h, 0, CERT_STORE_CTRL_CANCEL_NOTIFY, &ev);
-        t_note("CANCEL_NOTIFY -> %d gle=0x%lx", c, GetLastError());
+        EXPECT_EQ(c, 1);
     }
     CloseHandle(ev);
     U(CertCloseStore)(h, 0);
@@ -432,7 +445,7 @@ TEST(sss_control_notify_change_memory_store_unsupported_note) {
     HANDLE ev = CreateEventW(NULL, FALSE, FALSE, NULL);
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, CERT_STORE_CTRL_NOTIFY_CHANGE, &ev);
-    t_note("memory NOTIFY_CHANGE -> %d gle=%lu", r, GetLastError());
+    EXPECT_EQ(r, 0); EXPECT_ERR(ERROR_CALL_NOT_IMPLEMENTED); /* probed std and adm */
     CloseHandle(ev);
     U(CertCloseStore)(h, 0);
 }
@@ -442,7 +455,7 @@ TEST(sss_control_auto_resync_collection_note) {
     CHECK(h != NULL); if (!h) return;
     SET_ERR(0);
     BOOL r = U(CertControlStore)(h, 0, CERT_STORE_CTRL_AUTO_RESYNC, NULL);
-    t_note("AUTO_RESYNC -> %d gle=0x%lx", r, GetLastError());
+    EXPECT_EQ(r, 1); /* probed std and adm */
     U(CertCloseStore)(h, 0);
 }
 TEST(sss_localmachine_root_count_note) {

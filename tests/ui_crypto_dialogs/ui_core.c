@@ -72,7 +72,10 @@ void ui_expect_clean(const UIRES *r) {
 void ui_expect_dialog(const UIRES *r, const char *what) {
     int strict = !t_is_wine();
     if (!r->found_any) { if (strict) CHECKF(0, "no window appeared: %s (completed=%lu timed_out=%lu ret=%llu err=0x%lx)", what, r->completed, r->timed_out, r->ret, r->err); else t_note("%s: no window appeared", what); return; }
-    /* Time to first window varies widely on Win10 (about 0.1 s to 10 s: chain building without a network route), so it is reported, not asserted. */
+    /* Time to first window: 0.03 to 0.13 s normally. Some certificate viewers (about 2 to 3 of ~50 per run, a different one each run) take
+       7 to 12 s on a guest whose network is routed but dead: the viewer builds a chain and waits for a retrieval timeout. With the guest
+       NIC removed the delay never appeared (probed, 194 tests, none above 2 s). The delay is a property of the host network setup, not of
+       the dialog, so it is reported (bounded by the 30 s watcher budget, which asserts that the window did appear) and not asserted. */
     if (r->found_ms > 2000) t_note("%s: dialog appeared after %lu ms", what, r->found_ms);
     if (!r->saw_dlg) {
         if (strict) CHECKF(0, "no #32770 window, first class %ls", r->first_cls); else t_note("%s: no #32770, first class %ls", what, r->first_cls);
@@ -83,8 +86,14 @@ void ui_expect_dialog(const UIRES *r, const char *what) {
     ui_expect_clean(r);
 }
 
-void ui_expect_window(const UIRES *r, const char *what) {
+void ui_expect_cancelled(const UIRES *r) { ui_expect_ret_err(r, 0, ERROR_CANCELLED); }
+void ui_expect_ret_err(const UIRES *r, unsigned long long ret, DWORD err) {
+    if (t_is_wine()) return;
+    EXPECT_EQ(r->ret, ret); EXPECT_EQ(r->err, err);
+}
+void ui_expect_window(const UIRES *r, const char *what, const WCHAR *first_class) {
     if (!r->found_any) { if (!t_is_wine()) CHECKF(0, "no window appeared: %s", what); else t_note("%s: no window appeared", what); }
+    else if (!t_is_wine()) CHECKF(!lstrcmpW(r->first_cls, first_class), "%s: first window class \"%ls\" want \"%ls\"", what, r->first_cls, first_class);
     else t_note("%s: window class \"%ls\" after %lu ms", what, r->first_cls, r->found_ms);
     ui_expect_clean(r);
 }
@@ -309,21 +318,20 @@ UICASE(core_mb_retrycancel_def2, UIF_MSGBOX) { UI_CALL(r, MessageBoxW(NULL, L"cr
 UICASE(core_mb_abortretryignore, UIF_MSGBOX) { UI_CALL(r, MessageBoxW(NULL, L"cryptt harness probe", L"cryptt probe", MB_ABORTRETRYIGNORE)); }
 UICASE(core_hang_no_window, UIF_NODLG) { Sleep(60000); }
 
-/* ok_mask: bit n set = button id n is an accepted outcome. Closing a box that has no Cancel button is handled
- * slightly differently between implementations, so only the outcome set is enforced there. */
-static void mb_expect(const UIRES *r, DWORD ok_mask, const char *what) {
+/* want: the exact button id the box returns after the watcher closes it (probed std and adm: boxes with a Cancel button return IDCANCEL,
+ * MB_OK returns IDOK, and the watcher ends MB_YESNO with IDYES and MB_ABORTRETRYIGNORE with IDABORT after several actions). */
+static void mb_expect(const UIRES *r, DWORD want, const char *what) {
     ui_expect_dialog(r, what);
     CHECKF(!lstrcmpW(r->dlg_title, L"cryptt probe"), "caption \"%ls\"", r->dlg_title);
-    CHECKF(r->ret < 32 && ((ok_mask >> r->ret) & 1), "%s returned %llu", what, r->ret);
-    t_note("%s closed with id %llu after %lu action(s)", what, r->ret, r->actions);
+    CHECKF(r->ret == want, "%s returned %llu want %lu", what, r->ret, want);
     CHECK(r->actions >= 1);
 }
 #define M(id) (1u << (id))
-TEST(ui_core_watcher_closes_ok_messagebox) { UIRES r; if (!ui_exec("core_mb_ok", &r)) return; mb_expect(&r, M(IDOK) | M(IDCANCEL), "MB_OK"); }
-TEST(ui_core_watcher_closes_okcancel_messagebox_as_cancel) { UIRES r; if (!ui_exec("core_mb_okcancel", &r)) return; mb_expect(&r, M(IDCANCEL), "MB_OKCANCEL"); }
-TEST(ui_core_watcher_closes_yesno_messagebox) { UIRES r; if (!ui_exec("core_mb_yesno", &r)) return; mb_expect(&r, M(IDYES) | M(IDNO) | M(IDCANCEL), "MB_YESNO"); }
-TEST(ui_core_watcher_closes_retrycancel_messagebox_as_cancel) { UIRES r; if (!ui_exec("core_mb_retrycancel_def2", &r)) return; mb_expect(&r, M(IDCANCEL), "MB_RETRYCANCEL"); }
-TEST(ui_core_watcher_closes_abortretryignore_messagebox) { UIRES r; if (!ui_exec("core_mb_abortretryignore", &r)) return; mb_expect(&r, M(IDABORT) | M(IDRETRY) | M(IDIGNORE) | M(IDCANCEL), "MB_ABORTRETRYIGNORE"); }
+TEST(ui_core_watcher_closes_ok_messagebox) { UIRES r; if (!ui_exec("core_mb_ok", &r)) return; mb_expect(&r, IDOK, "MB_OK"); }
+TEST(ui_core_watcher_closes_okcancel_messagebox_as_cancel) { UIRES r; if (!ui_exec("core_mb_okcancel", &r)) return; mb_expect(&r, IDCANCEL, "MB_OKCANCEL"); }
+TEST(ui_core_watcher_closes_yesno_messagebox) { UIRES r; if (!ui_exec("core_mb_yesno", &r)) return; mb_expect(&r, IDYES, "MB_YESNO"); }
+TEST(ui_core_watcher_closes_retrycancel_messagebox_as_cancel) { UIRES r; if (!ui_exec("core_mb_retrycancel_def2", &r)) return; mb_expect(&r, IDCANCEL, "MB_RETRYCANCEL"); }
+TEST(ui_core_watcher_closes_abortretryignore_messagebox) { UIRES r; if (!ui_exec("core_mb_abortretryignore", &r)) return; mb_expect(&r, IDABORT, "MB_ABORTRETRYIGNORE"); }
 TEST(ui_core_stuck_worker_is_terminated_inside_child) {
     UIRES r; DWORD t0 = GetTickCount();
     if (!ui_exec("core_hang_no_window", &r)) return;

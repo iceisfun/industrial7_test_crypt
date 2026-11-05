@@ -55,7 +55,9 @@ int  ui_exec(const char *name, UIRES *r);         /* 1 = result valid; 0 = skipp
 void ui_expect_dialog(const UIRES *r, const char *what);   /* strict on Windows, notes only on Wine */
 void ui_expect_clean(const UIRES *r);             /* completed, no timeout, no leaked windows */
 void ui_expect_nodialog(const UIRES *r);
-void ui_expect_window(const UIRES *r, const char *what);       /* a window of any class appeared and went away */
+void ui_expect_cancelled(const UIRES *r);   /* viewer closed by the watcher: FALSE with ERROR_CANCELLED (probed std and adm) */
+void ui_expect_ret_err(const UIRES *r, unsigned long long ret, DWORD err);   /* exact return and last error (not asserted on Wine) */
+void ui_expect_window(const UIRES *r, const char *what, const WCHAR *first_class);   /* a window appeared and went away; its class is pinned (probed std and adm) */
 void ui_expect_all_invalid(const UIRES *r, const char *what);   /* every sub-result: FALSE/NULL + E_INVALIDARG */
 void ui_chk_ret(unsigned long long got, unsigned long long want, const char *what);
 void ui_chk_err(DWORD got, DWORD want, const char *what);       /* exact on Windows, note on an emulator */

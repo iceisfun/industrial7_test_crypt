@@ -34,9 +34,9 @@ static void view_result(const UIRES *r, const char *what) {
     if (!fixture_ok(r)) return;
     ui_expect_dialog(r, what);
     /* The viewer is a property sheet: closing it without OK yields FALSE. */
-    /* Return is (PropertySheet result > 0); a close request is not guaranteed to map to 0 on every build: note only. */
-    t_note("%s: ret=%llu err=0x%lx", what, r->ret, r->err);
-    t_note("%s: ret=%llu lasterr=0x%lx pfPropertiesChanged=%lu title=\"%ls\"", what, r->ret, r->err, r->extra[0], r->dlg_title);
+    /* probed std and adm: closing the viewer returns FALSE with ERROR_CANCELLED */
+    if (!t_is_wine()) { EXPECT_EQ(r->ret, 0); EXPECT_EQ(r->err, ERROR_CANCELLED); }
+    else t_note("%s: ret=%llu err=0x%lx", what, r->ret, r->err);
     if (!t_is_wine()) EXPECT_EQ(r->extra[0], 0);   /* *pfPropertiesChanged is reset to FALSE by the call */
 }
 
@@ -83,36 +83,37 @@ UICASE(vc_title_w_long, 0) {
 TEST(ui_viewcert_title_w_is_window_caption) {
     REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r;
     if (!ui_exec("vc_title_w", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "title W");
+    ui_expect_dialog(&r, "title W"); ui_expect_cancelled(&r);
     if (t_is_wine()) { t_note("caption \"%ls\"", r.dlg_title); return; }
     CHECKF(!lstrcmpW(r.dlg_title, kTitleW), "caption \"%ls\"", r.dlg_title);
 }
 TEST(ui_viewcert_title_a_is_window_caption) {
     REQUIRE(U(CryptUIDlgViewCertificateA)); UIRES r;
     if (!ui_exec("vc_title_a", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "title A");
+    ui_expect_dialog(&r, "title A"); ui_expect_cancelled(&r);
     if (t_is_wine()) { t_note("caption \"%ls\"", r.dlg_title); return; }
     CHECKF(!lstrcmpW(r.dlg_title, kTitleW), "caption \"%ls\"", r.dlg_title);
 }
 TEST(ui_viewcert_title_long_w) {
     REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r;
     if (!ui_exec("vc_title_w_long", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "long title");
+    ui_expect_dialog(&r, "long title"); ui_expect_cancelled(&r);
     CHECK(r.dlg_title[0] == L'a');
 }
 UICASE(vc_default_title, 0) { view_w(r, 0, NULL, NULL, 0, 0, NULL, NULL, 0); }
 TEST(ui_viewcert_default_title_nonempty_localised) {
     REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r;
     if (!ui_exec("vc_default_title", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "default title");
+    ui_expect_dialog(&r, "default title"); ui_expect_cancelled(&r);
     CHECK(lstrlenW(r.dlg_title) > 0);
-    t_note("default caption (locale dependent): \"%ls\"", r.dlg_title);
+    /* probed std and adm: "Certificate" on an English UI (the caption is localized) */
+    if ((GetUserDefaultUILanguage() & 0xFF) == 0x09) CHECKF(!lstrcmpW(r.dlg_title, L"Certificate"), "caption \"%ls\"", r.dlg_title);
 }
 
 /* ---- start page ------------------------------------------------------------ */
 #define START_CASE(nm, start) \
     UICASE(vc_start_##nm, 0) { view_w(r, 0, NULL, NULL, start, 0, NULL, NULL, 0); } \
-    TEST(ui_viewcert_start_page_##nm) { REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r; if (!ui_exec("vc_start_" #nm, &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "start page " #nm); }
+    TEST(ui_viewcert_start_page_##nm) { REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r; if (!ui_exec("vc_start_" #nm, &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "start page " #nm); ui_expect_cancelled(&r); }
 START_CASE(0, 0)
 START_CASE(1, 1)
 START_CASE(2, 2)
@@ -125,13 +126,13 @@ UICASE(vc_stores, 0) {
     view_w(r, CRYPTUI_DONT_OPEN_STORES, NULL, NULL, 0, 1, &s, NULL, 0);
     if (s) U(CertCloseStore)(s, 0);
 }
-TEST(ui_viewcert_extra_memory_store) { REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r; if (!ui_exec("vc_stores", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "stores"); }
+TEST(ui_viewcert_extra_memory_store) { REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r; if (!ui_exec("vc_stores", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "stores"); ui_expect_cancelled(&r); }
 
 UICASE(vc_purposes, 0) {
     LPCSTR p[2] = { szOID_PKIX_KP_CLIENT_AUTH, szOID_PKIX_KP_SERVER_AUTH };
     view_w(r, CRYPTUI_DONT_OPEN_STORES, NULL, NULL, 0, 0, NULL, p, 2);
 }
-TEST(ui_viewcert_with_purposes) { REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r; if (!ui_exec("vc_purposes", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "purposes"); }
+TEST(ui_viewcert_with_purposes) { REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r; if (!ui_exec("vc_purposes", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "purposes"); ui_expect_cancelled(&r); }
 
 UICASE(vc_owner, 0) {
     HWND own = CreateWindowExA(0, "STATIC", "cryptt owner", WS_POPUP, 0, 0, 10, 10, NULL, NULL, NULL, NULL);
@@ -143,7 +144,7 @@ UICASE(vc_owner, 0) {
 TEST(ui_viewcert_with_owner_window) {
     REQUIRE(U(CryptUIDlgViewCertificateW)); UIRES r;
     if (!ui_exec("vc_owner", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "owner");
+    ui_expect_dialog(&r, "owner"); ui_expect_cancelled(&r);
     if (!t_is_wine()) { CHECK(r.extra[1]); CHECK(r.extra[2]); }   /* the owner survives the dialog */
 }
 
@@ -204,19 +205,19 @@ UICASE(vctx_bad_type, UIF_NODLG) {
 TEST(ui_viewcontext_certificate_shows_viewer) {
     REQUIRE(U(CryptUIDlgViewContext)); UIRES r;
     if (!ui_exec("vctx_cert", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "ViewContext cert");
+    ui_expect_dialog(&r, "ViewContext cert"); ui_expect_cancelled(&r);
     if (!t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW));
 }
 TEST(ui_viewcontext_crl_shows_viewer) {
     REQUIRE(U(CryptUIDlgViewContext)); UIRES r;
     if (!ui_exec("vctx_crl", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "ViewContext crl");
+    ui_expect_dialog(&r, "ViewContext crl"); ui_expect_cancelled(&r);
     if (!t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW));
 }
 TEST(ui_viewcontext_ctl_shows_viewer) {
     REQUIRE(U(CryptUIDlgViewContext)); UIRES r;
     if (!ui_exec("vctx_ctl", &r) || !fixture_ok(&r)) return;
-    ui_expect_dialog(&r, "ViewContext ctl");
+    ui_expect_dialog(&r, "ViewContext ctl"); ui_expect_cancelled(&r);
 }
 TEST(ui_viewcontext_unknown_type_is_invalid_arg) {
     REQUIRE(U(CryptUIDlgViewContext)); UIRES r;
@@ -250,7 +251,7 @@ UICASE(crl_badsize, UIF_NODLG) {
     if (c) U(CertFreeCRLContext)(c);
 }
 #define CRL_TEST(nm, fn, key, tt) \
-    TEST(ui_viewcrl_##nm) { if (!UN(fn)) { t_skip("missing export: " #fn); return; } UIRES r; if (!ui_exec(key, &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, key); if (tt && !t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW)); if (!t_is_wine()) EXPECT_EQ(r.ret, 0); }
+    TEST(ui_viewcrl_##nm) { if (!UN(fn)) { t_skip("missing export: " #fn); return; } UIRES r; if (!ui_exec(key, &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, key); ui_expect_cancelled(&r); if (tt && !t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW)); }
 CRL_TEST(w_plain, CryptUIDlgViewCRLW, "crl_w_plain", 0)
 CRL_TEST(w_hide_revocation_list_page, CryptUIDlgViewCRLW, "crl_w_hide_list", 0)
 CRL_TEST(w_title, CryptUIDlgViewCRLW, "crl_w_title", 1)
@@ -287,7 +288,7 @@ UICASE(ctl_badsize, UIF_NODLG) {
     if (c) U(CertFreeCTLContext)(c);
 }
 #define CTL_TEST(nm, fn, key, tt) \
-    TEST(ui_viewctl_##nm) { if (!UN(fn)) { t_skip("missing export: " #fn); return; } UIRES r; if (!ui_exec(key, &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, key); if (tt && !t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW)); }
+    TEST(ui_viewctl_##nm) { if (!UN(fn)) { t_skip("missing export: " #fn); return; } UIRES r; if (!ui_exec(key, &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, key); ui_expect_cancelled(&r); if (tt && !t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW)); }
 CTL_TEST(w_plain, CryptUIDlgViewCTLW, "ctl_w_plain", 0)
 CTL_TEST(w_title, CryptUIDlgViewCTLW, "ctl_w_title", 1)
 CTL_TEST(a_plain, CryptUIDlgViewCTLA, "ctl_a_plain", 0)
@@ -321,9 +322,9 @@ UICASE(signer_badsize, UIF_NODLG) {
     static const DWORD sz[] = { 0, 0x58, 0x5F, 0x61, 0x68, 0x200 };
     for (int i = 0; i < 6; i++) { BYTE s[0x300]; memset(s, 0, sizeof s); put32(s, 0, sz[i]); UI_SUB(r, UN(CryptUIDlgViewSignerInfoW)(s)); }
 }
-TEST(ui_viewsigner_w_plain) { UI_NEED(CryptUIDlgViewSignerInfoW); UIRES r; if (!ui_exec("signer_w", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "signer W"); }
-TEST(ui_viewsigner_w_title) { UI_NEED(CryptUIDlgViewSignerInfoW); UIRES r; if (!ui_exec("signer_w_title", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "signer W title"); if (!t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW)); }
-TEST(ui_viewsigner_a_plain) { if (!UN(CryptUIDlgViewSignerInfoA)) { t_skip("missing export"); return; } UIRES r; if (!ui_exec("signer_a", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "signer A"); }
+TEST(ui_viewsigner_w_plain) { UI_NEED(CryptUIDlgViewSignerInfoW); UIRES r; if (!ui_exec("signer_w", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "signer W"); ui_expect_cancelled(&r); }
+TEST(ui_viewsigner_w_title) { UI_NEED(CryptUIDlgViewSignerInfoW); UIRES r; if (!ui_exec("signer_w_title", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "signer W title"); ui_expect_cancelled(&r); if (!t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW)); }
+TEST(ui_viewsigner_a_plain) { if (!UN(CryptUIDlgViewSignerInfoA)) { t_skip("missing export"); return; } UIRES r; if (!ui_exec("signer_a", &r) || !fixture_ok(&r)) return; ui_expect_dialog(&r, "signer A"); ui_expect_cancelled(&r); }
 TEST(ui_viewsigner_w_wrong_dwsize_rejected) {
     UI_NEED(CryptUIDlgViewSignerInfoW);
     UIRES r; if (!ui_exec("signer_badsize", &r)) return;

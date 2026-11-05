@@ -44,7 +44,7 @@ UICASE(selfs_empty_store, 0) {
     if (s) U(CertCloseStore)(s, 0);
 }
 #define SELFS_TEST(nm, key) TEST(ui_selectcert_fromstore_##nm) { REQUIRE(U(CryptUIDlgSelectCertificateFromStore)); UIRES r; if (!ui_exec(key, &r)) return; \
-    ui_expect_window(&r, key); EXPECT_EQ(r.ret, 0); }
+    ui_expect_window(&r, key, L"Credential Dialog Xaml Host"); EXPECT_EQ(r.ret, 0); }
 SELFS_TEST(close_returns_null, "selfs_cancel")
 SELFS_TEST(with_title_close_returns_null, "selfs_title")
 SELFS_TEST(dontuse_columns_close_returns_null, "selfs_dontuse_cols")
@@ -77,24 +77,25 @@ TEST(ui_selectcert_w_wrong_dwsize_rejected) {
 TEST(ui_selectcert_w_close_returns_null) {
     UI_NEED(CryptUIDlgSelectCertificateW); UIRES r;
     if (!ui_exec("selw_plain", &r)) return;
-    ui_expect_window(&r, "SelectCertificateW"); EXPECT_EQ(r.ret, 0);
+    ui_expect_window(&r, "SelectCertificateW", L"Credential Dialog Xaml Host"); EXPECT_EQ(r.ret, 0);
 }
 TEST(ui_selectcert_w_size_0x78_accepted) {
     UI_NEED(CryptUIDlgSelectCertificateW); UIRES r;
     if (!ui_exec("selw_size78", &r)) return;
-    ui_expect_window(&r, "SelectCertificateW 0x78"); EXPECT_EQ(r.ret, 0);
+    ui_expect_window(&r, "SelectCertificateW 0x78", L"Credential Dialog Xaml Host"); EXPECT_EQ(r.ret, 0);
     CHECK(r.err != E_INVALIDARG_ || r.found_any);
 }
 TEST(ui_selectcert_w_title_close_returns_null) {
     UI_NEED(CryptUIDlgSelectCertificateW); UIRES r;
     if (!ui_exec("selw_title", &r)) return;
-    ui_expect_window(&r, "SelectCertificateW title"); EXPECT_EQ(r.ret, 0);
-    t_note("caption \"%ls\" (modern UI may not use the supplied title)", r.dlg_title);
+    ui_expect_window(&r, "SelectCertificateW title", L"Credential Dialog Xaml Host"); EXPECT_EQ(r.ret, 0);
+    /* probed std and adm: the Xaml credential host is not a #32770 dialog and carries no caption, so the supplied title is not used */
+    CHECKF(!r.dlg_title[0], "caption \"%ls\"", r.dlg_title);
 }
 TEST(ui_selectcert_a_close_returns_null) {
     UI_NEED(CryptUIDlgSelectCertificateA); UIRES r;
     if (!ui_exec("sela_plain", &r)) return;
-    ui_expect_window(&r, "SelectCertificateA"); EXPECT_EQ(r.ret, 0);
+    ui_expect_window(&r, "SelectCertificateA", L"Credential Dialog Xaml Host"); EXPECT_EQ(r.ret, 0);
 }
 
 /* legacy list UI is chosen when cStores (+0x58) is set */
@@ -111,7 +112,7 @@ TEST(ui_selectcert_w_legacy_store_list_dialog) {
     UI_NEED(CryptUIDlgSelectCertificateW); UIRES r;
     if (!ui_exec("selw_legacy", &r)) return;
     ui_expect_dialog(&r, "legacy select");
-    EXPECT_EQ(r.ret, 0);
+    ui_expect_ret_err(&r, 0, 0);   /* probed std and adm: NULL, last error untouched */
     if (!t_is_wine()) CHECK(!lstrcmpW(r.dlg_title, kTitleW));
 }
 
@@ -137,7 +138,7 @@ TEST(ui_selectstore_w_close_returns_null) {
     UI_NEED(CryptUIDlgSelectStoreW); UIRES r;
     if (!ui_exec("selst_plain", &r)) return;
     ui_expect_dialog(&r, "SelectStoreW");
-    EXPECT_EQ(r.ret, 0);
+    ui_expect_ret_err(&r, 0, 0);   /* probed std and adm */
 }
 
 /* ---- CryptUIDlgCertMgr / CryptUIStartCertMgr ------------------------------------ */
@@ -148,7 +149,7 @@ static void mgr_call(UIRES *r, DWORD flags, const WCHAR *title, LPCSTR oid) {
 }
 #define MGR_TAB(n) UICASE(mgr_tab##n, 0) { mgr_call(r, n, NULL, NULL); } \
     TEST(ui_certmgr_tab_##n) { REQUIRE(U(CryptUIDlgCertMgr)); UIRES r; if (!ui_exec("mgr_tab" #n, &r)) return; ui_expect_dialog(&r, "CertMgr tab " #n); \
-        t_note("CertMgr tab " #n ": ret=%llu err=0x%lx", r.ret, r.err); }
+        ui_expect_ret_err(&r, 1, 0); /* probed std and adm: closing the manager returns TRUE, last error untouched */ }
 MGR_TAB(0) MGR_TAB(1) MGR_TAB(2) MGR_TAB(3) MGR_TAB(4)
 UICASE(mgr_single_tab, 0) { mgr_call(r, CRYPTUI_CERT_MGR_SINGLE_TAB_FLAG | 4, NULL, NULL); }
 UICASE(mgr_title, 0) { mgr_call(r, 0, kTitleW, NULL); }
@@ -165,13 +166,13 @@ UICASE(mgr_badsize, UIF_NODLG) {
     UI_SUB(r, U(CryptUIDlgCertMgr)(NULL));
 }
 UICASE(startmgr, 0) { UI_CALL(r, UN(CryptUIStartCertMgr)()); }
-TEST(ui_certmgr_single_tab_flag) { REQUIRE(U(CryptUIDlgCertMgr)); UIRES r; if (!ui_exec("mgr_single_tab", &r)) return; ui_expect_dialog(&r, "CertMgr single tab"); }
+TEST(ui_certmgr_single_tab_flag) { REQUIRE(U(CryptUIDlgCertMgr)); UIRES r; if (!ui_exec("mgr_single_tab", &r)) return; ui_expect_dialog(&r, "CertMgr single tab"); ui_expect_ret_err(&r, 1, 0); }
 TEST(ui_certmgr_custom_title_is_caption) {
     REQUIRE(U(CryptUIDlgCertMgr)); UIRES r; if (!ui_exec("mgr_title", &r)) return;
-    ui_expect_dialog(&r, "CertMgr title");
+    ui_expect_dialog(&r, "CertMgr title"); ui_expect_ret_err(&r, 1, 0);
     if (!t_is_wine()) CHECKF(!lstrcmpW(r.dlg_title, kTitleW), "caption \"%ls\"", r.dlg_title);
 }
-TEST(ui_certmgr_init_usage_oid) { REQUIRE(U(CryptUIDlgCertMgr)); UIRES r; if (!ui_exec("mgr_oid", &r)) return; ui_expect_dialog(&r, "CertMgr oid"); }
+TEST(ui_certmgr_init_usage_oid) { REQUIRE(U(CryptUIDlgCertMgr)); UIRES r; if (!ui_exec("mgr_oid", &r)) return; ui_expect_dialog(&r, "CertMgr oid"); ui_expect_ret_err(&r, 1, 0); }
 TEST(ui_certmgr_tab_selector_above_4_invalid_arg) {
     REQUIRE(U(CryptUIDlgCertMgr)); UIRES r; if (!ui_exec("mgr_badflags", &r)) return;
     ui_expect_nodialog(&r); EXPECT_EQ(r.nsub, 13);
@@ -186,7 +187,7 @@ TEST(ui_startcertmgr_opens_manager_and_returns_false) {
     UI_NEED(CryptUIStartCertMgr); UIRES r;
     if (!ui_exec("startmgr", &r)) return;
     ui_expect_dialog(&r, "CryptUIStartCertMgr");
-    EXPECT_EQ(r.ret, 0);   /* the stub discards the manager's result */
+    ui_expect_ret_err(&r, 0, 0);   /* probed std and adm: the manager's result is discarded */
 }
 
 /* ---- cryptdlg legacy entry points ----------------------------------------------- */
@@ -204,9 +205,9 @@ UICASE(css_w, 0) {
 TEST(ui_cryptdlg_certselectcertificatew_close_selects_nothing) {
     UI_NEED(CertSelectCertificateW); UIRES r;
     if (!ui_exec("css_w", &r)) return;
-    ui_expect_window(&r, "CertSelectCertificateW");
+    ui_expect_window(&r, "CertSelectCertificateW", L"Credential Dialog Xaml Host");
     EXPECT_EQ(r.extra[0], 0);
-    t_note("CertSelectCertificateW cancelled: ret=%llu (raw struct layout, not enforced)", r.ret);
+    EXPECT_EQ(r.ret, 0);   /* probed std and adm */
 }
 
 UICASE(cvp_w, 0) {
@@ -221,7 +222,7 @@ TEST(ui_cryptdlg_certviewpropertiesw_shows_dialog) {
     UI_NEED(CertViewPropertiesW); UIRES r;
     if (!ui_exec("cvp_w", &r)) return;
     if (r.extra[7]) { t_note("no cert fixture"); return; }
-    ui_expect_window(&r, "CertViewPropertiesW");
+    ui_expect_window(&r, "CertViewPropertiesW", L"#32770");
 }
 
 UICASE(cfgtrust, UIF_NODLG) {

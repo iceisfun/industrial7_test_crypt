@@ -136,7 +136,8 @@ TEST(capiab_dh_export_flag_table) {
     BYTE b[1024]; DWORD n = sizeof b;
     SET_ERR(0);
     BOOL r = U(CryptExportKey)(k, 0, PUBLICKEYBLOB, CRYPT_BLOB_VER3, b, &n);
-    t_note("DH public export with CRYPT_BLOB_VER3: %d n=%lu err 0x%lx", r, n, r ? 0 : GetLastError());
+    /* probed std and adm: CRYPT_BLOB_VER3 is accepted on a DH public export and the blob is 432 bytes (the VER1 form is 144) */
+    EXPECT_EQ(r, 1); EXPECT_EQ(n, 432);
     cab_kd(k); cab_rel(p);
 }
 
@@ -150,7 +151,8 @@ TEST(capiab_dh_export_bad_blobtype) {
         SET_ERR(0);
         BOOL r = U(CryptExportKey)(k, 0, bad[i], 0, b, &n);
         CHECKF(!r, "blob type %lu exported", bad[i]);
-        t_note("DH export blob type %lu: err 0x%lx", bad[i], r ? 0 : GetLastError());
+        t_label("type %lu", bad[i]);
+        EXPECT_ERR(CAB_NTE_BAD_TYPE); /* probed std and adm */
     }
     cab_kd(k); cab_rel(p);
 }
@@ -173,7 +175,7 @@ TEST(capiab_dh_import_public_in_plain_dss_provider) {
     SET_ERR(0);
     BOOL r = U(CryptImportKey)(p, dh1024_prv_a, sizeof dh1024_prv_a, 0, 0, &k);
     CHECK(!r); if (r) cab_kd(k);
-    t_note("DH private import into PROV_DSS provider: err 0x%lx", r ? 0 : GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_ALGID); /* probed std and adm (the public blob above gives NTE_BAD_DATA) */
     cab_rel(p);
 }
 
@@ -276,7 +278,7 @@ TEST(capiab_dh_agreed_key_cannot_export) {
     SET_ERR(0);
     BOOL r = U(CryptExportKey)(ka, 0, PUBLICKEYBLOB, 0, b, &n);
     CHECK(!r);
-    t_note("export of an agreed (unconverted) key as PUBLICKEYBLOB: err 0x%lx", r ? 0 : GetLastError());
+    EXPECT_ERR(CAB_NTE_BAD_ALGID); /* probed std and adm */
     cab_kd(ka); cab_kd(a); cab_rel(p);
 }
 
@@ -289,7 +291,8 @@ TEST(capiab_dh_set_algid_unknown_observe) {
     for (int i = 0; ka && i < 5; i++) {
         SET_ERR(0);
         BOOL r = dh_set_algid(ka, algs[i]);
-        t_note("agreed key KP_ALGID <- 0x%x: %d err 0x%lx", algs[i], r, r ? 0 : GetLastError());
+        t_label("algid 0x%x", algs[i]);
+        EXPECT_EQ(r, 0); EXPECT_ERR(CAB_NTE_BAD_ALGID); /* probed std and adm: only the RC4 and 3DES style session algorithms used elsewhere are accepted */
     }
     cab_kd(ka); cab_kd(a); cab_rel(p);
 }
@@ -445,8 +448,9 @@ TEST(capiab_dh_genkey_sf_in_verifycontext_observe) {
     HCRYPTKEY k = 0;
     SET_ERR(0);
     BOOL r = U(CryptGenKey)(p, CALG_DH_SF, (512u << 16), &k);
-    t_note("CryptGenKey(CALG_DH_SF, 512) in VERIFYCONTEXT: %d err 0x%lx", r, r ? 0 : GetLastError());
-    if (r) { t_note("  KP_ALGID=0x%lx", cab_algid(k)); cab_kd(k); }
+    /* probed std and adm: succeeds, KP_ALGID is CALG_DH_SF */
+    EXPECT_EQ(r, 1);
+    if (r) { EXPECT_EQ(cab_algid(k), CALG_DH_SF); cab_kd(k); }
     cab_rel(p);
 }
 

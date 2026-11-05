@@ -18,9 +18,9 @@ static void imp_file(UIRES *r, const char *leaf, const void *data, DWORD len, co
 #define IMPCASE(nm, leaf, arr, pwd, title, flags) \
     UICASE(wimp_##nm, 0) { imp_file(r, leaf, arr, sizeof arr, pwd, title, flags); } \
     TEST(ui_wizimport_##nm) { REQUIRE(U(CryptUIWizImport)); UIRES r; if (!ui_exec("wimp_" #nm, &r)) return; \
-        ui_expect_window(&r, "CryptUIWizImport " #nm); \
+        ui_expect_window(&r, "CryptUIWizImport " #nm, L"NativeHWNDHost"); \
         EXPECT_EQ(r.extra[0], 0); \
-        t_note("CryptUIWizImport " #nm " cancelled: ret=%llu err=0x%lx (wizard cancel)", r.ret, r.err); }
+        EXPECT_EQ(r.ret, 1);   /* probed std and adm: a cancelled import wizard returns TRUE */ }
 IMPCASE(cer_file, "i1.cer", fx_cert, NULL, NULL, 0)
 IMPCASE(cer_file_titled, "i2.cer", fx_cert, NULL, kWizTitle, 0)
 IMPCASE(crl_file, "i3.crl", fx_crl, NULL, NULL, 0)
@@ -39,7 +39,7 @@ UICASE(wimp_no_source, 0) {
 TEST(ui_wizimport_without_source_asks_for_file) {
     REQUIRE(U(CryptUIWizImport)); UIRES r;
     if (!ui_exec("wimp_no_source", &r)) return;
-    ui_expect_window(&r, "CryptUIWizImport(NULL source)");
+    ui_expect_window(&r, "CryptUIWizImport(NULL source)", L"NativeHWNDHost");
 }
 
 UICASE(wimp_certctx, 0) {
@@ -54,7 +54,7 @@ UICASE(wimp_certctx, 0) {
 TEST(ui_wizimport_cert_context_wizard_cancelled_imports_nothing) {
     REQUIRE(U(CryptUIWizImport)); UIRES r;
     if (!ui_exec("wimp_certctx", &r)) return;
-    ui_expect_window(&r, "CryptUIWizImport cert context");
+    ui_expect_window(&r, "CryptUIWizImport cert context", L"NativeHWNDHost");
     EXPECT_EQ(r.extra[0], 0);
 }
 
@@ -70,7 +70,7 @@ UICASE(wimp_store_src, 0) {
 TEST(ui_wizimport_store_source_wizard_cancelled_imports_nothing) {
     REQUIRE(U(CryptUIWizImport)); UIRES r;
     if (!ui_exec("wimp_store_src", &r)) return;
-    ui_expect_window(&r, "CryptUIWizImport store source");
+    ui_expect_window(&r, "CryptUIWizImport store source", L"NativeHWNDHost");
     EXPECT_EQ(r.extra[0], 0);
 }
 
@@ -100,8 +100,8 @@ static void exp_call(UIRES *r, DWORD choice, const WCHAR *title, int preset_name
 #define EXPCASE(nm, choice, title, preset, fmt) \
     UICASE(wexp_##nm, 0) { exp_call(r, choice, title, preset, fmt); } \
     TEST(ui_wizexport_##nm) { REQUIRE(U(CryptUIWizExport)); UIRES r; if (!ui_exec("wexp_" #nm, &r)) return; \
-        ui_expect_window(&r, "CryptUIWizExport " #nm); EXPECT_EQ(r.extra[0], 0); \
-        t_note("CryptUIWizExport " #nm " cancelled: ret=%llu err=0x%lx", r.ret, r.err); }
+        ui_expect_window(&r, "CryptUIWizExport " #nm, L"NativeHWNDHost"); EXPECT_EQ(r.extra[0], 0); \
+        EXPECT_EQ(r.ret, 0); EXPECT_EQ(r.err, ERROR_CANCELLED);   /* probed std and adm: a cancelled export wizard fails with ERROR_CANCELLED */ }
 EXPCASE(cert_context, CRYPTUI_WIZ_EXPORT_CERT_CONTEXT, NULL, 0, 0)
 EXPCASE(cert_context_titled, CRYPTUI_WIZ_EXPORT_CERT_CONTEXT, kWizTitle, 0, 0)
 EXPCASE(cert_context_preset_name, CRYPTUI_WIZ_EXPORT_CERT_CONTEXT, NULL, 1, 0)
@@ -130,9 +130,10 @@ UICASE(wsign_file, 0) {
 TEST(ui_wizdigitalsign_file_wizard_cancelled_leaves_file_unchanged) {
     REQUIRE(U(CryptUIWizDigitalSign)); UIRES r;
     if (!ui_exec("wsign_file", &r)) return;
-    ui_expect_window(&r, "CryptUIWizDigitalSign");
+    ui_expect_window(&r, "CryptUIWizDigitalSign", L"#32770");
     EXPECT_EQ(r.extra[2], 1);
-    t_note("DigitalSign cancelled: ret=%llu err=0x%lx context cleared=%lu", r.ret, r.err, r.extra[1]);
+    /* probed std and adm: a cancelled sign wizard returns TRUE and sets *ppSignContext to NULL */
+    EXPECT_EQ(r.ret, 1); EXPECT_EQ(r.extra[1], 1);
 }
 UICASE(wsign_nosubject, 0) {
     PCCRYPTUI_WIZ_DIGITAL_SIGN_CONTEXT ctx = NULL;
@@ -142,8 +143,8 @@ UICASE(wsign_nosubject, 0) {
 TEST(ui_wizdigitalsign_without_subject_wizard_cancelled) {
     REQUIRE(U(CryptUIWizDigitalSign)); UIRES r;
     if (!ui_exec("wsign_nosubject", &r)) return;
-    ui_expect_window(&r, "CryptUIWizDigitalSign(NULL)");
-    t_note("ret=%llu err=0x%lx", r.ret, r.err);
+    ui_expect_window(&r, "CryptUIWizDigitalSign(NULL)", L"#32770");
+    EXPECT_EQ(r.ret, 0); EXPECT_EQ(r.err, 0);   /* probed std and adm: FALSE without setting a last error (last error stays 0) */
 }
 
 /* ---- build CTL ------------------------------------------------------------- */
@@ -156,6 +157,6 @@ UICASE(wctl_fresh, 0) {
 TEST(ui_wizbuildctl_cancel_clears_out_context) {
     UI_NEED(CryptUIWizBuildCTL); UIRES r;
     if (!ui_exec("wctl_fresh", &r)) return;
-    ui_expect_window(&r, "CryptUIWizBuildCTL");
+    ui_expect_window(&r, "CryptUIWizBuildCTL", L"#32770");
     EXPECT_EQ(r.extra[0], 1);
 }

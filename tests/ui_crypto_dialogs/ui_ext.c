@@ -74,7 +74,7 @@ UICASE(extok_addpfxw, 0) { ext_valid(r, "CryptExtAddPFXW", "v12.pfx", fx_pfx, si
 UICASE(extok_addspcw, 0) { ext_valid(r, "CryptExtAddSPCW", "v13.p7b", fx_p7b, sizeof fx_p7b); }
 #define EXT_OK(nm, exp, viewer) TEST(ui_cryptext_valid_file_##nm) { if (!ext_get(exp)) { t_skip("missing export " exp); return; } UIRES r; \
     if (!ui_exec("extok_" #nm, &r) || r.extra[7]) return; \
-    if (viewer) ui_expect_dialog(&r, exp); else ui_expect_window(&r, exp); ui_chk_ret(r.ret, 0, __func__); }
+    if (viewer) ui_expect_dialog(&r, exp); else ui_expect_window(&r, exp, L"NativeHWNDHost"); ui_chk_ret(r.ret, 0, __func__); }
 EXT_OK(opencerw, "CryptExtOpenCERW", 1) EXT_OK(opencer, "CryptExtOpenCER", 1)
 EXT_OK(opencrlw, "CryptExtOpenCRLW", 1) EXT_OK(opencrl, "CryptExtOpenCRL", 1)
 EXT_OK(openctlw, "CryptExtOpenCTLW", 1) EXT_OK(openctl, "CryptExtOpenCTL", 1)
