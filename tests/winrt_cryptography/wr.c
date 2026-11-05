@@ -62,7 +62,7 @@ HRESULT wr_activate(const WCHAR *cls, void **fac) {
 }
 
 static int act_failed(const WCHAR *cls, HRESULT hr) {
-    if (t_is_wine()) { t_skip("class not activatable under wine (0x%08lx)", (unsigned long)hr); return 1; }
+    if (t_is_wine()) { t_skip("class not activatable under the emulator (0x%08lx)", (unsigned long)hr); return 1; }
     t_check(0, __FILE__, __LINE__, "RoGetActivationFactory", "0x%08lx for %ls", (unsigned long)hr, cls);
     return 1;
 }
@@ -74,7 +74,7 @@ void *wr_factory(const WCHAR *cls, ULONG idx) {
     if (idx == 0) return f;
     ULONG n = 0; GUID *ids = NULL;
     hr = wr_getiids(f, &n, &ids);
-    if (hr == E_NOTIMPL && t_is_wine()) { t_skip("GetIids is a stub under wine"); wr_release(f); return NULL; }
+    if (hr == E_NOTIMPL && t_is_wine()) { t_skip("GetIids is a stub under the emulator"); wr_release(f); return NULL; }
     if (FAILED(hr) || idx >= n) {
         t_check(0, __FILE__, __LINE__, "GetIids", "hr=0x%08lx n=%lu want index %lu", (unsigned long)hr, n, idx);
         if (ids) wr_cofree(ids);
@@ -104,7 +104,7 @@ void *wr_cbs(void) {
     if (g_cbs && t_is_wine()) {   /* the emulator ships CryptographicBuffer as stubs */
         void *b = NULL; BYTE z = 0;
         HRESULT hr = VF(g_cbs, CB_CreateFromByteArray, UINT32, const BYTE *, void **)(g_cbs, 1, &z, &b);
-        if (hr == E_NOTIMPL) { t_skip("CryptographicBuffer is stubbed under wine"); return NULL; }
+        if (hr == E_NOTIMPL) { t_skip("CryptographicBuffer is stubbed under the emulator"); return NULL; }
         wr_release(b);
     }
     return g_cbs;

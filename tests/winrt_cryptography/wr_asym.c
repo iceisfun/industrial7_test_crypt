@@ -41,7 +41,7 @@ static HRESULT e_verify(void *key, void *d, void *sig, BYTE *ok) {
 }
 static void *open_a(const WCHAR *alg) {
     void *p = NULL; HRESULT hr = wr_asym_open(alg, &p);
-    if (hr != S_OK) { if (t_is_wine()) t_skip("wine"); else t_check(0, __FILE__, __LINE__, "OpenAlgorithm", "%ls hr 0x%08lx", alg, (unsigned long)hr); return NULL; }
+    if (hr != S_OK) { if (t_is_wine()) t_skip("emulator"); else t_check(0, __FILE__, __LINE__, "OpenAlgorithm", "%ls hr 0x%08lx", alg, (unsigned long)hr); return NULL; }
     return p;
 }
 static void *priv_key(const WCHAR *alg, const char *pkcs8hex) {
@@ -95,7 +95,7 @@ TEST(winrt_asym_open_all_names) {
     for (int i = 0; i < 21; i++) {
         const WCHAR *n = i < 18 ? k_asym18[i] : k_asym3[i - 18];
         void *p = NULL; HRESULT hr = wr_asym_open(n, &p);
-        if (FAILED(hr) && t_is_wine()) { t_skip("wine"); return; }
+        if (FAILED(hr) && t_is_wine()) { t_skip("emulator"); return; }
         t_check(hr == S_OK && p, __FILE__, __LINE__, "OpenAlgorithm", "%ls hr 0x%08lx", n, (unsigned long)hr);
         if (!p) continue;
         HSTRING h = NULL; EXPECT_HR(VF(p, 6, HSTRING *)(p, &h), S_OK);

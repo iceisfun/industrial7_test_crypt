@@ -137,7 +137,7 @@ TEST(winrt_activation_runtime_all_classes) {
     WR_NEED();
     for (size_t i = 0; i < NCLASSES; i++) {
         void *f; HRESULT hr = wr_activate(k_classes[i], &f);
-        if (FAILED(hr) && t_is_wine()) { t_skip("class not registered under wine"); return; }
+        if (FAILED(hr) && t_is_wine()) { t_skip("class not registered under the emulator"); return; }
         t_check(hr == S_OK && f, __FILE__, __LINE__, "RoGetActivationFactory", "%ls hr 0x%08lx", k_classes[i], (unsigned long)hr);
         if (f) wr_release(f);
     }
@@ -187,7 +187,7 @@ TEST(winrt_activation_runtime_wrong_interface) {
     HSTRING h = wr_hs(CLS_BUFFER); void *f = (void *)1;
     HRESULT hr = UIN("combase.dll", RoGetActivationFactory)(h, &WR_IID_IBuffer, &f);
     wr_hsfree(h);
-    if (t_is_wine()) { t_skip("wine"); return; }
+    if (t_is_wine()) { t_skip("emulator"); return; }
     CHECK(FAILED(hr)); CHECK(f == NULL);
     t_note("RoGetActivationFactory(CryptographicBuffer, IBuffer) -> 0x%08lx", (unsigned long)hr);
 }

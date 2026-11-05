@@ -43,7 +43,7 @@ TEST(winrt_sym_open_all_names) {
     WR_NEED();
     for (size_t i = 0; i < NSYM; i++) {
         void *p = NULL; HRESULT hr = wr_sym_open(k_symnames[i], &p);
-        if (FAILED(hr) && t_is_wine()) { t_skip("wine"); return; }
+        if (FAILED(hr) && t_is_wine()) { t_skip("emulator"); return; }
         t_check(hr == S_OK && p, __FILE__, __LINE__, "OpenAlgorithm", "%ls hr 0x%08lx", k_symnames[i], (unsigned long)hr);
         if (!p) continue;
         HSTRING n = NULL; EXPECT_HR(VF(p, 6, HSTRING *)(p, &n), S_OK);
@@ -54,7 +54,7 @@ TEST(winrt_sym_open_all_names) {
 TEST(winrt_sym_block_length) {
     WR_NEED();
     for (size_t i = 0; i < NSYM; i++) {
-        void *p = NULL; if (wr_sym_open(k_symnames[i], &p) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } continue; }
+        void *p = NULL; if (wr_sym_open(k_symnames[i], &p) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } continue; }
         UINT32 bl = 0xffff; EXPECT_HR(VF(p, 7, UINT32 *)(p, &bl), S_OK);
         UINT32 want = k_symnames[i][0] == L'A' ? 16 : (k_symnames[i][0] == L'D' || k_symnames[i][0] == L'3' || k_symnames[i][0] == L'R' && k_symnames[i][2] == L'2') ? 8 : 0;
         if (want) t_check(bl == want, __FILE__, __LINE__, "BlockLength", "%ls got %u want %u", k_symnames[i], bl, want);
@@ -127,7 +127,7 @@ TEST(winrt_sym_key_size_property) {
     BYTE kb[32]; memset(kb, 0x37, sizeof kb);
     for (size_t i = 0; i < sizeof v / sizeof *v; i++) {
         void *p = NULL, *b = wr_mkbuf(kb, v[i].bytes), *k = NULL;
-        if (wr_sym_open(v[i].alg, &p) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } continue; }
+        if (wr_sym_open(v[i].alg, &p) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } continue; }
         wr_sym_key(p, b, &k); if (!k) { CHECK(!"key"); continue; }
         UINT32 sz = 0; HRESULT hr = VF(k, 6, UINT32 *)(k, &sz);
         t_check(hr == S_OK && sz == v[i].bits, __FILE__, __LINE__, "KeySize", "%ls %u bytes -> %u bits (hr 0x%08lx)", v[i].alg, v[i].bytes, sz, (unsigned long)hr);

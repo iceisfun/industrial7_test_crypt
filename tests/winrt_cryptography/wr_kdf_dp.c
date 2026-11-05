@@ -41,7 +41,7 @@ TEST(winrt_kdf_open_all_names) {
     WR_NEED();
     for (int i = 0; i < 15; i++) {
         void *p = NULL; HRESULT hr = wr_kdf_open(k_kdfnames1[i], &p);
-        if (FAILED(hr) && t_is_wine()) { t_skip("wine"); return; }
+        if (FAILED(hr) && t_is_wine()) { t_skip("emulator"); return; }
         t_check(hr == S_OK && p, __FILE__, __LINE__, "KeyDerivationAlgorithmProvider.OpenAlgorithm", "%ls hr 0x%08lx", k_kdfnames1[i], (unsigned long)hr);
         if (!p) continue;
         HSTRING n = NULL; EXPECT_HR(VF(p, 6, HSTRING *)(p, &n), S_OK); CHECK(wr_hs_eq(n, k_kdfnames1[i])); wr_hsfree(n);
@@ -52,7 +52,7 @@ TEST(winrt_kdf_open_capi_names_note) {
     WR_NEED();
     for (int i = 0; i < 5; i++) {
         void *p = NULL; HRESULT hr = wr_kdf_open(k_kdfnames2[i], &p);
-        if (FAILED(hr) && t_is_wine()) { t_skip("wine"); return; }
+        if (FAILED(hr) && t_is_wine()) { t_skip("emulator"); return; }
         t_note("%ls -> 0x%08lx", k_kdfnames2[i], (unsigned long)hr); wr_release(p);
     }
 }
@@ -168,7 +168,7 @@ TEST(winrt_kdf_pbkdf2_vectors) {
     WR_NEED(); void *ps = wr_cls_statics(CLS_KDFPARAMS); if (!ps) return; void *prov = NULL; const WCHAR *cur = NULL;
     for (size_t i = 0; i < sizeof wr_pbkdf2_vecs / sizeof *wr_pbkdf2_vecs; i++) {
         const struct wr_kv *v = &wr_pbkdf2_vecs[i];
-        if (v->alg != cur) { wr_release(prov); prov = NULL; cur = v->alg; if (wr_kdf_open(cur, &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } CHECK(!"open"); return; } }
+        if (v->alg != cur) { wr_release(prov); prov = NULL; cur = v->alg; if (wr_kdf_open(cur, &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } CHECK(!"open"); return; } }
         void *pw = wr_mkbuf_hex(v->pw), *salt = wr_mkbuf_hex(v->salt), *key = NULL, *par = NULL, *out = NULL;
         HRESULT h1 = kdf_key(prov, pw, &key), h2 = p_pbkdf2(ps, salt, v->iter, &par), h3 = (key && par) ? derive(key, par, v->dklen, &out) : E_FAIL;
         t_check(h1 == S_OK && h2 == S_OK && h3 == S_OK && wr_buf_is_hex(out, v->dk), __FILE__, __LINE__, "PBKDF2", "%ls vector %zu (it %u, len %u) hr 0x%08lx/0x%08lx/0x%08lx", v->alg, i, v->iter, v->dklen, (unsigned long)h1, (unsigned long)h2, (unsigned long)h3);
@@ -265,7 +265,7 @@ TEST(winrt_kdf_sp800108_layout_note) {
     WR_NEED(); void *ps = wr_cls_statics(CLS_KDFPARAMS); if (!ps) return;
     for (size_t i = 0; i < sizeof wr_sp800108_vecs / sizeof *wr_sp800108_vecs; i++) {
         const struct wr_kk *v = &wr_sp800108_vecs[i];
-        void *prov = NULL; if (wr_kdf_open(v->alg, &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } CHECK(!"open"); continue; }
+        void *prov = NULL; if (wr_kdf_open(v->alg, &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } CHECK(!"open"); continue; }
         void *kb = wr_mkbuf_hex(v->key), *l = wr_mkbuf_hex(v->label), *c = wr_mkbuf_hex(v->ctx), *key = NULL, *par = NULL, *o1 = NULL, *o2 = NULL;
         HRESULT h1 = kdf_key(prov, kb, &key), h2 = p_sp800108(ps, l, c, &par), h3 = (key && par) ? derive(key, par, v->dklen, &o1) : E_FAIL;
         t_check(h1 == S_OK && h2 == S_OK && h3 == S_OK && wr_buf_len(o1) == v->dklen, __FILE__, __LINE__, "SP800-108 derive", "%ls len %u hr 0x%08lx", v->alg, v->dklen, (unsigned long)h3);

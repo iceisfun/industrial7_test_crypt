@@ -73,7 +73,7 @@ TEST(winrt_hash_open_supported) {
     WR_NEED();
     for (size_t i = 0; i < NH; i++) {
         void *p = NULL; HRESULT hr = wr_hash_open(k_hlen[i].alg, &p);
-        if (FAILED(hr) && t_is_wine()) { t_skip("not available under wine"); return; }
+        if (FAILED(hr) && t_is_wine()) { t_skip("not available under the emulator"); return; }
         t_check(hr == S_OK && p, __FILE__, __LINE__, "OpenAlgorithm", "%ls hr 0x%08lx", k_hlen[i].alg, (unsigned long)hr);
         wr_release(p);
     }
@@ -81,7 +81,7 @@ TEST(winrt_hash_open_supported) {
 TEST(winrt_hash_algorithm_name_roundtrip) {
     WR_NEED();
     for (size_t i = 0; i < NH; i++) {
-        void *p = NULL; if (wr_hash_open(k_hlen[i].alg, &p) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } CHECK(!"open"); continue; }
+        void *p = NULL; if (wr_hash_open(k_hlen[i].alg, &p) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } CHECK(!"open"); continue; }
         HSTRING n; EXPECT_HR(h_name(p, &n), S_OK);
         t_check(wr_hs_eq(n, k_hlen[i].alg), __FILE__, __LINE__, "AlgorithmName", "%ls", k_hlen[i].alg);
         wr_hsfree(n); wr_release(p);
@@ -90,7 +90,7 @@ TEST(winrt_hash_algorithm_name_roundtrip) {
 TEST(winrt_hash_length_property) {
     WR_NEED();
     for (size_t i = 0; i < NH; i++) {
-        void *p = NULL; if (wr_hash_open(k_hlen[i].alg, &p) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } CHECK(!"open"); continue; }
+        void *p = NULL; if (wr_hash_open(k_hlen[i].alg, &p) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } CHECK(!"open"); continue; }
         UINT32 n; EXPECT_HR(h_len(p, &n), S_OK);
         t_check(n == k_hlen[i].len, __FILE__, __LINE__, "HashLength", "%ls got %u want %u", k_hlen[i].alg, n, k_hlen[i].len);
         wr_release(p);
@@ -154,7 +154,7 @@ TEST(winrt_hash_hashdata_vectors) {
     WR_NEED(); void *prov = NULL; const WCHAR *cur = NULL;
     for (size_t i = 0; i < sizeof wr_hash_vecs / sizeof *wr_hash_vecs; i++) {
         const struct wr_hv *v = &wr_hash_vecs[i];
-        if (v->alg != cur) { wr_release(prov); prov = NULL; cur = v->alg; if (wr_hash_open(cur, &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } CHECK(!"open"); return; } }
+        if (v->alg != cur) { wr_release(prov); prov = NULL; cur = v->alg; if (wr_hash_open(cur, &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } CHECK(!"open"); return; } }
         void *in = wr_mkbuf_hex(v->msg_hex), *out = NULL;
         HRESULT hr = wr_hash_data(prov, in, &out);
         t_check(hr == S_OK && wr_buf_is_hex(out, v->digest_hex), __FILE__, __LINE__, "HashData", "%ls vector %zu hr 0x%08lx", v->alg, i, (unsigned long)hr);
@@ -185,7 +185,7 @@ TEST(winrt_hash_hashdata_known_million_a) {
     void *in = wr_mkbuf(m, 1000000);
     for (int i = 0; i < 5; i++) {
         void *prov = NULL, *out = NULL;
-        if (wr_hash_open(v[i].a, &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); break; } CHECK(!"open"); continue; }
+        if (wr_hash_open(v[i].a, &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); break; } CHECK(!"open"); continue; }
         HRESULT hr = wr_hash_data(prov, in, &out);
         t_check(hr == S_OK && wr_buf_is_hex(out, v[i].hex), __FILE__, __LINE__, "million a", "%ls hr 0x%08lx", v[i].a, (unsigned long)hr);
         wr_release(out); wr_release(prov);
@@ -309,7 +309,7 @@ TEST(winrt_hash_object_final_without_append_is_empty_digest) {
         { L"SHA384", "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b" },
         { L"SHA512", "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e" } };
     for (int i = 0; i < 5; i++) {
-        void *prov = NULL; if (wr_hash_open(v[i].a, &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } continue; }
+        void *prov = NULL; if (wr_hash_open(v[i].a, &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } continue; }
         void *h = NULL, *o = NULL; h_create(prov, &h);
         EXPECT_HR(h_final(h, &o), S_OK);
         t_check(wr_buf_is_hex(o, v[i].hex), __FILE__, __LINE__, "empty digest", "%ls", v[i].a);
@@ -353,7 +353,7 @@ TEST(winrt_hash_object_all_algorithms_incremental) {
     WR_NEED();
     for (size_t i = 0; i < sizeof wr_hash_vecs / sizeof *wr_hash_vecs; i += 4) {
         const struct wr_hv *v = &wr_hash_vecs[i];
-        void *prov = NULL; if (wr_hash_open(v->alg, &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } continue; }
+        void *prov = NULL; if (wr_hash_open(v->alg, &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } continue; }
         void *h = NULL; h_create(prov, &h);
         BYTE m[2048]; UINT32 n = wr_unhex(v->msg_hex, m);
         for (UINT32 k = 0; k < n; k += 5) { UINT32 c = n - k < 5 ? n - k : 5; void *b = wr_mkbuf(m + k, c); h_append(h, b); wr_release(b); }
@@ -377,7 +377,7 @@ TEST(winrt_mac_open_and_properties) {
     WR_NEED();
     for (size_t i = 0; i < 5; i++) {
         void *p = NULL; HRESULT hr = wr_mac_open(k_mlen[i].alg, &p);
-        if (FAILED(hr) && t_is_wine()) { t_skip("wine"); return; }
+        if (FAILED(hr) && t_is_wine()) { t_skip("emulator"); return; }
         t_check(hr == S_OK && p, __FILE__, __LINE__, "MacAlgorithmProvider.OpenAlgorithm", "%ls hr 0x%08lx", k_mlen[i].alg, (unsigned long)hr);
         if (!p) continue;
         HSTRING n = NULL; UINT32 l = 0;
@@ -410,7 +410,7 @@ TEST(winrt_mac_hmac_vectors) {
     WR_NEED(); void *prov = NULL; const WCHAR *cur = NULL;
     for (size_t i = 0; i < sizeof wr_mac_vecs / sizeof *wr_mac_vecs; i++) {
         const struct wr_mv *v = &wr_mac_vecs[i];
-        if (v->alg != cur) { wr_release(prov); prov = NULL; cur = v->alg; if (wr_mac_open(cur, &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } CHECK(!"open"); return; } }
+        if (v->alg != cur) { wr_release(prov); prov = NULL; cur = v->alg; if (wr_mac_open(cur, &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } CHECK(!"open"); return; } }
         void *kb = wr_mkbuf_hex(v->key_hex), *msg = wr_mkbuf_hex(v->msg_hex), *key = NULL, *sig = NULL;
         HRESULT hr = mac_key(prov, kb, &key), h2 = key ? eng_sign(key, msg, &sig) : E_FAIL;
         t_check(hr == S_OK && h2 == S_OK && wr_buf_is_hex(sig, v->mac_hex), __FILE__, __LINE__, "HMAC", "%ls vector %zu hr 0x%08lx/0x%08lx", v->alg, i, (unsigned long)hr, (unsigned long)h2);
@@ -501,7 +501,7 @@ TEST(winrt_mac_create_hash_from_provider) {
 }
 TEST(winrt_mac_aes_cmac_rfc4493) {
     WR_NEED(); void *prov = NULL;
-    if (wr_mac_open(L"AES_CMAC", &prov) != S_OK) { if (t_is_wine()) { t_skip("wine"); return; } CHECK(!"AES_CMAC open"); return; }
+    if (wr_mac_open(L"AES_CMAC", &prov) != S_OK) { if (t_is_wine()) { t_skip("emulator"); return; } CHECK(!"AES_CMAC open"); return; }
     UINT32 l = 0; VF(prov, 7, UINT32 *)(prov, &l); EXPECT_EQ(l, 16);
     static const struct { const char *msg, *mac; } v[] = {
         { "", "bb1d6929e95937287fa37d129b756746" },
