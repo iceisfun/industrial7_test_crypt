@@ -168,7 +168,7 @@ HRESULT wr_mac_open(const WCHAR *a, void **p) { return open_alg(CLS_MACPROV, a, 
 HRESULT wr_sym_open(const WCHAR *a, void **p) { return open_alg(CLS_SYMPROV, a, p); }
 HRESULT wr_asym_open(const WCHAR *a, void **p) { return open_alg(CLS_ASYMPROV, a, p); }
 HRESULT wr_kdf_open(const WCHAR *a, void **p) { return open_alg(CLS_KDFPROV, a, p); }
-HRESULT wr_hash_data(void *prov, void *buf, void **out) { *out = NULL; return VF(prov, 9, void *, void **)(prov, buf, out); }
+HRESULT wr_hash_data(void *prov, void *buf, void **out) { *out = NULL; return VF(prov, 8, void *, void **)(prov, buf, out); }
 /* ISymmetricKeyAlgorithmProvider: get_AlgorithmName 6, get_BlockLength 7, CreateSymmetricKey 8 */
 HRESULT wr_sym_key(void *prov, void *kb, void **key) { *key = NULL; return VF(prov, 8, void *, void **)(prov, kb, key); }
 
