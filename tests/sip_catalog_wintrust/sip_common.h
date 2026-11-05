@@ -31,14 +31,17 @@ static const GUID G_UNKNOWN = {0x7A3B1C55, 0x0F12, 0x4D4E, {0x91, 0xA7, 0x5C, 0x
 /* SIP_CAP_SET_V3 / SIP_INFORMATION are not in the SDK headers used here. */
 typedef struct { DWORD cbSize; DWORD dwVersion; DWORD isMultiSign; DWORD dwFlags; } SIPT_CAPS;
 typedef struct { DWORD cbSize; DWORD cGuids; const GUID *pGuids; } SIPT_INFORMATION;
-UDECL(BOOL, CryptSIPGetInfoU, (SIPT_INFORMATION *));
-UDECL(void, CryptSIPGetRegWorkingFlagsU, (DWORD *));
-UDECL(BOOL, CryptSIPGetCapsU, (SIP_SUBJECTINFO *, SIPT_CAPS *));
-UDECL(BOOL, CryptSIPGetSealedDigestU, (SIP_SUBJECTINFO *, const BYTE *, DWORD, BYTE *, DWORD *));
-UDECL(int,  ComputeFirstPageHashU, (const WCHAR *, const WCHAR *, void *, int));
-UDECL(DWORD, GetAuthenticodeSha256HashU, (const WCHAR *, HANDLE, BYTE *));
-UDECL(BOOL, IsCatalogFileU, (HANDLE, const WCHAR *));
-UDECL(void, WintrustGetRegPolicyFlagsU, (DWORD *));
+UDECL(BOOL, CryptSIPGetInfo, (SIPT_INFORMATION *));
+UDECL(void, CryptSIPGetRegWorkingFlags, (DWORD *));
+UDECL(BOOL, CryptSIPGetCaps, (SIP_SUBJECTINFO *, SIPT_CAPS *));
+UDECL(BOOL, CryptSIPGetSealedDigest, (SIP_SUBJECTINFO *, const BYTE *, DWORD, BYTE *, DWORD *));
+UDECL(int,  ComputeFirstPageHash, (const WCHAR *, const WCHAR *, void *, int));
+UDECL(DWORD, GetAuthenticodeSha256Hash, (const WCHAR *, HANDLE, BYTE *));
+UDECL(BOOL, IsCatalogFile, (HANDLE, const WCHAR *));
+UDECL(void, WintrustGetRegPolicyFlags, (DWORD *));
+
+#define WT(name)  ((name##_pfn)t_proc_in("wintrust.dll", #name))   /* UDECL'd function pinned to wintrust */
+#define C32(name) ((name##_pfn)t_proc_in("crypt32.dll", #name))    /* UDECL'd function pinned to crypt32 */
 
 /* ---- helpers (sip_common.c) ---- */
 void   sipt_wide(WCHAR *dst, size_t n, const char *src);
