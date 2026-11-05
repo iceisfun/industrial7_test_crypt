@@ -495,7 +495,7 @@ TEST(wvt_cert_chain_action_with_cert_choice_observed) {
 
 /* ---- WTD_CHOICE_BLOB -------------------------------------------------------------- */
 TEST(wvt_blob_unknown_subject_guid) {
-    /* decomp: the object provider loads the SIP for gSubject; an unregistered GUID ends in TRUST_E_PROVIDER_UNKNOWN
+    /* observed: the object provider loads the SIP for gSubject; an unregistered GUID ends in TRUST_E_PROVIDER_UNKNOWN
        in the FINAL_OBJPROV step and the SIP step records the CryptSIPLoad error */
     WVT_REQUIRE_WVT();
     WVTD w; WINTRUST_BLOB_INFO bi; static const BYTE data[16] = { 1, 2, 3, 4 };
@@ -579,7 +579,7 @@ TEST(wvt_step_valid_hash_only_all_zero) {
     EXPECT_EQ(r, 0);
 }
 TEST(wvt_step_invalid_union_choice_objprov_invalid_parameter) {
-    /* decomp: SoftpubLoadMessage records ERROR_INVALID_PARAMETER for dwUnionChoice 0 and >= 6 */
+    /* observed: SoftpubLoadMessage records ERROR_INVALID_PARAMETER for dwUnionChoice 0 and >= 6 */
     WVT_REQUIRE_WVT();
     static const DWORD ch[] = { 0, 6, 99 };
     WCHAR p[MAX_PATH]; wvt_path(p, "uc2.exe"); wvt_write(p, fix_pe_unsigned, sizeof fix_pe_unsigned);

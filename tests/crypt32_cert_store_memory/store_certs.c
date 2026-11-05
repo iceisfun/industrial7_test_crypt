@@ -435,7 +435,7 @@ TEST(csc_newer_inherit_equal_rejected) {
 /* ---------------- enumeration ---------------- */
 TEST(csc_enum_returns_newest_first) {
     REQUIRE(U(CertEnumCertificatesInStore));
-    /* decomp: new elements become the list head and enumeration starts at the head */
+    /* observed: new elements become the list head and enumeration starts at the head */
     HCERTSTORE h = sm_abc(); if (!h) return;
     const BYTE *exp[3] = { v_cert_c, v_cert_b, v_cert_a };
     DWORD n[3] = { sizeof v_cert_c, sizeof v_cert_b, sizeof v_cert_a };

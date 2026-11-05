@@ -82,7 +82,7 @@ TEST(nt_ordinal_13_is_unused) {
 TEST(nt_exports_are_ordinal_only) {
     HMODULE m = t_module("ntasn1.dll");
     if (!m) { t_skip("ntasn1.dll not present"); return; }
-    /* the decompiled names are internal: none of them is a by-name export */
+    /* the names found internally are not exports: none of them is a by-name export */
     static const char *names[] = { "ASN1DER_EncLength32", "ASN1DER_DecTag", "RtlAsn1Encode", "RtlAsn1Decode", "CryptEncodeObjectEx", "ASN1_FindOidInfo" };
     for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) CHECKF(GetProcAddress(m, names[i]) == NULL, "%s", names[i]);
 }

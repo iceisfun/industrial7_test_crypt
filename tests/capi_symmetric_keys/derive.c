@@ -10,7 +10,7 @@ static const BYTE *dk_vec(int hashi, DWORD n) {
         { dk_sha256_8, dk_sha256_16, dk_sha256_24, dk_sha256_32 } };
     return tab[hashi][n == 8 ? 0 : n == 16 ? 1 : n == 24 ? 2 : 3];
 }
-/* Windows (decomp CPDeriveKey): for 3DES and AES keys, unless the hash is SHA-2 family, the key is ALWAYS taken from
+/* Windows (observed in CPDeriveKey): for 3DES and AES keys, unless the hash is SHA-2 family, the key is ALWAYS taken from
  * the ipad/opad extension X1||X2 (even when the hash is long enough); DES, 3DES-112, RC2 and RC4 use the digest prefix. */
 static const BYTE *dkx_vec(int hashi, DWORD n) {
     static const BYTE *tab[2][3] = { { dkx_md5_16, dkx_md5_24, dkx_md5_32 }, { dkx_sha1_16, dkx_sha1_24, dkx_sha1_32 } };

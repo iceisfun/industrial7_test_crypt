@@ -104,7 +104,7 @@ TEST(capiab_rsa_keyparam_padding_mode_for_rsa) {
     if (k) {
         int ok = 0;
         DWORD v = cab_kp(k, KP_PADDING, &ok);
-        CHECK(ok); EXPECT_EQ(v, 0);                 /* decomp: RSA key types report 0 */
+        CHECK(ok); EXPECT_EQ(v, 0);                 /* observed: RSA key types report 0 */
         v = cab_kp(k, KP_ALGID, &ok); CHECK(ok); EXPECT_EQ(v, CALG_RSA_KEYX);
     }
     cab_kd(k); cab_rel(h);
@@ -276,7 +276,7 @@ TEST(capiab_rsa_export_errors) {
     HCRYPTKEY k = cab_imp(h, rsa1024_prv, sizeof rsa1024_prv, CRYPT_EXPORTABLE);
     CHECK(k != 0);
     BYTE buf[4096]; DWORD n = sizeof buf;
-    /* PUBLICKEYBLOB must not name an export key (decomp: NTE_BAD_PUBLIC_KEY) */
+    /* PUBLICKEYBLOB must not name an export key (observed: NTE_BAD_PUBLIC_KEY) */
     SET_ERR(0);
     EXPECT_FAIL(!U(CryptExportKey)(k, k, PUBLICKEYBLOB, 0, buf, &n), CAB_NTE_BAD_PUBLIC_KEY);
     /* a SIMPLEBLOB of an asymmetric key is meaningless */
@@ -378,7 +378,7 @@ TEST(capiab_rsa_import_bad_magic) {
     CAB_NEED();
     HCRYPTPROV h = cab_enh(); if (!h) { t_skip("no enh"); return; }
     BYTE b[1024];
-    /* private path demands RSA2 (decomp: PreparePrivateKeyForImport) -> NTE_BAD_DATA */
+    /* private path demands RSA2 (observed) -> NTE_BAD_DATA */
     struct { DWORD magic; const char *what; } t[] = {
         { MAGIC_RSA1, "prv with RSA1 magic" }, { 0x41414141, "prv bad magic" }, { 0, "prv zero magic" }, { MAGIC_DSS2, "prv with DSS2 magic" },
     };
@@ -390,7 +390,7 @@ TEST(capiab_rsa_import_bad_magic) {
         CHECKF(!r, "%s imported", t[i].what);
         if (!r) EXPECT_ERR(CAB_NTE_BAD_DATA); else cab_kd(k);
     }
-    /* public path does not look at the magic (decomp copies it into the key) */
+    /* public path does not look at the magic (observed: copies it into the key) */
     DWORD pm[] = { 0x41414141, MAGIC_RSA2, 0 };
     for (int i = 0; i < 3; i++) {
         memcpy(b, rsa1024_pub, sizeof rsa1024_pub); cab_setmagic(b, pm[i]);
@@ -409,7 +409,7 @@ TEST(capiab_rsa_import_bad_bitlen_fields) {
     CAB_NEED();
     HCRYPTPROV h = cab_enh(); if (!h) { t_skip("no enh"); return; }
     BYTE b[1024];
-    /* decomp: public path runs FIsLegalKeySize (enhanced: 384..16384 bits) then a data-length check; both give NTE_BAD_LEN */
+    /* observed: public path runs a key-size check (enhanced: 384..16384 bits) then a data-length check; both give NTE_BAD_LEN */
     DWORD bl[] = { 8, 376, 2048, 4096, 16392 };
     for (int i = 0; i < 5; i++) {
         memcpy(b, rsa1024_pub, sizeof rsa1024_pub);
@@ -437,7 +437,7 @@ TEST(capiab_rsa_import_bad_bitlen_fields) {
 TEST(capiab_rsa_import_flag_table) {
     CAB_NEED();
     HCRYPTPROV h = cab_enh(); if (!h) { t_skip("no enh"); return; }
-    /* decomp: flags outside 0x2153 give NTE_BAD_FLAGS before anything else is examined */
+    /* observed: flags outside 0x2153 give NTE_BAD_FLAGS before anything else is examined */
     DWORD bad[] = { 0x4, 0x8, 0x20, 0x80, 0x200, 0x400, 0x800, 0x1000, 0x4000, 0x8000, 0x10000, 0x80000000 };
     for (int i = 0; i < (int)(sizeof bad / sizeof bad[0]); i++) {
         HCRYPTKEY k = 0;
@@ -459,7 +459,7 @@ TEST(capiab_rsa_import_param_errors) {
     CAB_NEED();
     HCRYPTPROV h = cab_enh(); if (!h) { t_skip("no enh"); return; }
     HCRYPTKEY k = 0;
-    /* hPubKey must be 0 for a PUBLICKEYBLOB (decomp: ERROR_INVALID_PARAMETER) */
+    /* hPubKey must be 0 for a PUBLICKEYBLOB (observed: ERROR_INVALID_PARAMETER) */
     HCRYPTKEY other = cab_imp(h, rsa1024_pub, sizeof rsa1024_pub, 0);
     SET_ERR(0);
     EXPECT_FAIL(!U(CryptImportKey)(h, rsa1024_pub, sizeof rsa1024_pub, other, 0, &k), ERROR_INVALID_PARAMETER);

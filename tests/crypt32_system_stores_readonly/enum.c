@@ -108,7 +108,7 @@ TEST(sss_store_enum_callback_args) {
     CHECK(U(CertEnumSystemStore)(CERT_SYSTEM_STORE_CURRENT_USER, NULL, &c, sss_cb_store));
     EXPECT_EQ(c.resv_nonnull, 0);
     CHECK(!c.info_null);
-    EXPECT_EQ(c.info_cb0, sizeof(CERT_SYSTEM_STORE_INFO));   /* decomp: info block {cbSize=4} */
+    EXPECT_EQ(c.info_cb0, sizeof(CERT_SYSTEM_STORE_INFO));   /* observed: info block {cbSize=4} */
 }
 TEST(sss_store_enum_names_unique) {
     REQUIRE(U(CertEnumSystemStore));

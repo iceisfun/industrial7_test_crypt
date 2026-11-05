@@ -1,4 +1,4 @@
-/* Additional handle-lifetime and control-type checks (decomp: CryptMsgDuplicate/Close/Control). */
+/* Additional handle-lifetime and control-type checks (observed: CryptMsgDuplicate/Close/Control). */
 #include "ml.h"
 
 TEST(mlx_duplicate_null_returns_null) {

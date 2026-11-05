@@ -123,7 +123,7 @@ TEST(pfxverify_null_or_empty_password_on_protected_pfx_fails) {
 }
 TEST(pfxverify_empty_password_pfx_accepts_null_and_empty) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
-    /* a NULL and an empty password are retried against each other (decomp of the import path) */
+    /* a NULL and an empty password are retried against each other (observed on the import path) */
     CRYPT_DATA_BLOB b = pp_blob_of(fx_legempty, sizeof fx_legempty);
     CHECK(U(PFXVerifyPassword)(&b, NULL, 0));
     CHECK(U(PFXVerifyPassword)(&b, L"", 0));
@@ -143,7 +143,7 @@ TEST(pfxverify_null_blob_is_invalid_parameter) {
 }
 TEST(pfxverify_flags_are_ignored) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
-    /* the decomp passes a fixed private flag value and drops dwFlags */
+    /* Windows passes a fixed private flag value and drops dwFlags */
     CRYPT_DATA_BLOB b = pp_blob_of(fx_leg3des, sizeof fx_leg3des);
     CHECK(U(PFXVerifyPassword)(&b, L"test", 0xffffffff));
     CHECK(U(PFXVerifyPassword)(&b, L"test", PKCS12_ALWAYS_CNG_KSP | PKCS12_ONLY_CERTIFICATES));
@@ -192,7 +192,7 @@ TEST(pfxverify_pbes2_fixture_observed) {
 }
 TEST(pfxverify_long_password_truncation_observed) {
     REQUIRE(U(PFXVerifyPassword)); PP_WINE_NO_VERIFY();
-    /* import path retries with the first 32 characters of a longer password (seen in the decomp) */
+    /* import path retries with the first 32 characters of a longer password (observed) */
     CRYPT_DATA_BLOB b = pp_blob_of(fx_leg32, sizeof fx_leg32);
     CHECK(U(PFXVerifyPassword)(&b, L"abcdefghijklmnopqrstuvwxyz012345", 0));
     BOOL r = U(PFXVerifyPassword)(&b, L"abcdefghijklmnopqrstuvwxyz012345EXTRA", 0);

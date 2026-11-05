@@ -92,7 +92,7 @@ TEST(capiab_dss_keyparam_unsupported_params) {
     HCRYPTPROV p = cab_dss(); if (!p) { t_skip("no dss"); return; }
     HCRYPTKEY k = cab_imp(p, dss1024_prv, sizeof dss1024_prv, CRYPT_EXPORTABLE);
     CHECK(k != 0);
-    DWORD bad[] = { 1, 2, 3, 4, 5, 10, 14, 15, 19, 100 };      /* decomp: only 6..9, 11..13 and 40 are handled */
+    DWORD bad[] = { 1, 2, 3, 4, 5, 10, 14, 15, 19, 100 };      /* observed: only 6..9, 11..13 and 40 are handled */
     for (int i = 0; k && i < 10; i++) {
         BYTE b[256]; DWORD n = sizeof b;
         SET_ERR(0);
@@ -300,7 +300,7 @@ TEST(capiab_dss_sign_error_table) {
     EXPECT_FAIL(!U(CryptSignHashW)(h, AT_SIGNATURE, NULL, 0, s, &n), CAB_NTE_NO_KEY);
     HCRYPTKEY sk = cab_imp(p, dss1024_prv, sizeof dss1024_prv, 0);
     CHECK(sk != 0);
-    /* decomp: flags must be 0, keyspec must be AT_SIGNATURE */
+    /* observed: flags must be 0, keyspec must be AT_SIGNATURE */
     n = sizeof s; SET_ERR(0);
     EXPECT_FAIL(!U(CryptSignHashW)(h, AT_SIGNATURE, NULL, 1, s, &n), CAB_NTE_BAD_FLAGS);
     n = sizeof s; SET_ERR(0);
@@ -471,7 +471,7 @@ TEST(capiab_dss_genkey_algid_and_flags) {
     EXPECT_FAIL(!U(CryptGenKey)(p, CALG_DH_EPHEM, 512 << 16, &k), CAB_NTE_BAD_ALGID);
     SET_ERR(0);
     EXPECT_FAIL(!U(CryptGenKey)(p, CALG_RSA_SIGN, 512 << 16, &k), CAB_NTE_BAD_ALGID);
-    /* decomp: flags & 0x3fa8 -> NTE_BAD_FLAGS */
+    /* observed: flags & 0x3fa8 -> NTE_BAD_FLAGS */
     DWORD bad[] = { 0x8, 0x20, 0x80, 0x100, 0x200, 0x400, 0x800, 0x1000, 0x2000 };
     for (int i = 0; i < 9; i++) {
         SET_ERR(0);

@@ -382,7 +382,7 @@ TEST(dxpk_is_key_handle) {
     k_free(k); k_del(p, n, 0); k_free(p);
 }
 TEST(dxpk_create_null_phkey_before_provider_check) {
-    /* phKey is validated before the provider handle (decomp order) */
+    /* phKey is validated before the provider handle (observed order) */
     K_NEEDS();
     EXPECT_S(U(NCryptCreatePersistedKey)(0, NULL, BCRYPT_RSA_ALGORITHM, L"cryptt_x", 0, 0), NTE_INVALID_PARAMETER);
     EXPECT_S(U(NCryptOpenKey)(0, NULL, L"cryptt_x", 0, 0), NTE_INVALID_PARAMETER);

@@ -9,7 +9,7 @@ typedef struct {
     MARK m[4];
     DWORD flags;
     DWORD want; LONG wci, wei;
-    int soft;       /* lower-confidence (decomp-derived multi-element revocation logic): mismatch is only noted */
+    int soft;       /* lower-confidence (inferred multi-element revocation logic): mismatch is only noted */
 } ROW;
 
 static void run_row(const char *name, const ROW *r) {

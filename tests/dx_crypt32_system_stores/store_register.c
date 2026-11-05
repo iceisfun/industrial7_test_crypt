@@ -2,7 +2,7 @@
 /* CertRegisterSystemStore / CertUnregisterSystemStore / CertRegisterPhysicalStore /
  * CertUnregisterPhysicalStore / CertEnumSystemStore / CertEnumPhysicalStore for current-user (and,
  * elevated, local-machine) test stores.
- * Flag masks and E_INVALIDARG paths come from the real decompilation:
+ * Flag masks and E_INVALIDARG paths come from observed behaviour:
  *   register  (system+physical) rejects dwFlags & 0xd7ff   -> only CREATE_NEW 0x2000 and BACKUP_RESTORE 0x800 pass
  *   unregister (system+physical) rejects dwFlags & 0xb7ef   -> only DELETE 0x10, BACKUP_RESTORE 0x800, OPEN_EXISTING 0x4000 pass */
 

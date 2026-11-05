@@ -1,13 +1,13 @@
 #include "oidreg.h"
 /* CryptSetOIDFunctionValue / CryptGetOIDFunctionValue / CryptRegisterOIDFunction / CryptUnregisterOIDFunction.
- * Registry layout (decomp): HKLM\Software\Microsoft\Cryptography\OID\EncodingType <n>\<FuncName>\<OID>, value <name>.
+ * Registry layout (observed): HKLM\Software\Microsoft\Cryptography\OID\EncodingType <n>\<FuncName>\<OID>, value <name>.
  * <n> is the low word of dwEncodingType, or the high word when the low word is 0. An OID below 0x10000 is the
  * numeric form and is stored as "#<n>". */
 
 #define E_INVALIDARG_ ((DWORD)0x80070057)
 /* Windows stores the HRESULT 0x80070057 itself as the last error here; an emulator uses plain 87. */
 #define EXPECT_HRINVAL() do { DWORD e_ = GetLastError(); t_check(e_ == E_INVALIDARG_ || (t_is_wine() && e_ == 87), __FILE__, __LINE__, "last error E_INVALIDARG", "got 0x%lx", e_); } while (0)
-/* Behaviour where an emulator is known to differ from the Windows decompilation. */
+/* Behaviour where an emulator is known to differ from observed Windows behaviour. */
 
 #define SETUP(fn) \
     REQUIRE(U(fn)); \

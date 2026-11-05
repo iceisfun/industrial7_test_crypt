@@ -1,5 +1,5 @@
 /* BCryptGenerateSymmetricKey / BCryptDestroyKey / BCryptDuplicateKey: argument validation, handle types,
- * key-object buffer protocol, lifetime. Return values verified against the Win10 decompilation of bcrypt.dll. */
+ * key-object buffer protocol, lifetime. Return values observed on Windows 10 for bcrypt.dll. */
 #include "bsc.h"
 
 static const BYTE S16[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};

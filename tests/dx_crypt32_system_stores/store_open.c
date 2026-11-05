@@ -498,7 +498,7 @@ TEST(dxss_add_encoded_to_system_store_twice_is_success) {
     DWORD cb; const BYTE *d = ds_der(0, &cb);
     CHECK(U(CertAddEncodedCertificateToSystemStoreW)(nm, (BYTE *)d, cb));
     SET_ERR(0);
-    BOOL r = U(CertAddEncodedCertificateToSystemStoreW)(nm, (BYTE *)d, cb);   /* CERT_STORE_ADD_ALWAYS-like per decomp: disposition 2 = REPLACE_EXISTING */
+    BOOL r = U(CertAddEncodedCertificateToSystemStoreW)(nm, (BYTE *)d, cb);   /* CERT_STORE_ADD_ALWAYS-like (observed): disposition 2 = REPLACE_EXISTING */
     CHECK(r);
     EXPECT_EQ(ds_count_named(nm, 0, 0), 1);
     ds_end();
@@ -734,7 +734,7 @@ TEST(dxss_lm_and_cu_same_name_are_independent) {
     ds_end();
 }
 
-/* ---- CERT_STORE_DELETE_FLAG and misc flag validation (decomp: I_CertDllOpenSystemStoreProvW) ----- */
+/* ---- CERT_STORE_DELETE_FLAG and misc flag validation (observed: I_CertDllOpenSystemStoreProvW) ----- */
 TEST(dxss_open_delete_flag_removes_store_and_returns_null) {
     SETUP(CertOpenStore); NAME("df1");
     if (t_is_wine()) { t_skip("emulator ignores this flag combination"); return; }

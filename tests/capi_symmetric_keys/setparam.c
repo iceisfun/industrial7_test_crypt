@@ -56,7 +56,7 @@ TEST(setparam_mode_ecb_cbc_cfb_always_accepted) {
 TEST(setparam_mode_invalid_values) {
     NEED_CRYPT(); NEED_PROV(p);
     HCRYPTKEY k = ck_key(p, CALG_AES_128, sp_key128, 16); if (!k) { CHECK(0); return; }
-    /* decomp: only the low byte is range-checked ((BYTE)(mode-1) < 4), so 0x101 would be stored; avoid such values */
+    /* observed: only the low byte is range-checked ((BYTE)(mode-1) < 4), so 0x101 would be stored; avoid such values */
     static const DWORD bad[] = { 0, CRYPT_MODE_CTS, 6, 7, 0x100, 0x200, 0x80 };
     for (unsigned i = 0; i < SIZEOFA(bad); i++) {
         SET_ERR(0);
@@ -199,7 +199,7 @@ TEST(setparam_unknown_param) {
 TEST(setparam_nonzero_flags) {
     NEED_CRYPT(); NEED_PROV(p);
     HCRYPTKEY k = ck_key(p, CALG_AES_128, sp_key128, 16); if (!k) { CHECK(0); return; }
-    /* decomp CPSetKeyParam: only the 0x400 flag bit may be set */
+    /* observed in CPSetKeyParam: only the 0x400 flag bit may be set */
     static const DWORD bad[] = { 1, 2, 4, 8, 0x10, 0x100, 0x200, 0x800, 0x80000000 };
     DWORD mode = CRYPT_MODE_ECB;
     for (unsigned i = 0; i < SIZEOFA(bad); i++) {
@@ -223,7 +223,7 @@ TEST(setparam_read_only_params_rejected) {
 }
 TEST(setparam_permissions_semantics) {
     NEED_CRYPT(); NEED_PROV(p);
-    /* decomp CPSetKeyParam(KP_PERMISSIONS): bits outside 0x13f -> NTE_BAD_FLAGS; CRYPT_EXPORT (4) and the archive bit
+    /* observed in CPSetKeyParam(KP_PERMISSIONS): bits outside 0x13f -> NTE_BAD_FLAGS; CRYPT_EXPORT (4) and the archive bit
      * (0x100) cannot be newly granted (NTE_BAD_DATA) and are never cleared; the remaining bits are replaced. */
     HCRYPTKEY k = 0; CHECK(U(CryptGenKey)(p, CALG_AES_128, CRYPT_EXPORTABLE, &k)); if (!k) return;
     BOOL ok; DWORD perm = ck_param_dw(k, KP_PERMISSIONS, &ok); CHECK(ok);

@@ -1,6 +1,6 @@
 #include "oidreg.h"
 /* CryptRegisterOIDInfo / CryptUnregisterOIDInfo and their visibility through CryptFindOIDInfo / CryptEnumOIDInfo.
- * Registration writes to  EncodingType 0\CryptDllFindOIDInfo\<OID>!<group>  (decomp):
+ * Registration writes to  EncodingType 0\CryptDllFindOIDInfo\<OID>!<group>  (observed):
  *   Name REG_SZ (if non-empty), Algid REG_DWORD (if non-zero), ExtraInfo REG_BINARY (if cbData != 0),
  *   Flags REG_DWORD (dwFlags, if non-zero); with cbSize >= 0x40 also CNGAlgid / CNGExtraAlgid REG_SZ.
  * Nothing is ever removed on re-registration.  CryptFindOIDInfo loads the registry list once per process, so the

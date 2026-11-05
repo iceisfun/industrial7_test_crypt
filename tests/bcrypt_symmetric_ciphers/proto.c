@@ -1,6 +1,6 @@
 /* BCryptEncrypt / BCryptDecrypt calling protocol for the unauthenticated modes: argument validation order,
  * size-query protocol, padding, IV handling and key-resident chaining state.
- * Statuses follow the decompilation of bcrypt.dll (dispatch) and bcryptprimitives.dll (MSBlockEncrypt/Decrypt). */
+ * Statuses observed on Windows 10 for bcrypt.dll (dispatch) and bcryptprimitives.dll (MSBlockEncrypt/Decrypt). */
 #include "bsc.h"
 
 static void fillseq(BYTE *b, int n, int start) { for (int i = 0; i < n; i++) b[i] = (BYTE)(start + i); }

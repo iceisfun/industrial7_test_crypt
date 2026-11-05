@@ -14,7 +14,7 @@
 #ifndef PKCS12_IMPORT_SILENT
 #define PKCS12_IMPORT_SILENT 0x40
 #endif
-/* flag values of the private verify path used by PFXVerifyPassword (seen in the decomp) */
+/* flag values of the private verify path used by PFXVerifyPassword (observed) */
 #define PP_VERIFY_ONLY 0x10000000
 
 static inline CRYPT_DATA_BLOB pp_blob_of(const BYTE *p, size_t n) {

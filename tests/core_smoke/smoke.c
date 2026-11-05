@@ -2,7 +2,7 @@
 /* Smallest possible corpus test: load, resolve, invoke, check. Replace/remove after scaffolding. */
 TEST(smoke_module_loads) { CHECK(t_module("bcrypt.dll") != NULL); }
 TEST(smoke_getprocaddress_negative) {
-    /* Valid negative tests: documented/decomp-verified failures an implementor must reproduce. */
+    /* Valid negative tests: documented or observed failures an implementor must reproduce. */
     SET_ERR(0);
     FARPROC p = GetProcAddress(t_module("kernel32.dll"), "NoSuchExport_xyz");
     CHECK(p == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);

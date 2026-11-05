@@ -185,7 +185,7 @@ TEST(ncprov_enumprov_basic) {
     int found = 0;
     for (DWORD i = 0; l && i < n; i++) {
         CHECK(l[i].pszName != NULL && l[i].pszName[0] != 0);
-        CHECK(l[i].pszComment == NULL);   /* the router never fills in a comment (decomp) */
+        CHECK(l[i].pszComment == NULL);   /* the router never fills in a comment (observed) */
         if (l[i].pszName && !lstrcmpW(l[i].pszName, NC_MSKSP)) found++;
         t_note("storage provider %lu: %ls", i, l[i].pszName ? l[i].pszName : L"(null)");
     }
@@ -341,7 +341,7 @@ TEST(ncprov_enumalgs_invalid_args) {
     EXPECT_SS(U(NCryptEnumAlgorithms)(0, NCRYPT_SIGNATURE_OPERATION, &n, &l, 0), NC_INVALID_HANDLE);
     EXPECT_SS(U(NCryptEnumAlgorithms)(h, NCRYPT_SIGNATURE_OPERATION, NULL, &l, 0), NC_INVALID_PARAMETER);
     EXPECT_SS(U(NCryptEnumAlgorithms)(h, NCRYPT_SIGNATURE_OPERATION, &n, NULL, 0), NC_INVALID_PARAMETER);
-    /* handle is validated before the pointers (decomp order) */
+    /* handle is validated before the pointers (observed order) */
     EXPECT_SS(U(NCryptEnumAlgorithms)(0, NCRYPT_SIGNATURE_OPERATION, NULL, NULL, 0), NC_INVALID_HANDLE);
     nc_free(h);
 }

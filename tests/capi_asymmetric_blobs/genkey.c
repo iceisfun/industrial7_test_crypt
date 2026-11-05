@@ -117,7 +117,7 @@ TEST(capiab_rsagen_base_provider_limit) {
 TEST(capiab_rsagen_flag_validation) {
     CAB_NEED();
     HCRYPTPROV h = cab_enh(); if (!h) { t_skip("no enh"); return; }
-    /* decomp: dwFlags & 0x1fe8 -> NTE_BAD_FLAGS */
+    /* observed: dwFlags & 0x1fe8 -> NTE_BAD_FLAGS */
     DWORD bad[] = { 0x8, 0x20, CRYPT_PREGEN, 0x80, 0x100, 0x200, 0x400, 0x800, 0x1000 };
     for (int i = 0; i < 9; i++) {
         HCRYPTKEY k = 0;

@@ -3,7 +3,7 @@
  * (t_proc_in("cryptdll.dll", ...)) and invoked through a typed pointer.
  *
  * cryptdll.dll is the Kerberos/NTLM crypto toolbox. It has no public header for these exports; the
- * prototypes and table layouts below were taken from the Windows 10 19041 decompilation:
+ * prototypes and table layouts below were observed on Windows 10 19041:
  *   - the crypto-system table has 0x80-byte entries (up to 23 usable), checksum table 0x40-byte entries
  *     (up to 24), RNG table 0x18-byte entries (up to 4);
  *   - lookup helpers return NTSTATUS-like codes (0x80080341 / 0x80080342 when not found).

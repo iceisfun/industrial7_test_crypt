@@ -1,6 +1,6 @@
 /* Shared declarations for the cryptxml_signatures area.
  * The SDK header is deliberately not used (several of its declarations are unusable in C); every
- * type below is laid out as the DLL uses it (checked against the decompiled field offsets), and every
+ * type below is laid out as the DLL uses it (checked against the observed field offsets), and every
  * entry point is resolved with GetProcAddress through the typedefs declared here. */
 #ifndef XML_H
 #define XML_H

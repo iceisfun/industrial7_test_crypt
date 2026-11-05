@@ -69,7 +69,7 @@ TEST(blob_export_null_length_pointer) {
 TEST(blob_export_invalid_flags) {
     NEED_CRYPT(); NEED_PROV(p);
     HCRYPTKEY k = ck_key(p, CALG_AES_128, sp_key128, 16); if (!k) { CHECK(0); return; }
-    /* decomp CPExportKey: (flags & 0xffffffb9) != 0 -> NTE_BAD_FLAGS (allowed: 0x2 0x4 0x40) */
+    /* observed in CPExportKey: (flags & 0xffffffb9) != 0 -> NTE_BAD_FLAGS (allowed: 0x2 0x4 0x40) */
     static const DWORD fl[] = { 1, 8, 0x10, 0x20, 0x80, 0x100, 0x1000, 0x80000000 };
     for (unsigned i = 0; i < SIZEOFA(fl); i++) {
         BYTE b[64]; DWORD n = 64; SET_ERR(0);
@@ -119,7 +119,7 @@ TEST(blob_plaintext_export_with_wrapping_key_handle_rejected) {
     HCRYPTKEY k = ck_key(p, CALG_AES_128, sp_key128, 16), w = ck_key(p, CALG_AES_256, sp_key256, 32);
     if (!k || !w) { CHECK(0); return; }
     BYTE b[128]; DWORD n = sizeof b; SET_ERR(0);
-    /* decomp: blob types 6, 8, 9 take no key-exchange key -> NTE_BAD_PUBLIC_KEY */
+    /* observed: blob types 6, 8, 9 take no key-exchange key -> NTE_BAD_PUBLIC_KEY */
     EXPECT_FAIL(!U(CryptExportKey)(k, w, PLAINTEXTKEYBLOB, 0, b, &n), NTE_BAD_PUBLIC_KEY_);
     n = sizeof b; SET_ERR(0); EXPECT_FAIL(!U(CryptExportKey)(k, w, OPAQUEKEYBLOB, 0, b, &n), NTE_BAD_PUBLIC_KEY_);
     U(CryptDestroyKey)(k); U(CryptDestroyKey)(w); ck_release(p);
@@ -260,7 +260,7 @@ TEST(blob_import_public_key_blob_with_pubkey_handle) {
     NEED_CRYPT(); NEED_PROV(p);
     HCRYPTKEY w = ck_key(p, CALG_AES_128, sp_key128, 16), k = 0; if (!w) { CHECK(0); return; }
     SET_ERR(0);
-    /* decomp: PUBLICKEYBLOB with a nonzero hPubKey -> ERROR_INVALID_PARAMETER */
+    /* observed: PUBLICKEYBLOB with a nonzero hPubKey -> ERROR_INVALID_PARAMETER */
     EXPECT_FAIL(!U(CryptImportKey)(p, (BYTE *)rsa1024_pub, sizeof rsa1024_pub, w, 0, &k), ERROR_INVALID_PARAMETER);
     U(CryptDestroyKey)(w); ck_release(p);
 }

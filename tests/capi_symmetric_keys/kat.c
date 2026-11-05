@@ -218,7 +218,7 @@ TEST(kat_rc2_short_keys_rfc2268) {
     }
     ck_release(p);
 }
-/* Windows rsaenh (decomp CPImportKey case 8) skips the 88-bit zero salt of 5-byte keys only with CRYPT_NO_SALT;
+/* Windows rsaenh (observed in CPImportKey case 8) skips the 88-bit zero salt of 5-byte keys only with CRYPT_NO_SALT;
  * the emulator ignores that flag, so the NO_SALT-dependent tests are skipped there. */
 #define NOSALT_NEEDS_WINDOWS() do { if (t_is_wine()) { t_skip("emulator ignores CRYPT_NO_SALT on 5-byte plaintext import"); return; } } while (0)
 TEST(kat_rc4_40_nosalt) {
@@ -244,7 +244,7 @@ TEST(kat_rc4_40bit_rfc6229_keystream) {
 }
 TEST(kat_rc4_40bit_import_without_nosalt_adds_zero_salt) {
     NEED_CRYPT(); NEED_PROV(p);
-    /* decomp CPImportKey: a 5-byte key imported without CRYPT_NO_SALT is made RSA-base-compatible, i.e.
+    /* observed in CPImportKey: a 5-byte key imported without CRYPT_NO_SALT is made RSA-base-compatible, i.e.
      * it behaves as key||11 zero bytes (a 128-bit key with an 88-bit zero salt). */
     HCRYPTKEY h = 0;
     CHECK(ck_import_plain(p, CALG_RC4, rc4_key40, 5, CRYPT_EXPORTABLE, &h));

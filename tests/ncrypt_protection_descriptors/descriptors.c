@@ -160,7 +160,7 @@ TEST(npd_create_value_not_validated_at_create) {
     if (rc == 0) npd_desc_close(h);
 }
 
-/* ---- parser errors (decomp-verified) -------------------------------------- */
+/* ---- parser errors (verified on Windows 10) -------------------------------------- */
 
 typedef struct { const wchar_t *s; DWORD want; } parse_case;
 

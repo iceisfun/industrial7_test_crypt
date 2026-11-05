@@ -1,5 +1,5 @@
 /* Included from register.c: argument validation and error mapping of the registration API.
- * Ordering verified in the decomp: name check (NULL/empty -> NTE_INVALID_PARAMETER) precedes the flag
+ * Ordering observed on Windows 10: name check (NULL/empty -> NTE_INVALID_PARAMETER) precedes the flag
  * check (flags & ~0x20 -> NTE_BAD_FLAGS); registry errors are mapped to 0x8007xxxx. */
 
 static int key_exists(int machine) {

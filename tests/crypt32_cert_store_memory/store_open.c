@@ -1,5 +1,5 @@
 #include "sm.h"
-/* CertOpenStore / CertCloseStore / CertDuplicateStore semantics. Expectations marked in the decomp. */
+/* CertOpenStore / CertCloseStore / CertDuplicateStore semantics. Expectations are observed values. */
 
 TEST(csm_open_memory_basic) {
     REQUIRE(U(CertOpenStore)); REQUIRE(U(CertCloseStore));
@@ -249,7 +249,7 @@ TEST(csm_open_two_hundred_stores) {
 }
 TEST(csm_null_store_add_creates_standalone_context) {
     REQUIRE(U(CertAddEncodedCertificateToStore));
-    /* decomp: a NULL store maps to an internal default store: the call succeeds and returns a context */
+    /* observed: a NULL store maps to an internal default store: the call succeeds and returns a context */
     PCCERT_CONTEXT c = NULL;
     BOOL r = sm_addc(NULL, VEC(v_cert_a), DISP_ALWAYS, &c);
     t_note("NULL store add ALWAYS -> %d ctx=%p gle=0x%lx", r, c, GetLastError());

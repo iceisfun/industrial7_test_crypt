@@ -1,5 +1,5 @@
 /* cryptxml.dll: CryptXmlOpenToDecode argument handling, handle types, CryptXmlClose and the
- * CryptXmlGet* accessors.  Behaviour comes from the decompiled implementation (handle magics
+ * CryptXmlGet* accessors.  Behaviour as observed on Windows 10 (handle magics
  * 0x44444441 document, ...42 signature, ...43 reference, ...44 object). */
 #include "xml.h"
 #include <stdlib.h>

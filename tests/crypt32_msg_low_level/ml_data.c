@@ -41,7 +41,7 @@ TEST(mld_open_encoding_checked_before_type) {
     SET_ERR(0);
     HCRYPTMSG m = mOpenEnc()(0, 0, 0xFF, NULL, NULL, NULL);
     CHECK(m == NULL);
-    EXPECT_ERR(E_INVALIDARG); /* decomp: the encoding test comes first, whatever the type */
+    EXPECT_ERR(E_INVALIDARG); /* observed: the encoding test comes first, whatever the type */
 }
 TEST(mld_open_data_nonnull_info_rejected) {
     REQ_MSG();
@@ -98,7 +98,7 @@ TEST(mld_decode_open_recipient_info_must_be_null) {
 }
 TEST(mld_decode_open_all_types_accepted) {
     REQ_MSG();
-    /* decomp: the message type is stored, not validated, at open time */
+    /* observed: the message type is stored, not validated, at open time */
     static const DWORD t[] = {0, CMSG_DATA, CMSG_SIGNED, CMSG_ENVELOPED, CMSG_SIGNED_AND_ENVELOPED, CMSG_HASHED};
     for (size_t i = 0; i < sizeof t / sizeof *t; i++) {
         HCRYPTMSG m = mOpenDec()(ENC, 0, t[i], 0, NULL, NULL);
@@ -237,7 +237,7 @@ TEST(mld_update_final_without_data_ok) {
 }
 TEST(mld_update_null_pointer_nonzero_cb_treated_as_empty) {
     REQ_MSG();
-    /* decomp: a NULL pbData forces cbData = 0 */
+    /* observed: a NULL pbData forces cbData = 0 */
     if (t_is_wine()) { t_skip("emulator dereferences NULL pbData"); return; }
     HCRYPTMSG m = mOpenEnc()(ENC, 0, CMSG_DATA, NULL, NULL, NULL);
     if (!m) { CHECK(m != NULL); return; }

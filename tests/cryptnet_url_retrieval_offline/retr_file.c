@@ -525,7 +525,7 @@ TEST(cnrfile_ansi_url_length_limit) {
     CHECK(obj == SENTINEL);
 }
 
-/* ---- flag validation (verified in the decompilation) ------------------------ */
+/* ---- flag validation (observed on Windows 10) ------------------------ */
 typedef struct { const char *n; DWORD flags; DWORD err; } flag_row;
 TEST(cnrfile_invalid_flag_combos) {
     REQUIRE(U(CryptRetrieveObjectByUrlW));

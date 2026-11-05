@@ -362,7 +362,7 @@ TEST(wvt_asn1_indirect_matches_embedded_signature) {
     HEAPFREE(d); HeapFree(GetProcessHeap(), 0, buf); U(CryptMsgClose)(m);
 }
 
-/* ---- intent to seal (decomp-verified fixed 8-byte struct) -------------------------------------------- */
+/* ---- intent to seal (observed: fixed 8-byte struct) -------------------------------------------- */
 TEST(wvt_asn1_intent_to_seal_size_protocol) {
     BOOL (WINAPI *f)(DWORD, LPCSTR, const BYTE *, DWORD, DWORD, void *, DWORD *) = dec_fn("WVTAsn1IntentToSealAttributeDecode"); REQUIRE(f);
     BYTE garbage[4] = { 0xff, 0xff, 0xff, 0xff }, out[16]; DWORD cb = 0;

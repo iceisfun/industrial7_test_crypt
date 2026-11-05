@@ -329,7 +329,7 @@ TEST(uh_free_family_shares_one_body) {
     CHECK((void *)A.ASN1char32string_free == f); CHECK((void *)A.ASN1BEREoid_free == f);
 }
 TEST(uh_encoder_and_string_aliases) {
-    /* exports that are the same code on Windows 10 (decompilation: several ordinals at one address) */
+    /* exports that are the same code on Windows 10 (observed: several ordinals at one address) */
     NEED(ASN1BEREncOctetString); NEED(ASN1BEREncCharString); NEED(ASN1BEREncMultibyteString); NEED(ASN1DEREncMultibyteString);
     NEED(ASN1BEREncGeneralizedTime); NEED(ASN1CEREncGeneralizedTime);     NEED(ASN1BEREncDouble); NEED(ASN1BERDecDouble); NEED(ASN1CEREncOctetString);
     CHECK((void *)A.ASN1BEREncOctetString == (void *)A.ASN1BEREncCharString);

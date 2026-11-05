@@ -407,7 +407,7 @@ TEST(wvt_provdata_from_null_state) {
     CHECK(U(WTHelperProvDataFromStateData)(h) == NULL);
 }
 
-/* ---- SAFER fast path (decomp: WinVerifyTrust pre-check) ---------------------- */
+/* ---- SAFER fast path (observed: WinVerifyTrust pre-check) ---------------------- */
 TEST(wvt_safer_flag_ignore_unsigned_pe) {
     WVT_REQUIRE_WVT();
     WCHAR p[MAX_PATH]; WVTD w; WINTRUST_FILE_INFO fi; wvt_path(p, "sf.exe");
@@ -486,7 +486,7 @@ TEST(wvt_invalid_union_choice_fails) {
     wvt_del(p);
 }
 TEST(wvt_auto_cache_flush_catalog_returns_ok) {
-    /* decomp: AUTO_CACHE_FLUSH with the catalog union flushes and returns 0 before looking at the catalog info */
+    /* observed: AUTO_CACHE_FLUSH with the catalog union flushes and returns 0 before looking at the catalog info */
     WVT_REQUIRE_WVT();
     WVTD w; WINTRUST_CATALOG_INFO ci; memset(&w, 0, sizeof w); memset(&ci, 0, sizeof ci);
     ci.cbStruct = sizeof ci; ci.pcwszCatalogFilePath = L"C:\\no\\such\\catalog.cat"; ci.pcwszMemberFilePath = L"C:\\no\\such\\member.exe";

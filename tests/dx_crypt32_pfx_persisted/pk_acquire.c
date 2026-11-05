@@ -111,7 +111,7 @@ TEST(pfxp_acquire_nocache_gives_distinct_owned_handles) {
     pk_done(c, s);
 }
 TEST(pfxp_acquire_use_prov_info_flag_no_cache_bit) {
-    /* with USE_PROV_INFO_FLAG caching depends on CERT_SET_KEY_CONTEXT_PROP_ID in the property's dwFlags (decomp) */
+    /* with USE_PROV_INFO_FLAG caching depends on CERT_SET_KEY_CONTEXT_PROP_ID in the property's dwFlags (observed) */
     PK_SETUP(fx_rsa_pfx, PKCS12_ALWAYS_CNG_KSP);
     HCRYPTPROV_OR_NCRYPT_KEY_HANDLE h = 0; DWORD sp = 0; BOOL cf = FALSE;
     CRYPT_KEY_PROV_INFO *i = pk_info(c);

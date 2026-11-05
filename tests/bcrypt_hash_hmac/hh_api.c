@@ -1,5 +1,5 @@
 /* BCryptCreateHash / HashData / FinishHash / DestroyHash / DuplicateHash / BCryptHash: argument validation, status codes,
- * buffer-size protocol and state machine. Status codes come from the Windows 10 19041 decompilation of bcrypt.dll
+ * buffer-size protocol and state machine. Status codes observed on Windows 10 for bcrypt.dll
  * (base.c) and bcryptprimitives.dll (msprim hash.c): 0xC0000008 invalid handle, 0xC000000D invalid parameter,
  * 0xC0000023 buffer too small, 0xC00000BB not supported. */
 #include "hh.h"

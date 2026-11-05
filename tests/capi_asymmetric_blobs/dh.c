@@ -126,7 +126,7 @@ TEST(capiab_dh_export_flag_table) {
     DH_NOWINE(); CAB_NEED();
     HCRYPTPROV p = cab_dsdh(); if (!p) { t_skip("no dss-dh"); return; }
     HCRYPTKEY k = dh_imp_prv(p, CRYPT_EXPORTABLE);
-    /* decomp: dssenh accepts only 0x04 and 0x80 in CryptExportKey flags */
+    /* observed: dssenh accepts only 0x04 and 0x80 in CryptExportKey flags */
     DWORD bad[] = { 0x1, 0x2, 0x8, 0x10, 0x20, 0x40, 0x100 };
     for (int i = 0; k && i < 7; i++) {
         BYTE b[512]; DWORD n = sizeof b;
@@ -251,7 +251,7 @@ TEST(capiab_dh_agreement_rejects_malformed_peer) {
     HCRYPTKEY a = cab_imp(p, dh1024_prv_a, sizeof dh1024_prv_a, 0);
     CHECK(a != 0);
     BYTE b[512]; HCRYPTKEY k;
-    /* decomp: bitlen must equal ours, magic must be DH1, and the blob must hold bitlen/8 bytes of Y */
+    /* observed: bitlen must equal ours, magic must be DH1, and the blob must hold bitlen/8 bytes of Y */
     memcpy(b, dh1024_pub_b, sizeof dh1024_pub_b); { DWORD v = 512; memcpy(b + 12, &v, 4); }
     k = 0; SET_ERR(0);
     EXPECT_FAIL(!U(CryptImportKey)(p, b, sizeof dh1024_pub_b, a, 0, &k), CAB_NTE_BAD_DATA);

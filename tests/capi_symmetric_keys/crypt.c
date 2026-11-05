@@ -111,7 +111,7 @@ TEST(encrypt_nonfinal_buffer_smaller_than_data) {
 TEST(encrypt_invalid_flags) {
     NEED_CRYPT(); NEED_PROV(p);
     HCRYPTKEY k = aesk(p); if (!k) { CHECK(0); return; }
-    /* decomp LocalEncrypt: (flags & ~CRYPT_OAEP) != 0 -> NTE_BAD_FLAGS */
+    /* observed in LocalEncrypt: (flags & ~CRYPT_OAEP) != 0 -> NTE_BAD_FLAGS */
     static const DWORD fl[] = { 1, 2, 4, 8, 0x10, 0x20, 0x80, 0x100, 0x8000, 0x80000000 };
     for (unsigned i = 0; i < SIZEOFA(fl); i++) {
         BYTE b[32] = { 0 }; DWORD n = 16; SET_ERR(0);

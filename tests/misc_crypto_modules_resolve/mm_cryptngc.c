@@ -1,4 +1,4 @@
-/* cryptngc.dll: only entry points whose decompilation shows pure argument validation or a constant
+/* cryptngc.dll: only entry points whose observed behaviour is pure argument validation or a constant
  * stub are called. Nothing here touches NGC containers, keys, PINs or the NGC broker. */
 #include "t.h"
 

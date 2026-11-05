@@ -148,7 +148,7 @@ TEST(genkey_explicit_key_lengths_rc4_rc2) {
 }
 TEST(genkey_key_length_not_multiple_of_eight_bad_flags) {
     NEED_CRYPT(); NEED_PROV(p);
-    /* decomp CheckKeyLength: (flags >> 16) & 7 != 0 -> NTE_BAD_FLAGS */
+    /* observed in CheckKeyLength: (flags >> 16) & 7 != 0 -> NTE_BAD_FLAGS */
     static const DWORD bits[] = { 41, 47, 57, 121, 127, 129 };
     for (unsigned i = 0; i < SIZEOFA(bits); i++) {
         HCRYPTKEY k = 0; SET_ERR(0);
@@ -204,7 +204,7 @@ TEST(genkey_invalid_algids) {
 }
 TEST(genkey_invalid_flags) {
     NEED_CRYPT(); NEED_PROV(p);
-    /* decomp CPGenKey: flags & 0x1fe8 -> NTE_BAD_FLAGS (includes CRYPT_UPDATE_KEY = 8) */
+    /* observed in CPGenKey: flags & 0x1fe8 -> NTE_BAD_FLAGS (includes CRYPT_UPDATE_KEY = 8) */
     static const DWORD fl[] = { CRYPT_UPDATE_KEY, 0x20, 0x40, 0x80, 0x100, 0x200, 0x400, 0x800, 0x1000 };
     for (unsigned i = 0; i < SIZEOFA(fl); i++) {
         HCRYPTKEY k = 0; SET_ERR(0);

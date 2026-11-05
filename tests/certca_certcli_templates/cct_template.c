@@ -1,5 +1,5 @@
 /* In-memory certificate template object behaviour. A template object can only be created through
- * CACreateCertType, which also reserves a new template OID in the directory (verified in the decompilation:
+ * CACreateCertType, which also reserves a new template OID in the directory (observed:
  * CCertTypeInfo::Create -> I_CAOIDCreateNew). Therefore:
  *   - on a machine without a directory the create fails and these tests are skipped (the failure HRESULT is noted);
  *   - on a domain-joined machine the create is only attempted when CRYPTT_ALLOW_DS_WRITE=1 is set in the

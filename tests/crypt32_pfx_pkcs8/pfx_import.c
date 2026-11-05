@@ -456,7 +456,7 @@ TEST(pfximport_only_certificates_ignores_keys) {
 TEST(pfximport_only_certificates_wrong_password_still_reads_plain_bag) {
     PP_WINE_SKIP("flags");
     NEED_IMPORT();
-    /* with ONLY_CERTIFICATES the routine first tries the unencrypted-certificates path (decomp) */
+    /* with ONLY_CERTIFICATES the routine first tries the unencrypted-certificates path (observed) */
     HCERTSTORE s = PP_IMPORT(fx_legplaincert, L"definitely wrong", PKCS12_ONLY_CERTIFICATES | PKCS12_IMPORT_SILENT);
     t_note("ONLY_CERTIFICATES with wrong password on plain-cert pfx: %s (certs %d, err %lu)", s ? "ok" : "failed", pp_count(s), GetLastError());
     pp_close(s);

@@ -458,7 +458,7 @@ TEST(capiab_rsa_decrypt_wrong_length_fails) {
     BYTE b[256]; memset(b, 0, sizeof b); memcpy(b, rsa1024_ct_pkcs1, 128);
     DWORD n = 0;
     SET_ERR(0);
-    /* decomp: Final with zero length is NTE_BAD_LEN */
+    /* observed: Final with zero length is NTE_BAD_LEN */
     EXPECT_FAIL(!U(CryptDecrypt)(k, 0, TRUE, 0, b, &n), CAB_NTE_BAD_LEN);
     DWORD lens[] = { 1, 64, 127, 129, 256 };
     for (int i = 0; k && i < 5; i++) {
@@ -474,7 +474,7 @@ TEST(capiab_rsa_decrypt_flag_validation) {
     CAB_NEED();
     HCRYPTPROV p = cab_enh(); if (!p) { t_skip("no enh"); return; }
     HCRYPTKEY k = cab_imp(p, rsa1024_prv, sizeof rsa1024_prv, 0);
-    /* decomp: only 0x20 and 0x40 are accepted, never both */
+    /* observed: only 0x20 and 0x40 are accepted, never both */
     DWORD bad[] = { 0x1, 0x2, 0x4, 0x8, 0x10, 0x60, 0x80, 0x100, 0x80000000 };
     for (int i = 0; k && i < 9; i++) {
         BYTE b[256]; memcpy(b, rsa1024_ct_pkcs1, 128); DWORD n = 128;

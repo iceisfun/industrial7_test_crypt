@@ -1,7 +1,7 @@
 /* Shared helpers for the capi_cp_direct area: the CSP provider entry points (CP*) exported by
  * rsaenh.dll and dssenh.dll are resolved with GetProcAddress and called directly.
  *
- * ABI notes (from the decompilation of the Windows 10 x64 providers):
+ * ABI notes (observed on the Windows 10 x64 providers):
  *  - rsaenh's CPAcquireContext reads the VTableProvStruc as: Version (+0), dwProvType (+24, only when
  *    Version > 1) and pszProvName (+48, only when Version > 2).  With Version > 2 the name is used
  *    unconditionally, so a NULL name must never be passed with Version >= 3.
