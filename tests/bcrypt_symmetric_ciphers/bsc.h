@@ -48,6 +48,8 @@
 /* Wine's bcrypt lacks some ciphers/modes; skip those there (no-op on Windows). */
 #define WINE_UNSUP(st) (t_is_wine() && ((NTSTATUS)(st) == (NTSTATUS)0xC00000BB || (NTSTATUS)(st) == (NTSTATUS)0xC0000002 || (NTSTATUS)(st) == (NTSTATUS)0xC0000225))
 
+#define WINE_SKIP(why) do { if (t_is_wine()) { t_skip("wine: " why); return; } } while (0)
+
 static size_t hx(const char *s, BYTE *o) {
     size_t n = 0;
     for (; s[0] && s[1]; s += 2) { unsigned v; sscanf(s, "%2x", &v); o[n++] = (BYTE)v; }
@@ -99,6 +101,21 @@ static NTSTATUS dec(BCRYPT_KEY_HANDLE k, const BYTE *in, ULONG nin, BYTE *iv, UL
     return P_Dec(k, (PUCHAR)in, nin, NULL, iv, niv, out, cbout, nout, fl);
 }
 
+/* Fixture: an algorithm handle plus one key. */
+typedef struct { BCRYPT_ALG_HANDLE a; bkey k; } fx;
+static int fx_open(fx *f, const wchar_t *alg, const wchar_t *mode, const char *keyhex) {
+    memset(f, 0, sizeof *f);
+    f->a = bsc_open(alg, mode);
+    if (!f->a) return 0;
+    if (bsc_genhex(f->a, &f->k, keyhex) != 0) { free(f->k.obj); f->k.obj = NULL; bsc_close(f->a); f->a = NULL; return 0; }
+    return 1;
+}
+static void fx_close(fx *f) { if (f->k.h) bsc_free(&f->k); bsc_close(f->a); f->a = NULL; }
+/* open a fixture or skip the test (a failed open is only legitimate under an emulator) */
+#define FX_OR_SKIP(f, alg, mode, key) do { REQUIRE(P_GenKey); if (!fx_open(&(f), alg, mode, key)) { \
+    if (t_is_wine()) { t_skip("unsupported under wine"); } else { CHECKF(0, "cannot create %ls key", alg); } return; } } while (0)
+
+#define KEY16 "000102030405060708090a0b0c0d0e0f"
 static const wchar_t *const ALGW_AES = L"AES";
 
 #endif
