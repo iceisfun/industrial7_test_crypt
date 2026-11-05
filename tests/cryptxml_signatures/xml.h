@@ -178,6 +178,14 @@ void x_status(HCX h, XSTATUS *s);
 
 #define XCHK_HR(call, want) do { HRESULT hr_ = (call); t_check(hr_ == (HRESULT)(want), __FILE__, __LINE__, #call, "got 0x%08lx want 0x%08lx", (unsigned long)hr_, (unsigned long)(HRESULT)(want)); } while (0)
 
+/* Win10 CryptXmlImportPublicKey quirk (probed, identical in std and adm, repeatable): a successful import returns a valid
+ * key handle but the HRESULT is E_NOTIMPL (0x80004001), or S_FALSE (1) when X_FLAG_DISABLE_EXT is set. Failures return a
+ * NULL handle. Success is therefore judged on the handle, and the code is pinned to the observed value. */
+#define X_IMPORT_OK_HR(fl) (((fl) & X_FLAG_DISABLE_EXT) ? (HRESULT)1 : X_E_NOTIMPL_ALGO)
+#define XIMPORT_OK(fl, pkv, pkey) do { *(pkey) = NULL; HRESULT ih_ = XFN(CryptXmlImportPublicKey)((fl), (pkv), (pkey)); \
+    t_check(*(pkey) != NULL, __FILE__, __LINE__, "import returns a key handle", "hr 0x%08lx", (unsigned long)ih_); \
+    t_check(ih_ == X_IMPORT_OK_HR(fl), __FILE__, __LINE__, "import success code", "got 0x%08lx want 0x%08lx", (unsigned long)ih_, (unsigned long)X_IMPORT_OK_HR(fl)); } while (0)
+
 /* base64 of a byte string (heap, caller frees) */
 char *x_b64(const BYTE *p, size_t n);
 /* decoded base64 (no whitespace tolerance beyond skipping spaces); returns heap buffer, *n = length */

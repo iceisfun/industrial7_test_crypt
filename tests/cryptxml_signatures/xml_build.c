@@ -323,7 +323,7 @@ TEST(xmlsig_ref_struct_contents)
     CHECK(r->wszId != id && r->wszUri != uri);           /* strings are copied */
     CHECK(r->DigestMethod.wszAlgorithm && !lstrcmpW(r->DigestMethod.wszAlgorithm, U_SHA384));
     EXPECT_EQ(r->DigestMethod.cbSize, sizeof(XALG));
-    CHECK(r->DigestMethod.Encoded.cbData != 0);          /* the algorithm is also kept in encoded form */
+    EXPECT_EQ(r->DigestMethod.Encoded.cbData, 0);        /* probed: no encoded form is kept for a reference created for encoding */
     EXPECT_EQ(r->DigestValue.cbData, 0);
     EXPECT_EQ(r->cTransform, 2);
     if (r->cTransform == 2 && r->rgTransform) {

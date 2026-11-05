@@ -81,7 +81,7 @@ TEST(xmlsig_import_rsa_blob_roundtrip)
     XKEYVALUE kv;
     void *key = NULL;
     rsa_kv(&kv, X_RSA1_MOD, X_RSA1_MOD_len, X_RSA_EXP, 3);
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), S_OK);
+    XIMPORT_OK(0, &kv, &key);
     CHECK(key != NULL);
     ULONG cb;
     BYTE *b = key ? export_blob(key, BCRYPT_RSAPUBLIC_BLOB, &cb) : NULL;
@@ -107,7 +107,7 @@ TEST(xmlsig_import_rsa_key_verifies_known_signature)
     void *key = NULL;
     BYTE h[32]; ULONG hl;
     rsa_kv(&kv, X_RSA1_MOD, X_RSA1_MOD_len, X_RSA_EXP, 3);
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), S_OK);
+    XIMPORT_OK(0, &kv, &key);
     if (!key) return;
     if (!x_hash(L"SHA256", NULL, 0, X_R256_canon, X_R256_canon_len, h, &hl)) { t_skip("hash"); destroy(key); return; }
     BCRYPT_PKCS1_PADDING_INFO pad = { BCRYPT_SHA256_ALGORITHM };
@@ -126,10 +126,10 @@ TEST(xmlsig_import_rsa_short_exponent)
     XKEYVALUE kv;
     void *key = NULL;
     rsa_kv(&kv, X_RSA1_MOD, X_RSA1_MOD_len, e3, 1);
-    HRESULT hr = XFN(CryptXmlImportPublicKey)(0, &kv, &key);
-    t_note("RSA exponent 3 -> 0x%08lx", (unsigned long)hr);
-    if (hr == S_OK) {
+    XIMPORT_OK(0, &kv, &key);
+    if (key) {
         ULONG cb; BYTE *b = export_blob(key, BCRYPT_RSAPUBLIC_BLOB, &cb);
+        CHECK(b != NULL);
         if (b) { EXPECT_EQ(((BCRYPT_RSAKEY_BLOB *)b)->cbPublicExp, 1); free(b); }
     }
     destroy(key);
@@ -144,23 +144,23 @@ TEST(xmlsig_import_rsa_unusable_values_map_to_invalid_keyvalue)
     HRESULT hr;
     rsa_kv(&kv, small, 3, X_RSA_EXP, 3);
     hr = XFN(CryptXmlImportPublicKey)(0, &kv, &key);
-    CHECKF(hr == X_E_INVALID_KEYVALUE || hr == S_OK, "3-byte modulus hr=0x%08lx", (unsigned long)hr);
-    t_note("3-byte modulus -> 0x%08lx", (unsigned long)hr);
-    if (hr == X_E_INVALID_KEYVALUE) CHECK(key == NULL); else destroy(key);
+    EXPECT_EQ(hr, X_E_INVALID_KEYVALUE);
+    CHECK(key == NULL);
+    destroy(key);
     key = NULL;
     rsa_kv(&kv, X_RSA1_MOD, X_RSA1_MOD_len, X_RSA_EXP, 0);
     kv.u.RSA.Exponent.pbData = NULL;
     hr = XFN(CryptXmlImportPublicKey)(0, &kv, &key);
-    t_note("empty exponent -> 0x%08lx", (unsigned long)hr);
-    CHECK(hr == X_E_INVALID_KEYVALUE || hr == S_OK);
-    if (hr == S_OK) destroy(key);
+    EXPECT_EQ(hr, X_E_NOTIMPL_ALGO);                       /* the success code, see X_IMPORT_OK_HR: an empty exponent is accepted */
+    CHECK(key != NULL);
+    destroy(key);
     key = NULL;
     rsa_kv(&kv, X_RSA1_MOD, 0, X_RSA_EXP, 3);
     kv.u.RSA.Modulus.pbData = NULL;
     hr = XFN(CryptXmlImportPublicKey)(0, &kv, &key);
-    t_note("empty modulus -> 0x%08lx", (unsigned long)hr);
-    CHECK(hr == X_E_INVALID_KEYVALUE || hr == S_OK);
-    if (hr == S_OK) destroy(key);
+    EXPECT_EQ(hr, X_E_INVALID_KEYVALUE);
+    CHECK(key == NULL);
+    destroy(key);
 }
 
 TEST(xmlsig_import_flags_accepted)
@@ -170,8 +170,8 @@ TEST(xmlsig_import_flags_accepted)
     for (int i = 0; i < 3; i++) {
         XKEYVALUE kv; void *key = NULL;
         rsa_kv(&kv, X_RSA1_MOD, X_RSA1_MOD_len, X_RSA_EXP, 3);
-        HRESULT hr = XFN(CryptXmlImportPublicKey)(fl[i], &kv, &key);
-        CHECKF(hr == S_OK, "flags 0x%08lx hr=0x%08lx", (unsigned long)fl[i], (unsigned long)hr);
+        t_label("flags 0x%08lx", (unsigned long)fl[i]);
+        XIMPORT_OK(fl[i], &kv, &key);
         destroy(key);
     }
 }
@@ -181,8 +181,8 @@ TEST(xmlsig_import_returns_independent_handles)
     REQUIRE(XFN(CryptXmlImportPublicKey));
     XKEYVALUE kv; void *a = NULL, *b = NULL;
     rsa_kv(&kv, X_RSA1_MOD, X_RSA1_MOD_len, X_RSA_EXP, 3);
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &a), S_OK);
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &b), S_OK);
+    XIMPORT_OK(0, &kv, &a);
+    XIMPORT_OK(0, &kv, &b);
     CHECK(a && b && a != b);
     destroy(a);
     ULONG cb; BYTE *blob = export_blob(b, BCRYPT_RSAPUBLIC_BLOB, &cb);       /* b is unaffected by destroying a */
@@ -198,7 +198,7 @@ TEST(xmlsig_import_dsa_key_verifies_known_signature)
     XKEYVALUE kv; void *key = NULL;
     BYTE h[20]; ULONG hl;
     dsa_kv(&kv);
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), S_OK);
+    XIMPORT_OK(0, &kv, &key);
     if (!key) return;
     ULONG cb; BYTE *b = export_blob(key, BCRYPT_DSA_PUBLIC_BLOB, &cb);
     if (b) { EXPECT_EQ(((BCRYPT_DSA_KEY_BLOB *)b)->dwMagic, BCRYPT_DSA_PUBLIC_MAGIC); EXPECT_EQ(((BCRYPT_DSA_KEY_BLOB *)b)->cbKey, 128); free(b); }
@@ -242,17 +242,19 @@ TEST(xmlsig_import_dsa_with_seed_and_counter)
     dsa_kv(&kv);
     kv.u.DSA.Seed.cbData = 20; kv.u.DSA.Seed.pbData = (BYTE *)seed;
     kv.u.DSA.Counter.cbData = 4; kv.u.DSA.Counter.pbData = (BYTE *)ctr;
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), S_OK);
-    if (key) {
-        ULONG cb; BYTE *b = export_blob(key, BCRYPT_DSA_PUBLIC_BLOB, &cb);
-        if (b) {
-            BCRYPT_DSA_KEY_BLOB *h = (BCRYPT_DSA_KEY_BLOB *)b;
-            /* counter and seed are placed in the legacy blob; whether CNG keeps them for export is not asserted */
-            t_note("exported DSA blob keeps counter=%d seed=%d", !memcmp(h->Count, ctr, 4), !memcmp(h->Seed, seed, 20));
-            free(b);
-        }
-        destroy(key);
-    }
+    /* probed: any non-empty Counter is refused as an invalid key value (with or without a Seed, any size) */
+    EXPECT_EQ(XFN(CryptXmlImportPublicKey)(0, &kv, &key), X_E_INVALID_KEYVALUE);
+    CHECK(key == NULL);
+    /* a Seed alone (and a J alone) is accepted */
+    dsa_kv(&kv);
+    kv.u.DSA.Seed.cbData = 20; kv.u.DSA.Seed.pbData = (BYTE *)seed;
+    XIMPORT_OK(0, &kv, &key);
+    destroy(key);
+    key = NULL;
+    dsa_kv(&kv);
+    kv.u.DSA.J.cbData = 20; kv.u.DSA.J.pbData = (BYTE *)seed;
+    XIMPORT_OK(0, &kv, &key);
+    destroy(key);
 }
 
 /* ---- ECDSA ------------------------------------------------------------------------------------------------ */
@@ -267,7 +269,7 @@ static void ec_import_checks(const ECV *e)
 {
     XKEYVALUE kv; void *key = NULL;
     ec_kv(&kv, e->curve, e->x, e->n, e->y, e->n);
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), S_OK);
+    XIMPORT_OK(0, &kv, &key);
     if (!key) return;
     ULONG cb; BYTE *b = export_blob(key, BCRYPT_ECCPUBLIC_BLOB, &cb);
     if (b) {
@@ -296,7 +298,7 @@ TEST(xmlsig_import_ecdsa_curve_name_is_case_insensitive)
     REQUIRE(XFN(CryptXmlImportPublicKey));
     XKEYVALUE kv; void *key = NULL;
     ec_kv(&kv, L"URN:OID:1.2.840.10045.3.1.7", X_E256_X, 32, X_E256_Y, 32);
-    XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), S_OK);
+    XIMPORT_OK(0, &kv, &key);
     destroy(key);
 }
 
@@ -321,6 +323,7 @@ TEST(xmlsig_import_ecdsa_explicit_parameters_not_supported)
     ec_kv(&kv, ECC_P256, X_E256_X, 32, X_E256_Y, 32);
     kv.u.EC.ExplicitPara.cbData = 4; kv.u.EC.ExplicitPara.pbData = para;
     XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), X_E_NOTIMPL_ALGO);
+    CHECK(key == NULL);                               /* the same code as a success, but no handle is produced */
 }
 
 TEST(xmlsig_import_ecdsa_oversized_coordinates)
@@ -348,9 +351,8 @@ TEST(xmlsig_import_ecdsa_point_not_on_curve)
     XKEYVALUE kv; void *key = NULL;
     ec_kv(&kv, ECC_P256, X_E256_X, 32, y, 32);
     HRESULT hr = XFN(CryptXmlImportPublicKey)(0, &kv, &key);
-    CHECKF(hr == X_E_INVALID_KEYVALUE || hr == S_OK, "hr=0x%08lx", (unsigned long)hr);
-    t_note("EC point off the curve -> 0x%08lx", (unsigned long)hr);
-    if (hr != S_OK) CHECK(key == NULL);
+    EXPECT_EQ(hr, X_E_INVALID_KEYVALUE);
+    CHECK(key == NULL);
     destroy(key);
 }
 
@@ -362,9 +364,8 @@ TEST(xmlsig_import_ecdsa_short_coordinates_are_right_aligned)
     XKEYVALUE kv; void *key = (void *)(ULONG_PTR)0xdeadbeef;
     ec_kv(&kv, ECC_P256, X_E256_X + 1, 31, X_E256_Y, 32);
     HRESULT hr = XFN(CryptXmlImportPublicKey)(0, &kv, &key);
-    t_note("31-byte X (leading byte dropped) -> 0x%08lx", (unsigned long)hr);
-    CHECK(hr == X_E_INVALID_KEYVALUE || hr == S_OK);
-    if (hr == S_OK) destroy(key);
+    EXPECT_EQ(hr, X_E_INVALID_KEYVALUE);
+    CHECK(key == NULL);
 }
 
 /* ---- signing with a CNG key ---------------------------------------------------------------------------------- */
@@ -395,7 +396,10 @@ static void sign_with_cng_key(const WCHAR *alg, DWORD bits, const WCHAR *sigmeth
     if (hs) XCHK_HR(XFN(CryptXmlCreateReference)(hs, 0, L"kref", L"urn:cryptt:data", NULL, &dig, 0, NULL, &hr), S_OK);
     if (hr) { x_prov(&pv, &m, "abc", 3, 0); XCHK_HR(XFN(CryptXmlDigestReference)(hr, 0, &pv), S_OK); }
     if (!hs || !hr) { U(NCryptFreeObject)(nk); if (hs) XFN(CryptXmlClose)(hs); return; }
-    XCHK_HR(XFN(CryptXmlSign)(hs, nk, X_NCRYPT_KEY_SPEC, X_SIGN_ADD_KEYVALUE, X_KEYINFO_NONE, NULL, &sm, &cn), S_OK);
+    /* probed: ADD_KEYVALUE only takes effect together with a KeyInfo parameter block; with KEYINFO_NONE no KeyInfo is written */
+    XKEYINFOPARAM kp; memset(&kp, 0, sizeof kp);
+    kp.wszId = L"kinfo";
+    XCHK_HR(XFN(CryptXmlSign)(hs, nk, X_NCRYPT_KEY_SPEC, X_SIGN_ADD_KEYVALUE, X_KEYINFO_PARAM, &kp, &sm, &cn), S_OK);
     XCHK_HR(XFN(CryptXmlEncode)(hs, X_CS_UTF8, NULL, 0, &b, x_write_cb), S_OK);
     const char *o = x_buf_str(&b);
     t_note("%ls signed document: %.500s", alg, o);
@@ -422,7 +426,7 @@ static void sign_with_cng_key(const WCHAR *alg, DWORD bits, const WCHAR *sigmeth
             XCHK_HR(XFN(CryptXmlDigestReference)(ds->SignedInfo.rgpReference[0]->hReference, 0, &pv), S_OK);
             x_status(ds->hSignature, &st);
             EXPECT_EQ(st.dwErrorStatus, 0);
-            EXPECT_EQ(st.dwInfoStatus, XS_I_SIGNATURE_VALID | XS_I_DIGEST_VALID | XS_I_KEY_AVAILABLE);
+            EXPECT_EQ(st.dwInfoStatus, XS_I_SIGNATURE_VALID | XS_I_DIGEST_VALID);       /* probed: KEY_AVAILABLE is never reported */
         }
         /* a one-bit change in the signature value must break it */
         char *bad = NULL;

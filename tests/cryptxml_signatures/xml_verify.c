@@ -437,7 +437,8 @@ static void key_decode_checks(const KVEC *k)
         else CHECKF(s->pKeyInfo->hVerifyKey != NULL, "%s: no hVerifyKey", k->name);
     }
     XSTATUS st; x_status(s->hSignature, &st);
-    if (s->pKeyInfo && s->pKeyInfo->hVerifyKey) CHECKF((st.dwInfoStatus & XS_I_KEY_AVAILABLE) != 0, "%s: KEY_AVAILABLE missing (0x%lx)", k->name, st.dwInfoStatus);
+    /* probed: before verification nothing is reported as available, even with an imported key */
+    if (s->pKeyInfo && s->pKeyInfo->hVerifyKey) CHECKF(st.dwInfoStatus == 0, "%s: info before verify 0x%lx", k->name, st.dwInfoStatus);
     CHECK((st.dwErrorStatus & XS_E_KEYINFO_NOT_PARSED) == 0 || k->kvType == 3);
     XFN(CryptXmlClose)(h);
 }
@@ -455,7 +456,7 @@ static void key_verify_checks(const KVEC *k)
     XCHK_HR(XFN(CryptXmlVerifySignature)(s->hSignature, s->pKeyInfo->hVerifyKey, 0), S_OK);
     XSTATUS st; x_status(s->hSignature, &st);
     CHECKF(st.dwErrorStatus == 0, "%s: error 0x%lx", k->name, st.dwErrorStatus);
-    CHECKF(st.dwInfoStatus == (XS_I_SIGNATURE_VALID | XS_I_DIGEST_VALID | XS_I_KEY_AVAILABLE), "%s: info 0x%lx", k->name, st.dwInfoStatus);
+    CHECKF(st.dwInfoStatus == (XS_I_SIGNATURE_VALID | XS_I_DIGEST_VALID), "%s: info 0x%lx", k->name, st.dwInfoStatus);
     /* no key at all: the CNG verifier fails and everything is reported as a verify failure */
     HRESULT hr = XFN(CryptXmlVerifySignature)(s->hSignature, NULL, 0);
     CHECKF(hr == X_E_VERIFY_FAILED, "%s: verify with NULL key hr=0x%08lx", k->name, (unsigned long)hr);
@@ -550,7 +551,7 @@ TEST(xmlsig_key_doc_wrong_rsa_key_fails)
         kv.dwType = 2;
         kv.u.RSA.Modulus.cbData = X_RSA2_MOD_len; kv.u.RSA.Modulus.pbData = (BYTE *)X_RSA2_MOD;
         kv.u.RSA.Exponent.cbData = 3; kv.u.RSA.Exponent.pbData = (BYTE *)X_RSA_EXP;
-        XCHK_HR(XFN(CryptXmlImportPublicKey)(0, &kv, &key), S_OK);
+        XIMPORT_OK(0, &kv, &key);
         if (key) {
             XCHK_HR(XFN(CryptXmlVerifySignature)(s->hSignature, key, 0), X_E_VERIFY_FAILED);
             U(BCryptDestroyKey)(key);

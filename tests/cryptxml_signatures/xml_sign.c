@@ -486,7 +486,7 @@ TEST(xmlsig_encode_utf16_charsets)
     XFN(CryptXmlClose)(hs);
 }
 
-TEST(xmlsig_encode_charset_property_overrides_nothing)
+TEST(xmlsig_encode_charset_auto_is_rejected)
 {
     REQUIRE(XFN(CryptXmlEncode));
     HCX hs = prepare(U_SHA256, "abc", L"s", L"r", NULL);
@@ -495,9 +495,13 @@ TEST(xmlsig_encode_charset_property_overrides_nothing)
     XPROP pno = { X_PROP_DOC_DECL, &no, 4 };
     if (!hs) return;
     XCHK_HR(sign_hmac(hs, U_HMAC256, U_C14N), S_OK);
-    XCHK_HR(encode_to(hs, X_CS_AUTO, &pno, 1, &a), S_OK);
+    /* probed: charset 0 (AUTO) and values above UTF16BE are invalid arguments, with or without properties; nothing is written */
+    XCHK_HR(encode_to(hs, X_CS_AUTO, &pno, 1, &a), X_E_INVALIDARG);
+    EXPECT_EQ(a.n, 0);
+    XCHK_HR(encode_to(hs, X_CS_AUTO, NULL, 0, &a), X_E_INVALIDARG);
+    XCHK_HR(encode_to(hs, 4, NULL, 0, &a), X_E_INVALIDARG);
     XCHK_HR(encode_to(hs, X_CS_UTF8, &pno, 1, &b), S_OK);
-    t_note("charset AUTO output: %zu bytes, UTF8 output: %zu bytes, identical=%d", a.n, b.n, a.n == b.n && !memcmp(a.p, b.p, a.n));
+    CHECK(b.n > 0);
     x_buf_free(&a); x_buf_free(&b);
     XFN(CryptXmlClose)(hs);
 }
