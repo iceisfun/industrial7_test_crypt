@@ -44,7 +44,25 @@ ZT(NgcGetUserIdKeyPublicKey, "cryptngc.dll", 0x80090027, 0x0)
 ZT(NgcImportSymmetricPopKey, "cryptngc.dll", 0x80090027, 0x0)
 ZT(NgcIsAnyContainerInVsm, "cryptngc.dll", 0x800706f4, 0x0)
 ZT(NgcIsPinRemovable, "cryptngc.dll", 0x80090027, 0x0)
-ZT(NgcNotifyVscProvisioned, "cryptngc.dll", 0x800706d9, 0x0)
+/* Result depends on whether the container service has registered its RPC endpoint yet (it starts on its own a while after boot):
+   probed on Win10 22H2 in std and adm, stopped -> EPT_S_NOT_REGISTERED (0x800706d9), running -> NTE_PERM (0x80090010), last error 0 in both. */
+static int zc_ngcctnr_running(void) {
+    SC_HANDLE m = OpenSCManagerA(NULL, NULL, SC_MANAGER_CONNECT), s = m ? OpenServiceA(m, "NgcCtnrSvc", SERVICE_QUERY_STATUS) : NULL;
+    SERVICE_STATUS st; int run = -1;
+    if (s && QueryServiceStatus(s, &st)) run = st.dwCurrentState == SERVICE_RUNNING;
+    if (s) CloseServiceHandle(s);
+    if (m) CloseServiceHandle(m);
+    return run;
+}
+TEST(zc_NgcNotifyVscProvisioned) {
+    zc_fn f = zc_get("cryptngc.dll", "NgcNotifyVscProvisioned"); DWORD ge = 0; volatile ULONG_PTR r = 0; int run = zc_ngcctnr_running();
+    if (!f) return;
+    REQUIRE_EQ(run == 0 || run == 1, 1);
+    T_TRY( r = T_CALL_ERR(&ge, f(0,0,0,0,0,0,0,0)) );
+    int run2 = zc_ngcctnr_running();
+    if (run == run2) { EXPECT_EQ((DWORD)r, run ? (DWORD)0x80090010 : (DWORD)0x800706d9); EXPECT_EQ(ge, (DWORD)0x0); }
+    else t_note("service state changed during the call (%d -> %d): ret 0x%08lx", run, run2, (DWORD)r);
+}
 ZT(NgcOpenUserIdKey, "cryptngc.dll", 0x80090027, 0x0)
 ZF(NgcQueryEffectiveCertPolicy, "cryptngc.dll")
 ZF(NgcQueryEnabled, "cryptngc.dll")

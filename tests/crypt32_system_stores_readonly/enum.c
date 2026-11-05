@@ -98,8 +98,11 @@ TEST(sss_store_enum_optional_names_note) {
         U(CertEnumSystemStore)(locs[l], NULL, &c, sss_cb_store);
         for (unsigned i = 0; i < sizeof n / sizeof n[0]; i++) {
             /* probed std and adm: AuthRoot, TrustedPublisher, Disallowed, TrustedPeople, Trust and ClientAuthIssuer exist in both locations; UserDS only
-               in CurrentUser; SmartCardRoot only in LocalMachine, and in CurrentUser only once an elevated process has touched it (adm) */
-            int want = !wcscmp(n[i], L"UserDS") ? (l == 0) : !wcscmp(n[i], L"SmartCardRoot") ? (l == 1 || t_is_elevated()) : 1;
+               in CurrentUser; SmartCardRoot always in LocalMachine */
+            /* CurrentUser SmartCardRoot appears as soon as any process of the profile has loaded the PowerShell certificate provider (probed:
+               absent in a fresh std profile, present after one powershell.exe run, which is how the oracle payload is driven): noted, not pinned */
+            if (l == 0 && !wcscmp(n[i], L"SmartCardRoot")) { t_note("CurrentUser SmartCardRoot present=%d", sss_has(&c, n[i]) != 0); continue; }
+            int want = !wcscmp(n[i], L"UserDS") ? (l == 0) : 1;
             t_label("loc %d %ls", l, n[i]);
             EXPECT_EQ(sss_has(&c, n[i]) != 0, want);
         }

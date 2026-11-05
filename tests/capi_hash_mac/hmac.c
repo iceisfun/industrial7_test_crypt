@@ -487,10 +487,10 @@ TEST(capi_hmac_destroying_key_before_hash_bad_key) {
         memset(&hi, 0, sizeof hi); hi.HashAlgid = CALG_SHA1;
         EXPECT_CAPI_OK(U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0));
         EXPECT_CAPI_OK(U(CryptDestroyKey)(k));
-        /* The hash keeps using the destroyed key object, so the error follows the heap state. Repeated 40 fresh processes each in std
-         * and adm: always a failure, NTE_BAD_KEY (6 and 11 times) or NTE_BAD_UID (34 and 29 times), nothing else. */
-        { DWORD ge; BOOL r = (BOOL)T_CALL_ERR(&ge, U(CryptHashData)(h, (const BYTE *)"abc", 3, 0));
-          EXPECT_EQ(r, 0); CHECKF(ge == E_NTE_BAD_KEY || ge == E_NTE_BAD_UID, "err 0x%lx", ge); }
+        /* The hash keeps using the destroyed key object, so hashing now is heap dependent on Win10: a failure (NTE_BAD_KEY or NTE_BAD_UID)
+         * in 80 of 80 fresh processes, but a success was seen once in a full run. Not pinned; only the hash teardown is exercised. */
+        ;
+
         U(CryptDestroyHash)(h);
     }
     EPILOG;
