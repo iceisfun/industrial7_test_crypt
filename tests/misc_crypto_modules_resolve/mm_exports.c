@@ -69,7 +69,23 @@ static void negatives(const char *dll, const mm_exp *e, unsigned n) {
         CHECKF(t_proc_in(dll, e[i].name) == GetProcAddress(m, e[i].name), "t_proc_in %s", e[i].name);
 }
 
+/* exported code lives in an executable image page, data-only exports are absent from these modules */
+static void exec_pages(const char *dll, const mm_exp *e, unsigned n) {
+    HMODULE m; if (!load_or_skip(dll, &m)) return;
+    for (unsigned i = 0; i < n; i++) {
+        if (e[i].fwd) continue;
+        FARPROC p = GetProcAddress(m, e[i].name);
+        if (!p) continue;
+        MEMORY_BASIC_INFORMATION mbi;
+        if (!VirtualQuery((void *)p, &mbi, sizeof mbi)) { CHECKF(0, "VirtualQuery %s", e[i].name); continue; }
+        DWORD x = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+        CHECKF((mbi.Protect & x) != 0, "%s!%s executable", dll, e[i].name);
+        CHECKF(mbi.Type == MEM_IMAGE, "%s!%s image-backed", dll, e[i].name);
+    }
+}
+
 #define MODTESTS(mod, dll) \
+    TEST(mm_exports_##mod##_code_pages) { exec_pages(dll, exp_##mod, NEXP(exp_##mod)); } \
     TEST(mm_exports_##mod##_by_name) { by_name(dll, exp_##mod, NEXP(exp_##mod)); } \
     TEST(mm_exports_##mod##_by_ordinal) { by_ord(dll, exp_##mod, NEXP(exp_##mod)); } \
     TEST(mm_exports_##mod##_negatives) { negatives(dll, exp_##mod, NEXP(exp_##mod)); } \
@@ -168,4 +184,35 @@ TEST(mm_exports_modules_load_idempotent) {
         char path[MAX_PATH]; DWORD n = GetModuleFileNameA(a, path, sizeof path);
         CHECKF(n > 0 && n < sizeof path, "%s", d[i]);
     }
+}
+
+/* ---- cryptext.dll: ATL server entry points that are safe to call ----------------------------- */
+typedef HRESULT (WINAPI *gco_t)(const GUID *, const GUID *, void **);
+TEST(mm_cryptext_class_object_bogus_clsid) {
+    if (t_is_wine()) { t_skip("emulator export is a stub"); return; }
+    gco_t f = (gco_t)t_proc_in("cryptext.dll", "DllGetClassObject"); REQUIRE(f);
+    static const GUID bogus = {0xdeadbeef,0xcafe,0xf00d,{0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef}};
+    static const GUID iid_cf = {0x00000001,0x0000,0x0000,{0xC0,0,0,0,0,0,0,0x46}};
+    void *p = (void *)7;
+    EXPECT_EQ((unsigned)f(&bogus, &iid_cf, &p), 0x80040111u);    /* CLASS_E_CLASSNOTAVAILABLE */
+    CHECK(p == NULL);
+}
+TEST(mm_cryptext_class_object_null_ppv) {
+    if (t_is_wine()) { t_skip("emulator export is a stub"); return; }
+    gco_t f = (gco_t)t_proc_in("cryptext.dll", "DllGetClassObject"); REQUIRE(f);
+    static const GUID bogus = {0xdeadbeef,0xcafe,0xf00d,{0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef}};
+    static const GUID iid_cf = {0x00000001,0x0000,0x0000,{0xC0,0,0,0,0,0,0,0x46}};
+    EXPECT_EQ((unsigned)f(&bogus, &iid_cf, NULL), 0x80004003u);   /* E_POINTER */
+}
+TEST(mm_cryptext_can_unload_now) {
+    if (t_is_wine()) { t_skip("emulator export is a stub"); return; }
+    HRESULT (WINAPI *f)(void) = (HRESULT (WINAPI *)(void))t_proc_in("cryptext.dll", "DllCanUnloadNow"); REQUIRE(f);
+    EXPECT_EQ((unsigned)f(), 0u);          /* nothing outstanding */
+}
+TEST(mm_cryptext_shell_verbs_resolve_only) {
+    /* the CryptExt verbs open viewers or import dialogs; resolved but never called */
+    if (!t_module("cryptext.dll")) { t_skip("cryptext.dll absent"); return; }
+    for (unsigned i = 0; i < NEXP(exp_cryptext); i++)
+        if (!strncmp(exp_cryptext[i].name, "CryptExt", 8))
+            CHECKF(t_proc_in("cryptext.dll", exp_cryptext[i].name) != NULL || t_is_wine(), "%s", exp_cryptext[i].name);
 }
