@@ -12,16 +12,28 @@ static const struct { ALG_ID alg; const char *name; DWORD len; const char *const
 };
 #define NH (sizeof g_h / sizeof g_h[0])
 
+/* The HMAC hash keeps using the key handle after HP_HMAC_INFO: destroying the key early invalidates the hash
+ * (CryptHashData then fails with NTE_BAD_UID).  hmac_begin therefore records the key and hmac_free destroys
+ * the hash first and the key afterwards. */
+static struct { HCRYPTHASH h; HCRYPTKEY k; } g_hk[64];
+static void hmac_free(HCRYPTHASH h) {
+    size_t i;
+    if (!h) return;
+    U(CryptDestroyHash)(h);
+    for (i = 0; i < sizeof g_hk / sizeof g_hk[0]; i++)
+        if (g_hk[i].h == h) { U(CryptDestroyKey)(g_hk[i].k); g_hk[i].h = 0; g_hk[i].k = 0; break; }
+}
 /* start an HMAC hash with the given key (RC2 plaintext key blob, CRYPT_IPSEC_HMAC_KEY) and inner hash alg */
 static HCRYPTHASH hmac_begin(HCRYPTPROV p, ALG_ID halg, const BYTE *key, DWORD klen, BOOL *okp) {
     HCRYPTKEY k = h_plainkey(p, CALG_RC2, key, klen, CRYPT_IPSEC_HMAC_KEY);
-    HCRYPTHASH h = 0; HMAC_INFO hi; *okp = FALSE;
+    HCRYPTHASH h = 0; HMAC_INFO hi; size_t i; *okp = FALSE;
     if (!k) return 0;
     if (!U(CryptCreateHash)(p, CALG_HMAC, k, 0, &h)) { t_note("HMAC create failed 0x%lx", GetLastError()); U(CryptDestroyKey)(k); return 0; }
     memset(&hi, 0, sizeof hi); hi.HashAlgid = halg;
-    /* the key handle must stay valid until HP_HMAC_INFO has been applied */
     if (!U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0)) { t_note("HMAC_INFO set failed 0x%lx", GetLastError()); U(CryptDestroyHash)(h); U(CryptDestroyKey)(k); return 0; }
-    U(CryptDestroyKey)(k);
+    for (i = 0; i < sizeof g_hk / sizeof g_hk[0]; i++)
+        if (!g_hk[i].h) { g_hk[i].h = h; g_hk[i].k = k; break; }
+    if (i == sizeof g_hk / sizeof g_hk[0]) { t_note("HMAC key table full"); U(CryptDestroyHash)(h); U(CryptDestroyKey)(k); return 0; }
     *okp = TRUE; return h;
 }
 static void hmac_rows(ALG_ID alg, const char *const *exp, DWORD chunk) {
@@ -30,12 +42,13 @@ static void hmac_rows(ALG_ID alg, const char *const *exp, DWORD chunk) {
         BYTE key[200], data[400], out[80], e[80]; DWORD ol = sizeof out, off; BOOL ok;
         int kl = h_hex2bin(hv_hmac_ins[i].key, key, sizeof key), dl = h_hex2bin(hv_hmac_ins[i].data, data, sizeof data);
         HCRYPTHASH h = hmac_begin(p, alg, key, (DWORD)kl, &ok);
+        if (kl == 1) { /* a 1-byte RC2 key cannot be imported with CRYPT_IPSEC_HMAC_KEY: pinned in capi_hmac_one_byte_key_import_rejected */ continue; }
         if (!h) { CHECKF(0, "begin %s", hv_hmac_ins[i].name); continue; }
         for (off = 0; off < (DWORD)dl; off += chunk) { DWORD n = (DWORD)dl - off < chunk ? (DWORD)dl - off : chunk; CHECK(U(CryptHashData)(h, data + off, n, 0)); }
         CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0));
         int el = h_hex2bin(exp[i], e, sizeof e);
         CHECKF(el == (int)ol && !memcmp(out, e, ol), "hmac mismatch %s", hv_hmac_ins[i].name);
-        U(CryptDestroyHash)(h);
+        hmac_free(h);
     }
     EPILOG;
 }
@@ -51,16 +64,16 @@ TEST(capi_hmac_rfc_spot_values) {
     REQUIRE(U(CryptCreateHash)); PROLOG; BOOL ok; BYTE out[64]; DWORD ol;
     BYTE k20[20]; memset(k20, 0x0b, 20);
     HCRYPTHASH h = hmac_begin(p, CALG_MD5, k20, 16, &ok);   /* RFC 2202 case 1 uses a 16-byte key for MD5 */
-    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 16, "9294727a3638bb1c13f48ef8158bfc9d"); U(CryptDestroyHash)(h); }
+    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 16, "9294727a3638bb1c13f48ef8158bfc9d"); hmac_free(h); }
     h = hmac_begin(p, CALG_SHA1, k20, 20, &ok);
-    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 20, "b617318655057264e28bc0b6fb378c8ef146be00"); U(CryptDestroyHash)(h); }
+    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 20, "b617318655057264e28bc0b6fb378c8ef146be00"); hmac_free(h); }
     h = hmac_begin(p, CALG_SHA_256, k20, 20, &ok);
-    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 32, "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"); U(CryptDestroyHash)(h); }
+    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"Hi There", 8, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 32, "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"); hmac_free(h); }
     h = hmac_begin(p, CALG_SHA_256, (const BYTE *)"Jefe", 4, &ok);
-    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"what do ya want for nothing?", 28, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 32, "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"); U(CryptDestroyHash)(h); }
+    if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"what do ya want for nothing?", 28, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0)); EXPECT_HEX(out, 32, "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"); hmac_free(h); }
     h = hmac_begin(p, CALG_SHA_512, (const BYTE *)"Jefe", 4, &ok);
     if (h) { ol = 64; CHECK(U(CryptHashData)(h, (const BYTE *)"what do ya want for nothing?", 28, 0)); CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, out, &ol, 0));
-        EXPECT_HEX(out, 64, "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"); U(CryptDestroyHash)(h); }
+        EXPECT_HEX(out, 64, "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"); hmac_free(h); }
     EPILOG;
 }
 
@@ -80,14 +93,14 @@ TEST(capi_hmac_getparam_algid_and_size) {
         CHECK(U(CryptGetHashParam)(h, HP_ALGID, (BYTE *)&v, &dl, 0)); CHECKF(v == CALG_HMAC, "%s algid 0x%lx", g_h[i].name, v);
         dl = 4; CHECK(U(CryptGetHashParam)(h, HP_HASHSIZE, (BYTE *)&v, &dl, 0)); CHECKF(v == g_h[i].len, "%s size %lu", g_h[i].name, v);
         dl = 0; CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, NULL, &dl, 0)); CHECKF(dl == g_h[i].len, "%s val size %lu", g_h[i].name, dl);
-        U(CryptDestroyHash)(h);
+        hmac_free(h);
     }
     EPILOG;
 }
 TEST(capi_hmac_get_hmac_info_is_bad_type) {
     REQUIRE(U(CryptCreateHash)); PROLOG; BOOL ok; BYTE k[16] = { 1 }; BYTE buf[64]; DWORD dl = sizeof buf;
     HCRYPTHASH h = hmac_begin(p, CALG_SHA1, k, 16, &ok);
-    if (h) { SET_ERR(0); CHECK(!U(CryptGetHashParam)(h, HP_HMAC_INFO, buf, &dl, 0)); EXPECT_ERR(E_NTE_BAD_TYPE); U(CryptDestroyHash)(h); }
+    if (h) { SET_ERR(0); CHECK(!U(CryptGetHashParam)(h, HP_HMAC_INFO, buf, &dl, 0)); EXPECT_ERR(E_NTE_BAD_TYPE); hmac_free(h); }
     EPILOG;
 }
 TEST(capi_hmac_info_unsupported_inner_alg_bad_algid) {
@@ -97,7 +110,7 @@ TEST(capi_hmac_info_unsupported_inner_alg_bad_algid) {
         HCRYPTHASH h = new_hmac_noinfo(p); HMAC_INFO hi; if (!h) continue;
         memset(&hi, 0, sizeof hi); hi.HashAlgid = bad[i];
         SET_ERR(0); CHECKF(!U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0), "alg 0x%lx", bad[i]); EXPECT_ERR(E_NTE_BAD_ALGID);
-        U(CryptDestroyHash)(h);
+        hmac_free(h);
     }
     EPILOG;
 }
@@ -108,7 +121,7 @@ TEST(capi_hmac_info_on_plain_hash_bad_type) {
         HCRYPTHASH h = 0; HMAC_INFO hi; memset(&hi, 0, sizeof hi); hi.HashAlgid = CALG_SHA1;
         CHECK(U(CryptCreateHash)(p, a[i], 0, 0, &h));
         SET_ERR(0); CHECK(!U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0)); EXPECT_ERR(E_NTE_BAD_TYPE);
-        U(CryptDestroyHash)(h);
+        hmac_free(h);
     }
     EPILOG;
 }
@@ -117,7 +130,7 @@ TEST(capi_hmac_info_flags_nonzero_bad_flags) {
     if (h) {
         memset(&hi, 0, sizeof hi); hi.HashAlgid = CALG_SHA1;
         SET_ERR(0); CHECK(!U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 1)); EXPECT_ERR(E_NTE_BAD_FLAGS);
-        U(CryptDestroyHash)(h);
+        hmac_free(h);
     }
     EPILOG;
 }
@@ -137,7 +150,9 @@ TEST(capi_hmac_explicit_default_pads_equal_default) {
         CHECK(l1 == l2 && !memcmp(r1, r2, l1));
         EXPECT_HEX(r2, 20, "b617318655057264e28bc0b6fb378c8ef146be00");
     }
-    if (a) U(CryptDestroyHash)(a); if (b) U(CryptDestroyHash)(b); if (c) U(CryptDestroyHash)(c);
+    if (a) hmac_free(a);
+    if (b) U(CryptDestroyHash)(b);
+    if (c) hmac_free(c);
     EPILOG;
 }
 TEST(capi_hmac_get_after_finish_repeatable_and_hashdata_rejected) {
@@ -149,7 +164,7 @@ TEST(capi_hmac_get_after_finish_repeatable_and_hashdata_rejected) {
         EXPECT_HEX(a, 20, "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79");
         CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, b, &lb, 0)); CHECK(!memcmp(a, b, 20));
         SET_ERR(0); CHECK(!U(CryptHashData)(h, (const BYTE *)"x", 1, 0)); EXPECT_ERR(E_NTE_BAD_HASH_STATE);
-        U(CryptDestroyHash)(h);
+        hmac_free(h);
     }
     EPILOG;
 }
@@ -163,9 +178,9 @@ TEST(capi_hmac_duplicate_midstream) {
             CHECK(U(CryptHashData)(h, (const BYTE *)"want for nothing?", 17, 0)); CHECK(U(CryptHashData)(d, (const BYTE *)"want for nothing?", 17, 0));
             CHECK(U(CryptGetHashParam)(h, HP_HASHVAL, a, &la, 0)); CHECK(U(CryptGetHashParam)(d, HP_HASHVAL, b, &lb, 0));
             CHECK(!memcmp(a, b, 20)); EXPECT_HEX(b, 20, "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79");
-            U(CryptDestroyHash)(d);
+            hmac_free(d);
         }
-        U(CryptDestroyHash)(h);
+        hmac_free(h);
     }
     EPILOG;
 }
@@ -177,7 +192,8 @@ TEST(capi_hmac_key_change_alters_mac) {
         CHECK(U(CryptGetHashParam)(h1, HP_HASHVAL, a, &la, 0)); CHECK(U(CryptGetHashParam)(h2, HP_HASHVAL, b, &lb, 0));
         CHECK(memcmp(a, b, 20) != 0);
     }
-    if (h1) U(CryptDestroyHash)(h1); if (h2) U(CryptDestroyHash)(h2);
+    if (h1) hmac_free(h1);
+    if (h2) hmac_free(h2);
     EPILOG;
 }
 TEST(capi_hmac_hashing_without_info_observed) {
@@ -437,5 +453,30 @@ TEST(capi_tls1prf_without_key_fails) {
     BOOL ok = U(CryptCreateHash)(p, CALG_TLS1PRF, 0, 0, &h);
     t_note("TLS1PRF create without key: ok=%d err 0x%lx", ok, ok ? 0 : GetLastError());
     if (ok) U(CryptDestroyHash)(h);
+    EPILOG;
+}
+
+/* ------------------------------------------------------- key lifetime */
+TEST(capi_hmac_one_byte_key_import_rejected) {
+    REQUIRE(U(CryptImportKey)); PROLOG; BYTE blob[sizeof(BLOBHEADER) + 4 + 1]; BLOBHEADER *bh = (BLOBHEADER *)blob; HCRYPTKEY k = 0;
+    bh->bType = PLAINTEXTKEYBLOB; bh->bVersion = CUR_BLOB_VERSION; bh->reserved = 0; bh->aiKeyAlg = CALG_RC2;
+    *(DWORD *)(blob + sizeof *bh) = 1; blob[sizeof *bh + 4] = 1;
+    EXPECT_CAPI_FAIL(U(CryptImportKey)(p, blob, sizeof blob, 0, CRYPT_IPSEC_HMAC_KEY, &k), 87);
+    if (k) U(CryptDestroyKey)(k);
+    EPILOG;
+}
+TEST(capi_hmac_destroying_key_before_hash_observed) {
+    REQUIRE(U(CryptCreateHash)); PROLOG; BYTE kb[4] = { 'J','e','f','e' }; HCRYPTKEY k = h_plainkey(p, CALG_RC2, kb, 4, CRYPT_IPSEC_HMAC_KEY); HCRYPTHASH h = 0; HMAC_INFO hi;
+    if (k) {
+        EXPECT_CAPI_OK(U(CryptCreateHash)(p, CALG_HMAC, k, 0, &h));
+        memset(&hi, 0, sizeof hi); hi.HashAlgid = CALG_SHA1;
+        EXPECT_CAPI_OK(U(CryptSetHashParam)(h, HP_HMAC_INFO, (BYTE *)&hi, 0));
+        EXPECT_CAPI_OK(U(CryptDestroyKey)(k));
+        /* undefined behaviour on Win10: HashData after the key is gone varies run to run (success, NTE_BAD_KEY,
+         * NTE_BAD_UID), so it is observed only and never checked */
+        { DWORD ge; BOOL r = (BOOL)T_CALL_ERR(&ge, U(CryptHashData)(h, (const BYTE *)"abc", 3, 0));
+          t_note("HashData after key destroy: %d err 0x%lx", r, r ? 0 : ge); }
+        U(CryptDestroyHash)(h);
+    }
     EPILOG;
 }

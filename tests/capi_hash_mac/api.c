@@ -49,20 +49,26 @@ TEST(capi_hash_create_failure_leaves_handle_unchanged_or_zero) {
     REQUIRE(U(CryptCreateHash)); PROLOG; HCRYPTHASH h = 0;
     SET_ERR(0);
     CHECK(!U(CryptCreateHash)(p, CALG_RC4, 0, 0, &h));
-    EXPECT_ERR(E_NTE_BAD_ALGID);
+    EXPECT_ERR(50);
     CHECK(h == 0);
     EPILOG;
 }
-TEST(capi_hash_create_non_hash_algids_bad_algid) {
+TEST(capi_hash_create_non_hash_algids_rejected) {
     REQUIRE(U(CryptCreateHash)); PROLOG; size_t i;
-    static const ALG_ID bad[] = { 0, CALG_RC4, CALG_RC2, CALG_DES, CALG_3DES, CALG_AES_128, CALG_RSA_SIGN, CALG_RSA_KEYX,
-        CALG_DH_SF, CALG_AES, CALG_NO_SIGN, CALG_SHA, 0xFFFF, 0x8000, 0x800f, 0x8010, 0x7fff };
+    /* Win10: ids of the symmetric / asymmetric classes give ERROR_NOT_SUPPORTED, anything else NTE_BAD_ALGID */
+    static const struct { ALG_ID a; DWORD err; } bad[] = {
+        { 0, E_NTE_BAD_ALGID }, { CALG_RC4, 50 }, { CALG_RC2, 50 }, { CALG_DES, 50 }, { CALG_3DES, 50 }, { CALG_AES_128, 50 },
+        { CALG_RSA_SIGN, 50 }, { CALG_RSA_KEYX, 50 }, { CALG_DH_SF, 50 }, { CALG_AES, E_NTE_BAD_ALGID }, { CALG_NO_SIGN, E_NTE_BAD_ALGID },
+        { 0xFFFF, E_NTE_BAD_ALGID }, { 0x8000, E_NTE_BAD_ALGID }, { 0x800f, E_NTE_BAD_ALGID }, { 0x8010, E_NTE_BAD_ALGID }, { 0x7fff, E_NTE_BAD_ALGID } };
+    HCRYPTHASH h = 0;
     for (i = 0; i < sizeof bad / sizeof bad[0]; i++) {
-        HCRYPTHASH h = 0; SET_ERR(0);
-        BOOL ok = U(CryptCreateHash)(p, bad[i], 0, 0, &h);
-        if (bad[i] == CALG_SHA) { /* CALG_SHA == CALG_SHA1 */ CHECK(ok); if (ok) U(CryptDestroyHash)(h); continue; }
-        CHECKF(!ok, "alg 0x%lx", bad[i]); EXPECT_ERR(E_NTE_BAD_ALGID);
+        h = 0; t_label("alg 0x%lx", (unsigned long)bad[i].a);
+        EXPECT_CAPI_FAIL(U(CryptCreateHash)(p, bad[i].a, 0, 0, &h), bad[i].err);
+        CHECK(h == 0);
     }
+    t_label(NULL);
+    /* CALG_SHA == CALG_SHA1 */
+    h = 0; EXPECT_CAPI_OK(U(CryptCreateHash)(p, CALG_SHA, 0, 0, &h)); if (h) U(CryptDestroyHash)(h);
     EPILOG;
 }
 TEST(capi_hash_create_sha2_rejected_on_rsa_full_providers) {
