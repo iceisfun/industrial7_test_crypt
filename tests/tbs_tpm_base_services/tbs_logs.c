@@ -34,9 +34,9 @@ TEST(tbs_log_size_query_result_codes) {
     UINT32 r = P(Tbsi_Get_TCG_Log)(NULL, NULL, &n);
     if (r == 0) { CHECK(n > 0); t_note("TCG log size %u", n); }
     else {
-        /* no WBCL value in HKLM\SYSTEM\CurrentControlSet\Control\IntegrityServices */
-        EXPECT_EQ(r, TE_INTERNAL_ERROR);
-        EXPECT_EQ(n, 0);              /* length is zeroed before the registry is consulted */
+        /* probed on Win10 without a TPM: TBS_E_BAD_PARAMETER, length left untouched */
+        EXPECT_EQ(r, TE_BAD_PARAMETER);
+        EXPECT_EQ(n, 0x1111);
     }
 }
 TEST(tbs_log_size_query_zero_length_with_buffer) {

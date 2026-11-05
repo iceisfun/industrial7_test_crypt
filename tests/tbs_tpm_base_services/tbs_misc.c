@@ -105,16 +105,20 @@ TEST(tbs_sha_unsupported_algorithms) {
         CHECKF(n == 0x99, "length written for rejected algorithm");
     }
 }
-TEST(tbs_sha_key_ignored_unless_both_key_and_length) {
+TEST(tbs_sha_key_requires_both_key_and_length) {
     NEED(Tbsi_ShaHash); if (emu_skip()) return;
-    BYTE a[20], b[20], c[20], d[20]; UINT32 n;
+    BYTE a[20], d[20]; UINT32 n = 0;
     EXPECT_EQ(P(Tbsi_ShaHash)(L"SHA1", NULL, 0, U8("abc"), 3, a, 20, &n), 0);
-    EXPECT_EQ(P(Tbsi_ShaHash)(L"SHA1", NULL, 7, U8("abc"), 3, b, 20, &n), 0);   /* length without a key */
-    EXPECT_EQ(P(Tbsi_ShaHash)(L"SHA1", U8("key"), 0, U8("abc"), 3, c, 20, &n), 0); /* key without a length */
+    /* a key length without a key, or a key without a length, is rejected */
+    n = 0x99;
+    EXPECT_EQ(P(Tbsi_ShaHash)(L"SHA1", NULL, 7, U8("abc"), 3, a, 20, &n), NT_INVALID_PARAMETER);
+    EXPECT_EQ(n, 0x99);
+    EXPECT_EQ(P(Tbsi_ShaHash)(L"SHA1", U8("key"), 0, U8("abc"), 3, a, 20, &n), NT_INVALID_PARAMETER);
+    EXPECT_EQ(n, 0x99);
     EXPECT_EQ(P(Tbsi_ShaHash)(L"SHA1", U8("key"), 3, U8("abc"), 3, d, 20, &n), 0);
-    CHECK(!memcmp(a, b, 20));
-    CHECK(!memcmp(a, c, 20));
-    CHECK(memcmp(a, d, 20) != 0);
+    BYTE e[20];
+    EXPECT_EQ(P(Tbsi_ShaHash)(L"SHA1", NULL, 0, U8("abc"), 3, e, 20, &n), 0);
+    CHECK(memcmp(e, d, 20) != 0);
 }
 TEST(tbs_sha_hmac_key_changes_mac) {
     NEED(Tbsi_ShaHash); if (emu_skip()) return;

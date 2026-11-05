@@ -53,11 +53,9 @@ TEST(tbs_exports_unknown_name_fails) {
 TEST(tbs_exports_name_ordinal_out_of_range) {
     HMODULE h = t_module("tbs.dll");
     if (!h) { t_skip("tbs.dll not loadable"); return; }
-    SET_ERR(0);
-    CHECK(GetProcAddress(h, (LPCSTR)(ULONG_PTR)22) == NULL);
-    EXPECT_ERR(ERROR_PROC_NOT_FOUND);
-    SET_ERR(0);
-    CHECK(GetProcAddress(h, (LPCSTR)(ULONG_PTR)0x7fff) == NULL);
+    /* an ordinal that is not exported gives ERROR_INVALID_ORDINAL (182), not PROC_NOT_FOUND */
+    EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(22));
+    EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(0x7fff));
 }
 TEST(tbs_exports_not_forwarded) {
     /* tbs.dll implements every export itself; the resolved address lies inside tbs.dll */
