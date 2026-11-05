@@ -69,9 +69,8 @@ TEST(crexp_getprocaddress_bad_arguments)
     SET_ERR(0);
     FARPROC p = GetProcAddress(m, "BCryptNoSuchExport_cryptt");
     CHECK(p == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
-    SET_ERR(0);
-    p = GetProcAddress(m, (LPCSTR)(ULONG_PTR)0xFFF0);
-    CHECK(p == NULL); EXPECT_ERR(ERROR_PROC_NOT_FOUND);
+    /* ordinal outside the export table: ERROR_INVALID_ORDINAL (probed, std and adm) */
+    EXPECT_GPA_FAIL(m, MAKEINTRESOURCEA(0xFFF0));
 }
 
 /* ============================================================ configuration change notification */

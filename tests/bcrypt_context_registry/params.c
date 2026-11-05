@@ -599,7 +599,8 @@ TEST(crpar_valid_resolve_arguments_are_not_parameter_errors)
         for (ULONG fl = 0; fl <= 3; fl++) {
             ULONG cb = 0;
             NTSTATUS st = U(BCryptResolveProviders)(L"NoSuchContext_cryptt", 0, NULL, NULL, mode, fl, &cb, NULL);
-            CHECKF(st != CRS_INVALID_PARAMETER, "mode %lu flags %lu iface 0 rejected", mode, fl);
+            /* interface 0 is invalid for every mode and flags value (probed, std and adm) */
+            EXPECT_EQ(st, CRS_INVALID_PARAMETER);
             for (size_t k = 0; k < CR_N_GOOD_IFACES; k++) {
                 st = U(BCryptResolveProviders)(L"NoSuchContext_cryptt", cr_good_ifaces[k], NULL, NULL, mode, fl, &cb, NULL);
                 CHECKF(st != CRS_INVALID_PARAMETER, "mode %lu flags %lu iface 0x%lx rejected", mode, fl, cr_good_ifaces[k]);
