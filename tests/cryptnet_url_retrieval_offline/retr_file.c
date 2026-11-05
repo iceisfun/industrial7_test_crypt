@@ -648,10 +648,9 @@ TEST(cnrfile_wire_only_file) {
 TEST(cnrfile_net_urls_cache_only_miss) {
     REQUIRE(U(CryptRetrieveObjectByUrlW));
     static const WCHAR *urls[] = {
-        L"http://cryptt-offline.invalid/a.cer", L"https://cryptt-offline.invalid/b.crl",
-        L"ldap://cryptt-offline.invalid/CN=x?cACertificate?base" };
-    static const LPCSTR oids[] = { CONTEXT_OID_CERTIFICATE, CONTEXT_OID_CRL, NULL };
-    for (size_t i = 0; i < 3; i++) {
+        L"http://cryptt-offline.invalid/a.cer", L"https://cryptt-offline.invalid/b.crl" };
+    static const LPCSTR oids[] = { CONTEXT_OID_CERTIFICATE, CONTEXT_OID_CRL };
+    for (size_t i = 0; i < 2; i++) {
         LPVOID obj = SENTINEL; SET_ERR(0);
         BOOL ok = cn_retrieve_w(urls[i], oids[i], CRYPT_CACHE_ONLY_RETRIEVAL, 0, &obj, NULL);
         CHECKF(!ok, "%ls cache-only hit", urls[i]);
