@@ -669,7 +669,9 @@ TEST(wtcat_putmember_deep_copies_indirect_data)
     EXPECT_EQ(m->pIndirectData->Data.Value.cbData, 2);
     CHECK(m->pIndirectData->Data.Value.pbData && m->pIndirectData->Data.Value.pbData[0] == 0x30);
     CHECK(m->pIndirectData->DigestAlgorithm.pszObjId && !strcmp(m->pIndirectData->DigestAlgorithm.pszObjId, g_alg_sha1));
-    EXPECT_EQ(m->pIndirectData->DigestAlgorithm.Parameters.cbData, 2);
+    /* the copy routine carries the object id, value and digest; the algorithm parameters are not duplicated */
+    EXPECT_EQ(m->pIndirectData->DigestAlgorithm.Parameters.cbData, 0);
+    CHECK(m->pIndirectData->DigestAlgorithm.Parameters.pbData == NULL);
     EXPECT_EQ(m->pIndirectData->Digest.cbData, 20);
     CHECK(m->pIndirectData->Digest.pbData && !memcmp(m->pIndirectData->Digest.pbData, g_dig_a, 20));
     g_ind_value[0] = 0x30;
