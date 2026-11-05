@@ -148,9 +148,16 @@ TEST(hh_prop_is_reusable_hash) {
     NEED();
     FOR_ALGS(ai) {
         int ok; ULONG v;
-        BCRYPT_HASH_HANDLE h0 = mk(ai->pseudo, NULL, 0, 0), h1 = mk(ai->pseudo, NULL, 0, BCRYPT_HASH_REUSABLE_FLAG);
+        /* opened handle: reusable only with the flag; pseudo handle: always reusable (probed on Win10 22H2) */
+        BCRYPT_ALG_HANDLE oa = hh_open(ai->wname, 0);
+        if (!oa) continue;
+        BCRYPT_HASH_HANDLE h0 = mk(oa, NULL, 0, 0), h1 = mk(oa, NULL, 0, BCRYPT_HASH_REUSABLE_FLAG);
+        BCRYPT_HASH_HANDLE p0 = mk(ai->pseudo, NULL, 0, 0), p1 = mk(ai->pseudo, NULL, 0, BCRYPT_HASH_REUSABLE_FLAG);
         if (h0) { v = hh_prop_ulong(h0, L"IsReusableHash", &ok); CHECK(ok); EXPECT_EQ(v, 0); HH_P_DESTROY()(h0); }
         if (h1) { v = hh_prop_ulong(h1, L"IsReusableHash", &ok); CHECK(ok); EXPECT_EQ(v, 1); HH_P_DESTROY()(h1); }
+        if (p0) { v = hh_prop_ulong(p0, L"IsReusableHash", &ok); CHECK(ok); EXPECT_EQ(v, 1); HH_P_DESTROY()(p0); }
+        if (p1) { v = hh_prop_ulong(p1, L"IsReusableHash", &ok); CHECK(ok); EXPECT_EQ(v, 1); HH_P_DESTROY()(p1); }
+        hh_close(oa);
     }
 }
 TEST(hh_prop_multi_object_length) {
@@ -285,8 +292,11 @@ TEST(hh_life_thousand_create_finish_destroy_cycles) {
 TEST(hh_life_interleaved_hashes_do_not_interfere) {
     NEED();
     BCRYPT_ALG_HANDLE a = hh_open(L"SHA512", 0);
-    BCRYPT_HASH_HANDLE h1 = mk(a, NULL, 0, 0), h2 = mk(a, NULL, 0, 0), h3 = mk(a, (PUCHAR)"zz", 0, 0);
-    (void)h3;
+    BCRYPT_HASH_HANDLE h1 = mk(a, NULL, 0, 0), h2 = mk(a, NULL, 0, 0), h3 = NULL;
+    /* a key on a non-HMAC algorithm is refused whatever its length (probed: 0, 1, 2 bytes and NULL with length 2) */
+    EXPECT_ST(HH_P_CREATE()(a, &h3, NULL, 0, (PUCHAR)"zz", 0, 0), NS_INVALID_PARAM);
+    EXPECT_ST(HH_P_CREATE()(a, &h3, NULL, 0, (PUCHAR)"zz", 2, 0), NS_INVALID_PARAM);
+    h3 = NULL;
     BYTE o1[64], o2[64], w1[64], w2[64];
     if (h1 && h2) {
         for (int i = 0; i < 50; i++) { HH_P_DATA()(h1, (PUCHAR)"AB", 2, 0); HH_P_DATA()(h2, (PUCHAR)"xyz", 3, 0); }

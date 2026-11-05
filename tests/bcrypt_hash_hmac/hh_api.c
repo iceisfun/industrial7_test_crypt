@@ -367,7 +367,10 @@ TEST(hh_hashdata_empty_hash_without_any_hashdata_call) {
 TEST(hh_hashdata_after_finish_invalid_handle) {
     NEED();
     FOR_ALGS(ai) {
-        BCRYPT_HASH_HANDLE h = mkhash(ai->pseudo, 0);
+        BCRYPT_ALG_HANDLE oa = hh_open(ai->wname, 0);
+        if (!oa) continue;
+        t_defer((void (*)(void *))hh_close, oa);
+        BCRYPT_HASH_HANDLE h = mkhash(oa, 0);
         if (!h) continue;
         BYTE out[64];
         EXPECT_ST(HH_P_FINISH()(h, out, ai->digest, 0), 0);
@@ -503,10 +506,15 @@ TEST(hh_finish_writes_exactly_digest_size) {
         HH_P_DESTROY()(h);
     }
 }
+/* A hash made from a pseudo algorithm handle is reusable on Win10 (see hh_pseudo_handle_hashes_are_reusable),
+ * so the "finished hash is dead" behaviour is checked with an opened algorithm handle. */
 TEST(hh_finish_twice_second_is_invalid_handle) {
     NEED();
     FOR_ALGS(ai) {
-        BCRYPT_HASH_HANDLE h = mkhash(ai->pseudo, 0);
+        BCRYPT_ALG_HANDLE oa = hh_open(ai->wname, 0);
+        if (!oa) continue;
+        t_defer((void (*)(void *))hh_close, oa);
+        BCRYPT_HASH_HANDLE h = mkhash(oa, 0);
         if (!h) continue;
         BYTE out[64], out2[64]; memset(out2, 0xEE, sizeof out2);
         EXPECT_ST(HH_P_FINISH()(h, out, ai->digest, 0), 0);
@@ -515,6 +523,24 @@ TEST(hh_finish_twice_second_is_invalid_handle) {
         /* the handle check happens before argument validation of the output */
         EXPECT_ST(HH_P_FINISH()(h, out2, 0, 0), NS_INVALID_HANDLE);
         EXPECT_ST(HH_P_FINISH()(h, NULL, ai->digest, 0), NS_INVALID_HANDLE);
+        EXPECT_ST(HH_P_DESTROY()(h), 0);
+    }
+}
+TEST(hh_pseudo_handle_hashes_are_reusable) {
+    NEED();
+    FOR_ALGS(ai) {
+        BCRYPT_HASH_HANDLE h = mkhash(ai->pseudo, 0);
+        if (!h) continue;
+        BYTE o1[64], o2[64], o3[64], want[64], empty[64]; sha_abc(ai, want);
+        HH_P_HASH()(ai->pseudo, NULL, 0, NULL, 0, empty, ai->digest);
+        EXPECT_ST(HH_P_DATA()(h, (PUCHAR)"abc", 3, 0), 0);
+        EXPECT_ST(HH_P_FINISH()(h, o1, ai->digest, 0), 0);
+        EXPECT_ST(HH_P_DATA()(h, (PUCHAR)"abc", 3, 0), 0);
+        EXPECT_ST(HH_P_FINISH()(h, o2, ai->digest, 0), 0);
+        EXPECT_ST(HH_P_FINISH()(h, o3, ai->digest, 0), 0);
+        CHECKF(!memcmp(o1, want, ai->digest) && !memcmp(o2, want, ai->digest), "%s: reused pseudo-handle hash digest", ai->name);
+        CHECKF(!memcmp(o3, empty, ai->digest), "%s: finish right after finish gives the empty digest", ai->name);
+        EXPECT_ST(HH_P_FINISH()(h, NULL, ai->digest, 0), NS_INVALID_PARAM);
         EXPECT_ST(HH_P_DESTROY()(h), 0);
     }
 }
@@ -805,12 +831,15 @@ TEST(hh_dup_of_reusable_hash_is_reusable) {
 TEST(hh_dup_of_finished_hash_is_still_finished) {
     NEED_DUP();
     FOR_ALGS(ai) {
-        BCRYPT_HASH_HANDLE h = mkhash(ai->pseudo, 0), d = NULL;
+        BCRYPT_ALG_HANDLE oa = hh_open(ai->wname, 0);
+        if (!oa) continue;
+        t_defer((void (*)(void *))hh_close, oa);
+        BCRYPT_HASH_HANDLE h = mkhash(oa, 0), d = NULL;
         if (!h) continue;
         BYTE out[64];
         HH_P_FINISH()(h, out, ai->digest, 0);
         NTSTATUS st = HH_P_DUP()(h, &d, NULL, 0, 0);
-        t_note("%s: BCryptDuplicateHash on a finished non-reusable hash -> 0x%08lx", ai->name, (unsigned long)st);
+        EXPECT_ST(st, 0);
         if (st == 0 && d) {
             EXPECT_ST(HH_P_DATA()(d, (PUCHAR)"x", 1, 0), NS_INVALID_HANDLE);
             EXPECT_ST(HH_P_FINISH()(d, out, ai->digest, 0), NS_INVALID_HANDLE);
