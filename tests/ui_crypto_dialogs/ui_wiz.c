@@ -27,7 +27,7 @@ IMPCASE(crl_file, "i3.crl", fx_crl, NULL, NULL, 0)
 IMPCASE(ctl_file, "i4.stl", fx_ctl, NULL, NULL, 0)
 IMPCASE(p7b_file, "i5.p7b", fx_p7b, NULL, NULL, 0)
 IMPCASE(pfx_file, "i6.pfx", fx_pfx, L"cryptt", NULL, 0)
-IMPCASE(pfx_file_wrong_password, "i7.pfx", fx_pfx, L"wrong", NULL, 0)
+IMPCASE(pfx_file_wrong_password, "wiz.pfx", fx_pfx, L"wrong", NULL, 0)
 IMPCASE(cer_allow_cert_only, "i8.cer", fx_cert, NULL, NULL, CRYPTUI_WIZ_IMPORT_ALLOW_CERT)
 IMPCASE(cer_to_currentuser, "i9.cer", fx_cert, NULL, NULL, CRYPTUI_WIZ_IMPORT_TO_CURRENTUSER)
 

@@ -5,8 +5,8 @@
 TEST(gpa_negative_control) {
     HMODULE h = t_module("certca.dll");
     REQUIRE_NOTNULL(h);
-    EXPECT_GPA_FAIL(h, "I7NoSuchExport");
+    EXPECT_GPA_FAIL(h, "NoSuchExportName");
     EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(0));
     EXPECT_GPA_FAIL(h, MAKEINTRESOURCEA(60000));
-    EXPECT_EQ(t_proc_in("certca.dll", "I7NoSuchExport"), NULL);
+    EXPECT_EQ(t_proc_in("certca.dll", "NoSuchExportName"), NULL);
 }
