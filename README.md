@@ -26,7 +26,7 @@ Every directory under `tests/` builds to `build/<area>.exe`. Names group by surf
 | Prefix | Surface |
 |---|---|
 | `bcrypt_*` | CNG primitives: providers, hash/HMAC, symmetric ciphers, RSA/DSA, ECC/DH/KDF, RNG, context registry |
-| `ncrypt_*` | key storage provider with ephemeral keys, protection descriptors, SSL provider interface (`ncrypt_ssl_provider`: handle validation, argument order, reference counts, buffer ownership) |
+| `ncrypt_*` | key storage provider with ephemeral keys, protection descriptors, SSL provider interface (`ncrypt_ssl_provider`: handle validation, argument order, reference counts, buffer ownership; `ncrypt_ssl_args`: argument validation of the key-derivation, packet and cipher-lookup exports), browser-path key calls (`ncrypt_browser_paths`: provider open/enumerate, ephemeral ECDSA P-256 and RSA 2048 keys, sign/verify, properties, blobs, NTE_* ordering) |
 | `capi_*`, `systemfunction_rtl_crypto`, `dpapi_*` | legacy CryptoAPI (rsaenh/dssenh/cryptsp), RtlEncrypt family, DPAPI |
 | `crypt32_*` | ASN.1 encode/decode, stores (memory and read-only system), certificate contexts, chains and policy, CRL/CTL, messages, OID framework, PFX/PKCS8, string formats |
 | `cryptnet_*`, `cryptxml_*`, `cryptdll_*`, `msasn1_*`, `certca_*`, `tbs_*`, `mssign32_*` | the remaining crypto modules |
@@ -35,7 +35,7 @@ Every directory under `tests/` builds to `build/<area>.exe`. Names group by surf
 | `ui_crypto_dialogs` | the only area allowed to touch dialogs (all with silent/no-UI variants where possible) |
 | `dx_*` | state-changing areas (registry, key containers, system stores, OID registry, config) |
 
-Excluded on purpose: schannel.dll, SSPI/Schannel credentials, TLS handshakes and traffic. The `Ssl*` exports of ncrypt.dll are covered only at the provider-object level (`ncrypt_ssl_provider`, `e_thin_ncrypt_ssl`); the key-derivation and packet functions are called with zero arguments only. Under the emulator these exports are aborting stubs, so those tests skip there.
+Excluded on purpose: schannel.dll, SSPI/Schannel credentials, TLS handshakes and traffic. The `Ssl*` exports of ncrypt.dll are covered only at the provider-object level (`ncrypt_ssl_provider`, `e_thin_ncrypt_ssl`); the key-derivation and packet functions are additionally called with invalid, forged and boundary arguments (`ncrypt_ssl_args`), plus a local TLS 1.2 RSA key-exchange chain on in-memory keys; no handshake ever runs. Under the emulator these exports are aborting stubs, so those tests skip there.
 
 ## Safety rules the code follows
 
