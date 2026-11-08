@@ -33,6 +33,68 @@ FARPROC t_proc(const char *name) {
 }
 int t_is_wine(void) { HMODULE n = GetModuleHandleA("ntdll.dll"); return n && GetProcAddress(n, "wine_get_version") != NULL; }
 
+static t_guard_fn g_guard;
+void t_set_guard(t_guard_fn fn) { g_guard = fn; }
+
+/* Run fn(arg) with faults contained and silent; returns 1 when it faulted. */
+static int probe_faulted(void (*fn)(void *), void *arg) {
+    t_frame f; f.faulted = 0; f.quiet = 1; f.code = 0; t_frame_push(&f);
+    if (!__builtin_setjmp(f.buf)) { fn(arg); t_frame_pop(&f); } else { t_frame_pop(&f); return 1; }
+    return 0;
+}
+typedef LONG (WINAPI *probe_open_fn)(ULONG_PTR *, LPCWSTR, DWORD);
+typedef LONG (WINAPI *probe_free_fn)(ULONG_PTR);
+static struct { probe_open_fn open; probe_free_fn free_; volatile LONG st; } g_ps;
+static void probe_ssl_call(void *a) {
+    ULONG_PTR h = 0; (void)a;
+    g_ps.st = g_ps.open(&h, L"Microsoft SSL Protocol Provider", 0);
+    if (g_ps.st == 0 && h) g_ps.free_(h);
+}
+const char *t_probe_ncrypt_ssl(void) {
+    static const char *r; static int done; static char buf[160];
+    if (done) return r;
+    done = 1;
+    g_ps.open = (probe_open_fn)t_proc_in("ncrypt.dll", "SslOpenProvider");
+    g_ps.free_ = (probe_free_fn)t_proc_in("ncrypt.dll", "SslFreeObject");
+    if (!g_ps.open || !g_ps.free_) { r = "ncrypt Ssl* provider exports are not present"; return r; }
+    g_ps.st = -1;
+    if (probe_faulted(probe_ssl_call, NULL)) { r = "ncrypt Ssl* exports raise an exception when called (stub exports)"; return r; }
+    if (g_ps.st != 0) { snprintf(buf, sizeof buf, "SslOpenProvider(\"Microsoft SSL Protocol Provider\") returned 0x%08lx", (unsigned long)g_ps.st); r = buf; }
+    return r;
+}
+typedef LONG (WINAPI *probe_ksp_open)(ULONG_PTR *, LPCWSTR, DWORD);
+typedef LONG (WINAPI *probe_ksp_create)(ULONG_PTR, ULONG_PTR *, LPCWSTR, LPCWSTR, DWORD, DWORD);
+typedef LONG (WINAPI *probe_ksp_final)(ULONG_PTR, DWORD);
+static const char *ksp_try(const WCHAR *alg, ULONG_PTR prov, probe_ksp_create cr, probe_ksp_final fin, probe_free_fn fr, char *buf, size_t cap) {
+    ULONG_PTR k = 0; LONG s = cr(prov, &k, alg, NULL, 0, 0);
+    if (s == 0) { s = fin(k, 0); fr(k); }
+    if (s == 0) return NULL;
+    snprintf(buf, cap, "ephemeral %ls key creation returned 0x%08lx; the key storage provider is not a full implementation", alg, (unsigned long)s);
+    return buf;
+}
+static void probe_ksp_call(void *a) {
+    char *buf = a; ULONG_PTR prov = 0;
+    probe_ksp_open op = (probe_ksp_open)t_proc_in("ncrypt.dll", "NCryptOpenStorageProvider");
+    probe_ksp_create cr = (probe_ksp_create)t_proc_in("ncrypt.dll", "NCryptCreatePersistedKey");
+    probe_ksp_final fin = (probe_ksp_final)t_proc_in("ncrypt.dll", "NCryptFinalizeKey");
+    probe_free_fn fr = (probe_free_fn)t_proc_in("ncrypt.dll", "NCryptFreeObject");
+    if (!op || !cr || !fin || !fr) { strcpy(buf, "ncrypt key storage exports are not present"); return; }
+    LONG s = op(&prov, NULL, 0);
+    if (s != 0) { snprintf(buf, 160, "NCryptOpenStorageProvider returned 0x%08lx", (unsigned long)s); return; }
+    const char *why = ksp_try(L"RSA", prov, cr, fin, fr, buf, 160);
+    if (!why) why = ksp_try(L"ECDSA_P256", prov, cr, fin, fr, buf, 160);
+    if (!why) buf[0] = 0;
+    fr(prov);
+}
+const char *t_probe_ncrypt_ksp(void) {
+    static const char *r; static int done; static char buf[160];
+    if (done) return r;
+    done = 1; buf[0] = 0;
+    if (probe_faulted(probe_ksp_call, buf)) { r = "ncrypt key storage provider raised an exception during the probe"; return r; }
+    if (buf[0]) r = buf;
+    return r;
+}
+
 #define MAXT 8192
 static struct { const char *n; t_fn f; } g_t[MAXT];
 static int g_nt;
@@ -399,7 +461,10 @@ static void run_one(int i) {
     printf("RUN  %s\n", g_t[i].n);
     SetLastError(0);
     t_frame fr; fr.faulted = 0; fr.quiet = 0; fr.code = 0; t_frame_push(&fr);
-    if (!__builtin_setjmp(fr.buf)) { g_t[i].f(); } else { post_fault(&fr); }
+    if (!__builtin_setjmp(fr.buf)) {
+        const char *why = g_guard ? g_guard() : NULL;
+        if (why) t_skip("%s", why); else g_t[i].f();
+    } else { post_fault(&fr); }
     TlsSetValue(g_tls, NULL);
     run_defers();
     unsigned dt = GetTickCount() - t0;

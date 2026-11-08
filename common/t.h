@@ -167,6 +167,19 @@ void t_skip(const char *fmt, ...);   /* skip the rest of the current test (a ski
 #define REQUIRE(ptr) do { if (!(ptr)) { t_skip("missing export: " #ptr); return; } } while (0)
 int  t_is_wine(void);                /* true under an emulator exposing wine_get_version */
 
+/* Area guards. t_set_guard(fn) (call from a constructor) makes the runner call fn() before every test of the exe; a
+ * non-NULL return is a skip reason and the test body is not run. Guards cache their answer and decide from observed
+ * behaviour of the module under test, never from the OS name. The reason is printed as  SKIP <reason>  per test, so a
+ * degraded system is visible in the results instead of showing as a wall of failures.
+ *   t_probe_ncrypt_ssl()  NULL when ncrypt!SslOpenProvider/SslFreeObject are real: exported, callable without an
+ *                         exception, and opening "Microsoft SSL Protocol Provider" succeeds. Stub exports raise.
+ *   t_probe_ncrypt_ksp()  NULL when the software key storage provider can create and finalize ephemeral RSA and
+ *                         ECDSA_P256 keys (NCryptOpenStorageProvider/CreatePersistedKey/FinalizeKey/FreeObject). */
+typedef const char *(*t_guard_fn)(void);
+void t_set_guard(t_guard_fn fn);
+const char *t_probe_ncrypt_ssl(void);
+const char *t_probe_ncrypt_ksp(void);
+
 /* ---- faults, watchdog ------------------------------------------------------
  * Every run is supervised: the exe re-launches itself as a worker; the supervisor kills the worker's job tree when one
  * test exceeds its timeout (default 60 s, env T_TIMEOUT_S) and prints  TIMEOUT <test>  + FAIL <test>, and it also reports

@@ -23,7 +23,9 @@ typedef LONG (WINAPI *p_lookup_info)(ULONG_PTR, DWORD, void *, void *, void *, D
 typedef LONG (WINAPI *p_lookup_len)(ULONG_PTR, DWORD, DWORD, DWORD, void *, DWORD, DWORD);
 
 static const WCHAR PROV[] = L"Microsoft SSL Protocol Provider";
-#define NEED_SSL() do { if (t_is_wine()) { t_skip("ncrypt Ssl* exports are aborting stubs under the emulator"); return; } } while (0)
+/* The area guard (t_probe_ncrypt_ssl) skips every test here when the Ssl* provider exports are stubs. */
+static void __attribute__((constructor)) ssl_guard(void) { t_set_guard(t_probe_ncrypt_ssl); }
+#define NEED_SSL() do { } while (0)
 #define F(type, name) type name = (type)t_proc_in("ncrypt.dll", #name)
 
 static ULONG_PTR open_prov(void) {

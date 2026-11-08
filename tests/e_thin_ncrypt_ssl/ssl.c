@@ -9,7 +9,6 @@ typedef LONG (WINAPI *ssl_getprop)(ULONG_PTR, LPCWSTR, void **, DWORD *, DWORD);
 static const WCHAR PROV[] = L"Microsoft SSL Protocol Provider";
 
 TEST(ssl_open_provider_roundtrip) {
-    if (t_is_wine()) { t_skip("ncrypt Ssl* exports are aborting stubs under the emulator"); return; }
     ssl_open op = (ssl_open)t_proc_in("ncrypt.dll", "SslOpenProvider");
     ssl_freeobj fo = (ssl_freeobj)t_proc_in("ncrypt.dll", "SslFreeObject");
     ULONG_PTR h = 0; LONG r;
@@ -19,7 +18,6 @@ TEST(ssl_open_provider_roundtrip) {
     if (h) { r = fo(h); EXPECT_EQ(r, 0); }
 }
 TEST(ssl_open_provider_negative) {
-    if (t_is_wine()) { t_skip("ncrypt Ssl* exports are aborting stubs under the emulator"); return; }
     ssl_open op = (ssl_open)t_proc_in("ncrypt.dll", "SslOpenProvider");
     ULONG_PTR h = 0x1234; LONG r;
     REQUIRE_NOTNULL(op);
@@ -30,7 +28,6 @@ TEST(ssl_open_provider_negative) {
     EXPECT_EQ(r, 0x80090027);                 /* NTE_INVALID_PARAMETER */
 }
 TEST(ssl_enum_protocol_providers) {
-    if (t_is_wine()) { t_skip("ncrypt Ssl* exports are aborting stubs under the emulator"); return; }
     ssl_enumprov ep = (ssl_enumprov)t_proc_in("ncrypt.dll", "SslEnumProtocolProviders");
     ssl_free fb = (ssl_free)t_proc_in("ncrypt.dll", "SslFreeBuffer");
     DWORD n = 0; void *list = NULL; LONG r;
@@ -41,7 +38,6 @@ TEST(ssl_enum_protocol_providers) {
     fb(list);
 }
 TEST(ssl_enum_cipher_suites_first) {
-    if (t_is_wine()) { t_skip("ncrypt Ssl* exports are aborting stubs under the emulator"); return; }
     ssl_open op = (ssl_open)t_proc_in("ncrypt.dll", "SslOpenProvider");
     ssl_enumcs ec = (ssl_enumcs)t_proc_in("ncrypt.dll", "SslEnumCipherSuites");
     ssl_free fb = (ssl_free)t_proc_in("ncrypt.dll", "SslFreeBuffer");

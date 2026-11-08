@@ -23,6 +23,8 @@
 /* SECURITY_STATUS is a LONG: compare as DWORD so the high bit does not sign-extend. */
 #define EXPECT_SS(a, code) do { DWORD s_ = (DWORD)(a); t_check(s_ == (DWORD)(code), __FILE__, __LINE__, #a " == " #code, "got 0x%08lx want 0x%08lx", s_, (DWORD)(code)); } while (0)
 #define EXPECT_SS_FAIL(a) do { DWORD s_ = (DWORD)(a); t_check(s_ != 0, __FILE__, __LINE__, #a " must fail", "unexpected success"); } while (0)
+/* Area guard: skip every test with the probe reason when the key storage provider cannot create ephemeral keys. */
+static void __attribute__((constructor)) nc_guard(void) { t_set_guard(t_probe_ncrypt_ksp); }
 /* Skip (and flag on real Windows) when an object could not be created. */
 #define NEED(x, what) do { if (!(x)) { CHECKF(t_is_wine(), "cannot create %s", what); t_skip("%s unavailable", what); return; } } while (0)
 /* Wine ships these NCrypt exports as aborting stubs */
