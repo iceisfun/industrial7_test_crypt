@@ -71,7 +71,7 @@ TEST(ew_capi_provider_lookup_codes) {
     REQUIRE(ADV(CryptAcquireContextW));
     EXPECT_CAPI_FAIL(ADV(CryptAcquireContextW)(&p, NULL, L"No Such Provider", PROV_RSA_AES, CRYPT_VERIFYCONTEXT), ERR_NTE_KEYSET_NOT_DEF);
     EXPECT_CAPI_FAIL(ADV(CryptAcquireContextW)(&p, NULL, NULL, 999, CRYPT_VERIFYCONTEXT), ERR_NTE_PROV_TYPE_NOT_DEF);
-    EXPECT_CAPI_FAIL(ADV(CryptAcquireContextW)(&p, L"i7tNoSuchContainer", NULL, PROV_RSA_AES, 0), ERR_NTE_BAD_KEYSET);
+    EXPECT_CAPI_FAIL(ADV(CryptAcquireContextW)(&p, L"crypttNoSuchContainer", NULL, PROV_RSA_AES, 0), ERR_NTE_BAD_KEYSET);
     EXPECT_CAPI_FAIL(ADV(CryptGetDefaultProviderW)(999, NULL, CRYPT_MACHINE_DEFAULT, NULL, &cb), ERROR_INVALID_PARAMETER);
     EXPECT_CAPI_FAIL(ADV(CryptEnumProvidersW)(9999, NULL, 0, NULL, NULL, &cb), ERROR_NO_MORE_ITEMS);
     { DWORD ty = 0; cb = 0; EXPECT_CAPI_OK(ADV(CryptEnumProvidersW)(0, NULL, 0, &ty, NULL, &cb)); }  /* control: index 0 exists */

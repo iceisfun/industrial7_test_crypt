@@ -76,8 +76,8 @@ TEST(st_capi_error_rule) {
 
 /* ---- last-error convention ---- */
 TEST(st_last_error_helpers) {
-    EXPECT_FAILS(DeleteFileA("C:\\i7t_no_such_dir\\no_such_file.tmp"), ERROR_PATH_NOT_FOUND);
-    EXPECT_FAILS_RET(CreateFileA("C:\\i7t_no_such_dir\\x", GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL), INVALID_HANDLE_VALUE, ERROR_PATH_NOT_FOUND);
+    EXPECT_FAILS(DeleteFileA("C:\\cryptt_no_such_dir\\no_such_file.tmp"), ERROR_PATH_NOT_FOUND);
+    EXPECT_FAILS_RET(CreateFileA("C:\\cryptt_no_such_dir\\x", GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL), INVALID_HANDLE_VALUE, ERROR_PATH_NOT_FOUND);
     EXPECT_SUCCEEDS(GetCurrentProcessId());
     DWORD e; BOOL r = T_CALL_ERR(&e, CloseHandle((HANDLE)(ULONG_PTR)0x7777));
     CHECK(!r); EXPECT_EQ(e, ERROR_INVALID_HANDLE);
@@ -132,7 +132,7 @@ TEST(st_require_destructive_skip) { REQUIRE_DESTRUCTIVE(); CHECK(t_is_destructiv
 
 /* ---- unique names, sweeper, defer ---- */
 static int g_swept_start, g_stale_removed;
-#define SW_PATH "Software\\I7T_selftest_probe"
+#define SW_PATH "Software\\CRYPTT_selftest_probe"
 T_SWEEPER(selftest_reg) {
     if (phase == T_SWEEP_START) {
         /* leftovers of an earlier (killed) run: create one stale key, as if a crash had left it, then sweep must remove it */
@@ -148,7 +148,7 @@ T_SWEEPER(selftest_reg) {
         g_swept_start = 1;
     } else {
         t_reg_sweep_subkeys(HKEY_CURRENT_USER, SW_PATH, prefix);
-        HKEY r; if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software", 0, DELETE, &r) == 0) { RegDeleteKeyA(r, "I7T_selftest_probe"); RegCloseKey(r); }
+        HKEY r; if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software", 0, DELETE, &r) == 0) { RegDeleteKeyA(r, "CRYPTT_selftest_probe"); RegCloseKey(r); }
     }
 }
 static int g_defer_ran;
@@ -157,9 +157,9 @@ TEST(st_unique_names) {
     const char *a = t_unique("key"), *b = t_unique("key");
     CHECK(strcmp(a, b) != 0);
     CHECK(!strncmp(a, t_area_prefix(), strlen(t_area_prefix())));
-    EXPECT_STR(t_area_prefix(), "I7T_selftest_");
-    CHECK(!strncmp(a, "I7T_selftest_key_", 17));
-    const WCHAR *w = t_unique_w("w"); CHECK(w[0] == L'I' && w[3] == L'_');
+    EXPECT_STR(t_area_prefix(), "CRYPTT_selftest_");
+    CHECK(!strncmp(a, "CRYPTT_selftest_key_", 20));
+    const WCHAR *w = t_unique_w("w"); CHECK(w[0] == L'C' && w[6] == L'_');
     if (!g_swept_start) { t_skip("worker was restarted after a fault: the start sweep ran in an earlier worker"); return; }
     EXPECT_EQ(g_stale_removed, 101);       /* one stale subkey + one stale value removed, "keepme" untouched */
     HKEY k; EXPECT_EQ(RegOpenKeyExA(HKEY_CURRENT_USER, SW_PATH, 0, KEY_READ, &k), 0);

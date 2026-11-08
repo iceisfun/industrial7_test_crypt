@@ -44,7 +44,7 @@ static int import_ok(HCRYPTPROV h, int which, int keyspec) {
 }
 /* A key that signs with SHA-2 digests has to live in a named (persisted) container: with an ephemeral
  * CRYPT_VERIFYCONTEXT provider the signer fails every non-SHA-1 digest with NTE_BAD_TYPE (0x8009000a) on Win10.
- * Key-bearing contexts are therefore always named containers (I7T_<area>_fx_*), deleted by fx_close and swept at start
+ * Key-bearing contexts are therefore always named containers (CRYPTT_<area>_fx_*), deleted by fx_close and swept at start
  * and end. Contexts without a key (the Pvk loaders import into them) stay ephemeral. */
 static int open_ctx(FX *f, int which, int keyspec, int withkey) {
     memset(f, 0, sizeof *f);

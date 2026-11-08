@@ -359,7 +359,7 @@ TEST(pfxexport_report_no_private_key) {
     PCCERT_CONTEXT c = U(CertEnumCertificatesInStore)(s, NULL);
     if (c) {
         CRYPT_KEY_PROV_INFO ki; memset(&ki, 0, sizeof ki);
-        ki.pwszContainerName = (LPWSTR)L"I7T_pfx_nokey_container"; ki.pwszProvName = (LPWSTR)MS_ENHANCED_PROV_W;
+        ki.pwszContainerName = (LPWSTR)L"CRYPTT_pfx_nokey_container"; ki.pwszProvName = (LPWSTR)MS_ENHANCED_PROV_W;
         ki.dwProvType = PROV_RSA_FULL; ki.dwKeySpec = AT_KEYEXCHANGE;
         CHECK(U(CertSetCertificateContextProperty)(c, CERT_KEY_PROV_INFO_PROP_ID, 0, &ki));
         SET_ERR(0);

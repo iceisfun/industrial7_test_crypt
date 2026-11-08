@@ -383,7 +383,7 @@ const char *t_area_name(void) {
     }
     return g_area;
 }
-const char *t_area_prefix(void) { static char p[80]; if (!p[0]) snprintf(p, sizeof p, "I7T_%s_", t_area_name()); return p; }
+const char *t_area_prefix(void) { static char p[80]; if (!p[0]) snprintf(p, sizeof p, "CRYPTT_%s_", t_area_name()); return p; }
 const char *t_unique(const char *tag) {
     static char buf[8][200]; static volatile LONG n; static volatile LONG k;
     LONG i = InterlockedIncrement(&k);
@@ -499,7 +499,7 @@ static void print_summary(void) {
 }
 static int supervise(const char *filter) {
     char mname[96]; DWORD pid = GetCurrentProcessId();
-    snprintf(mname, sizeof mname, "Local\\i7t_%lu_%lu", pid, GetTickCount());
+    snprintf(mname, sizeof mname, "Local\\cryptt_%lu_%lu", pid, GetTickCount());
     HANDLE hm = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(shared_t), mname);
     shared_t *sh = hm ? (shared_t *)MapViewOfFile(hm, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(shared_t)) : NULL;
     HANDLE job = CreateJobObjectA(NULL, NULL);

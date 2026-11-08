@@ -222,8 +222,8 @@ long t_tpm_status(void);             /* the raw TBS result */
 #define REQUIRE_NO_TPM()     do { if (t_has_tpm()) { t_skip("requires a machine without TPM"); return; } } while (0)
 
 /* ---- unique names and cleanup for registry/provider/store registrations ---------------------------------------
- * t_unique("tag") -> "I7T_<area>_<tag>_<pid>_<n>" (rotating static buffers; t_unique_w for UTF-16).  t_area_prefix() is
- * "I7T_<area>_": everything an area registers must start with it so a sweep can remove leftovers of earlier (crashed or
+ * t_unique("tag") -> "CRYPTT_<area>_<tag>_<pid>_<n>" (rotating static buffers; t_unique_w for UTF-16).  t_area_prefix() is
+ * "CRYPTT_<area>_": everything an area registers must start with it so a sweep can remove leftovers of earlier (crashed or
  * killed) runs without touching other areas running in parallel.
  * T_SWEEPER(name) { ... } defines a sweep function; the body sees  int phase  (T_SWEEP_START before the first test,
  * T_SWEEP_END after the last) and  const char *prefix  (t_area_prefix()).  Sweeps are idempotent and best effort.

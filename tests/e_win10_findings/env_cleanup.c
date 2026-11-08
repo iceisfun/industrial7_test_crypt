@@ -29,10 +29,10 @@ TEST(ew_env_workgroup) {
     EXPECT_EQ(njg(NULL, NULL, &js), 87);                                      /* control: NULL name buffer pointer */
 }
 TEST(ew_env_hklm_write_depends_on_elevation) {
-    HKEY k = NULL; LONG e; const char *path = "SOFTWARE\\I7T_e_win10_findings_probe_hklm";
-    e = RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\I7T_e_win10_findings_probe_hkcu", 0, NULL, 0, KEY_WRITE, NULL, &k, NULL);
+    HKEY k = NULL; LONG e; const char *path = "SOFTWARE\\CRYPTT_e_win10_findings_probe_hklm";
+    e = RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\CRYPTT_e_win10_findings_probe_hkcu", 0, NULL, 0, KEY_WRITE, NULL, &k, NULL);
     EXPECT_EQ(e, 0);                                                         /* control: HKCU is writable in both modes */
-    if (k) { RegCloseKey(k); RegDeleteKeyA(HKEY_CURRENT_USER, "Software\\I7T_e_win10_findings_probe_hkcu"); }
+    if (k) { RegCloseKey(k); RegDeleteKeyA(HKEY_CURRENT_USER, "Software\\CRYPTT_e_win10_findings_probe_hkcu"); }
     if (t_is_elevated()) {
         k = NULL; e = RegCreateKeyExA(HKEY_LOCAL_MACHINE, path, 0, NULL, 0, KEY_WRITE, NULL, &k, NULL);
         EXPECT_EQ(e, 0);
@@ -46,22 +46,22 @@ TEST(ew_env_hklm_write_depends_on_elevation) {
 TEST(ew_unique_names_and_prefix) {
     char a[200], b[200]; const char *pre = t_area_prefix();
     EXPECT_STR(t_area_name(), "e_win10_findings");
-    EXPECT_STR(pre, "I7T_e_win10_findings_");
+    EXPECT_STR(pre, "CRYPTT_e_win10_findings_");
     strcpy(a, t_unique("tag")); strcpy(b, t_unique("tag"));
     CHECK(!strncmp(a, pre, strlen(pre)));
     CHECK(!strncmp(b, pre, strlen(pre)));
     CHECK(strcmp(a, b) != 0);                                                /* the counter distinguishes equal tags */
-    { char want[64]; sprintf(want, "I7T_e_win10_findings_tag_%lu_", (unsigned long)GetCurrentProcessId()); CHECK(!strncmp(a, want, strlen(want))); }
+    { char want[64]; sprintf(want, "CRYPTT_e_win10_findings_tag_%lu_", (unsigned long)GetCurrentProcessId()); CHECK(!strncmp(a, want, strlen(want))); }
     { const WCHAR *w = t_unique_w("tag"); char c[200]; int i; for (i = 0; w[i] && i < 199; i++) c[i] = (char)w[i]; c[i] = 0;
       CHECK(!strncmp(c, pre, strlen(pre))); CHECK(strcmp(c, a) != 0 && strcmp(c, b) != 0); }
 }
 T_SWEEPER(ew_reg) {
     (void)phase;
-    t_reg_sweep_subkeys(HKEY_CURRENT_USER, "Software\\I7T_e_win10_findings_dx", prefix);
-    RegDeleteKeyA(HKEY_CURRENT_USER, "Software\\I7T_e_win10_findings_dx");
+    t_reg_sweep_subkeys(HKEY_CURRENT_USER, "Software\\CRYPTT_e_win10_findings_dx", prefix);
+    RegDeleteKeyA(HKEY_CURRENT_USER, "Software\\CRYPTT_e_win10_findings_dx");
 }
 TEST(ew_dx_registry_sweep_removes_only_prefixed) {
-    HKEY root = NULL, k = NULL; const char *base = "Software\\I7T_e_win10_findings_dx"; char mine[200], other[] = "keepme_i7t"; int n;
+    HKEY root = NULL, k = NULL; const char *base = "Software\\CRYPTT_e_win10_findings_dx"; char mine[200], other[] = "keepme_cryptt"; int n;
     REQUIRE_DESTRUCTIVE();
     REQUIRE_EQ(RegCreateKeyExA(HKEY_CURRENT_USER, base, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &root, NULL), 0);
     strcpy(mine, t_unique("regkey"));

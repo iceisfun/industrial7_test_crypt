@@ -39,7 +39,7 @@ Environment (all cached; each REQUIRE_* skips with a reason)
 - The supervisor prints one `ENV area=.. elevated=.. destructive=.. join=.. tpm=0x.. wine=..` line first.
 
 Registrations and cleanup (dx_* areas)
-- Names: `t_unique("tag")` / `t_unique_w("tag")` -> `I7T_<area>_<tag>_<pid>_<n>`; everything an area registers must start with `t_area_prefix()`.
+- Names: `t_unique("tag")` / `t_unique_w("tag")` -> `CRYPTT_<area>_<tag>_<pid>_<n>`; everything an area registers must start with `t_area_prefix()`.
 - `T_SWEEPER(name) { ... }` body sees `phase` (`T_SWEEP_START` before the first test, `T_SWEEP_END` after the last) and `prefix`;
   use `t_reg_sweep_subkeys(root, path, prefix)` / `t_reg_sweep_values(...)` plus your own provider/store/descriptor removal.
   A worker that is restarted after a TIMEOUT/crash does not repeat the start sweep.
