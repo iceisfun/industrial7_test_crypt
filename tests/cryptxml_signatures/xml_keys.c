@@ -402,7 +402,11 @@ static void sign_with_cng_key(const WCHAR *alg, DWORD bits, const WCHAR *sigmeth
     XCHK_HR(XFN(CryptXmlSign)(hs, nk, X_NCRYPT_KEY_SPEC, X_SIGN_ADD_KEYVALUE, X_KEYINFO_PARAM, &kp, &sm, &cn), S_OK);
     XCHK_HR(XFN(CryptXmlEncode)(hs, X_CS_UTF8, NULL, 0, &b, x_write_cb), S_OK);
     const char *o = x_buf_str(&b);
-    t_note("%ls signed document: %.500s", alg, o);
+    { /* the signature value is random for ECDSA and differs per run; note only the part before it */
+        const char *sv = strstr(o, "<SignatureValue>");
+        int n = sv ? (int)(sv - o) : 500;
+        t_note("%ls signed document (up to SignatureValue): %.*s", alg, n > 500 ? 500 : n, o);
+    }
     CHECK(x_find(o, "<KeyInfo"));
     CHECK(x_find(o, "<KeyValue"));
     const XSIG *s = NULL;

@@ -286,9 +286,9 @@ TEST(xmlsig_algs_find_by_sign_algid_pair)
     XSIGNALGID bad[] = { { L"MD5", L"RSA" }, { L"SHA256", L"DSA" }, { L"RSA", L"SHA256" }, { L"SHA256", L"AES" } };
     for (int i = 0; i < 4; i++) CHECKF(XFN(CryptXmlFindAlgorithmInfo)(X_FIND_SIGN_ALGID, &bad[i], 0, 0) == NULL, "pair %d matched", i);
     XSIGNALGID p5 = { L"SHA256", L"SHA256" };
-    t_note("sign-algid lookup of a plain hash pair -> %p", (const void *)XFN(CryptXmlFindAlgorithmInfo)(X_FIND_SIGN_ALGID, &p5, 0, 0));
+    t_note("sign-algid lookup of a plain hash pair -> %s", XFN(CryptXmlFindAlgorithmInfo)(X_FIND_SIGN_ALGID, &p5, 0, 0) ? "found" : "not found");
     XSIGNALGID p6 = { L"SHA256", L"HMAC" };
-    t_note("sign-algid lookup of SHA256/HMAC -> %p", (const void *)XFN(CryptXmlFindAlgorithmInfo)(X_FIND_SIGN_ALGID, &p6, 0, 0));
+    t_note("sign-algid lookup of SHA256/HMAC -> %s", XFN(CryptXmlFindAlgorithmInfo)(X_FIND_SIGN_ALGID, &p6, 0, 0) ? "found" : "not found");
 }
 
 TEST(xmlsig_algs_find_returns_stable_table_pointers)
