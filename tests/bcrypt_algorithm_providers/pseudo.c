@@ -300,3 +300,50 @@ TEST(ap_pseudo_macros_match_observed_table)
         CHECKF(!lstrcmpW(nm, g_ph[j].name), "macro 0x%lx names %ls (table %s)", (unsigned long)macro[i], nm, g_ph[j].tag);
     }
 }
+
+/* Behaviour, not names: a pseudo handle must select the intended operation. Known-answer checks with published vectors
+ * (FIPS 180-4 / RFC 1321 for "abc"; RFC 4231 case 2, RFC 2202 case 2 for key "Jefe"). */
+static int ap_hex_eq(const UCHAR *got, ULONG n, const char *hex)
+{
+    static const char d[] = "0123456789abcdef";
+    if (strlen(hex) != (size_t)n * 2) return 0;
+    for (ULONG i = 0; i < n; i++)
+        if (hex[2 * i] != d[got[i] >> 4] || hex[2 * i + 1] != d[got[i] & 15]) return 0;
+    return 1;
+}
+TEST(ap_pseudo_plain_hash_known_answers) {
+    REQUIRE(U(BCryptHash));
+    static const struct { BCRYPT_ALG_HANDLE h; ULONG n; const char *hex; const char *tag; } k[] = {
+        { BCRYPT_MD5_ALG_HANDLE,    16, "900150983cd24fb0d6963f7d28e17f72", "MD5" },
+        { BCRYPT_SHA1_ALG_HANDLE,   20, "a9993e364706816aba3e25717850c26c9cd0d89d", "SHA1" },
+        { BCRYPT_SHA256_ALG_HANDLE, 32, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "SHA256" },
+    };
+    for (int i = 0; i < 3; i++) {
+        UCHAR out[32]; memset(out, 0, sizeof(out));
+        t_label("plain hash pseudo %s", k[i].tag);
+        NT_OK(U(BCryptHash)(k[i].h, NULL, 0, (PUCHAR)"abc", 3, out, k[i].n));
+        CHECKF(ap_hex_eq(out, k[i].n, k[i].hex), "%s(\"abc\") matches the published digest", k[i].tag);
+    }
+}
+TEST(ap_pseudo_hmac_known_answers) {
+    REQUIRE(U(BCryptHash));
+    static const char msg[] = "what do ya want for nothing?";
+    static const struct { BCRYPT_ALG_HANDLE h; ULONG n; const char *hex; const char *tag; } k[] = {
+        { BCRYPT_HMAC_MD5_ALG_HANDLE,    16, "750c783e6ab0b503eaa86e310a5db738", "HMAC-MD5" },
+        { BCRYPT_HMAC_SHA1_ALG_HANDLE,   20, "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79", "HMAC-SHA1" },
+        { BCRYPT_HMAC_SHA256_ALG_HANDLE, 32, "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843", "HMAC-SHA256" },
+    };
+    for (int i = 0; i < 3; i++) {
+        UCHAR out[32], other[32], plain[32];
+        memset(out, 0, sizeof(out)); memset(other, 0, sizeof(other)); memset(plain, 0, sizeof(plain));
+        t_label("HMAC pseudo %s", k[i].tag);
+        NT_OK(U(BCryptHash)(k[i].h, (PUCHAR)"Jefe", 4, (PUCHAR)msg, (ULONG)strlen(msg), out, k[i].n));
+        CHECKF(ap_hex_eq(out, k[i].n, k[i].hex), "%s(Jefe, msg) matches the published MAC", k[i].tag);
+        NT_OK(U(BCryptHash)(k[i].h, (PUCHAR)"Jefd", 4, (PUCHAR)msg, (ULONG)strlen(msg), other, k[i].n));
+        CHECKF(memcmp(out, other, k[i].n) != 0, "%s: a different key gives a different MAC", k[i].tag);
+        /* the keyed handle must not behave as the plain hash of the same message */
+        BCRYPT_ALG_HANDLE ph = (k[i].n == 16) ? BCRYPT_MD5_ALG_HANDLE : (k[i].n == 20) ? BCRYPT_SHA1_ALG_HANDLE : BCRYPT_SHA256_ALG_HANDLE;
+        NT_OK(U(BCryptHash)(ph, NULL, 0, (PUCHAR)msg, (ULONG)strlen(msg), plain, k[i].n));
+        CHECKF(memcmp(out, plain, k[i].n) != 0, "%s differs from the unkeyed hash", k[i].tag);
+    }
+}
