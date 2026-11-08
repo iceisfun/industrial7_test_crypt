@@ -75,7 +75,9 @@ TEST(ew_selfsign_named_key_gets_key_prov_info) {
 }
 TEST(ew_selfsign_unnamed_key_hangs_unless_no_key_info) {
     /* An ephemeral (unnamed) CNG key makes CertCreateSelfSignCertificate block forever; CERT_CREATE_SELFSIGN_NO_KEY_INFO avoids it.
-     * Run in a child with a short budget so the hang is observable and bounded. */
+     * Run in a child with a short budget so the hang is observable and bounded.
+     * Observed on Windows 10 22H2: the child is blocked behind a 'Windows Security' key-access window that nothing answers; the kill after 8 s removes it.
+     * This is the only window this area opens, and it is expected. */
     char a[16];
     REQUIRE(C32(CertCreateSelfSignCertificate));
     t_set_timeout(60);
