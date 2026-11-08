@@ -4,6 +4,7 @@
 #include "t.h"
 #include <wincrypt.h>
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <ncrypt.h>
 #include "nc_vectors.h"
 

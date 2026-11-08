@@ -3,6 +3,7 @@
 #define CR_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <ctype.h>
 
 /* The emulator aborts the process on calls into its unimplemented CNG configuration exports, so every test of this

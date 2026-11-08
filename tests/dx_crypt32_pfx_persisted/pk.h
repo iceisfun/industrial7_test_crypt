@@ -7,6 +7,7 @@
 #include <wincrypt.h>
 #include <ncrypt.h>
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "fixtures.h"

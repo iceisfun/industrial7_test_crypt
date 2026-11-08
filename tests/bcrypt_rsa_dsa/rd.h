@@ -3,6 +3,7 @@
 #define RD_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <stdlib.h>
 #include "vectors.h"
 

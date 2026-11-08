@@ -9,6 +9,7 @@
 #include <softpub.h>
 #include <ncrypt.h>
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <stdint.h>
 
 /* The tested exports are all stubs that abort the process under Wine: REQUIRE also skips there.

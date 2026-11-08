@@ -2,6 +2,7 @@
  * and odd registration ids. */
 #include "ck.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 
 static BCRYPT_ALG_HANDLE bc_open(LPCWSTR alg, ULONG flags) {
     BCRYPT_ALG_HANDLE h = NULL;

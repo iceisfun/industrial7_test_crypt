@@ -3,6 +3,7 @@
  * missing documented export is reported even if the snapshot tables were wrong. */
 #include "exports_common.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <ncrypt.h>
 #include <wincrypt.h>
 

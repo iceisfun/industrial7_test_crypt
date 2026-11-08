@@ -4,6 +4,7 @@
 #define HH_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <stdlib.h>
 #include <wchar.h>
 

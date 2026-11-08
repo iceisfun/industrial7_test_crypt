@@ -5,6 +5,7 @@
 #include "t.h"
 #include <wincrypt.h>
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <ncrypt.h>
 #include <lm.h>
 #define ADV(n) ((__typeof__(&n))t_proc_in("advapi32.dll", #n))

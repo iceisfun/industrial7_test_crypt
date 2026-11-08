@@ -3,6 +3,7 @@
 #define KC_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include "vectors.h"
 
 #define NS_INVALID_PARAMETER  ((NTSTATUS)0xC000000D)

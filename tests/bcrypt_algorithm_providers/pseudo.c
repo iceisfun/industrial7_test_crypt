@@ -224,3 +224,79 @@ TEST(ap_pseudo_hash_oneshot_works) {
     NT_OK(U(BCryptHash)((BCRYPT_ALG_HANDLE)(ULONG_PTR)0x41, NULL, 0, (PUCHAR)"abc", 3, out, 32));
     CHECK(!memcmp(out, kat, 32));
 }
+
+/* The SDK macros (common/bcrypt_handles.h supplies them for headers that lack them) must be the constants the table
+ * above was observed with, and the DLL must accept each as the algorithm it names (ph_check does the property checks). */
+TEST(ap_pseudo_macros_match_observed_table)
+{
+    NEED_CORE();
+    static const ULONG_PTR macro[] = {
+        (ULONG_PTR)BCRYPT_MD2_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_MD4_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_MD5_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_SHA1_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_SHA256_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_SHA384_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_SHA512_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_RC4_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_RNG_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HMAC_MD5_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HMAC_SHA1_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HMAC_SHA256_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HMAC_SHA384_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HMAC_SHA512_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_RSA_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDSA_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_AES_CMAC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_AES_GMAC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HMAC_MD2_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HMAC_MD4_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_3DES_CBC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_3DES_ECB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_3DES_CFB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_3DES_112_CBC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_3DES_112_ECB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_3DES_112_CFB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_AES_CBC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_AES_ECB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_AES_CFB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_AES_CCM_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_AES_GCM_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DES_CBC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DES_ECB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DES_CFB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DESX_CBC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DESX_ECB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DESX_CFB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_RC2_CBC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_RC2_ECB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_RC2_CFB_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DH_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDH_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDH_P256_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDH_P384_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDH_P521_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_DSA_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDSA_P256_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDSA_P384_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_ECDSA_P521_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_RSA_SIGN_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_CAPI_KDF_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_PBKDF2_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_SP800108_CTR_HMAC_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_SP80056A_CONCAT_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_TLS1_1_KDF_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_TLS1_2_KDF_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_XTS_AES_ALG_HANDLE,
+        (ULONG_PTR)BCRYPT_HKDF_ALG_HANDLE,
+    };
+    for (int i = 0; i < (int)(sizeof(macro) / sizeof(macro[0])); i++) {
+        int j, found = 0;
+        for (j = 0; j < NPH; j++) if (g_ph[j].h == macro[i]) { found = 1; break; }
+        CHECKF(found, "macro #%d value 0x%lx is in the observed table", i, (unsigned long)macro[i]);
+        if (!found) continue;
+        WCHAR nm[64]; ULONG cb = 0;
+        NT_OK(ap_getstr((BCRYPT_ALG_HANDLE)macro[i], BCRYPT_ALGORITHM_NAME, nm, 64, &cb));
+        CHECKF(!lstrcmpW(nm, g_ph[j].name), "macro 0x%lx names %ls (table %s)", (unsigned long)macro[i], nm, g_ph[j].tag);
+    }
+}

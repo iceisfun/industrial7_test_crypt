@@ -3,6 +3,7 @@
 #define RNG_COMMON_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 #include <wincrypt.h>
 
 #define NS_SUCCESS            ((LONG)0x00000000)

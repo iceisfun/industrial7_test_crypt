@@ -3,6 +3,7 @@
 #define CFG_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 
 UDECL(NTSTATUS, BCryptRegisterProvider, (LPCWSTR, ULONG, PCRYPT_PROVIDER_REG));
 UDECL(NTSTATUS, BCryptUnregisterProvider, (LPCWSTR));

@@ -2,6 +2,7 @@
  * ephemeral CNG keys (NCryptCreatePersistedKey with a NULL name) or BCrypt key handles. */
 #include "ccp.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 
 typedef struct { NCRYPT_PROV_HANDLE prov; NCRYPT_KEY_HANDLE key; } EKEY;
 /* NOTE: on Win10 CertCreateSelfSignCertificate never returns for an unnamed (ephemeral) CNG key unless

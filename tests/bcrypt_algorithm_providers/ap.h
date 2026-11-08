@@ -4,6 +4,7 @@
 #define AP_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 
 /* NTSTATUS values used by the tests (own names, independent of header availability) */
 #define AP_OK            ((NTSTATUS)0x00000000L)

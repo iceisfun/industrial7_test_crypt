@@ -6,6 +6,7 @@
 #define XML_H
 #include "t.h"
 #include <bcrypt.h>
+#include "bcrypt_handles.h"
 
 typedef HANDLE HCX;
 
